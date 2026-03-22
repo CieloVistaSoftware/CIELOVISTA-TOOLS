@@ -1,0 +1,11 @@
+{
+  "cielovistaTools.npmScriptDescriptions": {
+    "package.json::compile": "Compile TypeScript project using tsconfig.json",
+    "package.json::watch": "Compile TypeScript in watch mode",
+    "package.json::build": "Build alias that runs compile",
+    "package.json::package": "Create VSIX package for the extension",
+    "package.json::rebuild": "Compile, package, and install extension locally",
+    "package.json::start": "Start local extension rebuild workflow",
+    "package.json::vscode:prepublish": "Prepublish hook to compile before packaging"
+  }
+}

@@ -1,0 +1,95 @@
+
+CieloVista Tools — Button Click Test
+══════════════════════════════════════════════════════════════════════
+  Catalog entries: 77
+  Commands registered at runtime: 87
+──────────────────────────────────────────────────────────────────────
+  #    Status    Duration   Command ID                                   Title
+──────────────────────────────────────────────────────────────────────
+    1  ✅ pass     565ms      cvs.catalog.open                              Open Doc Catalog
+    2  ✅ pass     325ms      cvs.catalog.rebuild                           Rebuild Doc Catalog
+    3  ✅ pass     12ms       cvs.catalog.view                              View a Doc
+    4  ✅ pass     7ms        cvs.docs.openGlobal                           Open Global Standards Doc
+    5  ✅ pass     12ms       cvs.docs.openProject                          Open Project Doc
+    6  ✅ pass     1ms        cvs.docs.searchAll                            Search All Docs
+    7  ✅ pass     1ms        cvs.docs.newGlobal                            New Global Standards Doc
+    8  ✅ pass     0ms        cvs.docs.newProjectDoc                        New Project Doc
+    9  ✅ pass     6ms        cvs.docs.syncCheck                            Sync Check
+   10  ✅ pass     0ms        cvs.docs.openRegistry                         Open Project Registry
+   11  ✅ pass     0ms        cvs.docs.addProject                           Add Project to Registry
+   12  ✅ pass     20ms       cvs.audit.codebase                            🔬 Codebase Health Audit
+   13  ✅ pass     42918ms    cvs.docs.intelligence                         🧠 Doc Intelligence
+   14  ✅ pass     39ms       cvs.audit.runDaily                            Run Daily Health Check
+   15  ✅ pass     25634ms    cvs.audit.docs                                Run Full Docs Audit
+   16  ✅ pass     29648ms    cvs.audit.walkthrough                         Walk Through Findings
+   17  ✅ pass     40604ms    cvs.audit.findDuplicates                      Find Duplicate Filenames
+   18  ✅ pass     26960ms    cvs.audit.findSimilar                         Find Similar Content
+   19  ✅ pass     47593ms    cvs.audit.findOrphans                         Find Orphaned Docs
+   20  ✅ pass     2ms        cvs.audit.actOnReport                         Act on Audit Report
+   21  ✅ pass     0ms        cvs.audit.openReport                          Open Past Audit Report
+   22  ✅ pass     366ms      cvs.audit.mergeFiles                          Merge Docs Together
+   23  ✅ pass     307ms      cvs.audit.moveToGlobal                        Move Doc to Global Standards
+   24  ✅ pass     237ms      cvs.audit.codeHighlight                       ✨ Code Highlight Audit
+   25  ✅ pass     260ms      cvs.headers.scan                              Scan Doc Headers
+   26  ✅ pass     11ms       cvs.audit.jsErrors                            🛡️ JS Error Handling Audit
+   27  ✅ pass     161ms      cvs.audit.testCoverage                        Audit: Test Coverage Dashboard
+   28  ✅ pass     151ms      cvs.audit.testCoverage.refresh                Audit: Refresh Test Coverage
+   29  ✅ pass     1ms        cvs.audit.testCoverage.export                 Audit: Export Coverage Report
+   30  ✅ pass     36283ms    cvs.consolidate.run                           Run Consolidation Wizard
+   31  ✅ pass     50041ms    cvs.consolidate.byName                        Consolidate by Filename
+   32  ✅ pass     41810ms    cvs.consolidate.byContent                     Consolidate by Content
+   33  ✅ pass     1ms        cvs.consolidate.log                           Open Consolidation Log
+   34  ✅ pass     730ms      cvs.readme.scan                               Scan README Compliance
+   35  ✅ pass     0ms        cvs.readme.fix                                Fix a Non-Compliant README
+   36  ✅ pass     1ms        cvs.readme.fixAll                             Fix All Non-Compliant READMEs
+   37  ✅ pass     0ms        cvs.readme.new                                New README from Template
+   38  ✅ pass     1ms        cvs.readme.viewStandard                       View README Standard
+   39  ✅ pass     22ms       cvs.readme.generate.scan                      Scan for Missing READMEs
+   40  ✅ pass     885ms      cvs.readme.generate.run                       Generate All Missing READMEs (AI)
+   41  ✅ pass     13ms       cvs.readme.generate.single                    Generate Single README (AI)
+   42  ✅ pass     18ms       cvs.license.sync                              📄 License Sync
+   43  ✅ pass     22ms       cvs.marketplace.scan                          Scan Marketplace Compliance
+   44  ✅ pass     1ms        cvs.marketplace.fixAll                        Fix All Marketplace Issues
+   45  ✅ pass     16ms       cvs.marketplace.fixOne                        Fix One Project
+   46  ✅ pass     22ms       cvs.launch.pick                               Pick Any Project Action
+   47  ✅ pass     1ms        cvs.launch.snapit.start                       SnapIt — Start Service
+   48  ✅ pass     0ms        cvs.launch.snapit.tray                        SnapIt — Launch Tray
+   49  ✅ pass     1ms        cvs.launch.snapit.rebuild                     SnapIt — Rebuild + Launch Tray
+   50  ✅ pass     0ms        cvs.launch.snapit.build                       SnapIt — Build
+   51  ✅ pass     0ms        cvs.launch.snapit.stop                        SnapIt — Stop Service
+   52  ✅ pass     1ms        cvs.launch.diskcleanup.start                  DiskCleanUp — Start Service
+   53  ✅ pass     0ms        cvs.launch.diskcleanup.console                DiskCleanUp — Console Mode
+   54  ✅ pass     0ms        cvs.launch.diskcleanup.build                  DiskCleanUp — Build
+   55  ✅ pass     0ms        cvs.launch.diskcleanup.stop                   DiskCleanUp — Stop Service
+   56  ✅ pass     2ms        cvs.copilotRules.enable                       Copilot Rules: Enable
+   57  ✅ pass     3ms        cvs.copilotRules.disable                      Copilot Rules: Disable
+   58  ✅ pass     1ms        cvs.copilotRules.reload                       Copilot Rules: Reload
+   59  ✅ pass     3ms        cvs.copilotRules.view                         Copilot Rules: View Current
+   60  ✅ pass     0ms        cvs.copilot.openSuggestedFile                 Copilot: Open Suggested File
+   61  ✅ pass     1ms        cvs.terminal.copyOutputClipboard              Copy Terminal Output
+   62  ✅ pass     0ms        cvs.terminal.pasteOutputToChat                Paste Output to Chat
+   63  ✅ pass     0ms        cvs.terminal.setFolder                        Set Terminal Working Directory
+   64  ✅ pass     2ms        cvs.terminal.jumpToLastFolder                 Jump to Last Known Folder
+   65  ✅ pass     1ms        cvs.terminal.togglePromptLength               Toggle Prompt Length
+   66  ✅ pass     0ms        cvs.cssClassHover.enable                      CSS Class Hover: Enable
+   67  ✅ pass     0ms        cvs.python.runFile                            Python: Run File in Terminal
+   68  ✅ pass     0ms        cvs.openai.explain                            OpenAI: Explain Code
+   69  ✅ pass     0ms        cvs.openai.refactor                           OpenAI: Refactor Code
+   70  ✅ pass     0ms        cvs.openai.generateDocstring                  OpenAI: Generate Docstring
+   71  ✅ pass     0ms        cvs.openai.openChat                           OpenAI: Open Chat Panel
+   72  ✅ pass     1ms        cvs.npm.showAndRunScripts                     NPM Scripts: Show and Run
+   73  ✅ pass     1ms        cvs.mcp.createServer                          MCP Server: Create
+   74  ✅ pass     0ms        cvs.explorer.openFolderAsRoot                 Open Folder as Root
+   75  ✅ pass     1ms        cvs.features.configure                        Configure Enabled Features
+   76  ✅ pass     1ms        cvs.health.fixBugs                            🐛 Fix Bugs
+   77  ✅ pass     6ms        cvs.tools.errorLog                            Tools Error Log
+══════════════════════════════════════════════════════════════════════
+
+  Total:    77
+  ✅ Pass:   77
+
+  ALL BUTTONS FUNCTIONAL ✅
+
+  Results written → C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\data\button-click-results.json
+
+Exit code: 0 

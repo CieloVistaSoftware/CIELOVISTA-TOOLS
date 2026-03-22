@@ -1,0 +1,7 @@
+{
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "file": "copilot-rules.md"
+    }
+  ]
+}

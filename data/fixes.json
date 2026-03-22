@@ -1,0 +1,17 @@
+[
+  {
+    "id": "FIX-001",
+    "title": "REGRESSION: All audit tools broken — extension failed to activate",
+    "category": "regression",
+    "severity": "critical",
+    "completedDate": "2026-03-18",
+    "session": "Session 7",
+    "description": "Root cause: 'import MarkdownIt from markdown-it' was added to doc-preview.ts as a Node-side import. The extension uses 'vsce package --no-dependencies' so markdown-it was NOT included in the VSIX. On load, Node's require() threw MODULE_NOT_FOUND, crashing the entire extension host. ALL registered commands became unavailable — every audit tool, launcher, doc catalog, npm scripts, everything. The import was introduced when attempting to upgrade mdToHtml() from a regex chain to a real parser. Fix: removed the Node-side import entirely. markdown-it is now loaded from cdnjs in the webview HTML (same CDN pattern as highlight.js). Rendering happens client-side via window.markdownit(). Package.json dependencies block cleaned up.",
+    "howItHappened": "During markdown-it install, 'npm install @types/markdown-it --save-dev' ran in the wrong directory (DiskCleanUp instead of cielovista-tools), wiping 303 packages. Recovery 'npm install markdown-it @types/markdown-it' only restored 6 packages and added markdown-it to 'dependencies' instead of devDependencies. The import was then added to doc-preview.ts without realising --no-dependencies packaging would exclude it.",
+    "whenItHappened": "2026-03-18, this session, after the markdown-it integration attempt",
+    "filesChanged": [
+      "src/shared/doc-preview.ts — removed import, switched to CDN client-side render",
+      "package.json — removed markdown-it and @types/markdown-it from dependencies"
+    ]
+  }
+]

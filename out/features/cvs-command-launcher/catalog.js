@@ -1,0 +1,128 @@
+"use strict";
+// Copyright (c) 2025 CieloVista Software. All rights reserved.
+// Unauthorized copying or distribution of this file is strictly prohibited.
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CATALOG = exports.README = void 0;
+exports.allTags = allTags;
+exports.allGroups = allGroups;
+exports.esc = esc;
+// Base path for feature README files
+const F = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\src\\features\\';
+const README = (name) => `${F}${name}.README.md`;
+exports.README = README;
+exports.CATALOG = [
+    // ── Doc Catalog  (000) — global ───────────────────────────────────────────
+    { id: 'cvs.catalog.open', title: 'Open Doc Catalog', description: 'Browse all docs and projects in a card catalog.', tags: ['browse docs', 'find files', 'catalog'], group: 'Doc Catalog', groupIcon: '📚', dewey: '000.100', scope: 'global', auditCheckId: 'claudeCoverage' },
+    { id: 'cvs.catalog.rebuild', title: 'Rebuild Doc Catalog', description: 'Force a full rescan of all projects.', tags: ['refresh', 'rescan', 'catalog'], group: 'Doc Catalog', groupIcon: '📚', dewey: '000.101', scope: 'global', nextAction: 'cvs.catalog.open' },
+    { id: 'cvs.catalog.view', title: 'View a Doc', description: 'Browse all docs and open any .md file in the viewer.', tags: ['open markdown', 'browse', 'view'], group: 'Doc Catalog', groupIcon: '📚', dewey: '000.102', scope: 'global', action: 'read' },
+    // ── Docs Manager  (800) — global ──────────────────────────────────────────
+    { id: 'cvs.docs.openGlobal', title: 'Open Global Standards Doc', description: 'Browse and open any file from CieloVistaStandards.', tags: ['global standards', 'open doc', 'browse'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.100', scope: 'global', action: 'read', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.openProject', title: 'Open Project Doc', description: 'Browse a project and open one of its docs.', tags: ['project docs', 'open', 'browse'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.101', scope: 'global', action: 'read', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.searchAll', title: 'Search All Docs', description: 'Full-text search across every .md file.', tags: ['search', 'find text', 'grep'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.102', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.newGlobal', title: 'New Global Standards Doc', description: 'Create a new doc in CieloVistaStandards.', tags: ['create', 'new doc', 'global'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.103', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.newProjectDoc', title: 'New Project Doc', description: 'Create a new doc inside any registered project.', tags: ['create', 'new doc', 'project'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.104', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.syncCheck', title: 'Sync Check', description: 'Show which projects are missing key docs.', tags: ['health check', 'missing files', 'audit'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.105', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.openRegistry', title: 'Open Project Registry', description: 'Open the project-registry.json.', tags: ['registry', 'projects list', 'config'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.106', scope: 'global', action: 'read', auditCheckId: 'registryHealth', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.docs.addProject', title: 'Add Project to Registry', description: 'Register a new project folder.', tags: ['add project', 'register', 'setup'], group: 'Docs Manager', groupIcon: '📁', dewey: '800.107', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    // ── Doc Audit  (900) — mixed ──────────────────────────────────────────────
+    { id: 'cvs.audit.codebase', title: '🔬 Codebase Health Audit', description: 'Scan the tools codebase for monoliths, duplicate functions, One-Time-One-Place violations, dead files, missing READMEs, and more.', tags: ['codebase', 'audit', 'health', 'monolith', 'split', 'duplicate', 'one-time-one-place', 'dead code'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.003', scope: 'tools' },
+    { id: 'cvs.docs.intelligence', title: '🧠 Doc Intelligence', description: 'One command: scan all docs, see every issue, accept or skip each fix.', tags: ['intelligence', 'unified', 'audit', 'fix', 'docs', 'smart'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.000', scope: 'global' },
+    { id: 'cvs.audit.runDaily', title: 'Run Daily Health Check', description: 'Check marketplace, README, CLAUDE.md, changelog across all projects.', tags: ['audit', 'health', 'daily', 'check'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.001', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.docs', title: 'Run Full Docs Audit', description: 'Scan all docs for duplicates, orphans, and misplaced files.', tags: ['audit', 'duplicates', 'orphans'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.100', scope: 'global', auditCheckId: 'registryHealth', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.walkthrough', title: 'Walk Through Findings', description: 'Step through every audit finding one at a time.', tags: ['walkthrough', 'fix issues', 'guided'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.101', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.findDuplicates', title: 'Find Duplicate Filenames', description: 'Show all docs that share the same filename.', tags: ['duplicates', 'same file', 'cleanup'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.102', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.findSimilar', title: 'Find Similar Content', description: 'Find pairs of docs with overlapping content.', tags: ['similar', 'overlap', 'merge'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.103', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.findOrphans', title: 'Find Orphaned Docs', description: 'Find docs that no other file links to.', tags: ['orphans', 'unreferenced', 'cleanup'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.104', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.actOnReport', title: 'Act on Audit Report', description: 'Pick a saved audit report and execute its actions.', tags: ['report', 'fix', 'actions'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.105', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.openReport', title: 'Open Past Audit Report', description: 'Browse and open a previously saved audit report.', tags: ['report', 'history', 'view'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.106', scope: 'global', action: 'read', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.mergeFiles', title: 'Merge Docs Together', description: 'Combine two or more docs into one file.', tags: ['merge', 'combine', 'consolidate'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.107', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.moveToGlobal', title: 'Move Doc to Global Standards', description: 'Move a project-local doc to CieloVistaStandards.', tags: ['move', 'global', 'standards'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.108', scope: 'global', helpDoc: (0, exports.README)('doc-auditor') },
+    { id: 'cvs.audit.codeHighlight', title: '✨ Code Highlight Audit', description: 'Scan all docs for fenced code blocks missing a language tag. Shows file, line, guessed language, and jump-to-line fix.', tags: ['code', 'highlight', 'syntax', 'audit', 'fenced', 'markdown', 'language tag'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.201', scope: 'global' },
+    { id: 'cvs.headers.scan', title: 'Scan Doc Headers', description: 'Scan all docs and show header compliance report (frontmatter, status, missing fields).', tags: ['scan', 'header', 'frontmatter', 'compliance', 'docs'], group: 'Doc Audit', groupIcon: '📝', dewey: '900.200', scope: 'global', helpDoc: (0, exports.README)('doc-header-scan') },
+    // ── Tests  (1000) — mixed ─────────────────────────────────────────────────
+    { id: 'cvs.audit.jsErrors', title: '🛡️ JS Error Handling Audit', description: 'Find JS files with missing try/catch, bare catch{} blocks, or unwired ErrLog. One-click AI fix with diff review.', tags: ['js', 'error handling', 'try catch', 'errlog', 'violations', 'diskcleanup', 'audit', 'fix', 'ai'], group: 'Tests', groupIcon: '🧪', dewey: '1000.000', scope: 'diskcleanup' },
+    { id: 'cvs.audit.testCoverage', title: 'Audit: Test Coverage Dashboard', description: 'Interactive dashboard showing test coverage by tier with one-click unit test generation.', tags: ['test', 'audit', 'coverage', 'dashboard', 'unit tests', 'playwright', 'jest'], group: 'Tests', groupIcon: '🧪', dewey: '1000.001', scope: 'workspace', auditCheckId: 'testCoverage' },
+    { id: 'cvs.audit.testCoverage.refresh', title: 'Audit: Refresh Test Coverage', description: 'Re-run the test coverage audit and update metrics.', tags: ['test', 'refresh', 'coverage', 'playwright'], group: 'Tests', groupIcon: '🧪', dewey: '1000.002', scope: 'workspace' },
+    { id: 'cvs.audit.testCoverage.export', title: 'Audit: Export Coverage Report', description: 'Save and open the test coverage report as markdown.', tags: ['test', 'export', 'report', 'playwright'], group: 'Tests', groupIcon: '🧪', dewey: '1000.003', scope: 'workspace' },
+    // ── Consolidator  (900) — global ──────────────────────────────────────────
+    { id: 'cvs.consolidate.run', title: 'Run Consolidation Wizard', description: 'Find and consolidate duplicate docs.', tags: ['one place', 'deduplicate', 'consolidate'], group: 'Consolidator', groupIcon: '🗜️', dewey: '950.100', scope: 'global', helpDoc: (0, exports.README)('doc-consolidator') },
+    { id: 'cvs.consolidate.byName', title: 'Consolidate by Filename', description: 'Find docs that share the same filename.', tags: ['same name', 'duplicate', 'merge'], group: 'Consolidator', groupIcon: '🗜️', dewey: '950.101', scope: 'global', helpDoc: (0, exports.README)('doc-consolidator') },
+    { id: 'cvs.consolidate.byContent', title: 'Consolidate by Content', description: 'Find docs with similar content regardless of filename.', tags: ['similar content', 'overlap', 'merge'], group: 'Consolidator', groupIcon: '🗜️', dewey: '950.102', scope: 'global', helpDoc: (0, exports.README)('doc-consolidator') },
+    { id: 'cvs.consolidate.log', title: 'Open Consolidation Log', description: 'View the record of every consolidation action.', tags: ['history', 'log', 'audit trail'], group: 'Consolidator', groupIcon: '🗜️', dewey: '950.103', scope: 'global', action: 'read', helpDoc: (0, exports.README)('doc-consolidator') },
+    // ── README Tools  (400) — global ──────────────────────────────────────────
+    { id: 'cvs.readme.scan', title: 'Scan README Compliance', description: 'Score every README.md against the CieloVista standard.', tags: ['readme', 'compliance', 'score'], group: 'README Tools', groupIcon: '📋', dewey: '400.100', scope: 'global', auditCheckId: 'readmeQuality', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.fix', title: 'Fix a Non-Compliant README', description: 'Pick one README and auto-add missing sections.', tags: ['fix readme', 'auto-fix', 'sections'], group: 'README Tools', groupIcon: '📋', dewey: '400.101', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.fixAll', title: 'Fix All Non-Compliant READMEs', description: 'Auto-fix every non-compliant README at once.', tags: ['fix all', 'auto-fix', 'bulk'], group: 'README Tools', groupIcon: '📋', dewey: '400.102', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.new', title: 'New README from Template', description: 'Create a brand-new compliant README.', tags: ['new readme', 'template', 'create'], group: 'README Tools', groupIcon: '📋', dewey: '400.103', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.viewStandard', title: 'View README Standard', description: 'Open the CieloVista README standard document.', tags: ['standard', 'rules', 'reference'], group: 'README Tools', groupIcon: '📋', dewey: '400.104', scope: 'global', action: 'read', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.generate.scan', title: 'Scan for Missing READMEs', description: 'Show which projects are missing a README.md.', tags: ['missing readme', 'scan', 'projects'], group: 'README Tools', groupIcon: '📋', dewey: '400.105', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.generate.run', title: 'Generate All Missing READMEs (AI)', description: 'Use AI to write a README for every project missing one.', tags: ['ai generate', 'missing', 'auto'], group: 'README Tools', groupIcon: '📋', dewey: '400.106', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.readme.generate.single', title: 'Generate Single README (AI)', description: 'Let AI generate a README for one project.', tags: ['ai generate', 'single', 'create'], group: 'README Tools', groupIcon: '📋', dewey: '400.107', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    // ── Marketplace  (300) — global ───────────────────────────────────────────
+    { id: 'cvs.license.sync', title: '📄 License Sync', description: 'Update LICENSE files across all projects from one canonical source.', tags: ['license', 'copyright', 'legal', 'sync', 'update all'], group: 'Marketplace', groupIcon: '🛒', dewey: '300.099', scope: 'global' },
+    { id: 'cvs.marketplace.scan', title: 'Scan Marketplace Compliance', description: 'Check every project for marketplace readiness.', tags: ['marketplace', 'publish', 'compliance'], group: 'Marketplace', groupIcon: '🛒', dewey: '300.100', scope: 'global', auditCheckId: 'marketplace', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.marketplace.fixAll', title: 'Fix All Marketplace Issues', description: 'Auto-create missing LICENSE, CHANGELOG, icon.png.', tags: ['auto-fix', 'license', 'icon'], group: 'Marketplace', groupIcon: '🛒', dewey: '300.101', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    { id: 'cvs.marketplace.fixOne', title: 'Fix One Project', description: 'Pick a project and fix its marketplace issues.', tags: ['fix', 'single project', 'publish'], group: 'Marketplace', groupIcon: '🛒', dewey: '300.102', scope: 'global', helpDoc: (0, exports.README)('docs-manager') },
+    // ── Project Launcher  (300) — mixed ───────────────────────────────────────
+    { id: 'cvs.launch.pick', title: 'Pick Any Project Action', description: 'Quick-pick of every start/build/stop action.', tags: ['launch', 'run project', 'start'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.200', scope: 'global' },
+    { id: 'cvs.launch.snapit.start', title: 'SnapIt — Start Service', description: 'Start the SnapIt capture service on port 5200.', tags: ['snapit', 'start service', 'capture'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.201', scope: 'global' },
+    { id: 'cvs.launch.snapit.tray', title: 'SnapIt — Launch Tray', description: 'Launch the SnapIt system tray app.', tags: ['snapit', 'tray', 'hotkey'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.202', scope: 'global' },
+    { id: 'cvs.launch.snapit.rebuild', title: 'SnapIt — Rebuild + Launch Tray', description: 'Rebuild the SnapIt tray and launch it.', tags: ['snapit', 'rebuild', 'tray'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.203', scope: 'global' },
+    { id: 'cvs.launch.snapit.build', title: 'SnapIt — Build', description: 'Build the SnapIt solution.', tags: ['snapit', 'build', 'dotnet'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.204', scope: 'global' },
+    { id: 'cvs.launch.snapit.stop', title: 'SnapIt — Stop Service', description: 'Kill whatever is running on port 5200.', tags: ['snapit', 'stop', 'kill port'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.205', scope: 'global' },
+    { id: 'cvs.launch.diskcleanup.start', title: 'DiskCleanUp — Start Service', description: 'Start DiskCleanUp as a Windows service.', tags: ['diskcleanup', 'start service', 'windows'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.206', scope: 'diskcleanup' },
+    { id: 'cvs.launch.diskcleanup.console', title: 'DiskCleanUp — Console Mode', description: 'Run DiskCleanUp in console/dev mode.', tags: ['diskcleanup', 'dev mode', 'console'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.207', scope: 'diskcleanup' },
+    { id: 'cvs.launch.diskcleanup.build', title: 'DiskCleanUp — Build', description: 'Build the DiskCleanUp solution.', tags: ['diskcleanup', 'build', 'dotnet'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.208', scope: 'diskcleanup' },
+    { id: 'cvs.launch.diskcleanup.stop', title: 'DiskCleanUp — Stop Service', description: 'Kill whatever is running on port 5100.', tags: ['diskcleanup', 'stop', 'kill port'], group: 'Project Launcher', groupIcon: '🚀', dewey: '300.209', scope: 'diskcleanup' },
+    // ── Copilot Tools  (600) — workspace ──────────────────────────────────────
+    { id: 'cvs.copilotRules.enable', title: 'Copilot Rules: Enable', description: 'Inject copilot-rules.md into workspace settings.', tags: ['copilot', 'rules', 'enable'], group: 'Copilot Tools', groupIcon: '🤖', dewey: '600.100', scope: 'workspace', helpDoc: (0, exports.README)('copilot-rules-enforcer') },
+    { id: 'cvs.copilotRules.disable', title: 'Copilot Rules: Disable', description: 'Remove copilot rules from workspace settings.', tags: ['copilot', 'rules', 'disable'], group: 'Copilot Tools', groupIcon: '🤖', dewey: '600.101', scope: 'workspace', helpDoc: (0, exports.README)('copilot-rules-enforcer') },
+    { id: 'cvs.copilotRules.reload', title: 'Copilot Rules: Reload', description: 'Re-read copilot-rules.md and apply updated rules.', tags: ['copilot', 'reload', 'refresh'], group: 'Copilot Tools', groupIcon: '🤖', dewey: '600.102', scope: 'workspace', helpDoc: (0, exports.README)('copilot-rules-enforcer') },
+    { id: 'cvs.copilotRules.view', title: 'Copilot Rules: View Current', description: 'Open a webview showing your current Copilot rules.', tags: ['copilot', 'view rules', 'read'], group: 'Copilot Tools', groupIcon: '🤖', dewey: '600.103', scope: 'workspace', action: 'read', helpDoc: (0, exports.README)('copilot-rules-enforcer') },
+    { id: 'cvs.copilot.openSuggestedFile', title: 'Copilot: Open Suggested File', description: 'Extract a file path from the Copilot response and open it.', tags: ['copilot', 'open file', 'path'], group: 'Copilot Tools', groupIcon: '🤖', dewey: '600.104', scope: 'workspace', helpDoc: (0, exports.README)('copilot-open-suggested-file') },
+    // ── Terminal Tools  (600) — workspace ─────────────────────────────────────
+    { id: 'cvs.terminal.copyOutputClipboard', title: 'Copy Terminal Output', description: 'Copy the last terminal output to clipboard.', tags: ['terminal', 'copy output', 'clipboard'], group: 'Terminal Tools', groupIcon: '⚡', dewey: '600.200', scope: 'workspace', helpDoc: (0, exports.README)('terminal-copy-output') },
+    { id: 'cvs.terminal.pasteOutputToChat', title: 'Paste Output to Chat', description: 'Send last terminal output to Copilot Chat.', tags: ['terminal', 'copilot chat', 'paste'], group: 'Terminal Tools', groupIcon: '⚡', dewey: '600.201', scope: 'workspace', helpDoc: (0, exports.README)('terminal-copy-output') },
+    { id: 'cvs.terminal.setFolder', title: 'Set Terminal Working Directory', description: 'Right-click a folder to cd the terminal there.', tags: ['terminal', 'change folder', 'cd'], group: 'Terminal Tools', groupIcon: '⚡', dewey: '600.202', scope: 'workspace', helpDoc: (0, exports.README)('terminal-set-folder') },
+    { id: 'cvs.terminal.jumpToLastFolder', title: 'Jump to Last Known Folder', description: 'Jump the terminal back to the last folder.', tags: ['terminal', 'history', 'navigate'], group: 'Terminal Tools', groupIcon: '⚡', dewey: '600.203', scope: 'workspace', helpDoc: (0, exports.README)('terminal-folder-tracker') },
+    { id: 'cvs.terminal.togglePromptLength', title: 'Toggle Prompt Length', description: 'Switch PowerShell prompt between full path and >.', tags: ['terminal', 'prompt', 'shorten'], group: 'Terminal Tools', groupIcon: '⚡', dewey: '600.204', scope: 'workspace', helpDoc: (0, exports.README)('terminal-prompt-shortener') },
+    // ── Other Tools  (600) — mixed ────────────────────────────────────────────
+    { id: 'cvs.cssClassHover.enable', title: 'CSS Class Hover: Enable', description: 'Hover over a CSS class name to see its definition.', tags: ['css', 'hover', 'preview'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.300', scope: 'workspace', helpDoc: (0, exports.README)('css-class-hover') },
+    { id: 'cvs.python.runFile', title: 'Python: Run File in Terminal', description: 'Right-click any .py file and run it.', tags: ['python', 'run', 'execute'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.301', scope: 'workspace', helpDoc: (0, exports.README)('python-runner') },
+    { id: 'cvs.openai.explain', title: 'OpenAI: Explain Code', description: 'Send selected code to OpenAI for an explanation.', tags: ['openai', 'explain', 'ai'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.302', scope: 'workspace', helpDoc: (0, exports.README)('openai-chat') },
+    { id: 'cvs.openai.refactor', title: 'OpenAI: Refactor Code', description: 'Send selected code to OpenAI for a refactored version.', tags: ['openai', 'refactor', 'ai'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.303', scope: 'workspace', helpDoc: (0, exports.README)('openai-chat') },
+    { id: 'cvs.openai.generateDocstring', title: 'OpenAI: Generate Docstring', description: 'Generate a JSDoc for the selected function via OpenAI.', tags: ['openai', 'docs', 'ai'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.304', scope: 'workspace', helpDoc: (0, exports.README)('openai-chat') },
+    { id: 'cvs.openai.openChat', title: 'OpenAI: Open Chat Panel', description: 'Open a full OpenAI chat panel inside VS Code.', tags: ['openai', 'chat', 'ai'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.305', scope: 'workspace', helpDoc: (0, exports.README)('openai-chat') },
+    { id: 'cvs.npm.showAndRunScripts', title: 'NPM Scripts: Show and Run', description: 'Browse and run npm scripts from package.json.', tags: ['npm', 'scripts', 'run'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.306', scope: 'workspace', helpDoc: (0, exports.README)('npm-command-launcher') },
+    { id: 'cvs.mcp.createServer', title: 'MCP Server: Create', description: 'Scaffold a new MCP server project.', tags: ['mcp', 'create server', 'scaffold'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.307', scope: 'workspace' },
+    // ── MCP Server Control (600) — workspace ────────────────────────────────
+    { id: 'cvs.mcp.startServer', title: 'MCP Server: Start/Stop', description: 'Start or stop the MCP server (dist/index.js) and show real-time status.', tags: ['mcp', 'server', 'start', 'stop', 'status'], group: 'Other Tools', groupIcon: '🟢', dewey: '600.310', scope: 'workspace' },
+    { id: 'cvs.explorer.openFolderAsRoot', title: 'Open Folder as Root', description: 'Open any folder as the VS Code workspace root.', tags: ['open folder', 'workspace', 'root'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.308', scope: 'workspace' },
+    { id: 'cvs.features.configure', title: 'Configure Enabled Features', description: 'Toggle individual CieloVista features on or off.', tags: ['settings', 'toggle', 'configure'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.309', scope: 'global' },
+    { id: 'cvs.health.fixBugs', title: '🐛 Fix Bugs', description: 'Background health runner continuously checks the extension for issues. Click to see all bugs found, their priority, and auto-fix options.', tags: ['bugs', 'health', 'fix', 'background', 'monitor'], group: 'Other Tools', groupIcon: '🧨', dewey: '600.311', scope: 'global' },
+    { id: 'cvs.tools.errorLog', title: 'Tools Error Log', action: 'read', description: 'View all errors logged by CieloVista Tools features — with full stack traces, command IDs, and context.', tags: ['errors', 'log', 'debug', 'stack trace', 'diagnostics'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.312', scope: 'tools' },
+];
+function allTags() {
+    const seen = new Set();
+    const tags = [];
+    for (const cmd of exports.CATALOG) {
+        for (const t of cmd.tags) {
+            if (!seen.has(t)) {
+                seen.add(t);
+                tags.push(t);
+            }
+        }
+    }
+    return tags.sort();
+}
+function allGroups() {
+    const groups = [...new Set(exports.CATALOG.map(c => c.group))];
+    if (exports.CATALOG.some(c => c.tags.includes('test')) && !groups.includes('Tests')) {
+        groups.push('Tests');
+    }
+    return groups;
+}
+function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+//# sourceMappingURL=catalog.js.map

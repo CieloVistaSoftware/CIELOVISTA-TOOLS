@@ -1,0 +1,31 @@
+# Source — compiled to out/ already
+src/**
+
+# Tests — not needed at runtime
+tests/**
+playwright.config.ts
+playwright-report/**
+
+# MCP server — separate process, not part of the extension
+mcp-server/**
+
+# Dev scripts — not needed at runtime
+scripts/**
+fix-catalog.js
+fix-imports.js
+patch-help-docs.js
+install.js
+
+# Build artifacts and temp files
+!node_modules/diff/**
+node_modules/**
+Downloads/**
+data/**
+*.vsix
+
+# Config and meta files not needed in extension
+.vscode/**
+tsconfig.json
+package-lock.json
+config.json
+CLAUDE.md

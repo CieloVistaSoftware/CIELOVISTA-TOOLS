@@ -1,0 +1,37 @@
+{
+  // CieloVista Tools global configuration
+  "projectDiscovery": "registry", // "registry" or "auto-scan"
+  "defaultProjectRoot": "./projects",
+
+  // Feature toggles
+  "enableCopilotRules": true,
+  "enableCopilotOpenSuggested": true,
+  "enableTerminalCopy": true,
+  "enableTerminalSetFolder": true,
+  "enableTerminalFolderTracker": true,
+  "enableCssClassHover": true,
+  "enableDocAuditor": true,
+  "enableDailyAudit": true,
+  "enableDocConsolidator": true,
+  "enableDocCatalog": true,
+  "enableProjectLauncher": true,
+  "enableCvsCommandLauncher": true,
+  "enableProjectHomeOpener": true,
+  "enableNpmCommandLauncher": true,
+  "enableOpenFolderAsRoot": true,
+  "enableTestCoverageAuditor": true,
+
+  // Audit and catalog options
+  "auditCoverageThreshold": 80,
+  "docCatalogSort": "alpha", // "alpha" or "recent"
+
+  // AI provider keys
+  "anthropicApiKey": "",
+  "openaiApiKey": "",
+
+  // Custom commands
+  "customCommands": [],
+
+  // Notes/help
+  "notes": "Edit this file using the Config Editor (cvs.configEditor) or manually."
+}

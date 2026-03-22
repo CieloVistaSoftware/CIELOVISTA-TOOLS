@@ -1,0 +1,12 @@
+const fs = require('fs');
+const src = fs.readFileSync('C:/Users/jwpmi/Downloads/VSCode/projects/cielovista-tools/src/features/cvs-command-launcher/html.ts', 'utf8');
+const lines = src.split('\n');
+console.log('Total lines:', lines.length);
+const cssStart  = lines.findIndex(l => l.includes("const CSS = \`"));
+const jsStart   = lines.findIndex(l => l.includes("const JS = \`"));
+const retStart  = lines.findIndex(l => l.includes('return `<!DOCTYPE'));
+const exportFn  = lines.findIndex(l => l.includes('export function buildLauncherHtml'));
+console.log('exportFn line:', exportFn + 1);
+console.log('CSS starts line:', cssStart + 1);
+console.log('JS starts line:', jsStart + 1);
+console.log('return starts line:', retStart + 1);

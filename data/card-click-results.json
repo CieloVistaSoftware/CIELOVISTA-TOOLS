@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-03-19T17:34:05.290Z",
+  "summary": {
+    "total": 1,
+    "pass": 0,
+    "warn": 0,
+    "fail": 1
+  },
+  "results": [
+    {
+      "rc": 1,
+      "commandId": "ACTIVATION",
+      "title": "Extension Activation",
+      "status": "FAIL",
+      "reason": "Activation failed: vscode.window.onDidOpenTerminal is not a function",
+      "webviewsOpened": 0,
+      "errorsShown": [],
+      "elapsedMs": 0
+    }
+  ]
+}

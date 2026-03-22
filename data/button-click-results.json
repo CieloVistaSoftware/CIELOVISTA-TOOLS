@@ -1,0 +1,473 @@
+{
+  "runAt": "2026-03-19T18:15:42.329Z",
+  "total": 77,
+  "passed": 77,
+  "failed": 0,
+  "timeout": 0,
+  "missing": 0,
+  "allPass": true,
+  "results": [
+    {
+      "id": "cvs.catalog.open",
+      "title": "Open Doc Catalog",
+      "status": "pass",
+      "durationMs": 992
+    },
+    {
+      "id": "cvs.catalog.rebuild",
+      "title": "Rebuild Doc Catalog",
+      "status": "pass",
+      "durationMs": 1158
+    },
+    {
+      "id": "cvs.catalog.view",
+      "title": "View a Doc",
+      "status": "pass",
+      "durationMs": 19
+    },
+    {
+      "id": "cvs.docs.openGlobal",
+      "title": "Open Global Standards Doc",
+      "status": "pass",
+      "durationMs": 12
+    },
+    {
+      "id": "cvs.docs.openProject",
+      "title": "Open Project Doc",
+      "status": "pass",
+      "durationMs": 17
+    },
+    {
+      "id": "cvs.docs.searchAll",
+      "title": "Search All Docs",
+      "status": "pass",
+      "durationMs": 2
+    },
+    {
+      "id": "cvs.docs.newGlobal",
+      "title": "New Global Standards Doc",
+      "status": "pass",
+      "durationMs": 2
+    },
+    {
+      "id": "cvs.docs.newProjectDoc",
+      "title": "New Project Doc",
+      "status": "pass",
+      "durationMs": 4
+    },
+    {
+      "id": "cvs.docs.syncCheck",
+      "title": "Sync Check",
+      "status": "pass",
+      "durationMs": 33
+    },
+    {
+      "id": "cvs.docs.openRegistry",
+      "title": "Open Project Registry",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.docs.addProject",
+      "title": "Add Project to Registry",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.audit.codebase",
+      "title": "🔬 Codebase Health Audit",
+      "status": "pass",
+      "durationMs": 112
+    },
+    {
+      "id": "cvs.docs.intelligence",
+      "title": "🧠 Doc Intelligence",
+      "status": "pass",
+      "durationMs": 41290
+    },
+    {
+      "id": "cvs.audit.runDaily",
+      "title": "Run Daily Health Check",
+      "status": "pass",
+      "durationMs": 47
+    },
+    {
+      "id": "cvs.audit.docs",
+      "title": "Run Full Docs Audit",
+      "status": "pass",
+      "durationMs": 52741
+    },
+    {
+      "id": "cvs.audit.walkthrough",
+      "title": "Walk Through Findings",
+      "status": "pass",
+      "durationMs": 38709
+    },
+    {
+      "id": "cvs.audit.findDuplicates",
+      "title": "Find Duplicate Filenames",
+      "status": "pass",
+      "durationMs": 50532
+    },
+    {
+      "id": "cvs.audit.findSimilar",
+      "title": "Find Similar Content",
+      "status": "pass",
+      "durationMs": 32564
+    },
+    {
+      "id": "cvs.audit.findOrphans",
+      "title": "Find Orphaned Docs",
+      "status": "pass",
+      "durationMs": 41595
+    },
+    {
+      "id": "cvs.audit.actOnReport",
+      "title": "Act on Audit Report",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.audit.openReport",
+      "title": "Open Past Audit Report",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.audit.mergeFiles",
+      "title": "Merge Docs Together",
+      "status": "pass",
+      "durationMs": 154
+    },
+    {
+      "id": "cvs.audit.moveToGlobal",
+      "title": "Move Doc to Global Standards",
+      "status": "pass",
+      "durationMs": 130
+    },
+    {
+      "id": "cvs.audit.codeHighlight",
+      "title": "✨ Code Highlight Audit",
+      "status": "pass",
+      "durationMs": 121
+    },
+    {
+      "id": "cvs.headers.scan",
+      "title": "Scan Doc Headers",
+      "status": "pass",
+      "durationMs": 142
+    },
+    {
+      "id": "cvs.audit.jsErrors",
+      "title": "🛡️ JS Error Handling Audit",
+      "status": "pass",
+      "durationMs": 7
+    },
+    {
+      "id": "cvs.audit.testCoverage",
+      "title": "Audit: Test Coverage Dashboard",
+      "status": "pass",
+      "durationMs": 116
+    },
+    {
+      "id": "cvs.audit.testCoverage.refresh",
+      "title": "Audit: Refresh Test Coverage",
+      "status": "pass",
+      "durationMs": 90
+    },
+    {
+      "id": "cvs.audit.testCoverage.export",
+      "title": "Audit: Export Coverage Report",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.consolidate.run",
+      "title": "Run Consolidation Wizard",
+      "status": "pass",
+      "durationMs": 17581
+    },
+    {
+      "id": "cvs.consolidate.byName",
+      "title": "Consolidate by Filename",
+      "status": "pass",
+      "durationMs": 22813
+    },
+    {
+      "id": "cvs.consolidate.byContent",
+      "title": "Consolidate by Content",
+      "status": "pass",
+      "durationMs": 36515
+    },
+    {
+      "id": "cvs.consolidate.log",
+      "title": "Open Consolidation Log",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.readme.scan",
+      "title": "Scan README Compliance",
+      "status": "pass",
+      "durationMs": 180
+    },
+    {
+      "id": "cvs.readme.fix",
+      "title": "Fix a Non-Compliant README",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.readme.fixAll",
+      "title": "Fix All Non-Compliant READMEs",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.readme.new",
+      "title": "New README from Template",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.readme.viewStandard",
+      "title": "View README Standard",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.readme.generate.scan",
+      "title": "Scan for Missing READMEs",
+      "status": "pass",
+      "durationMs": 6
+    },
+    {
+      "id": "cvs.readme.generate.run",
+      "title": "Generate All Missing READMEs (AI)",
+      "status": "pass",
+      "durationMs": 295
+    },
+    {
+      "id": "cvs.readme.generate.single",
+      "title": "Generate Single README (AI)",
+      "status": "pass",
+      "durationMs": 7
+    },
+    {
+      "id": "cvs.license.sync",
+      "title": "📄 License Sync",
+      "status": "pass",
+      "durationMs": 8
+    },
+    {
+      "id": "cvs.marketplace.scan",
+      "title": "Scan Marketplace Compliance",
+      "status": "pass",
+      "durationMs": 16
+    },
+    {
+      "id": "cvs.marketplace.fixAll",
+      "title": "Fix All Marketplace Issues",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.marketplace.fixOne",
+      "title": "Fix One Project",
+      "status": "pass",
+      "durationMs": 12
+    },
+    {
+      "id": "cvs.launch.pick",
+      "title": "Pick Any Project Action",
+      "status": "pass",
+      "durationMs": 6
+    },
+    {
+      "id": "cvs.launch.snapit.start",
+      "title": "SnapIt — Start Service",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.snapit.tray",
+      "title": "SnapIt — Launch Tray",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.snapit.rebuild",
+      "title": "SnapIt — Rebuild + Launch Tray",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.snapit.build",
+      "title": "SnapIt — Build",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.launch.snapit.stop",
+      "title": "SnapIt — Stop Service",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.diskcleanup.start",
+      "title": "DiskCleanUp — Start Service",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.diskcleanup.console",
+      "title": "DiskCleanUp — Console Mode",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.diskcleanup.build",
+      "title": "DiskCleanUp — Build",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.launch.diskcleanup.stop",
+      "title": "DiskCleanUp — Stop Service",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.copilotRules.enable",
+      "title": "Copilot Rules: Enable",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.copilotRules.disable",
+      "title": "Copilot Rules: Disable",
+      "status": "pass",
+      "durationMs": 2
+    },
+    {
+      "id": "cvs.copilotRules.reload",
+      "title": "Copilot Rules: Reload",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.copilotRules.view",
+      "title": "Copilot Rules: View Current",
+      "status": "pass",
+      "durationMs": 2
+    },
+    {
+      "id": "cvs.copilot.openSuggestedFile",
+      "title": "Copilot: Open Suggested File",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.terminal.copyOutputClipboard",
+      "title": "Copy Terminal Output",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.terminal.pasteOutputToChat",
+      "title": "Paste Output to Chat",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.terminal.setFolder",
+      "title": "Set Terminal Working Directory",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.terminal.jumpToLastFolder",
+      "title": "Jump to Last Known Folder",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.terminal.togglePromptLength",
+      "title": "Toggle Prompt Length",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.cssClassHover.enable",
+      "title": "CSS Class Hover: Enable",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.python.runFile",
+      "title": "Python: Run File in Terminal",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.openai.explain",
+      "title": "OpenAI: Explain Code",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.openai.refactor",
+      "title": "OpenAI: Refactor Code",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.openai.generateDocstring",
+      "title": "OpenAI: Generate Docstring",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.openai.openChat",
+      "title": "OpenAI: Open Chat Panel",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.npm.showAndRunScripts",
+      "title": "NPM Scripts: Show and Run",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.mcp.createServer",
+      "title": "MCP Server: Create",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.explorer.openFolderAsRoot",
+      "title": "Open Folder as Root",
+      "status": "pass",
+      "durationMs": 1
+    },
+    {
+      "id": "cvs.features.configure",
+      "title": "Configure Enabled Features",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.health.fixBugs",
+      "title": "🐛 Fix Bugs",
+      "status": "pass",
+      "durationMs": 0
+    },
+    {
+      "id": "cvs.tools.errorLog",
+      "title": "Tools Error Log",
+      "status": "pass",
+      "durationMs": 3
+    }
+  ]
+}
