@@ -1,0 +1,206 @@
+/**
+ * tests/install-verify.test.js
+ * Verifies the CVT extension is correctly installed and its VSIX is valid.
+ * Checks that required runtime modules are present in the installed extension.
+ * Run: node tests/install-verify.test.js
+ */
+
+const cp   = require('child_process');
+const fs   = require('fs');
+const path = require('path');
+const pkg  = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+
+let pass = 0;
+let fail = 0;
+
+function ok(label, value, detail) {
+    if (value) {
+        console.log(`  PASS: ${label}${detail ? '\n         ' + detail : ''}`);
+        pass++;
+    } else {
+        console.log(`  FAIL: ${label}${detail ? '\n         ' + detail : ''}`);
+        fail++;
+    }
+}
+
+function run(cmd) {
+    try {
+        return { out: cp.execSync(cmd, { encoding: 'utf8', stdio: ['ignore','pipe','pipe'] }).trim(), err: null };
+    } catch (e) {
+        return { out: (e.stdout || '').trim(), err: (e.stderr || e.message || '').trim() };
+    }
+}
+
+console.log('\n-- CVT Install Verification --\n');
+
+// 1. VSIX file exists
+const vsix = `${pkg.name}-${pkg.version}.vsix`;
+ok('VSIX file exists', fs.existsSync(vsix), vsix);
+
+// 2. VSIX size is sane (> 100 KB, < 10 MB).
+//    Upper bound covers: MCP SDK (~4.5 MB), diff, highlight.js, and compiled out/.
+//    If we breach 10 MB, investigate — something's pulling in an unexpected tree.
+if (fs.existsSync(vsix)) {
+    const bytes = fs.statSync(vsix).size;
+    const kb    = Math.round(bytes / 1024);
+    ok('VSIX size is sane (100KB–10MB)', bytes > 100_000 && bytes < 10_000_000, `${kb} KB`);
+}
+
+// 3. Extension is installed — verified by checking the installed extension folder
+//    on disk. `code-insiders --list-extensions` is unreliable during rebuild because
+//    running VS Code Insiders caches its extension list and won't reflect fresh
+//    copies from install.js until a reload. The disk folder is the source of
+//    truth for what will load on next reload.
+const extId         = `${pkg.publisher.toLowerCase()}.${pkg.name}`;
+const extFolder     = path.join(
+    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    '.vscode-insiders', 'extensions',
+    `${extId}-${pkg.version}`
+);
+const extPkgJson    = path.join(extFolder, 'package.json');
+ok('Extension installed on disk (reload window to activate)',
+    fs.existsSync(extPkgJson),
+    fs.existsSync(extPkgJson) ? extFolder : `MISSING: ${extFolder}`);
+
+// 4. package.json has required fields
+ok('package.json: name',      !!pkg.name,      pkg.name);
+ok('package.json: version',   !!pkg.version,   pkg.version);
+ok('package.json: publisher', !!pkg.publisher, pkg.publisher);
+ok('package.json: main',      !!pkg.main,      pkg.main);
+
+// 5. Compiled output (main entry point) exists
+const mainJs = pkg.main.replace(/^\.\//, '');
+ok('Compiled main entry exists', fs.existsSync(mainJs), mainJs);
+
+// 6. Key compiled feature files exist
+const keyFiles = [
+    'out/features/home-page.js',
+    'out/features/doc-catalog/commands.js',
+    'out/features/doc-catalog/projects.js',
+    'out/features/doc-catalog/html.js',
+    'out/shared/md-renderer.js',
+    'out/shared/doc-preview.js',
+    'out/shared/webview-utils.js',
+];
+for (const f of keyFiles) {
+    ok(`Compiled output exists: ${f}`, fs.existsSync(f), '');
+}
+
+// 7. Registry file is valid JSON with required shape
+const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+let registry = null;
+try { registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { /* handled below */ }
+ok('project-registry.json is valid JSON', !!registry, REGISTRY_PATH);
+if (registry) {
+    ok('Registry has globalDocsPath', typeof registry.globalDocsPath === 'string' && registry.globalDocsPath.length > 0, registry.globalDocsPath);
+    ok('Registry has projects array',  Array.isArray(registry.projects), `${registry.projects?.length ?? 0} projects`);
+    if (Array.isArray(registry.projects)) {
+        for (const p of registry.projects) {
+            ok(`Registry project "${p.name}" has path`, !!p.path, p.path);
+        }
+    }
+}
+
+// 8. install.js syntax valid
+const check = run('node --check install.js');
+ok('install.js syntax valid', check.err === null || check.err === '', check.err || 'OK');
+
+// 8b. install.js regression guardrails (Windows path-with-spaces safe execution)
+let installerSrc = '';
+try { installerSrc = fs.readFileSync('install.js', 'utf8'); } catch { installerSrc = ''; }
+ok('install.js readable', installerSrc.length > 0, installerSrc.length > 0 ? 'OK' : 'Could not read install.js');
+if (installerSrc.length > 0) {
+    ok('install.js uses spawnSync for CLI execution',
+        installerSrc.includes('spawnSync('),
+        installerSrc.includes('spawnSync(') ? 'OK' : 'Expected spawnSync(...) in runCli()');
+
+    ok('install.js runCli disables shell parsing (shell:false)',
+        /shell\s*:\s*false/.test(installerSrc),
+        /shell\s*:\s*false/.test(installerSrc) ? 'OK' : 'Missing shell:false (required for Windows paths with spaces)');
+
+    ok('install.js does not force shell:true in runCli',
+        !/shell\s*:\s*true/.test(installerSrc),
+        !/shell\s*:\s*true/.test(installerSrc) ? 'OK' : 'Found shell:true (can break command paths with spaces)');
+}
+
+// 9. CRITICAL: Installed extension folder has required files actually extracted.
+//    Checks the INSTALLED location, not the project source folder.
+//    A folder with only data/bg-health.json means the VSIX was never extracted.
+const installedRoot = path.join(
+    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    '.vscode-insiders', 'extensions',
+    `${pkg.publisher.toLowerCase()}.${pkg.name}-${pkg.version}`
+);
+ok('Installed extension folder exists', fs.existsSync(installedRoot), installedRoot);
+
+// These must exist IN THE INSTALLED FOLDER — not in the project source.
+// If only data/bg-health.json is present, the VSIX was queued but never extracted.
+const installedPkgJson = path.join(installedRoot, 'package.json');
+const installedMainJs  = path.join(installedRoot, 'out', 'extension.js');
+const installedCmdsJs  = path.join(installedRoot, 'out', 'features', 'doc-catalog', 'commands.js');
+const pkgSize  = fs.existsSync(installedPkgJson) ? fs.statSync(installedPkgJson).size : 0;
+const mainSize = fs.existsSync(installedMainJs)  ? fs.statSync(installedMainJs).size  : 0;
+const cmdsSize = fs.existsSync(installedCmdsJs)  ? fs.statSync(installedCmdsJs).size  : 0;
+ok('Installed: package.json (>1KB)',            pkgSize  > 1000, `${pkgSize} bytes — ${installedPkgJson}`);
+ok('Installed: out/extension.js (>1KB)',        mainSize > 1000, `${mainSize} bytes — ${installedMainJs}`);
+ok('Installed: doc-catalog/commands.js (>10KB)',cmdsSize > 10000,`${cmdsSize} bytes — ${installedCmdsJs}`);
+
+if (fs.existsSync(installedRoot)) {
+    // Scan compiled output for require() calls to non-builtin, non-vscode modules
+    const builtins = new Set([
+        'fs','path','os','child_process','crypto','http','https','net','stream',
+        'util','events','url','buffer','assert','process','module','vm','zlib',
+        'readline','node:fs','node:path','node:os','node:child_process','node:crypto',
+        'node:http','node:https','node:net','node:stream','node:util','node:events',
+        'node:url','node:buffer','node:assert','node:process','node:module',
+        'node:vm','node:zlib','node:readline','node:worker_threads','worker_threads',
+        'perf_hooks','node:perf_hooks','timers','node:timers',
+    ]);
+
+    const thirdPartyRequires = new Set();
+    function scanJs(dir) {
+        if (!fs.existsSync(dir)) { return; }
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (e.name === 'node_modules') { continue; }
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) { scanJs(full); }
+            else if (e.name.endsWith('.js')) {
+                const src = fs.readFileSync(full, 'utf8');
+                for (const m of src.matchAll(/require\(['"]([^./'][^'"]*)['"]\)/g)) {
+                    const mod = m[1].startsWith('@')
+                        ? m[1].split('/').slice(0, 2).join('/')
+                        : m[1].split('/')[0];
+                    if (mod !== 'vscode' && !builtins.has(mod)) {
+                        thirdPartyRequires.add(mod);
+                    }
+                }
+            }
+        }
+    }
+    scanJs(path.join(installedRoot, 'out'));
+
+    // Verify each third-party module is resolvable from the installed extension
+    for (const mod of [...thirdPartyRequires].sort()) {
+        const modPath = path.join(installedRoot, 'node_modules', mod.startsWith('@') ? mod : mod);
+        const exists  = fs.existsSync(modPath);
+        ok(`Runtime module resolvable: ${mod}`, exists, exists ? modPath : `MISSING — not in ${path.join(installedRoot, 'node_modules')}`);
+    }
+
+    const installedOutDir = path.join(installedRoot, 'out');
+    if (!fs.existsSync(installedOutDir)) {
+        ok('Installed out/ directory exists', false, `MISSING: ${installedOutDir} — VSIX was not extracted correctly`);
+    } else if (thirdPartyRequires.size === 0) {
+        ok('No third-party runtime requires found in compiled output', true, 'All requires are built-in or vscode');
+    }
+}
+
+// Summary
+console.log(`\n------------------------------------------------------------`);
+console.log(`${pass + fail} checks: ${pass} passed, ${fail} failed`);
+if (fail === 0) {
+    console.log('\nCVT INSTALL VERIFIED -- all checks passed');
+    process.exit(0);
+} else {
+    console.log('\nCVT INSTALL FAILED -- see above');
+    process.exit(1);
+}

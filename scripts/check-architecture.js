@@ -87,6 +87,32 @@ checkOneJobPerFeatureFile();
 checkNoDuplicateCommandIds();
 checkSharedPureFunctions();
 
+// 5. No duplicate Dewey numbers in the catalog
+
+function checkNoDuplicateDeweyNumbers() {
+  const catalogPath = path.join(FEATURE_DIR, 'cvs-command-launcher', 'catalog.ts');
+  if (!fs.existsSync(catalogPath)) return;
+  const content = fs.readFileSync(catalogPath, 'utf8');
+  // Extract the CATALOG array definition
+  const arrMatch = content.match(/export const CATALOG: CmdEntry\[] = \[(.*?)];/s);
+  if (!arrMatch) return;
+  const arrText = arrMatch[1];
+  // Find all dewey: ... entries (robust to whitespace, comments, trailing commas)
+  const deweyRegex = /dewey\s*:\s*['"](\d{3}\.[0-9]{3})['"]/g;
+  const seen = new Map();
+  let match;
+  while ((match = deweyRegex.exec(arrText)) !== null) {
+    const dewey = match[1];
+    if (seen.has(dewey)) {
+      errors.push(`Duplicate Dewey number: ${dewey} in catalog.ts (entries ${seen.get(dewey)} and ${match.index})`);
+    } else {
+      seen.set(dewey, match.index);
+    }
+  }
+}
+
+checkNoDuplicateDeweyNumbers();
+
 if (errors.length === 0) {
   console.log('✅ Architecture checks passed.');
   process.exit(0);

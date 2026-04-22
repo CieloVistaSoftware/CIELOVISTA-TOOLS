@@ -1,0 +1,207 @@
+/**
+ * scripts/activation-verify.js
+ *
+ * Verifies that calling activate() actually registers every catalog command.
+ * Pure Node — no Playwright, no test runner.
+ *
+ * Run: node scripts/activation-verify.js
+ */
+'use strict';
+
+const path   = require('path');
+const fs     = require('fs');
+const Module = require('module');
+
+// ─── Catalog IDs ─────────────────────────────────────────────────────────────
+
+const catalogSrc = fs.readFileSync(
+    path.join(__dirname, '../src/features/cvs-command-launcher/catalog.ts'), 'utf8'
+);
+const CATALOG_IDS = [...catalogSrc.matchAll(/id:\s*'([^']+)'/g)].map(m => m[1]);
+
+// ─── vscode mock ─────────────────────────────────────────────────────────────
+
+const registeredCommands  = new Set();
+const registeredProviders = new Set();
+
+function disp()  { return { dispose() {} }; }
+function noop()  { return Promise.resolve(); }
+
+const vscodeMock = {
+    commands: {
+        registerCommand(id) { registeredCommands.add(id); return disp(); },
+        executeCommand()    { return noop(); },
+        getCommands()       { return Promise.resolve([]); },
+    },
+    window: {
+        createStatusBarItem()             { return { text:'', tooltip:'', command:'', name:'', show(){}, dispose(){} }; },
+        createOutputChannel()             { return { appendLine(){}, append(){}, show(){}, dispose(){} }; },
+        showInformationMessage()          { return noop(); },
+        showWarningMessage()              { return noop(); },
+        showErrorMessage()                { return noop(); },
+        showQuickPick()                   { return Promise.resolve(undefined); },
+        showInputBox()                    { return Promise.resolve(undefined); },
+        showOpenDialog()                  { return Promise.resolve(undefined); },
+        showTextDocument()                { return noop(); },
+        createWebviewPanel()              { return { webview:{ html:'', onDidReceiveMessage(){ return disp(); }, postMessage(){} }, onDidDispose(){ return disp(); }, reveal(){}, dispose(){} }; },
+        registerWebviewPanelSerializer(t) { registeredProviders.add(t); return disp(); },
+        createTextEditorDecorationType()  { return disp(); },
+        createTerminal()                  { return { show(){}, sendText(){}, dispose(){} }; },
+        withProgress(_o, fn)              { return fn({ report(){} }); },
+        activeTextEditor:                 undefined,
+        visibleTextEditors:               [],
+        terminals:                        [],
+        tabGroups:                        { all: [] },
+        onDidChangeActiveTextEditor()     { return disp(); },
+        onDidOpenTerminal()               { return disp(); },
+        onDidCloseTerminal()              { return disp(); },
+        onDidChangeTerminalState()        { return disp(); },
+        onDidChangeTextEditorSelection()  { return disp(); },
+        onDidChangeVisibleTextEditors()   { return disp(); },
+    },
+    workspace: {
+        getConfiguration()         { return { get(_k, def) { return def; }, update(){ return noop(); } }; },
+        onDidChangeConfiguration() { return disp(); },
+        onDidSaveTextDocument()    { return disp(); },
+        onDidOpenTextDocument()    { return disp(); },
+        onDidChangeTextDocument()  { return disp(); },
+        onDidCloseTextDocument()   { return disp(); },
+        findFiles()                { return Promise.resolve([]); },
+        openTextDocument()         { return Promise.resolve({ getText(){ return '{}'; }, uri:{ fsPath:'' } }); },
+        workspaceFolders:          [],
+        rootPath:                  undefined,
+        fs:                        { readFile(){ return Promise.resolve(Buffer.from('')); }, stat(){ return Promise.resolve({}); } },
+        createFileSystemWatcher()  { return { onDidChange(){ return disp(); }, onDidCreate(){ return disp(); }, onDidDelete(){ return disp(); }, dispose(){} }; },
+    },
+    languages: {
+        registerHoverProvider()          { return disp(); },
+        registerCompletionItemProvider() { return disp(); },
+        registerCodeActionsProvider()    { return disp(); },
+        createDiagnosticCollection()     { return { set(){}, delete(){}, clear(){}, dispose(){} }; },
+    },
+    extensions: { getExtension() { return undefined; } },
+    env: {
+        openExternal() { return noop(); },
+        clipboard: { readText(){ return Promise.resolve(''); }, writeText(){ return noop(); } },
+    },
+    Uri: {
+        file(p)           { return { fsPath:p, scheme:'file', path:p, toString(){ return 'file://'+p; } }; },
+        parse(s)          { return { fsPath:s, scheme:'vscode', path:s, toString(){ return s; } }; },
+        joinPath(b, ...s) { return vscodeMock.Uri.file(path.join(b.fsPath ?? String(b), ...s)); },
+    },
+    EventEmitter:       class { fire(){} event(){ return ()=>{}; } dispose(){} },
+    TreeItem:           class { constructor(l){ this.label=l; } },
+    ThemeIcon:          class { constructor(id){ this.id=id; } },
+    ThemeColor:         class { constructor(id){ this.id=id; } },
+    StatusBarAlignment: { Left:1, Right:2 },
+    ViewColumn:         { One:1, Two:2, Three:3, Beside:-2, Active:-1 },
+    ProgressLocation:   { Notification:15, SourceControl:1, Window:10 },
+    DiagnosticSeverity: { Error:0, Warning:1, Information:2, Hint:3 },
+    Position:           class { constructor(l,c){ this.line=l; this.character=c; } },
+    Range:              class { constructor(s,e){ this.start=s; this.end=e; } },
+    Selection:          class { constructor(a,b){ this.anchor=a; this.active=b; } },
+    CompletionItem:     class { constructor(l){ this.label=l; } },
+    CompletionItemKind: { Text:0, Method:1, Function:2, Field:4, Variable:5, Class:6, Module:8 },
+    CodeActionKind:     { QuickFix:{ value:'quickfix' }, Refactor:{ value:'refactor' } },
+    Diagnostic:         class { constructor(r,m,s){ this.range=r; this.message=m; this.severity=s; } },
+    MarkdownString:     class { constructor(v=''){ this.value=v; } appendMarkdown(s){ this.value+=s; return this; } },
+    Hover:              class { constructor(c){ this.contents=c; } },
+    version: '1.80.0',
+};
+
+const mockContext = {
+    subscriptions: { push() {} },
+    extensionPath:    path.join(__dirname, '..'),
+    extensionUri:     vscodeMock.Uri.file(path.join(__dirname, '..')),
+    globalStorageUri: vscodeMock.Uri.file(path.join(__dirname, '../data')),
+    storageUri:       vscodeMock.Uri.file(path.join(__dirname, '../data')),
+    globalState:    { get(_k,d){ return d; }, update(){ return noop(); }, keys(){ return []; } },
+    workspaceState: { get(_k,d){ return d; }, update(){ return noop(); }, keys(){ return []; } },
+    asAbsolutePath(rel) { return path.join(__dirname, '..', rel); },
+    extension: { id:'cielovistasoftware.cielovista-tools', packageJSON:{} },
+    secrets: { get(){ return Promise.resolve(undefined); }, store(){ return noop(); }, delete(){ return noop(); }, onDidChange(){ return disp(); } },
+    logUri:  vscodeMock.Uri.file(path.join(__dirname, '../data')),
+    logPath: path.join(__dirname, '../data'),
+};
+
+// ─── Intercept require('vscode') ─────────────────────────────────────────────
+
+// Stub browser globals used by webview HTML code at module load time
+if (typeof global.window === 'undefined') {
+    global.window = { addEventListener(){}, removeEventListener(){}, innerHeight:800, innerWidth:1200 };
+}
+if (typeof global.document === 'undefined') {
+    global.document = {
+        getElementById(){ return null; }, querySelector(){ return null; },
+        querySelectorAll(){ return []; }, createElement(){ return {}; },
+        addEventListener(){}, body:{ appendChild(){} },
+    };
+}
+
+const _origLoad = Module._load;
+Module._load = function(request, parent, isMain) {
+    if (request === 'vscode') { return vscodeMock; }
+    return _origLoad.call(this, request, parent, isMain);
+};
+
+// ─── Run ─────────────────────────────────────────────────────────────────────
+
+let pass = 0, fail = 0;
+function ok(label, value, detail) {
+    if (value) {
+        console.log(`  PASS: ${label}${detail ? '\n         '+detail : ''}`);
+        pass++;
+    } else {
+        console.log(`  FAIL: ${label}${detail ? '\n         '+detail : ''}`);
+        fail++;
+    }
+}
+
+console.log('\n-- Activation Verification --\n');
+
+let activationError = null;
+try {
+    const extPath = require.resolve(path.join(__dirname, '../out/extension.js'));
+    delete require.cache[extPath];
+    const ext = require(extPath);
+    ext.activate(mockContext);
+} catch (err) {
+    activationError = err;
+    console.log(`  FAIL: activate() threw: ${err.message}`);
+    if (err.stack) { err.stack.split('\n').slice(1,5).forEach(l => console.log(`         ${l}`)); }
+    fail++;
+}
+
+ok('Extension activated without throwing', activationError === null);
+
+console.log(`\n-- Command registration (${CATALOG_IDS.length} catalog IDs) --\n`);
+
+const missing = CATALOG_IDS.filter(id => !registeredCommands.has(id));
+if (missing.length > 0) {
+    missing.forEach(id => console.log(`  FAIL: NOT registered: ${id}`));
+    fail += missing.length;
+} else {
+    console.log(`  PASS: All ${CATALOG_IDS.length} catalog commands registered`);
+    pass += CATALOG_IDS.length;
+}
+
+ok('docCatalog webview serializer registered', registeredProviders.has('docCatalog'));
+
+// Spot-checks
+const SPOTS = ['cvs.catalog.open','cvs.catalog.rebuild','cvs.catalog.view',
+               'cvs.npm.showAndRunScripts','cvs.tools.home','cvs.audit.testCoverage',
+               'cvs.docs.openGlobal','cvs.launch.pick'];
+const spotMissing = SPOTS.filter(id => !registeredCommands.has(id));
+ok(`Spot-check: ${SPOTS.length} critical commands registered`,
+   spotMissing.length === 0,
+   spotMissing.length ? `Missing: ${spotMissing.join(', ')}` : undefined);
+
+console.log(`\n------------------------------------------------------------`);
+console.log(`${pass+fail} checks: ${pass} passed, ${fail} failed`);
+if (fail === 0) {
+    console.log('\nACTIVATION VERIFIED -- all commands registered at runtime');
+    process.exit(0);
+} else {
+    console.log('\nACTIVATION FAILED -- see above');
+    process.exit(1);
+}

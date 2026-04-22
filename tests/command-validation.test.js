@@ -253,6 +253,7 @@ const EXEMPT = new Set([
     'cvs.project.openHome', 'cvs.htmlTemplates.download', 'cvs.htmlTemplates.openClipboardPath',
     'cvs.headers.fixAll', 'cvs.headers.fixOne', 'cvs.headers.fixFile', 'cvs.headers.viewStandard',
     'cvs.config.edit',
+    'cvs.audit.jsErrors',   // JS Error Audit — surfaced via Fix Bugs panel, not the launcher catalog
 ]);
 
 console.log('\n  [2a] Every catalog ID has a registerCommand in the codebase');

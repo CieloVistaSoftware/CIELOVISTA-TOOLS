@@ -156,6 +156,25 @@ test('REG-001c', 'No require() of external packages in extension host', () => {
     `If the package is only used in a webview, load it via CDN in the HTML instead.`);
 });
 
+// REG-002: logError interface compliance — all callers must match their interface contract
+// The error log is the only way to diagnose broken code in production.
+// A wrong call silently swallows the stack trace or crashes with a type error.
+test('REG-002', 'All logError callers match their interface contract', () => {
+  const { execFileSync } = require('child_process');
+  const script = path.join(ROOT, 'scripts', 'test-logerror-interface.js');
+  let output = '', exitCode = 0;
+  try {
+    output = execSync(`node "${script}"`, { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' });
+  } catch (e) {
+    exitCode = e.status ?? 1;
+    output = (e.stdout ?? '') + (e.stderr ?? '');
+  }
+  assert(exitCode === 0,
+    `logError interface violations found — the error log will not work correctly.\n` +
+    `Run: node scripts/test-logerror-interface.js\n\n` +
+    output.slice(0, 1200));
+});
+
 // REG-003: TypeScript compiles clean
 test('REG-003', 'TypeScript compiles with zero errors', () => {
   const tsc = path.join(ROOT, 'node_modules', '.bin', 'tsc');
@@ -208,10 +227,22 @@ test('REG-006', 'package.json contributes.commands covers all catalog IDs', () =
 // REG-007: extension.ts activates all feature modules
 test('REG-007', 'extension.ts activates all feature modules', () => {
   const extSrc = fs.readFileSync(path.join(SRC, 'extension.ts'), 'utf8');
-  const aliased = [...extSrc.matchAll(/activate\s+as\s+\w+/g)].length;
-  const calls   = [...extSrc.matchAll(/\b\w+(?:Activate|activate)\s*\(context\)/g)].length;
-  assert(aliased + calls >= 8,
-    `extension.ts only has ${aliased + calls} feature activate imports/calls — expected at least 8.`);
+
+  // Extract every activate alias: "activate as foo" -> 'foo'  (exclude deactivate aliases)
+  const imported = [...extSrc.matchAll(/(?<!de)activate\s+as\s+(\w+)/g)].map(m => m[1]);
+
+  // Each imported activate alias must appear as a call: foo(context) or activateIfEnabled(..., foo, context)
+  const missing = imported.filter(alias => {
+    const called  = new RegExp('\\b' + alias + '\\s*\\(context\\)').test(extSrc);
+    const enabled = new RegExp('activateIfEnabled\\([^)]+,\\s*' + alias + '\\s*,').test(extSrc);
+    return !called && !enabled;
+  });
+
+  assert(missing.length === 0,
+    missing.length + ' feature activate() functions imported but NEVER called in extension.ts:\n  ' +
+    missing.join('\n  ') +
+    '\nThese features are silently dead - commands will show as Could not run.' +
+    '\nFIX: Add activateIfEnabled call for each one.');
 });
 
 // REG-008: No bare console.log (warning only, does not fail build)
@@ -240,28 +271,44 @@ test('REG-009', 'data/ is listed in .gitignore', () => {
     'data/ is not in .gitignore — bg-health.json should not be committed.');
 });
 
-// REG-010: No dead dependencies — every package in dependencies is actually imported in src/.
-// Packages only loaded via CDN in webview HTML should NOT be in dependencies;
-// they bloat the VSIX with no benefit since the extension host never loads them.
-test('REG-010', 'Every package in dependencies is imported somewhere in src/', () => {
+// REG-010: No dead dependencies — every package in dependencies is actually
+// imported in src/ or mcp-server/src/. Both surfaces ship in the VSIX: src/ is
+// the extension host, mcp-server/src/ is the MCP subprocess. A dep used by
+// neither is truly dead and just bloats the VSIX.
+// Packages only loaded via CDN in webview HTML should NOT be in dependencies.
+test('REG-010', 'Every package in dependencies is imported somewhere in src/ or mcp-server/src/', () => {
   const pkg  = readJson(path.join(ROOT, 'package.json'));
   const deps = Object.keys(pkg.dependencies ?? {});
   if (deps.length === 0) { return; }
-  const allSrc = srcContents()
+
+  // Extension-host sources: src/ files only (excludes scripts, tests, mcp-server).
+  const extSrc = srcContents()
     .filter(({ file }) => !file.includes('scripts') && !file.includes('tests') && !file.includes('mcp-server'))
     .map(({ src }) => stripTemplateLiterals(src))
     .join('\n');
+
+  // MCP server sources: walk mcp-server/src/ if present.
+  let mcpSrc = '';
+  const mcpRoot = path.join(ROOT, 'mcp-server', 'src');
+  if (fs.existsSync(mcpRoot)) {
+    const mcpFiles = walkTs(mcpRoot);
+    mcpSrc = mcpFiles
+      .map(f => stripTemplateLiterals(fs.readFileSync(f, 'utf8')))
+      .join('\n');
+  }
+
+  const combined = extSrc + '\n' + mcpSrc;
   const unused = deps.filter(dep => {
-    return !new RegExp(`from\\s+['"]${dep}|require\\(['"]${dep}`).test(allSrc);
+    return !new RegExp(`from\\s+['"]${dep}|require\\(['"]${dep}`).test(combined);
   });
   assert(unused.length === 0,
-    `These packages are in "dependencies" but never imported in src/:\n  ${unused.join('\n  ')}\n\n` +
+    `These packages are in "dependencies" but never imported in src/ or mcp-server/src/:\n  ${unused.join('\n  ')}\n\n` +
     `If they are only loaded via CDN in webview HTML:\n` +
     `  1. Remove them from dependencies in package.json\n` +
     `  2. Remove their !node_modules/<pkg>/** line from .vscodeignore\n` +
     `  (CDN packages do not need to be in the VSIX at all)\n\n` +
-    `If they ARE needed at runtime in the extension host:\n` +
-    `  1. Add the import to the correct src/ file\n` +
+    `If they ARE needed at runtime in the extension host or MCP subprocess:\n` +
+    `  1. Add the import to the correct src/ or mcp-server/src/ file\n` +
     `Dead dependencies bloat the VSIX unnecessarily (REG-010).`);
 });
 
@@ -281,6 +328,33 @@ test('REG-011', 'Every runtime dependency has a !node_modules/<pkg>/** entry in 
     `FIX: Add the following lines to .vscodeignore ABOVE the node_modules/** line:\n` +
     `${missing.map(d => `  !node_modules/${d}/**`).join('\n')}\n` +
     `Order matters — negations must come before node_modules/**.`);
+});
+
+test('REG-012', 'Static HTML files are copied to out/ by copy-commandhelp.js', () => {
+  const staticFiles = [
+    'out/features/doc-catalog/catalog.html',
+  ];
+  const missing = staticFiles.filter(f => !fs.existsSync(path.join(ROOT, f)));
+  assert(missing.length === 0,
+    `These static HTML files are missing from out/ — run: node scripts/copy-commandhelp.js\n  ${missing.join('\n  ')}`);
+});
+
+test('REG-013', 'All run commands route through cvsJobResult output webview', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'scripts/test-run-output-webview.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `Run output webview test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+test('REG-014', 'Home Recent Runs shows immediate full-string hover tooltip', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/home-recent-runs-tooltip.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `Home Recent Runs tooltip regression failed:\n${result.stdout}\n${result.stderr}`);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────
