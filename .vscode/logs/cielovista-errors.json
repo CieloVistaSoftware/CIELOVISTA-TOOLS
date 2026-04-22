@@ -1,0 +1,222 @@
+[
+  {
+    "id": "err_693c7235",
+    "timestamp": "2026-04-02T21:03:43.013Z",
+    "lastOccurred": "2026-04-03T02:19:58.885Z",
+    "count": 4,
+    "message": "Failed to execute cvs.catalog.view",
+    "stacktrace": "Error: command 'cvs.catalog.view' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_69678175",
+    "timestamp": "2026-04-02T21:03:48.603Z",
+    "lastOccurred": "2026-04-03T02:20:24.616Z",
+    "count": 4,
+    "message": "Failed to execute cvs.catalog.rebuild",
+    "stacktrace": "Error: command 'cvs.catalog.rebuild' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_69395dda",
+    "timestamp": "2026-04-02T21:03:51.540Z",
+    "lastOccurred": "2026-04-03T02:20:21.967Z",
+    "count": 3,
+    "message": "Failed to execute cvs.catalog.open",
+    "stacktrace": "Error: command 'cvs.catalog.open' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_7cca7d9b",
+    "timestamp": "2026-04-02T21:29:17.394Z",
+    "lastOccurred": "2026-04-02T21:29:17.394Z",
+    "count": 1,
+    "message": "Failed to execute cvs.marketplace.scan",
+    "stacktrace": "Error: command 'cvs.marketplace.scan' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_5e50e8ea",
+    "timestamp": "2026-04-02T21:31:25.229Z",
+    "lastOccurred": "2026-04-02T21:31:25.229Z",
+    "count": 1,
+    "message": "Failed to execute cvs.marketplace.fixAll",
+    "stacktrace": "Error: command 'cvs.marketplace.fixAll' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_5e511daf",
+    "timestamp": "2026-04-02T21:34:23.367Z",
+    "lastOccurred": "2026-04-02T21:34:23.367Z",
+    "count": 1,
+    "message": "Failed to execute cvs.marketplace.fixOne",
+    "stacktrace": "Error: command 'cvs.marketplace.fixOne' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_1ba11997",
+    "timestamp": "2026-04-02T21:36:11.217Z",
+    "lastOccurred": "2026-04-02T21:36:11.217Z",
+    "count": 1,
+    "message": "Failed to execute cvs.docs.intelligence",
+    "stacktrace": "Error: command 'cvs.docs.intelligence' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_26357b1c",
+    "timestamp": "2026-04-02T21:36:18.464Z",
+    "lastOccurred": "2026-04-02T21:36:18.464Z",
+    "count": 1,
+    "message": "Failed to execute cvs.audit.runDaily",
+    "stacktrace": "Error: command 'cvs.audit.runDaily' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_55052209",
+    "timestamp": "2026-04-02T21:36:54.469Z",
+    "lastOccurred": "2026-04-02T21:36:54.469Z",
+    "count": 1,
+    "message": "Failed to execute cvs.audit.docs",
+    "stacktrace": "Error: command 'cvs.audit.docs' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_19ad29af",
+    "timestamp": "2026-04-02T21:37:10.005Z",
+    "lastOccurred": "2026-04-02T21:37:10.005Z",
+    "count": 1,
+    "message": "Failed to execute cvs.audit.findDuplicates",
+    "stacktrace": "Error: command 'cvs.audit.findDuplicates' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_130e8264",
+    "timestamp": "2026-04-02T21:37:10.572Z",
+    "lastOccurred": "2026-04-02T21:37:10.572Z",
+    "count": 1,
+    "message": "Failed to execute cvs.audit.findSimilar",
+    "stacktrace": "Error: command 'cvs.audit.findSimilar' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_4efadd64",
+    "timestamp": "2026-04-02T21:37:16.365Z",
+    "lastOccurred": "2026-04-02T21:37:16.365Z",
+    "count": 1,
+    "message": "Failed to execute cvs.audit.findOrphans",
+    "stacktrace": "Error: command 'cvs.audit.findOrphans' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_1ce5e66b",
+    "timestamp": "2026-04-02T21:39:40.275Z",
+    "lastOccurred": "2026-04-02T21:40:08.812Z",
+    "count": 7,
+    "message": "License sync error: updateOne",
+    "stacktrace": "Error: Webview is disposed\n\tat GO.assertNotDisposed (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:629:112093)\n\tat get webview (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:629:111054)\n\tat rp.value (c:\\Users\\jwpmi\\.vscode-insiders\\extensions\\cielovistasoftware.cielovista-tools-1.0.0\\out\\features\\license-sync.js:406:23)",
+    "context": "license-sync",
+    "solved": false
+  },
+  {
+    "id": "err_e9c8482",
+    "timestamp": "2026-04-02T21:41:19.532Z",
+    "lastOccurred": "2026-04-02T21:50:53.935Z",
+    "count": 2,
+    "message": "Failed to execute cvs.readme.scan",
+    "stacktrace": "Error: command 'cvs.readme.scan' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_6f88ea",
+    "timestamp": "2026-04-02T22:01:33.217Z",
+    "lastOccurred": "2026-04-02T22:01:33.217Z",
+    "count": 1,
+    "message": "Failed to execute cvs.openai.explain",
+    "stacktrace": "Error: command 'cvs.openai.explain' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_d3250b3",
+    "timestamp": "2026-04-02T22:01:39.798Z",
+    "lastOccurred": "2026-04-02T22:01:39.798Z",
+    "count": 1,
+    "message": "Failed to execute cvs.openai.generateDocstring",
+    "stacktrace": "Error: command 'cvs.openai.generateDocstring' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_79a66069",
+    "timestamp": "2026-04-03T02:22:51.786Z",
+    "lastOccurred": "2026-04-03T02:22:51.786Z",
+    "count": 1,
+    "message": "Failed to execute cvs.docs.openProject",
+    "stacktrace": "Error: command 'cvs.docs.openProject' not found\n    at CZe._tryExecuteCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4832)\n    at CZe.executeCommand (vscode-file://vscode-app/c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/54b695e02e/resources/app/out/vs/workbench/workbench.desktop.main.js:1796:4732)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_61f314a8",
+    "timestamp": "2026-04-04T00:45:08.697Z",
+    "lastOccurred": "2026-04-04T00:45:08.697Z",
+    "count": 1,
+    "message": "Check failed: chk-catalog-registered",
+    "stacktrace": "Canceled: Canceled\n\tat Zs (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:383:1546)\n\tat file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:407:151028\n\tat Array.forEach (<anonymous>)\n\tat i.dispose (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:407:150936)\n\tat cP.terminate (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:505:12324)\n\tat i.terminate (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:507:1072)\n\tat Qs (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:822:11700)\n\tat rp.value (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:822:9847)\n\tat E._deliver (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:403:3043)\n\tat E.fire (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:403:3361)\n\tat ls.fire (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:405:8437)\n\tat MessagePortMain.<anonymous> (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/3d70aab9a4/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:822:8082)\n\tat MessagePortMain.emit (node:events:519:28)\n\tat MessagePortMain.emit (node:domain:489:12)\n\tat MessagePortMain._internalPort.emit (node:electron/js2c/utility_init:2:2959)\n\tat Object.topLevelDomainCallback (node:domain:161:15)\n\tat Object.callbackTrampoline (node:internal/async_hooks:128:24)",
+    "context": "bg-health-runner",
+    "solved": false
+  },
+  {
+    "id": "err_f29d345",
+    "timestamp": "2026-04-13T22:35:36.127Z",
+    "lastOccurred": "2026-04-13T23:32:05.394Z",
+    "count": 142,
+    "message": "process exited with code 0",
+    "stacktrace": "",
+    "context": "mcp-server-status",
+    "solved": false
+  },
+  {
+    "id": "err_66a3582c",
+    "timestamp": "2026-04-14T18:12:59.042Z",
+    "lastOccurred": "2026-04-22T01:21:08.317Z",
+    "count": 25,
+    "message": "MCP process exited unexpectedly: process killed by signal SIGTERM",
+    "stacktrace": "",
+    "context": "mcp-server-status",
+    "solved": false
+  },
+  {
+    "id": "err_4b3e91d2",
+    "timestamp": "2026-04-21T02:33:04.964Z",
+    "lastOccurred": "2026-04-21T02:33:04.964Z",
+    "count": 1,
+    "message": "Failed: cvs.audit.runDaily",
+    "stacktrace": "Canceled: Canceled\n\tat Ys (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:383:1546)\n\tat file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:407:152736\n\tat Array.forEach (<anonymous>)\n\tat i.dispose (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:407:152644)\n\tat yP.terminate (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:505:12324)\n\tat i.terminate (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:507:1072)\n\tat js (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:831:11700)\n\tat ap.value (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:831:9847)\n\tat E._deliver (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:403:3126)\n\tat E.fire (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:403:3444)\n\tat as.fire (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:405:8437)\n\tat MessagePortMain.<anonymous> (file:///c:/Users/jwpmi/AppData/Local/Programs/Microsoft%20VS%20Code%20Insiders/173f07e5fc/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:831:8082)\n\tat MessagePortMain.emit (node:events:519:28)\n\tat MessagePortMain.emit (node:domain:489:12)\n\tat MessagePortMain._internalPort.emit (node:electron/js2c/utility_init:2:2959)\n\tat Object.topLevelDomainCallback (node:domain:161:15)\n\tat Object.callbackTrampoline (node:internal/async_hooks:128:24)",
+    "context": "cvs-command-launcher",
+    "solved": false
+  },
+  {
+    "id": "err_7d6c9b6",
+    "timestamp": "2026-04-21T02:54:45.457Z",
+    "lastOccurred": "2026-04-21T03:22:25.114Z",
+    "count": 64,
+    "message": "MCP process exited unexpectedly: process exited with code 1",
+    "stacktrace": "",
+    "context": "mcp-server-status",
+    "solved": false
+  }
+]

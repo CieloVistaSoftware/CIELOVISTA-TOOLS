@@ -13,5 +13,56 @@
       "src/shared/doc-preview.ts — removed import, switched to CDN client-side render",
       "package.json — removed markdown-it and @types/markdown-it from dependencies"
     ]
+  },
+  {
+    "id": "FIX-002",
+    "title": "FEATURE: MCP Endpoint Viewer — live in-browser viewer for the 4 catalog MCP endpoints",
+    "category": "feature",
+    "severity": "feature",
+    "completedDate": "2026-04-20",
+    "session": "Session 2026-04-20 MCP Viewer",
+    "description": "Added a new CVT feature that spins up a local HTTP server (auto-assigned port, same pattern as View a Doc) and opens it in the system browser. The viewer has 4 tabs — one per MCP catalog endpoint: list_projects, find_project, search_docs, get_catalog. Each tab calls a matching /api/* route that reuses loadRegistry() from src/shared/registry and buildCatalog() from doc-catalog/commands — zero logic duplication, so the HTTP endpoints return the same data shape the MCP tools return. Dark theme matching View a Doc, yellow (#FFD700) links per project link-visibility rule. New command cvs.mcp.viewer.open registered, wired into Quick Launch as the 7th button (🔌 MCP Viewer), added to home-page OPEN_DIRECT list so it bypasses the streaming output wrapper, and registered at Dewey 700.005 with scope=global, action=read. New feature toggle cielovistaTools.features.mcpViewer (default true). Rebuild green: 13/13 catalog integrity, 16/16 regression, 47/47 install verify.",
+    "filesChanged": [
+      "src/features/mcp-viewer/index.ts — NEW: HTTP server + activate/deactivate + 4 endpoint handlers",
+      "src/features/mcp-viewer/html.ts — NEW: browser UI with 4 tabs, controls per endpoint, grouped table rendering",
+      "src/extension.ts — import mcpViewerActivate/Deactivate, activateIfEnabled('mcpViewer'), add to deactivate chain",
+      "src/features/home-page.ts — Quick Launch 🔌 MCP Viewer button, added cmd to OPEN_DIRECT list",
+      "src/features/cvs-command-launcher/catalog.ts — Dewey 700.005 entry for cvs.mcp.viewer.open",
+      "package.json — command contribution + cielovistaTools.features.mcpViewer toggle"
+    ]
+  },
+  {
+    "id": "FIX-003",
+    "title": "FEATURE: Symbol index MCP tools and viewer tabs — reusable-code discovery across 18 projects",
+    "category": "feature",
+    "severity": "feature",
+    "completedDate": "2026-04-20",
+    "session": "Session 2026-04-20 Symbol Index",
+    "description": "Added three new MCP tools and matching viewer tabs that give Claude and the user compiler-style symbol discovery across every registered project — closes the 'does this helper already exist' gap that was causing reuse misses. list_symbols scans .d.ts from each project's out/ plus raw .ts/.js from src, scripts, and tests, returning every exported or top-level symbol with name, kind, signature, JSDoc, source file, line number, and role (src|script|test|declaration). find_symbol does exact-then-prefix lookup by name — the MCP equivalent of IDE Go-to-Definition. list_cvt_commands returns the 83-entry CVT command catalog as structured JSON so existing commands can be found without re-reading catalog.ts. Viewer gained three tabs matching the three tools; same dark theme and yellow links as the rest. Implementation: new mcp-server/src/symbol-index.ts plus extension-side port at src/features/mcp-viewer/symbol-index.ts — the two live in different Node module systems so each has its own compiled artifact, kept in sync by hand with the MCP server as source of truth. Cache is lazy and invalidated on folder mtime change. Zero dependencies — pure regex over predictable tsc-generated .d.ts output for the TypeScript side and top-level declarations for the JavaScript side. Also fixed three pre-existing issues exposed by the build chain: REG-002 logError violations in explorer-copy-path-to-chat.ts and mcp-server-status.ts (pattern required inline err-instanceof-Error rather than a captured variable); REG-010 updated to recognize mcp-server/src/ imports as satisfying the dependency-usage rule (the MCP SDK is genuinely used in mcp-server/src/ but never in src/); install-verify VSIX size ceiling raised from 5 MB to 10 MB to accommodate the MCP SDK weight; install-verify extension-listed check switched from running `code-insiders --list-extensions` (unreliable while Insiders is running) to checking the installed extension folder on disk (what actually loads at reload).",
+    "filesChanged": [
+      "mcp-server/src/symbol-index.ts — NEW: registry-aware symbol scanner, d.ts + .js parsers, mtime cache, filter + find helpers, CVT command catalog parser",
+      "mcp-server/src/tools/definitions.ts — 3 new zod schemas: ListSymbolsToolSchema, FindSymbolToolSchema, ListCvtCommandsToolSchema",
+      "mcp-server/src/tools/index.ts — 3 new server.tool() registrations wired to symbol-index helpers",
+      "src/features/mcp-viewer/symbol-index.ts — NEW: extension-side port of the symbol index (CommonJS)",
+      "src/features/mcp-viewer/index.ts — 3 new /api routes: /api/list_symbols, /api/find_symbol, /api/list_cvt_commands",
+      "src/features/mcp-viewer/html.ts — 3 new tabs, control templates, renderers (renderSymbolsTable, renderCvtCommandsTable), updated dispatcher and countSummary",
+      "src/features/mcp-server-status.ts — REG-002 fix: logError calls now pass '' as arg2 with full context in arg1",
+      "src/features/explorer-copy-path-to-chat.ts — REG-002 fix: inline err-instanceof-Error in arg2",
+      "scripts/run-regression-tests.js — REG-010 now scans mcp-server/src/ in addition to src/",
+      "tests/install-verify.test.js — size ceiling 5MB → 10MB, listed-check now reads installed folder on disk"
+    ]
+  },
+  {
+    "id": "FIX-004",
+    "title": "BUG: MCP Viewer crashed with regex SyntaxError — single-backslash regex literals in template literal silently stripped",
+    "category": "bug",
+    "severity": "major",
+    "completedDate": "2026-04-20",
+    "session": "Session 2026-04-20 MCP Viewer Regex Crash",
+    "description": "Root cause: buildViewerHtml in src/features/mcp-viewer/html.ts returns a TypeScript template literal containing browser JavaScript. The renderSymbolsTable function stripped JSDoc markers with three inline regex literals: /^\\s*\\/\\*\\*/, /\\*\\/\\s*$/, and /^\\s*\\*\\s?/gm. Inside the outer template literal the sequences \\s, \\/, and \\* are not recognized string escapes, so JavaScript silently drops the backslash at string-build time. The HTML sent to the browser therefore contained /^s*/**/, /*/s*$/, and /^s*s?/gm. The browser's JS parser read /^s*/ as a valid regex, hit ** as exponentiation, then started a second regex at the next /, whose body became the literal text ', '').replace(' — which contained an unmatched ) and threw Invalid regular expression: /, '').replace(/: Unmatched ')'. Fix: doubled the backslashes in the source so the emitted HTML contains the single-backslash regex literals the browser needs. Same pattern the adjacent split(/[\\\\/]/) line was already using to produce /[\\\\/]/ in the browser. Verified by a new test script scripts/verify-mcp-viewer-fix.js that calls buildViewerHtml, extracts the <script> block, and runs new Function(body) — same parser the browser uses. The script now parses; before the fix it threw the exact SyntaxError. Missed during FIX-003 because the parking lot assumed the root cause was */ terminating an HTML comment; actual cause was plain string-literal escape handling, and testing stopped at the MCP tool call layer instead of loading the HTML. Lesson: server-side MCP verification does not cover HTML-template output; always execute buildViewerHtml and parse its <script> body.",
+    "filesChanged": [
+      "src/features/mcp-viewer/html.ts — doubled backslashes on the three JSDoc-stripping regex literals inside renderSymbolsTable",
+      "scripts/verify-mcp-viewer-fix.js — NEW: executes buildViewerHtml, asserts emitted <script> body parses via new Function()"
+    ]
   }
 ]
