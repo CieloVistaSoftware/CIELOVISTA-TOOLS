@@ -64,5 +64,31 @@
       "src/features/mcp-viewer/html.ts — doubled backslashes on the three JSDoc-stripping regex literals inside renderSymbolsTable",
       "scripts/verify-mcp-viewer-fix.js — NEW: executes buildViewerHtml, asserts emitted <script> body parses via new Function()"
     ]
+  },
+  {
+    "id": "FIX-005",
+    "title": "FEATURE: Registry status field + Promote Folder to Product command",
+    "category": "feature",
+    "severity": "feature",
+    "completedDate": "2026-04-20",
+    "session": "Session 2026-04-20 Registry Status + Promote",
+    "description": "Added a lifecycle status field (product | workbench | generated | archived) to every registry entry and a one-click command to register a folder as a CieloVista product. Motivated by JesusFamilyTree graduating from createWebsite-generated output to a real product, and by the Downloads-folder mess where most folders are not projects and should not be auto-registered. The three-tier lifecycle keeps one registry but separates official products from active-dev workbenches from generated output so MCP tools and the viewer can filter appropriately. All 18 pre-existing entries backfilled to status=product. JesusFamilyTree added as the 19th entry pointing at the GitHub Pages deploy folder at C:\\Users\\jwpmi\\Downloads\\one-electron-universe\\generated\\JesusFamilyTree. New command cvs.registry.promote right-clicks any folder in Explorer, prompts for name/type/description, appends a registry entry with status=product, and scaffolds CLAUDE.md and README.md if they are missing. If the folder is already registered with a different status, the entry is promoted in place. Idempotent: a second call on the same folder updates nothing and reports alreadyInRegistry=true. Both shared/registry.ts and mcp-server/src/tools/catalog-helpers.ts interfaces gained status?: 'product' | 'workbench' | 'generated' | 'archived'; loadRegistry backfills missing status as product for backward compatibility. saveRegistry was promoted into shared/registry.ts as the canonical writer (two pre-existing private copies in docs-manager.ts and npm-command-launcher.ts remain, flagged for later cleanup). MCP tools list_projects and find_project gained an optional status filter parameter; /api routes accept status as a query string; viewer list_projects and find_project tabs gained a status filter dropdown and a Status column with color-coded pills (green=product, blue=workbench, gold=generated, gray=archived). Dropdown auto-re-runs on change. Verified by scripts/verify-registry-promote.js which creates a temp folder, promotes it, asserts all four idempotency properties, cleans up. Also verified scripts/verify-mcp-viewer-fix.js still passes (html.ts regex fix not regressed). 13/13 catalog integrity pass with 85 entries. TypeScript compiles green on both extension and mcp-server sides. 15/16 regression tests pass (REG-002 pre-existing failure unrelated to this change).",
+    "filesChanged": [
+      "C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json — backfilled 18 entries with status=product; added JesusFamilyTree as 19th entry",
+      "src/shared/registry.ts — added status?: field to ProjectEntry; loadRegistry backfills missing status; new saveRegistry export",
+      "mcp-server/src/tools/catalog-helpers.ts — matching status? field and backfill on the MCP side",
+      "mcp-server/src/tools/definitions.ts — ProjectStatusEnum; list_projects and find_project schemas gained optional status param",
+      "mcp-server/src/tools/index.ts — list_projects and find_project tool handlers honor the status filter",
+      "src/features/mcp-viewer/index.ts — ProjectJson gained status; coerceStatus validator; handleListProjects and handleFindProject take optional status; /api routes read status query param",
+      "src/features/mcp-viewer/html.ts — four-color status pill CSS; status dropdown in list_projects and find_project control templates; Status column in renderProjectsTable and renderFindProjectTable; auto-re-run on dropdown change",
+      "src/features/registry-promote.ts — NEW: pure promoteFolder helper + vscode command wrapper",
+      "src/features/registry-promote.README.md — NEW: per-feature README matching architecture rule",
+      "src/extension.ts — import, activateIfEnabled('registryPromote', ...), deactivate hook",
+      "src/features/feature-toggle.ts — FEATURE_EXPLANATIONS + FEATURE_REGISTRY entry",
+      "src/features/cvs-command-launcher/catalog.ts — Dewey 700.006 entry for cvs.registry.promote",
+      "package.json — command contribution, Explorer folder context menu at navigation@88, cielovistaTools.features.registryPromote toggle setting",
+      "scripts/verify-registry-promote.js — NEW: headless integration test with vscode module stub; creates temp folder, double-promotes, asserts all properties, cleans up registry and disk",
+      "scripts/check-registry-state.js — NEW: quick registry health probe (entry count, JesusFamilyTree present, leftover test entries, distinct status values)"
+    ]
   }
 ]

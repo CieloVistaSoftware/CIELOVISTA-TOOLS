@@ -48,6 +48,7 @@ import { activate as mcpBuildActivate,        deactivate as mcpBuildDeactivate  
 import { activate as imageReaderActivate,     deactivate as imageReaderDeactivate          } from './features/image-reader';
 import { activate as mcpViewerActivate,       deactivate as mcpViewerDeactivate            } from './features/mcp-viewer';
 import { activate as explorerCopyPathToChatActivate, deactivate as explorerCopyPathToChatDeactivate } from './features/explorer-copy-path-to-chat';
+import { activate as registryPromoteActivate, deactivate as registryPromoteDeactivate      } from './features/registry-promote';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -119,6 +120,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('imageReader',             'Image Reader',                  imageReaderActivate,     context);
     activateIfEnabled('mcpViewer',               'MCP Endpoint Viewer',           mcpViewerActivate,       context);
     activateIfEnabled('explorerCopyPathToChat',  'Explorer: Copy Path to Copilot Chat', explorerCopyPathToChatActivate, context);
+    activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate, context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
@@ -161,6 +163,7 @@ export function deactivate(): void {
     imageReaderDeactivate();
     mcpViewerDeactivate();
     explorerCopyPathToChatDeactivate();
+    registryPromoteDeactivate();
     deactivateDocHeader();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();

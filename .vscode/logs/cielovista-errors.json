@@ -192,8 +192,8 @@
   {
     "id": "err_66a3582c",
     "timestamp": "2026-04-14T18:12:59.042Z",
-    "lastOccurred": "2026-04-22T01:21:08.317Z",
-    "count": 25,
+    "lastOccurred": "2026-04-22T02:36:24.948Z",
+    "count": 26,
     "message": "MCP process exited unexpectedly: process killed by signal SIGTERM",
     "stacktrace": "",
     "context": "mcp-server-status",

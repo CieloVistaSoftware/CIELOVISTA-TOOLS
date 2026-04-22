@@ -1,8 +1,82 @@
-﻿# CURRENT-STATUS.md — cielovista-tools
+# CURRENT-STATUS.md — cielovista-tools
 
 ---
 
-## 🅿️ TODO — 2026-04-20 (picked up from user)
+## 🅿️ PARKING LOT — 2026-04-20 (Registry Status Field + Promote Folder Command)
+
+### Task
+**Registry lifecycle + one-click folder promotion**
+
+Motivated by JesusFamilyTree graduating from createWebsite-generated output to a real product, and by the Downloads-folder mess where most folders are not projects and should not be auto-registered. Three-tier model: product (shipped), workbench (active dev), generated (tool output), archived (retired). Pass 1 delivers the schema, the UI to filter by status, and the promote-to-product command only — workbench/demote/archive not implemented yet.
+
+### Files touched
+- `C:\Users\jwpmi\Downloads\CieloVistaStandards\project-registry.json` — backfilled 18 existing entries with `status: "product"`; added JesusFamilyTree as 19th entry pointing at `C:\Users\jwpmi\Downloads\one-electron-universe\generated\JesusFamilyTree`
+- `src/shared/registry.ts` — added `status?` field to `ProjectEntry`; `loadRegistry` backfills missing status; new `saveRegistry` export
+- `mcp-server/src/tools/catalog-helpers.ts` — matching `status?` field and backfill on the MCP side
+- `mcp-server/src/tools/definitions.ts` — `ProjectStatusEnum`; list_projects and find_project schemas gained optional `status` param
+- `mcp-server/src/tools/index.ts` — list_projects and find_project tool handlers honor the status filter
+- `src/features/mcp-viewer/index.ts` — `ProjectJson` gained status; `coerceStatus` validator; handlers take optional status; /api routes read status query param
+- `src/features/mcp-viewer/html.ts` — four-color status pill CSS; status dropdown in list_projects and find_project; Status column in both render functions; auto-re-run on dropdown change
+- `src/features/registry-promote.ts` — NEW: pure `promoteFolder` helper + vscode command wrapper
+- `src/features/registry-promote.README.md` — NEW
+- `src/extension.ts` — import, `activateIfEnabled('registryPromote', ...)`, deactivate hook
+- `src/features/feature-toggle.ts` — FEATURE_EXPLANATIONS + FEATURE_REGISTRY entry
+- `src/features/cvs-command-launcher/catalog.ts` — Dewey 700.006 entry for `cvs.registry.promote`
+- `package.json` — command contribution, Explorer folder context menu at `navigation@88`, `cielovistaTools.features.registryPromote` toggle setting
+- `scripts/verify-registry-promote.js` — NEW: headless integration test with vscode module stub; creates temp folder, double-promotes, asserts all properties, cleans up
+- `scripts/check-registry-state.js` — NEW: quick registry health probe
+- `data/fixes.json` — FIX-005 appended (also restored the dropped `verify-mcp-viewer-fix.js` line in FIX-004)
+
+### Last action
+**Verified end-to-end headless:**
+- `node scripts/verify-registry-promote.js` — first promote registers + scaffolds CLAUDE.md + README.md, second promote is idempotent, registry restored on cleanup. PASS.
+- `node scripts/verify-mcp-viewer-fix.js` — emitted viewer script still parses as valid JavaScript after html.ts changes. PASS.
+- `node scripts/check-registry-state.js` — registry has 19 entries, JesusFamilyTree present, no leftover test entries, all 19 statuses = product. OK.
+- `node tests/catalog-integrity.test.js` — 13/13 pass, 85 catalog entries.
+- `node scripts/run-regression-tests.js` — 15/16 pass. **Only failure is REG-002** (pre-existing logError interface violations across 91 call sites) — nothing I added regresses the suite.
+- `.\node_modules\.bin\tsc` on both `./` and `mcp-server/` — exit 0 both times.
+
+Rebuild and install NOT run — REG-002 still blocks `npm run rebuild`.
+
+### Next step
+1. John runs `npm run rebuild` (or `npm run compile && node install.js` if REG-002 still blocks).
+2. Reload VS Code Insiders (Ctrl+Alt+R), fully quit+relaunch Claude Desktop so the MCP server re-enumerates the now-19-entry registry and the status-aware list_projects/find_project schemas.
+3. Open MCP Viewer. On the list_projects tab verify:
+   - Status column renders with four distinct pill colors (green/blue/gold/gray).
+   - Every row says "product" right now (since everything is product until workbench or generated gets used).
+   - Status dropdown filters in place — selecting "workbench" should return zero rows currently.
+   - JesusFamilyTree appears as the 19th row pointing at the deploy folder.
+4. Right-click any folder in Explorer → **Promote Folder to Product**. Accept the default name, pick a type, leave description blank. Verify the registry entry appears, CLAUDE.md and README.md are scaffolded, and running the command a second time on the same folder says "already in registry".
+5. If all verified: clean up the parking-lot entries below this one from previous sessions.
+
+### Open questions
+- Two pre-existing private `saveRegistry` copies remain in `docs-manager.ts` (line 45) and `npm-command-launcher.ts` (line 44). Out of scope for this session. Flag for a future one-time-one-place sweep that switches both call sites to import the new canonical `saveRegistry` from `shared/registry.ts`.
+- No `cvs.registry.demote` or `cvs.registry.archive` command yet. Add when there is a second user — specifically when you need to move something *out* of product.
+- Symbol index still scans every registered project regardless of status. If the viewer starts showing noise from workbench/generated entries that shouldn't be symbol-indexed, add the same status filter to list_symbols. Not needed yet.
+
+---
+
+## 🅿️ PARKING LOT — 2026-04-20 (MCP Viewer Regex SyntaxError — FIXED)
+
+### Task
+**Fix the `(index):272 Uncaught SyntaxError: Invalid regular expression: /, '').replace(/: Unmatched ')'` crash in the MCP Viewer list_symbols tab.**
+
+### Files touched
+- `src/features/mcp-viewer/html.ts` — doubled backslashes on the three JSDoc-stripping regex literals in `renderSymbolsTable`
+- `scripts/verify-mcp-viewer-fix.js` — NEW: executes `buildViewerHtml`, asserts the emitted `<script>` block parses via `new Function()`
+- `data/fixes.json` — FIX-004 appended
+
+### Last action
+- Compiled (`tsc` exit 0). Verification script confirms the emitted script parses cleanly. Root cause was plain string-escape handling in a TypeScript template literal, not the `*/` comment-termination theory from the earlier parking lot entry.
+
+### Next step
+- Folded into the Registry Status parking lot above — one rebuild handles both.
+
+### Open questions
+- None. Fix root-caused, verified headlessly, logged as FIX-004.
+
+---
+
 
 ### 1. wb-harness console errors from Auto-Injection.md preview
 **Where:** `wb-harness.html` served by wb-core demo server on port 3000 while previewing `C:\dev\wb-core\docs\Auto-Injection.md`.

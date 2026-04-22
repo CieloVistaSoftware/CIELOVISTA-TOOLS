@@ -36,6 +36,7 @@ const FEATURE_EXPLANATIONS: Record<string, string> = {
     mcpServerScaffolder: 'Scaffold a new Model Context Protocol (MCP) server project with all required files.',
     openFolderAsRoot: 'Right-click any folder and open it as the new workspace root in VS Code.',
     explorerCopyPathToChat: 'Right-click any file and send its absolute path into GitHub Copilot Chat input.',
+    registryPromote: 'Right-click a folder to register it as a CieloVista product — adds a registry entry with status=product, scaffolds CLAUDE.md and README.md if they are missing.',
 };
 
 const FEATURE = 'feature-toggle';
@@ -76,6 +77,7 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     { key: 'mcpServerScaffolder',    label: 'MCP Server Scaffolder',       description: 'Scaffold a new MCP server project' },
     { key: 'openFolderAsRoot',       label: 'Explorer: Open Folder as Root',         description: 'Right-click folder → open as workspace root' },
     { key: 'explorerCopyPathToChat', label: 'Explorer: Copy Path to Copilot Chat',   description: 'Right-click file -> send path to Copilot chat' },
+    { key: 'registryPromote',        label: 'Registry: Promote Folder to Product',   description: 'Right-click folder -> register as CieloVista product' },
 ];
 
 // ─── Settings helpers ─────────────────────────────────────────────────────

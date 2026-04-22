@@ -119,6 +119,7 @@ export const CATALOG: CmdEntry[] = [
     ].join('\n') },
     { id: 'cvs.imageReader.open',   title: 'Image Reader: Open Panel',            description: 'Open the image reader panel to browse and view project images.',         tags: ['image', 'reader', 'browse', 'viewer', 'assets'],          group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.004', scope: 'workspace', location: 'features/image-reader.ts' },
     { id: 'cvs.mcp.viewer.open',    title: 'MCP Viewer: Open Endpoint Viewer',    description: 'Open a live in-browser viewer for the 4 MCP catalog endpoints (list_projects, find_project, search_docs, get_catalog).', tags: ['mcp', 'viewer', 'catalog', 'browser', 'live'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.005', scope: 'global', action: 'read', location: 'features/mcp-viewer/index.ts' },
+    { id: 'cvs.registry.promote',   title: 'Registry: Promote Folder to Product', description: 'Right-click a folder to register it as a CieloVista product. Scaffolds CLAUDE.md + README.md if missing; adds an entry with status=product.', tags: ['registry', 'promote', 'product', 'scaffold', 'folder', 'status'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.006', scope: 'global', location: 'features/registry-promote.ts' },
 ];
 
 // ── Derived helpers ──────────────────────────────────────────────────────────

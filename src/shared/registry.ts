@@ -45,3 +45,12 @@ export function loadRegistry(): ProjectRegistry | undefined {
         return undefined;
     }
 }
+
+/**
+ * Saves the project registry back to REGISTRY_PATH.
+ * Pretty-printed with 2-space indent to match the hand-maintained style.
+ * Throws on write failure — callers should wrap in try/catch if they want UI feedback.
+ */
+export function saveRegistry(registry: ProjectRegistry): void {
+    fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf8');
+}
