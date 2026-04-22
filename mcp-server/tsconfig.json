@@ -12,7 +12,13 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@modelcontextprotocol/sdk/*": ["../../node_modules/@modelcontextprotocol/sdk/*"],
+      "zod": ["../../node_modules/zod/index.js"],
+      "zod/*": ["../../node_modules/zod/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

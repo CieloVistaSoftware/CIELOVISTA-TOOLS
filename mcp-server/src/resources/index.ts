@@ -10,7 +10,20 @@ export function registerResources(server: McpServer): void {
         name: "cielovista-mcp-server",
         version: "1.0.0",
         description: "MCP server for CieloVista Tools",
-        tools: ["echo", "list_files", "read_file", "project_status"],
+        tools: [
+          "echo",
+          "list_files",
+          "read_file",
+          "project_status",
+          "write_file",
+          "edit_file",
+          "delete_file",
+          "create_directory",
+          "list_projects",
+          "find_project",
+          "get_catalog",
+          "search_docs",
+        ],
       };
       return {
         contents: [
@@ -24,3 +37,4 @@ export function registerResources(server: McpServer): void {
     }
   );
 }
+// FILE REMOVED BY REQUEST

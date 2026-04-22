@@ -37,6 +37,60 @@ export const CreateDirectoryToolSchema = z.object({
   dirPath: z.string().describe("The full path of the directory to create"),
 });
 
+// ─── Catalog tools ──────────────────────────────────────────────────────
+// Thin catalog interface over CieloVistaStandards\project-registry.json plus
+// on-demand .md scanning. Serves AI callers who need to locate existing work
+// before proposing anything new.
+
+const ProjectStatusEnum = z.enum(["product", "workbench", "generated", "archived"]);
+
+export const ListProjectsToolSchema = z.object({
+  status: ProjectStatusEnum.optional().describe("Filter by lifecycle status: product (shipped), workbench (active dev), generated (tool output), archived (retired). Omit to return all."),
+});
+
+export const FindProjectToolSchema = z.object({
+  query: z.string().describe("Project name or substring to match (case-insensitive). e.g. 'wb-core', 'wb-', 'catalog'"),
+  status: ProjectStatusEnum.optional().describe("Optional: restrict matches to one lifecycle status."),
+});
+
+export const GetCatalogToolSchema = z.object({
+  projectName: z.string().optional().describe("Optional: limit scan to one project by exact name"),
+});
+
+export const SearchDocsToolSchema = z.object({
+  query: z.string().describe("Case-insensitive substring to match against doc title, description, or filename"),
+  projectName: z.string().optional().describe("Optional: limit search to one project by exact name"),
+});
+
+// ─── Symbol index tools ────────────────────────────────────────────────
+// Cross-project reusable-code search. Indexes both TypeScript (via tsc's
+// generated .d.ts files) and plain JavaScript (direct regex over src/,
+// scripts/, tests/). Answers "does something like this already exist"
+// without walking the filesystem manually.
+
+const SymbolKindEnum = z.enum([
+  "function", "class", "interface", "type", "const", "let", "var", "enum", "namespace", "export",
+]);
+const SymbolRoleEnum = z.enum(["src", "script", "test", "declaration"]);
+
+export const ListSymbolsToolSchema = z.object({
+  query: z.string().optional().describe("Case-insensitive substring match on symbol name, signature, or JSDoc. Omit to list everything."),
+  kind: SymbolKindEnum.optional().describe("Restrict to one kind, e.g. 'function' or 'class'."),
+  projectName: z.string().optional().describe("Limit to one registered project by exact name."),
+  role: SymbolRoleEnum.optional().describe("Limit by file role: src, script, test, or declaration (.d.ts)."),
+  exportedOnly: z.boolean().optional().describe("If true, skip internal/non-exported symbols."),
+  limit: z.number().int().positive().optional().describe("Cap result count (default 200)."),
+});
+
+export const FindSymbolToolSchema = z.object({
+  name: z.string().describe("Exact symbol name to resolve. Falls back to prefix match if no exact hit."),
+  limit: z.number().int().positive().optional().describe("Max matches to return (default 10)."),
+});
+
+export const ListCvtCommandsToolSchema = z.object({
+  group: z.string().optional().describe("Restrict to one CVT catalog group, e.g. 'Other Tools' or 'Doc Auditor'."),
+});
+
 export type EchoToolInput = z.infer<typeof EchoToolSchema>;
 export type ListFilesToolInput = z.infer<typeof ListFilesToolSchema>;
 export type ReadFileToolInput = z.infer<typeof ReadFileToolSchema>;
@@ -45,3 +99,11 @@ export type WriteFileToolInput = z.infer<typeof WriteFileToolSchema>;
 export type EditFileToolInput = z.infer<typeof EditFileToolSchema>;
 export type DeleteFileToolInput = z.infer<typeof DeleteFileToolSchema>;
 export type CreateDirectoryToolInput = z.infer<typeof CreateDirectoryToolSchema>;
+export type ListProjectsToolInput = z.infer<typeof ListProjectsToolSchema>;
+export type FindProjectToolInput = z.infer<typeof FindProjectToolSchema>;
+export type GetCatalogToolInput = z.infer<typeof GetCatalogToolSchema>;
+export type SearchDocsToolInput = z.infer<typeof SearchDocsToolSchema>;
+export type ListSymbolsToolInput = z.infer<typeof ListSymbolsToolSchema>;
+export type FindSymbolToolInput = z.infer<typeof FindSymbolToolSchema>;
+export type ListCvtCommandsToolInput = z.infer<typeof ListCvtCommandsToolSchema>;
+// FILE REMOVED BY REQUEST

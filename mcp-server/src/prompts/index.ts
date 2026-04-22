@@ -37,3 +37,4 @@ export function registerPrompts(server: McpServer): void {
     }
   );
 }
+// FILE REMOVED BY REQUEST
