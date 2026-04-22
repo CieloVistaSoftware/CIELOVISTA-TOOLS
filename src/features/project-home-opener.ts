@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * project-home-opener.ts
  *
@@ -85,7 +85,7 @@ function validateHomePath(targetPath: string): string | null {
             return `Configured CieloVista home project path is not a folder: ${targetPath}`;
         }
     } catch (error) {
-        logError(FEATURE, `Unable to inspect configured path: ${targetPath}`, error);
+        logError(`Unable to inspect configured path: ${targetPath}`, error instanceof Error ? error.stack || String(error) : String(error), FEATURE);
         return `Could not validate configured CieloVista home project path: ${targetPath}`;
     }
 
@@ -112,7 +112,7 @@ async function openConfiguredHomeProject(): Promise<void> {
         log(FEATURE, `Opening home project: ${resolved}`);
         await openFolderInVSCode(vscode.Uri.file(resolved));
     } catch (error) {
-        logError(FEATURE, `Failed to open home project: ${resolved}`, error);
+        logError(`Failed to open home project: ${resolved}`, error instanceof Error ? error.stack || String(error) : String(error), FEATURE);
         vscode.window.showErrorMessage(`Failed to open Project: Open Home: ${resolved}`);
     }
 }

@@ -68,7 +68,7 @@ async function runFullAudit(): Promise<void> {
             if (choice === 'Walk Through Now') { await walkThroughFindings(results); }
             else if (choice === 'Open Report') { const doc = await vscode.workspace.openTextDocument(reportPath); await vscode.window.showTextDocument(doc); }
         }
-    } catch (err) { logError(FEATURE, 'Failed to save report', err); }
+    } catch (err) { logError('Failed to save report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
 
     log(FEATURE, `Audit complete — ${results.totalDocsScanned} docs, ${results.duplicates.length} dupes, ${results.similar.length} similar, ${results.moveCandidates.length} move candidates, ${results.orphans.length} orphans`);
 }
@@ -111,7 +111,7 @@ async function actOnReport(): Promise<void> {
     if (!reportPick) { return; }
     let content: string;
     try { content = fs.readFileSync(reportPick.filePath, 'utf8'); }
-    catch (err) { logError(FEATURE,'Could not read report',err); vscode.window.showErrorMessage(`Could not read report: ${err}`); return; }
+    catch (err) { logError('Could not read report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); vscode.window.showErrorMessage(`Could not read report: ${err}`); return; }
     const actions = parseReportActions(content);
     if (!actions.length) { vscode.window.showInformationMessage('No actionable items found in this report.'); return; }
     const kindIcon: Record<string,string> = { delete:'trash', diff:'diff', merge:'git-merge', open:'go-to-file', 'move-to-global':'arrow-right' };
@@ -147,7 +147,7 @@ async function quickFindDuplicates(): Promise<void> {
         }
         fs.writeFileSync(p, lines.join('\n'), 'utf8');
         vscode.window.showInformationMessage(`Found ${results.duplicates.length} duplicates.`, 'Act on Report').then(c => { if(c==='Act on Report'){ actOnReport(); } });
-    } catch (err) { logError(FEATURE,'Failed to save duplicates report',err); }
+    } catch (err) { logError('Failed to save duplicates report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
     await vscode.window.showQuickPick(
         results.duplicates.map(g => ({ label:`$(copy) ${g.fileName}`, description:`${g.files.length} copies`, detail:g.files.map(f=>`${f.projectName}/${f.fileName}`).join('  |  ') })),
         { placeHolder:`${results.duplicates.length} duplicate filenames found`, matchOnDescription:true }
@@ -169,7 +169,7 @@ async function quickFindSimilar(): Promise<void> {
         }
         fs.writeFileSync(p, lines.join('\n'), 'utf8');
         vscode.window.showInformationMessage(`Found ${results.similar.length} similar pairs.`, 'Act on Report').then(c => { if(c==='Act on Report'){ actOnReport(); } });
-    } catch (err) { logError(FEATURE,'Failed to save similar report',err); }
+    } catch (err) { logError('Failed to save similar report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
     const picked = await vscode.window.showQuickPick(
         results.similar.map(g => ({ label:`$(git-compare) ${Math.round(g.similarity*100)}% similar`, description:`${g.fileA.projectName}/${g.fileA.fileName}  ↔  ${g.fileB.projectName}/${g.fileB.fileName}`, detail:g.reason, data:g })),
         { placeHolder:`${results.similar.length} similar pairs found`, matchOnDescription:true }
@@ -189,7 +189,7 @@ async function quickFindOrphans(): Promise<void> {
         }
         fs.writeFileSync(p, lines.join('\n'), 'utf8');
         vscode.window.showInformationMessage(`Found ${results.orphans.length} orphans.`, 'Act on Report').then(c => { if(c==='Act on Report'){ actOnReport(); } });
-    } catch (err) { logError(FEATURE,'Failed to save orphans report',err); }
+    } catch (err) { logError('Failed to save orphans report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
     const picked = await vscode.window.showQuickPick(
         results.orphans.map(o => ({ label:`$(warning) ${o.file.projectName}/${o.file.fileName}`, description:o.reason, detail:o.file.filePath, data:o })),
         { placeHolder:`${results.orphans.length} orphaned docs found`, matchOnDescription:true }

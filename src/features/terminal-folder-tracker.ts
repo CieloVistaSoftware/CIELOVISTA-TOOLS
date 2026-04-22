@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * terminal-folder-tracker.ts
  * Monitors terminal sendText calls for `cd` commands and persists the
@@ -26,7 +26,7 @@ function saveLastFolder(folderPath: string): void {
         fs.writeFileSync(STATE_FILE, folderPath, 'utf8');
         log(FEATURE, `Saved last folder: ${folderPath}`);
     } catch (err) {
-        logError(FEATURE, 'Failed to save last folder', err);
+        logError('Failed to save last folder', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
     }
 }
 
@@ -78,3 +78,6 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void { /* nothing to clean up */ }
+
+/** @internal — exported for unit testing only */
+export const _test = { saveLastFolder, readLastFolder, STATE_FILE };

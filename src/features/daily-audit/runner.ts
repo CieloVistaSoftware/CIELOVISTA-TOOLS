@@ -38,6 +38,7 @@ function loadRegistry(): ProjectRegistry {
 export interface RunAuditResult {
     report:  DailyAuditReport;
     written: boolean;
+    projectNames: string[];
     error?:  string;
 }
 
@@ -63,7 +64,7 @@ export async function runDailyAudit(): Promise<RunAuditResult> {
             }],
             summary: { red: 1, yellow: 0, green: 0, grey: 0, total: 1 },
         };
-        return { report: emptyReport, written: false, error: errMsg };
+        return { report: emptyReport, written: false, projectNames: [], error: errMsg };
     }
 
     const projects = registry.projects;
@@ -102,9 +103,9 @@ export async function runDailyAudit(): Promise<RunAuditResult> {
 
     try {
         fs.writeFileSync(AUDIT_REPORT_PATH, JSON.stringify(report, null, 2), 'utf8');
-        return { report, written: true };
+        return { report, written: true, projectNames: projects.map(p => p.name) };
     } catch (err) {
-        return { report, written: false, error: String(err) };
+        return { report, written: false, projectNames: projects.map(p => p.name), error: String(err) };
     }
 }
 

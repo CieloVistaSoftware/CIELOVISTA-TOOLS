@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * error-log.ts
  *
@@ -208,3 +208,6 @@ export async function clearErrors(): Promise<void> {
     saveLog({ lastUpdated: new Date().toISOString(), count: 0, errors: [] });
     _sessionNotified = false;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = { parseStack, inferType, hashError, loadLog, saveLog };

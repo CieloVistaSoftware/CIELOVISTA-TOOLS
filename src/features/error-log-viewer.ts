@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * error-log-viewer.ts
  *
@@ -136,12 +136,8 @@ export async function openErrorLogViewer(): Promise<void> {
         if (msg.command === 'clear') {
             await clearErrors();
             _panel!.webview.html = buildHtml([]);
-            require('../shared/show-result-webview').showResultWebview(
-                'Error Log Cleared',
-                'Clear Error Log',
-                0,
-                'The error log has been <b>cleared</b>.'
-            );
+            log(FEATURE, 'Error log cleared by user');
+            void vscode.window.showInformationMessage('Tools Error Log cleared.');
         }
         if (msg.command === 'open-file') {
             const logPath = getLogPath();

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * feature-toggle.ts
  * Provides a QuickPick UI for enabling/disabling individual CieloVista
@@ -35,6 +35,7 @@ const FEATURE_EXPLANATIONS: Record<string, string> = {
     npmCommandLauncher: 'Adds a status bar launcher for npm scripts, so you can run them without opening a terminal.',
     mcpServerScaffolder: 'Scaffold a new Model Context Protocol (MCP) server project with all required files.',
     openFolderAsRoot: 'Right-click any folder and open it as the new workspace root in VS Code.',
+    explorerCopyPathToChat: 'Right-click any file and send its absolute path into GitHub Copilot Chat input.',
 };
 
 const FEATURE = 'feature-toggle';
@@ -74,6 +75,7 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     { key: 'npmCommandLauncher',     label: 'NPM Command Launcher',        description: 'Status bar launcher for npm scripts' },
     { key: 'mcpServerScaffolder',    label: 'MCP Server Scaffolder',       description: 'Scaffold a new MCP server project' },
     { key: 'openFolderAsRoot',       label: 'Explorer: Open Folder as Root',         description: 'Right-click folder → open as workspace root' },
+    { key: 'explorerCopyPathToChat', label: 'Explorer: Copy Path to Copilot Chat',   description: 'Right-click file -> send path to Copilot chat' },
 ];
 
 // ─── Settings helpers ─────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * copilot-rules-utils.ts
  * All logic for reading, applying, and removing Copilot instruction rules.
@@ -70,7 +70,7 @@ export function getCurrentRules(): string {
                     return formatRulesForDisplay(rules, folders[0].uri.fsPath);
                 }
             } catch (err) {
-                logError(FEATURE, 'Failed to read workspace settings', err);
+                logError('Failed to read workspace settings', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             }
         }
     }
@@ -160,7 +160,7 @@ export function removeWorkspaceRules(workspacePath: string): void {
         log(FEATURE, 'Removed workspace rules');
         vscode.window.showInformationMessage('Copilot rules removed from workspace.');
     } catch (err) {
-        logError(FEATURE, 'removeWorkspaceRules failed', err);
+        logError('removeWorkspaceRules failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
     }
 }
 
@@ -201,5 +201,41 @@ export function removeRules(): void {
         removeWorkspaceRules(folders[0].uri.fsPath);
     } else {
         removeUserRules();
+    }
+}
+
+/**
+ * Repairs malformed instruction values in both workspace settings.json and
+ * global configuration. Copilot expects an iterable payload.
+ */
+export async function sanitizeCopilotInstructionSettings(): Promise<void> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders?.length) {
+        const workspacePath = folders[0].uri.fsPath;
+        const settingsPath = path.join(workspacePath, '.vscode', 'settings.json');
+        if (fs.existsSync(settingsPath)) {
+            try {
+                const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
+                const value = settings[COPILOT_INSTRUCTIONS_KEY];
+                if (value !== undefined && !Array.isArray(value)) {
+                    delete settings[COPILOT_INSTRUCTIONS_KEY];
+                    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+                    log(FEATURE, 'Removed non-array workspace Copilot instructions setting');
+                }
+            } catch (err) {
+                logError('sanitize workspace settings failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            }
+        }
+    }
+
+    try {
+        const config = vscode.workspace.getConfiguration();
+        const globalValue = config.get<unknown>(COPILOT_INSTRUCTIONS_KEY);
+        if (globalValue !== undefined && !Array.isArray(globalValue)) {
+            await config.update(COPILOT_INSTRUCTIONS_KEY, undefined, vscode.ConfigurationTarget.Global);
+            log(FEATURE, 'Removed non-array global Copilot instructions setting');
+        }
+    } catch (err) {
+        logError('sanitize global settings failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
     }
 }

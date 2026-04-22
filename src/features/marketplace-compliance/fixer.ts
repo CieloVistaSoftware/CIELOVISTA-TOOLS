@@ -31,7 +31,7 @@ export function fixProject(compliance: ProjectCompliance): string[] {
             if (issue.fixKey === 'pkg:license' && pkg) { pkg['license'] = 'PROPRIETARY'; }
             if (issue.fixKey === 'pkg:icon'    && pkg) { pkg['icon'] = 'icon.png'; }
             if (issue.fixKey === 'pkg:publisher' && pkg) { pkg['publisher'] = 'CieloVistaSoftware'; }
-        } catch (err) { logError('marketplace-compliance', `Fix failed: ${issue.fixKey} in ${project.name}`, err); }
+        } catch (err) { logError(`Fix failed: ${issue.fixKey} in ${project.name}`, err instanceof Error ? err.stack || String(err) : String(err), 'marketplace-compliance'); }
     }
 
     if (pkg && packageJson) {
@@ -39,7 +39,7 @@ export function fixProject(compliance: ProjectCompliance): string[] {
         try {
             fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
             if (JSON.stringify(pkg) !== JSON.stringify(packageJson)) { fixed.push('package.json'); }
-        } catch (err) { logError('marketplace-compliance', `Failed to write package.json for ${project.name}`, err); }
+        } catch (err) { logError(`Failed to write package.json for ${project.name}`, err instanceof Error ? err.stack || String(err) : String(err), 'marketplace-compliance'); }
     }
 
     return fixed;

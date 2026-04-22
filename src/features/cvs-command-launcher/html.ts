@@ -1,7 +1,9 @@
-// Copyright (c) 2025 CieloVista Software. All rights reserved.
+﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
 import type { DailyAuditReport, AuditStatus } from '../../shared/audit-schema';
+import type { HistoryEntry } from './command-history';
+import type { RecentProject } from './recent-projects';
 import { CATALOG, allGroups, allTags, esc } from './catalog';
 import type { CmdEntry } from './types';
 
@@ -47,6 +49,31 @@ function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summar
         dewey: cmd.dewey,
         group,
     }));
+    // In-depth, actionable tooltip for run button
+    let runTooltip = '';
+    if (cmd.helpDoc) {
+      runTooltip = `In-depth info:\n(Loading detailed help...)`;
+    } else if (cmd.runTooltip) {
+      runTooltip = cmd.runTooltip;
+    } else {
+      runTooltip = [
+        `What happens when you run this:`,
+        `- ${cmd.description}`,
+        `- Executes logic defined in: ${cmd.location || 'N/A'}`,
+        '',
+        `Webview output:`,
+        `- Shows a full log of all actions taken, including console output, step-by-step results, and any errors or warnings.`,
+        `- Success: You will see a summary of completed actions and their results.`,
+        `- Failure: Errors and troubleshooting tips will be shown in the log.`,
+        '',
+        `Caveats & Tips:`,
+        `- Make sure all prerequisites are met (e.g., file/folder exists, permissions, etc).`,
+        `- If the result is not as expected, check the log for error details and next steps.`,
+        '',
+        `Scope: ${scopeMeta.label} — ${scopeMeta.title}`,
+        `Group: ${group}${cmd.dewey ? `\nDewey: ${cmd.dewey}` : ''}`
+      ].join('\n');
+    }
     return `<div class="cmd-card" data-id="${esc(cmd.id)}" data-group="${esc(group)}" data-tags="${esc(cmd.tags.join(' '))}" data-scope="${esc(cmd.scope)}" tabindex="0" role="article" aria-label="${esc(cmd.title)}">
   ${dot}
   ${breadcrumb}
@@ -60,7 +87,8 @@ function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summar
     <div class="cmd-actions">
       <button class="f1-btn" data-action="show-f1" data-f1="${f1Data}" title="F1 — What, How, Where &amp; Why for this command">${ICON_F1}</button>
       ${cmd.helpDoc ? `<button class="help-btn" data-action="help" data-doc="${esc(cmd.helpDoc)}" title="Open detailed help document for ${esc(cmd.title)}">Help</button>` : ''}
-      <button class="run-btn ${cmd.action === 'read' ? 'read-btn' : ''}" data-action="run" data-id="${esc(cmd.id)}" title="${cmd.action === 'read' ? 'Read: open' : 'Run:'} ${esc(cmd.title)}">${cmd.action === 'read' ? ICON_READ : ICON_PLAY} ${cmd.action === 'read' ? 'Open' : 'Run'}</button>
+      ${cmd.id === 'cvs.audit.runDaily' ? `<button class="run-btn read-btn" data-action="toggle-audit-output" title="Show/hide the Run Daily Health Check output window">📋 Log</button>` : ''}
+      <button class="run-btn ${cmd.action === 'read' ? 'read-btn' : ''}" data-action="run" data-id="${esc(cmd.id)}" title="${esc(runTooltip)}">${cmd.action === 'read' ? ICON_READ : ICON_PLAY} ${cmd.action === 'read' ? 'Open' : 'Run'}</button>
     </div>
   </div>
 </div>`;
@@ -92,7 +120,12 @@ function buildLocationBar(wsPath: string | undefined): string {
 </div>`;
 }
 
-export function buildLauncherHtml(report: DailyAuditReport | null, workspacePath?: string): string {
+export function buildLauncherHtml(
+    report: DailyAuditReport | null,
+    workspacePath?: string,
+    history: HistoryEntry[] = [],
+    recents: RecentProject[] = []
+): string {
     const auditMap = new Map<string, { status: string; summary: string }>();
     if (report) { for (const c of report.checks) { auditMap.set(c.checkId, { status: c.status, summary: c.summary }); } }
 
@@ -139,6 +172,8 @@ export function buildLauncherHtml(report: DailyAuditReport | null, workspacePath
     const wsPathJs        = (workspacePath ?? '').replace(/\\/g, '\\\\');
     const catalogJson = JSON.stringify(CATALOG);
     const total       = CATALOG.length;
+    const historyJson = JSON.stringify(history);
+    const recentsJson = JSON.stringify(recents.map(r => ({ name: r.name, fsPath: r.fsPath })));
 
     const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
@@ -267,6 +302,24 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #run-status.visible{display:flex}
 .spin{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* ── History strip ── */
+#history-strip{display:flex;align-items:center;gap:6px;padding:5px 16px;background:var(--vscode-textCodeBlock-background);border-bottom:1px solid var(--vscode-panel-border);overflow-x:auto;white-space:nowrap;min-height:32px}
+#history-strip.empty{display:none}
+#history-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);flex-shrink:0}
+.hist-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-editor-foreground);border-radius:3px;padding:2px 8px;cursor:pointer;font-size:11px;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.hist-btn:hover{border-color:var(--vscode-focusBorder);background:var(--vscode-list-hoverBackground)}
+.hist-ok{color:#3fb950}.hist-err{color:#f85149}
+/* ── Recent projects dropdown ── */
+#recent-wrap{position:relative;display:inline-block;flex-shrink:0}
+#btn-recent{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px}
+#btn-recent:hover{background:var(--vscode-button-secondaryHoverBackground)}
+#recent-dd{display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-panel-border);border-radius:4px;min-width:240px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+#recent-dd.open{display:block}
+.recent-item{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--vscode-panel-border)}
+.recent-item:last-child{border-bottom:none}
+.recent-item:hover{background:var(--vscode-list-hoverBackground)}
+.recent-name{font-weight:700;flex:1}
+.recent-path{font-size:10px;color:var(--vscode-descriptionForeground);font-family:var(--vscode-editor-font-family,monospace);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
 `;
 
     // BUG FIX: Moved from getElementById('content').addEventListener to document.addEventListener
@@ -281,6 +334,11 @@ const CATALOG  = ${catalogJson};
 const TOTAL    = ${total};
 let _activeTags = new Set(), _activeGroup = '', _searchQ = '', _ddOpen = false, _activeScope = '';
 
+var _runBtn = null, _runBtnOrig = '', _runBtnTimeout = null;
+function _resetRunBtn() {
+  if (_runBtn) { _runBtn.innerHTML = _runBtnOrig; _runBtn.disabled = false; _runBtn.style.opacity = ''; _runBtn = null; }
+  if (_runBtnTimeout) { clearTimeout(_runBtnTimeout); _runBtnTimeout = null; }
+}
 const searchEl     = document.getElementById('search');
 const statEl       = document.getElementById('stat');
 const emptyEl      = document.getElementById('empty');
@@ -395,6 +453,10 @@ document.addEventListener('click', function(e) {
   var dotBtn = e.target.closest('[data-action="show-audit"]');
   if (dotBtn) { showAuditDetail(dotBtn); return; }
 
+  // Log toggle button on the Run Audit card
+  var logBtn = e.target.closest('[data-action="toggle-audit-output"]');
+  if (logBtn) { vscode.postMessage({ command: 'toggle-audit-output' }); return; }
+
   // Help button
   var helpBtn = e.target.closest('[data-action="help"]');
   if (helpBtn) { vscode.postMessage({ command: 'help', doc: helpBtn.dataset.doc }); return; }
@@ -430,19 +492,20 @@ document.addEventListener('click', function(e) {
     var id    = btn.dataset.id;
     var entry = CATALOG.find(function(c) { return c.id === id; });
     var title = entry ? entry.title : id;
-    var orig  = btn.textContent;
-    btn.textContent   = '\\u23f3 Running\\u2026';
+    _runBtn = btn; _runBtnOrig = btn.innerHTML;
+    btn.innerHTML     = '\u23f3 Running\u2026';
     btn.disabled      = true;
     btn.style.opacity = '0.7';
     runStatusTxt.textContent = 'Running:';
     runStatusCmd.textContent = title;
     runStatus.classList.add('visible');
     setTimeout(function() {
-      btn.textContent   = orig;
-      btn.disabled      = false;
-      btn.style.opacity = '';
-      runStatus.classList.remove('visible');
-    }, 20000);
+
+
+
+
+      _resetRunBtn(); runStatus.classList.remove('visible');
+    }, 30000);
     vscode.postMessage({ command: 'run', id: id });
   }
 });
@@ -497,18 +560,58 @@ function applyFilters() {
 
 window.addEventListener('message', function(e) {
   var msg = e.data;
-  if (msg.type === 'done')  { runStatusTxt.textContent = '\u2705 Done:';  runStatusCmd.textContent = msg.title || '';   setTimeout(function() { runStatus.classList.remove('visible'); }, 2000); }
-  if (msg.type === 'error') { runStatusTxt.textContent = '\u274c Failed:'; runStatusCmd.textContent = msg.message || msg.title || ''; setTimeout(function() { runStatus.classList.remove('visible'); }, 4000); }
+  if (msg.type === 'done')  { _resetRunBtn(); runStatusTxt.textContent = '\u2705 Done:';  runStatusCmd.textContent = msg.title || '';   setTimeout(function() { runStatus.classList.remove('visible'); }, 2000); }
+  if (msg.type === 'error') { _resetRunBtn(); runStatusTxt.textContent = '\u274c Failed:'; runStatusCmd.textContent = msg.message || msg.title || ''; setTimeout(function() { runStatus.classList.remove('visible'); }, 4000); }
+  // Green/red status light per card when run-state arrives from extension host
+  if (msg.type === 'run-state') {
+    var card = document.querySelector('.cmd-card[data-id="' + msg.id + '"]');
+    if (card) {
+      var dot = card.querySelector('.card-status-dot');
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'card-status-dot';
+        card.prepend(dot);
+      }
+      if (msg.state === 'running') {
+        dot.style.background = '#3fb950';
+        dot.style.boxShadow  = '0 0 6px #3fb950';
+        dot.title = 'Running\u2026';
+        // Reset after 30s safety timeout
+        if (dot._runTimeout) clearTimeout(dot._runTimeout);
+        dot._runTimeout = setTimeout(function(){ dot.style.background=''; dot.style.boxShadow=''; }, 30000);
+      } else if (msg.state === 'ok') {
+        dot.style.background = '#3fb950';
+        dot.style.boxShadow  = 'none';
+        dot.title = '\u2705 Last run succeeded';
+        if (dot._runTimeout) clearTimeout(dot._runTimeout);
+      } else if (msg.state === 'error') {
+        dot.style.background = '#f85149';
+        dot.style.boxShadow  = '0 0 6px #f85149';
+        dot.title = '\u274c Last run failed';
+        if (dot._runTimeout) clearTimeout(dot._runTimeout);
+      }
+    }
+    _resetRunBtn();
+    runStatus.classList.remove('visible');
+  }
   // Real-time MCP server status update
   if (msg.type === 'mcp-status') {
-    // Find the MCP card and update its dot color
-    var mcpCard = document.querySelector('.cmd-card[data-id="cvs.mcp.startServer"] .card-status-dot');
-    if (mcpCard) {
+    // Ensure MCP card has a status dot, then update its color.
+    var mcpWrap = document.querySelector('.cmd-card[data-id="cvs.mcp.startServer"]');
+    if (mcpWrap) {
+      var mcpCard = mcpWrap.querySelector('.card-status-dot');
+      if (!mcpCard) {
+        mcpCard = document.createElement('span');
+        mcpCard.className = 'card-status-dot';
+        mcpWrap.prepend(mcpCard);
+      }
       if (msg.status === 'up') {
         mcpCard.style.background = '#3fb950';
+        mcpCard.style.boxShadow = 'none';
         mcpCard.title = 'MCP server is running';
       } else {
         mcpCard.style.background = '#f48771';
+        mcpCard.style.boxShadow = 'none';
         mcpCard.title = 'MCP server is stopped';
       }
     }
@@ -516,6 +619,61 @@ window.addEventListener('message', function(e) {
 });
 
 searchEl.focus();
+
+// ── Command history ──
+var _history = ${historyJson};
+function renderHistory(hist) {
+  var strip = document.getElementById('history-strip');
+  if (!strip) return;
+  if (!hist || hist.length === 0) { strip.className = 'empty'; return; }
+  strip.className = '';
+  var html = '<span id="history-label">Recent:</span>';
+  hist.slice(0, 10).forEach(function(h) {
+    var icon = h.ok ? '<span class="hist-ok">\u2705</span>' : '<span class="hist-err">\u274c</span>';
+    html += '<button class="hist-btn" data-action="run" data-id="' + h.id.replace(/"/g,'&quot;') + '" title="Re-run: ' + h.title.replace(/"/g,'&quot;') + '">' + icon + ' ' + h.title.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</button>';
+  });
+  strip.innerHTML = html;
+}
+renderHistory(_history);
+
+// ── Recent projects ──
+var _recents = ${recentsJson};
+var _recentOpen = false;
+var btnRecent = document.getElementById('btn-recent');
+var recentDd  = document.getElementById('recent-dd');
+if (btnRecent && recentDd) {
+  if (_recents.length === 0) { btnRecent.style.display = 'none'; }
+  else {
+    recentDd.innerHTML = _recents.map(function(r) {
+      return '<div class="recent-item" data-path="' + r.fsPath.replace(/"/g,'&quot;') + '">'
+        + '<div><div class="recent-name">' + r.name.replace(/&/g,'&amp;') + '</div>'
+        + '<div class="recent-path">' + r.fsPath.replace(/&/g,'&amp;') + '</div></div></div>';
+    }).join('');
+    recentDd.addEventListener('click', function(e) {
+      var item = e.target.closest('.recent-item');
+      if (!item) return;
+      recentDd.className = '';
+      _recentOpen = false;
+      vscode.postMessage({ command: 'open-recent', path: item.dataset.path });
+    });
+    btnRecent.addEventListener('click', function(e) {
+      e.stopPropagation();
+      _recentOpen = !_recentOpen;
+      recentDd.className = _recentOpen ? 'open' : '';
+    });
+    document.addEventListener('click', function(e) {
+      if (_recentOpen && !e.target.closest('#recent-wrap')) {
+        _recentOpen = false; recentDd.className = '';
+      }
+    });
+  }
+}
+
+// ── History update from extension after a run ──
+var _origMsgListener = null;
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'history-update') { renderHistory(e.data.history); }
+});
 
 // ── Navigation model: location bar = current directory ─────────────────────
 // Clicking any segment navigates to that level and filters cards accordingly.
@@ -798,6 +956,10 @@ ${locationBarHtml}
     </div>
     <button id="btn-clear" title="Clear all filters and search">Clear</button>
     <button id="btn-audit" data-action="run" data-id="cvs.audit.runDaily" title="Run daily health check across all projects">Audit</button>
+    <div id="recent-wrap">
+      <button id="btn-recent" title="Open a recent project">&#128194; Recent &#9662;</button>
+      <div id="recent-dd"></div>
+    </div>
     <span id="stat">${total} commands</span>
     ${auditAgeStr ? `<span style="font-size:10px;color:var(--vscode-descriptionForeground)">&#x23F1; ${esc(auditAgeStr)}</span>` : ''}
   </div>
@@ -822,6 +984,7 @@ ${locationBarHtml}
   </div>
   <span id="topic-summary"></span>
 </div>
+<div id="history-strip" class="empty"></div>
 <div id="content">
   ${groupSections}
   <div id="empty">No commands match your search.</div>

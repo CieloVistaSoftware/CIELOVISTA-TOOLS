@@ -3,7 +3,7 @@
 //
 // Exports the canonical REGISTRY_PATH and loadRegistry() utility for all features.
 // Ensures single source of truth for project registry location and loading logic.
-
+// FILE REMOVED BY REQUEST
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 
@@ -15,6 +15,8 @@ export interface ProjectEntry {
     path:        string;
     type:        string;
     description: string;
+    /** Lifecycle status. Missing entries default to "product" for backward compatibility. */
+    status?:     'product' | 'workbench' | 'generated' | 'archived';
 }
 
 export interface ProjectRegistry {
@@ -25,6 +27,7 @@ export interface ProjectRegistry {
 /**
  * Loads the project registry from REGISTRY_PATH.
  * Returns the parsed registry object, or undefined if not found or invalid.
+ * Backfills status="product" for any entry missing a status field.
  */
 export function loadRegistry(): ProjectRegistry | undefined {
     if (!fs.existsSync(REGISTRY_PATH)) {
@@ -32,7 +35,11 @@ export function loadRegistry(): ProjectRegistry | undefined {
         return undefined;
     }
     try {
-        return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+        const raw = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+        for (const p of raw.projects) {
+            if (!p.status) { p.status = 'product'; }
+        }
+        return raw;
     } catch (err) {
         vscode.window.showErrorMessage(`Failed to parse project registry: ${err}`);
         return undefined;

@@ -1,3 +1,19 @@
+/**
+ * Pure function: executes all accepted findings in the given array.
+ * Returns the number of findings executed.
+ * This is testable outside VS Code extension host.
+ */
+export async function executeAcceptedFindings(findings: Finding[]): Promise<number> {
+    let done = 0;
+    for (const finding of findings) {
+        if (finding.decision === 'accepted') {
+            const ok = await executeFinding(finding);
+            finding.decision = ok ? 'accepted' : 'pending';
+            done++;
+        }
+    }
+    return done;
+}
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
@@ -43,7 +59,7 @@ function loadRegistry(): ProjectRegistry | undefined {
         }
         return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
     } catch (err) {
-        logError(FEATURE, 'Failed to load registry', err);
+        logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return undefined;
     }
 }
@@ -147,7 +163,7 @@ async function executeFinding(finding: Finding): Promise<boolean> {
         appendLog(finding, 'executed');
         return true;
     } catch (err) {
-        logError(FEATURE, `Failed to execute finding ${finding.id}: ${finding.title}`, err);
+        logError(`Failed to execute finding ${finding.id}: ${finding.title}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         appendLog(finding, 'failed', String(err));
         return false;
     }
@@ -288,11 +304,11 @@ function showPanel(report: IntelligenceReport): void {
 
     if (_panel) {
         _panel.webview.html = html;
-        _panel.reveal();
+        _panel.reveal(vscode.ViewColumn.Beside, true);
     } else {
         _panel = vscode.window.createWebviewPanel(
             'docIntelligence', '🧠 Doc Intelligence',
-            vscode.ViewColumn.One,
+            vscode.ViewColumn.Beside,
             { enableScripts: true, retainContextWhenHidden: true }
         );
         _panel.webview.html = html;

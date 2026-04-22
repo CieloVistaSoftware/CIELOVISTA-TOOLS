@@ -4,9 +4,10 @@
 import * as fs   from 'fs';
 import * as path from 'path';
 import { extractTitle, extractDescription, extractTags } from './content';
+import { extractDeweyAndHelp } from '../../shared/help-utils';
 import type { CatalogCard } from './types';
 
-const SKIP_DIRS  = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', 'reports']);
+const SKIP_DIRS  = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', 'reports', 'CommandHelp', 'image-reader-assets']);
 const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 
 let _cardIdCounter = 0;
@@ -37,6 +38,7 @@ export function scanForCards(
                 try {
                     const content = fs.readFileSync(fullPath, 'utf8');
                     const stat    = fs.statSync(fullPath);
+                    const { dewey, helpMarkdown } = extractDeweyAndHelp(fullPath);
                     cards.push({
                         id:           `card-${++_cardIdCounter}`,
                         fileName:     entry.name,
@@ -50,6 +52,8 @@ export function scanForCards(
                         sizeBytes:    Buffer.byteLength(content, 'utf8'),
                         lastModified: stat.mtime.toISOString().slice(0, 10),
                         tags:         extractTags(content, entry.name),
+                        dewey,
+                        helpMarkdown,
                     });
                 } catch { /* skip unreadable */ }
             }

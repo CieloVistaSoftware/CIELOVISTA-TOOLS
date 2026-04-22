@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * playwright-check.ts
  *
@@ -494,7 +494,7 @@ export async function runPlaywrightCheck(): Promise<void> {
             panel.webview.postMessage({ type: 'done', text });
 
         } catch (err) {
-            logError(FEATURE, `Fix failed: ${action} on ${proj}`, err);
+            logError(`Fix failed: ${action} on ${proj}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             panel.webview.postMessage({ type: 'error', text: String(err) });
         }
     });

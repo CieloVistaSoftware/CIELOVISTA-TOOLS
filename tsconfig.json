@@ -9,9 +9,29 @@
     "esModuleInterop":  true,
     "skipLibCheck":     true,
     "sourceMap":        true,
-    "declaration":      false,
-    "resolveJsonModule": true
+    "declaration":      true,
+    "resolveJsonModule": true,
+    "paths": {
+      "vscode": ["./node_modules/@types/vscode"]
+    },
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "vscode"]
   },
-  "include":  ["src/**/*"],
-  "exclude":  ["node_modules", "out", "**/*.test.ts"]
+  "include":  [
+    "src/**/*",
+    "extension.ts"
+  ],
+  "exclude":  [
+    "node_modules",
+    "out",
+    "**/*.test.ts",
+    "dist",
+    "test.backup.*",
+    ".vscode-test",
+    "playwright-report",
+    "test-results",
+    "Tests/**/*",
+    "tests/**/*",
+    "vscode-copilot-auto-continue/**"
+  ]
 }

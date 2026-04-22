@@ -57,11 +57,14 @@ export function showConsolidationPlanWebview(plan: ConsolidationAction[], onRun:
         <button id="runBtn" type="submit">Run Checked Actions</button>
         </form>
         <div id="diffModal" class="diff-modal">
-          <span class="close" onclick="document.getElementById('diffModal').style.display='none'">&times;</span>
+          <span class="close" id="btn-close-diff">&times;</span>
           <pre id="diffContent"></pre>
         </div>
         <script>
           const vscode = acquireVsCodeApi();
+          document.getElementById('btn-close-diff').addEventListener('click', function() {
+            document.getElementById('diffModal').style.display = 'none';
+          });
           document.querySelectorAll('button[data-diff]').forEach(btn => {
             btn.onclick = e => {
               const idx = btn.getAttribute('data-diff');
@@ -120,3 +123,4 @@ async function getSimpleDiff(a: string, b: string): Promise<string> {
   }
   return diff;
 }
+// FILE REMOVED BY REQUEST

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * readme-compliance.ts
  *
@@ -38,7 +38,7 @@ import * as jsdiff from 'diff';
 import { log, logError } from '../shared/output-channel';
 import { callClaude } from '../shared/anthropic-client';
 import { loadRegistry } from '../shared/registry';
-import { showCommandResult } from '../shared/result-viewer';
+
 
 const FEATURE     = 'readme-compliance';
 const GLOBAL_DOCS = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
@@ -400,40 +400,20 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
                 const removedLines = unifiedDiff.split('\n').filter(l => l.startsWith('-')).length;
                 const fixedIssues  = report.issues.filter(i => i.fixable);
 
-                showCommandResult({
-                    rc:        0,
-                    commandId: 'cvs.readme.fix',
-                    title:     'Fix a Non-Compliant README',
-                    summary:   `Fixed ${fixedIssues.length} issue(s) in ${report.fileName} — ${addedLines} lines added, ${removedLines} removed`,
-                    changes:   fixedIssues.map(i => ({
-                        action: i.message,
-                        file:   report.filePath,
-                    })),
-                });
+                // TODO: Show per-job output in a new webview (fix approved)
 
                 // Rescan and refresh compliance panel
                 await runScan();
 
             } catch (err) {
-                logError(FEATURE, `Failed to write fix for ${report.filePath}`, err);
-                showCommandResult({
-                    rc:        1,
-                    commandId: 'cvs.readme.fix',
-                    title:     'Fix a Non-Compliant README',
-                    summary:   `Write failed for ${report.fileName}`,
-                    details:   String(err),
-                });
+                logError(`Failed to write fix for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                // TODO: Show per-job output in a new webview (fix failed)
             }
         }
         if (msg.command === 'ignore') {
             log(FEATURE, `Fix ignored: ${report.filePath}`);
             _diffPanel?.dispose();
-            showCommandResult({
-                rc:      2,
-                commandId: 'cvs.readme.fix',
-                title:   'Fix a Non-Compliant README',
-                summary: `Ignored — no changes written to ${report.fileName}`,
-            });
+            // TODO: Show per-job output in a new webview (fix ignored)
         }
     });
 }
@@ -550,12 +530,14 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
     <span class="pill pill-warn">⚠️ ${partial} partial</span>
     <span class="pill pill-err">🔴 ${nonCompliant} non-compliant</span>
   </div>
-  <input id="search" type="text" placeholder="Filter by filename or project…" oninput="applyFilter()">
+  <input id="search" type="text" placeholder="Filter by filename or project…">
   <button class="btn-fix-all" data-action="fix-all">🔧 Fix All Non-Compliant</button>
+  <button class="btn-fix-all" data-action="rerun" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)">🔄 Rerun Scan</button>
 </div>
 <div id="content">${projectSections}</div>
 <script>
 const vscode = acquireVsCodeApi();
+document.getElementById('search').addEventListener('input', applyFilter);
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) { return; }
@@ -565,6 +547,7 @@ document.addEventListener('click', e => {
   if (action === 'ai-fix')      { btn.textContent = '⏳ AI fixing…';    btn.disabled = true; vscode.postMessage({ command: 'aiFix', data: btn.dataset.path, readmeType: btn.dataset.type }); }
   if (action === 'fix-project') { vscode.postMessage({ command: 'fixProject', project: btn.dataset.proj }); }
   if (action === 'fix-all')     { vscode.postMessage({ command: 'fixAll' }); }
+  if (action === 'rerun')       { vscode.postMessage({ command: 'rerun' }); }
 });
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase().trim();
@@ -622,9 +605,9 @@ async function runScan(): Promise<void> {
     if (!reports.length) { vscode.window.showInformationMessage('No READMEs found.'); return; }
     _lastReports = reports;
     const html = buildReportHtml(reports);
-    if (_panel) { _panel.webview.html = html; _panel.reveal(); }
+    if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.Beside, true); }
     else {
-        _panel = vscode.window.createWebviewPanel('readmeCompliance', '📋 README Compliance', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true });
+        _panel = vscode.window.createWebviewPanel('readmeCompliance', '📋 README Compliance', vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true });
         _panel.webview.html = html;
         _panel.onDidDispose(() => { _panel = undefined; });
         attachMessageHandler(_panel);
@@ -655,6 +638,9 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 break;
             case 'fixProject':
                 await fixProjectReadmes(msg.project);
+                await runScan();
+                break;
+            case 'rerun':
                 await runScan();
                 break;
             case 'fixAll':
@@ -705,10 +691,10 @@ async function fixAllNonCompliant(reports: ReadmeReport[]): Promise<void> {
             fs.writeFileSync(report.filePath, content, 'utf8');
             fixed++;
             report.issues.filter(i => i.fixable).forEach(i => changes.push({ action: i.message, file: report.filePath }));
-        } catch (err) { logError(FEATURE, `Failed to fix ${report.filePath}`, err); }
+        } catch (err) { logError(`Failed to fix ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
     }
 
-    showCommandResult({ rc: 0, commandId: 'cvs.readme.fixAll', title: 'Fix All Non-Compliant READMEs', summary: `Fixed ${fixed} of ${targets.length} READMEs`, changes });
+    // TODO: Show per-job output in a new webview (fixAll)
     await runScan();
 }
 
@@ -750,18 +736,18 @@ Rules:
             if (msg2.command === 'approve') {
                 fs.writeFileSync(filePath, fixed, 'utf8');
                 _diffPanel?.dispose();
-                showCommandResult({ rc: 0, commandId: 'cvs.readme.fix', title: 'Fix a Non-Compliant README (AI)', summary: `AI fix approved and written for ${report.fileName}` });
+                // TODO: Show per-job output in a new webview (AI fix approved)
                 await runScan();
             }
             if (msg2.command === 'ignore') {
                 _diffPanel?.dispose();
-                showCommandResult({ rc: 2, commandId: 'cvs.readme.fix', title: 'Fix a Non-Compliant README (AI)', summary: `AI fix ignored — no changes written to ${report.fileName}` });
+                // TODO: Show per-job output in a new webview (AI fix ignored)
             }
         });
 
         _panel?.webview.postMessage({ type: 'done', text: `AI diff ready for ${path.basename(filePath)} — approve or ignore` });
     } catch (err) {
-        logError(FEATURE, `AI fix failed for ${filePath}`, err);
+        logError(`AI fix failed for ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         _panel?.webview.postMessage({ type: 'error', text: `AI fix failed: ${err}` });
     }
 }
@@ -772,7 +758,7 @@ async function fixProjectReadmes(projectName: string): Promise<void> {
     let fixed = 0;
     for (const report of targets) {
         try { const content = applyFix(report); fs.writeFileSync(report.filePath, content, 'utf8'); fixed++; }
-        catch (err) { logError(FEATURE, `Failed to fix ${report.filePath}`, err); }
+        catch (err) { logError(`Failed to fix ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
     }
     _panel?.webview.postMessage({ type: 'done', text: `Fixed ${fixed} READMEs in ${projectName}. Rescanning…` });
     await runScan();
@@ -844,3 +830,18 @@ export function deactivate(): void {
     _panel = undefined;
     _lastReports = [];
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+    isReadme,
+    detectType,
+    normalizeHeading,
+    extractHeadings,
+    checkCompliance,
+    applyFix,
+    esc,
+    REQUIRED_SECTIONS,
+    SECTION_ORDER,
+    LINE_LIMITS,
+    STUBS,
+};

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * docs-manager.ts
  *
@@ -31,7 +31,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../shared/registry';
-import { openDocPreview } from '../shared/doc-preview';
+import { showContentViewer } from '../shared/content-viewer';
 
 const FEATURE = 'docs-manager';
 
@@ -76,11 +76,13 @@ function listProjectDocs(projectPath: string): string[] {
     return results;
 }
 
-/** Opens a file: .md files in HTML preview, others in the editor, always to the right. */
+/** Opens a file: .md files in ContentViewer (Markdown or HTML), others in the editor, always to the right. */
 async function openDoc(filePath: string): Promise<void> {
     if (filePath.toLowerCase().endsWith('.md')) {
-        openDocPreview(filePath);
-        log(FEATURE, `Opened (preview): ${filePath}`);
+        const content = fs.readFileSync(filePath, 'utf8');
+        // For now, always treat as Markdown. To use raw HTML, set isHtml: true.
+        showContentViewer({ title: path.basename(filePath), content, isHtml: false });
+        log(FEATURE, `Opened (ContentViewer): ${filePath}`);
     } else {
         const doc = await vscode.workspace.openTextDocument(filePath);
         await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
@@ -403,7 +405,7 @@ tr.row-ok:hover td,tr.row-err:hover td{background:var(--vscode-list-hoverBackgro
   <h2>Docs Manager — Sync Check</h2>
   <span class="pill pill-ok">✅ ${totalOk} clean</span>
   <span class="pill pill-err">⚠️ ${totalIssues} issue${totalIssues !== 1 ? 's' : ''}</span>
-  <button class="rescan-btn" onclick="rescan()">↺ Rescan</button>
+  <button class="rescan-btn" data-action="rescan">↺ Rescan</button>
 </div>
 <div class="content">
 <table>
@@ -422,7 +424,7 @@ tr.row-ok:hover td,tr.row-err:hover td{background:var(--vscode-list-hoverBackgro
 'use strict';
 const vscode = acquireVsCodeApi();
 function showStatus(t){var b=document.getElementById('status-bar');b.textContent=t;b.className='visible';setTimeout(function(){b.className='';},3500);}
-function rescan(){vscode.postMessage({action:'rescan'});}
+// rescan handled via data-action="rescan" delegation
 document.addEventListener('click',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn){return;}
@@ -611,7 +613,7 @@ async function syncCheck(): Promise<void> {
                 }
             }
         } catch (err) {
-            logError(FEATURE, `syncCheck fix failed: ${action}`, err);
+            logError(`syncCheck fix failed: ${action}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             panel.webview.postMessage({ type: 'error', text: String(err) });
         }
     });

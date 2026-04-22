@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * css-class-hover.ts
  * Hover over a CSS class name in HTML/JSX/TSX and see the class definition
@@ -23,22 +23,41 @@ const SUPPORTED_LANGUAGES = ['html', 'javascript', 'javascriptreact', 'typescrip
 
 // ─── CSS resolution ───────────────────────────────────────────────────────────
 
-/** Reads all CSS files imported in the document and concatenates them. */
+/** Extracts inline CSS from <style> blocks in an HTML document. */
+function extractInlineCss(document: vscode.TextDocument): string {
+    const text    = document.getText();
+    const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let   css     = '';
+    let   match: RegExpExecArray | null;
+    while ((match = styleRe.exec(text)) !== null) {
+        css += match[1] + '\n';
+    }
+    return css;
+}
+
+/** Reads all CSS files linked via <link rel="stylesheet"> or import() in the document. */
 function resolveCssFromImports(document: vscode.TextDocument): string {
     const text      = document.getText();
-    const importRe  = /import\s+['"]([^'"]*\.css)['"]/g;
     const docDir    = path.dirname(document.uri.fsPath);
     let   css       = '';
-    let   match: RegExpExecArray | null;
 
+    // ES module imports:  import './foo.css'
+    const importRe  = /import\s+['"]([^'"]*\.css)['"]/g;
+    let   match: RegExpExecArray | null;
     while ((match = importRe.exec(text)) !== null) {
         const full = path.resolve(docDir, match[1]);
-        try {
-            if (fs.existsSync(full)) { css += fs.readFileSync(full, 'utf8') + '\n'; }
-        } catch (err) {
-            logError(FEATURE, `Could not read CSS file: ${full}`, err);
-        }
+        try { if (fs.existsSync(full)) { css += fs.readFileSync(full, 'utf8') + '\n'; } }
+        catch (err) { logError(`Could not read CSS file: ${full}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
     }
+
+    // HTML <link rel="stylesheet" href="...">  
+    const linkRe    = /<link[^>]+href=['"]([^'"]*\.css)['"][^>]*>/gi;
+    while ((match = linkRe.exec(text)) !== null) {
+        const full = path.resolve(docDir, match[1]);
+        try { if (fs.existsSync(full)) { css += fs.readFileSync(full, 'utf8') + '\n'; } }
+        catch (err) { logError(`Could not read linked CSS file: ${full}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
+    }
+
     return css;
 }
 
@@ -53,12 +72,15 @@ function findCssRule(css: string, className: string): string | null {
 
 const hoverProvider: vscode.HoverProvider = {
     provideHover(document, position) {
-        const line      = document.lineAt(position.line).text;
-        const classRe   = /className=["']([^"']*)["']/g;
+        const line = document.lineAt(position.line).text;
+
+        // Match both HTML class="..." and JSX className="..."
+        const classRe = /(?:class|className)=["']([^"']*)["']/g;
         let   match: RegExpExecArray | null;
 
         while ((match = classRe.exec(line)) !== null) {
-            const valueStart = match.index + 'className="'.length;
+            const attrName   = match[0].startsWith('className') ? 'className' : 'class';
+            const valueStart = match.index + attrName.length + 2; // +2 for ="
             const valueEnd   = match.index + match[0].length - 1;
 
             if (position.character < valueStart || position.character > valueEnd) { continue; }
@@ -69,7 +91,8 @@ const hoverProvider: vscode.HoverProvider = {
             for (const cls of classes) {
                 if (!cls) { continue; }
                 if (position.character >= pos && position.character <= pos + cls.length) {
-                    const css  = resolveCssFromImports(document);
+                    // Combine inline <style> blocks + linked/imported CSS files
+                    const css  = extractInlineCss(document) + resolveCssFromImports(document);
                     const rule = findCssRule(css, cls);
                     log(FEATURE, `Hover on .${cls}`);
                     return new vscode.Hover(

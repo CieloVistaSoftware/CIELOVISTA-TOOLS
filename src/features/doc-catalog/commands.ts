@@ -3,15 +3,17 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
-import { showInteractiveResultWebview } from '../../shared/show-interactive-result-webview';
 import { loadRegistry } from './registry';
 import { scanForCards, resetCardCounter } from './scanner';
 import { buildProjectDeweyMap, lookupDewey } from './categories';
 import { loadProjectInfo } from './projects';
-import { buildCatalogHtml } from './html';
+import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
+import { mdToHtml } from '../../shared/md-renderer';
+import { getNonce } from '../../shared/webview-utils';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
@@ -22,25 +24,33 @@ let _cachedCards: CatalogCard[] | undefined;
 export function getCatalogPanel(): vscode.WebviewPanel | undefined { return _catalogPanel; }
 export function clearCachedCards(): void { _cachedCards = undefined; }
 
+function sendCatalogInit(
+    panel: vscode.WebviewPanel,
+    cards: CatalogCard[],
+    projectInfos: ReturnType<typeof loadProjectInfo>[],
+    registryEntries: Array<{ name: string; path: string; type: string; description: string }>
+): void {
+    const payload = buildCatalogInitPayload(cards, projectInfos, new Date().toLocaleString(), registryEntries);
+    setTimeout(() => {
+        void panel.webview.postMessage({ command: 'init', ...payload });
+    }, 25);
+}
+
 export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] | undefined> {
     if (_cachedCards && !forceRebuild) { return _cachedCards; }
-
     const registry = loadRegistry();
     if (!registry) { return undefined; }
-
     resetCardCounter();
-
     return vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog…', cancellable: false },
+        { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog\u2026', cancellable: false },
         async (progress) => {
-            // Build stable Dewey map: global=000, projects=100,200,300...
             const deweyMap = buildProjectDeweyMap(registry.projects.map(p => p.name));
             const cards: CatalogCard[] = scanForCards(
                 registry.globalDocsPath, 'global', registry.globalDocsPath,
                 lookupDewey(deweyMap, 'global').num
             );
             for (const project of registry.projects) {
-                progress.report({ message: `Scanning ${project.name}…` });
+                progress.report({ message: `Scanning ${project.name}\u2026` });
                 if (fs.existsSync(project.path)) {
                     const dewey = lookupDewey(deweyMap, project.name);
                     cards.push(...scanForCards(project.path, project.name, project.path, dewey.num));
@@ -58,157 +68,375 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
     ) as unknown as CatalogCard[];
 }
 
+// ---------------------------------------------------------------------------
+// rebuildCatalog
+// ---------------------------------------------------------------------------
+let _rebuildPanel: vscode.WebviewPanel | undefined;
+
+function _rbEsc(s: string): string {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildRebuildSummaryHtml(
+    cards: CatalogCard[],
+    elapsedMs: number,
+    projectCounts: Array<{ name: string; count: number; dewey: string }>,
+    rebuiltAt: string
+): string {
+    const nonce = getNonce();
+    const totalDocs     = cards.length;
+    const totalProjects = projectCounts.length;
+    const elapsedSec    = (elapsedMs / 1000).toFixed(2);
+    const projectRows   = projectCounts.map(p =>
+        `<tr><td class="rb-dw">${_rbEsc(p.dewey)}</td><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
+    ).join('');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:20px 24px}
+.rb-title{font-size:1.35em;font-weight:800;margin-bottom:4px}.rb-title span{color:var(--vscode-button-background)}
+.rb-meta{font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:18px}
+.rb-ok{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.25);border-radius:4px;margin-bottom:18px;font-size:12px;font-weight:600;color:#3fb950}
+.rb-ok::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fb950;flex-shrink:0}
+.rb-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.rb-stat{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:10px 14px}
+.rb-stat-n{font-size:1.75em;font-weight:800;color:var(--vscode-button-background);line-height:1}
+.rb-stat-l{font-size:11px;color:var(--vscode-descriptionForeground);margin-top:3px}
+.rb-tbl{margin-bottom:18px;max-height:320px;overflow-y:auto;border:1px solid var(--vscode-panel-border);border-radius:4px}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:var(--vscode-textCodeBlock-background);padding:6px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border)}
+tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{border-bottom:none}tbody tr:hover{background:var(--vscode-list-hoverBackground)}
+.rb-dw{padding:5px 10px;font-family:monospace;font-size:9px;font-weight:700;color:var(--vscode-textLink-foreground);width:70px}
+.rb-nm{padding:5px 10px;font-weight:500;font-size:12px}
+.rb-ct{padding:5px 10px;text-align:right;font-family:monospace;font-size:12px;color:var(--vscode-descriptionForeground);width:55px}
+.rb-btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn-p{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:7px 18px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:600}
+.btn-p:hover{background:var(--vscode-button-hoverBackground)}
+.btn-s{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:7px 18px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:600}
+.btn-s:hover{background:var(--vscode-button-secondaryHoverBackground)}
+</style></head><body>
+<div class="rb-title">&#128201; Doc Catalog <span>Rebuilt</span></div>
+<div class="rb-meta">Completed at ${_rbEsc(rebuiltAt)}</div>
+<div class="rb-ok">Full rescan complete &mdash; catalog is up to date</div>
+<div class="rb-stats">
+  <div class="rb-stat"><div class="rb-stat-n">${totalDocs}</div><div class="rb-stat-l">Total docs</div></div>
+  <div class="rb-stat"><div class="rb-stat-n">${totalProjects}</div><div class="rb-stat-l">Projects scanned</div></div>
+  <div class="rb-stat"><div class="rb-stat-n">${elapsedSec}s</div><div class="rb-stat-l">Time to rebuild</div></div>
+</div>
+<div class="rb-tbl"><table>
+  <thead><tr><th>Dewey</th><th>Project</th><th style="text-align:right">Docs</th></tr></thead>
+  <tbody>${projectRows}</tbody>
+</table></div>
+<div class="rb-btns">
+  <button class="btn-p" id="btn-open">&#128218; Open Doc Catalog</button>
+  <button class="btn-s" id="btn-again">&#8635; Rebuild Again</button>
+</div>
+<script nonce="${nonce}">(function(){
+var vs=acquireVsCodeApi();
+document.getElementById('btn-open').addEventListener('click',function(){vs.postMessage({command:'open-catalog'});});
+document.getElementById('btn-again').addEventListener('click',function(){vs.postMessage({command:'rebuild-again'});});
+})();</script></body></html>`;
+}
+
+export async function rebuildCatalog(): Promise<void> {
+    clearCachedCards();
+    const registry = loadRegistry();
+    if (!registry) { vscode.window.showWarningMessage('No registry found.'); return; }
+    const startMs = Date.now();
+    const cards   = await buildCatalog(true);
+    const elapsed = Date.now() - startMs;
+    if (!cards?.length) { vscode.window.showWarningMessage('Rebuild found no docs.'); return; }
+    const projectMap = new Map<string, { count: number; dewey: string }>();
+    for (const card of cards) {
+        const existing = projectMap.get(card.projectName);
+        const dewey    = String(card.categoryNum).padStart(3, '0');
+        if (existing) { existing.count++; }
+        else          { projectMap.set(card.projectName, { count: 1, dewey }); }
+    }
+    const projectCounts = [...projectMap.entries()]
+        .sort((a, b) => Number(a[1].dewey) - Number(b[1].dewey))
+        .map(([name, { count, dewey }]) => ({ name, count, dewey }));
+    const html  = buildRebuildSummaryHtml(cards, elapsed, projectCounts, new Date().toLocaleTimeString());
+    const title = '\u{1F4CA} Catalog Rebuilt';
+    if (_rebuildPanel) {
+        _rebuildPanel.title        = title;
+        _rebuildPanel.webview.html = html;
+        _rebuildPanel.reveal(vscode.ViewColumn.Beside, true);
+    } else {
+        _rebuildPanel = vscode.window.createWebviewPanel(
+            'catalogRebuild', title,
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+            { enableScripts: true, retainContextWhenHidden: false }
+        );
+        _rebuildPanel.webview.html = html;
+        _rebuildPanel.onDidDispose(() => { _rebuildPanel = undefined; });
+    }
+    _rebuildPanel.webview.onDidReceiveMessage(async msg => {
+        if (msg.command === 'open-catalog')  { await openCatalog(false); }
+        if (msg.command === 'rebuild-again') { await rebuildCatalog(); }
+    });
+    log(FEATURE, `Catalog rebuilt: ${cards.length} cards in ${elapsed}ms`);
+}
+
+// ---------------------------------------------------------------------------
+// attachMessageHandler
+// ---------------------------------------------------------------------------
 function attachMessageHandler(panel: vscode.WebviewPanel): void {
     panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
-
+            case 'openProjectFolder':
+                if (msg.data) { await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data), { forceNewWindow: true }); }
+                break;
+            case 'open-npm-scripts':
+                await vscode.commands.executeCommand('cvs.npm.showAndRunScripts');
+                break;
             case 'preview':
                 if (msg.data) { openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open'); }
                 break;
-
             case 'open':
                 if (msg.data && fs.existsSync(msg.data)) {
                     const doc = await vscode.workspace.openTextDocument(msg.data);
-                    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                    await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
                 }
                 break;
-
-                        case 'run': {
-                                const projPath = msg.projPath as string;
-                                const script   = msg.script as string;
-                                if (!projPath || !script) { break; }
-
-                                // Run the command in a VS Code terminal and capture output
-                                // For now, simulate output capture (real implementation would use tasks/process APIs)
-                                const command = script === 'dotnet:build' ? 'dotnet build' : `npm run ${script}`;
-                                const terminal = vscode.window.createTerminal({ name: `${path.basename(projPath)} — ${script}`, cwd: projPath });
-                                terminal.show();
-                                terminal.sendText(command);
-                                log(FEATURE, `Running: ${script} in ${projPath}`);
-
-                                // Simulate output (in real use, capture from terminal or task API)
-                                const fakeOutput = `> ${command}\n\n[output will appear here; capturing real output requires VS Code task/process API integration]`;
-                                showInteractiveResultWebview({
-                                    title: `Result: ${script}`,
-                                    action: `${command} in ${projPath}`,
-                                    output: fakeOutput,
-                                    onRerun: () => {
-                                        // Rerun the command in a new terminal
-                                        const rerunTerminal = vscode.window.createTerminal({ name: `${path.basename(projPath)} — ${script} (rerun)`, cwd: projPath });
-                                        rerunTerminal.show();
-                                        rerunTerminal.sendText(command);
-                                    },
-                                });
-                                break;
-                        }
-
+            case 'run': {
+                const projPath = msg.projPath as string;
+                const script   = msg.script   as string;
+                if (!projPath || !script) { break; }
+                const command  = script === 'dotnet:build' ? 'dotnet build' : `npm run ${script}`;
+                const terminal = vscode.window.createTerminal({ name: `${path.basename(projPath)} \u2014 ${script}`, cwd: projPath });
+                terminal.show();
+                terminal.sendText(command);
+                log(FEATURE, `Running: ${script} in ${projPath}`);
+                break;
+            }
             case 'openFolder':
-                if (msg.data) {
-                    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data), { forceNewWindow: false });
-                }
+                if (msg.data) { await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data), { forceNewWindow: true }); }
                 break;
-
             case 'openClaude': {
                 const claudePath = path.join(msg.data, 'CLAUDE.md');
                 if (fs.existsSync(claudePath)) {
                     const doc = await vscode.workspace.openTextDocument(claudePath);
-                    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                    await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
                 } else {
                     vscode.window.showWarningMessage(`No CLAUDE.md found in ${msg.data}`);
                 }
                 break;
             }
-
             case 'create-tests': {
-                // Trigger AI test generation for the project
                 const projPath = msg.data as string;
                 const projName = msg.projName as string;
                 if (!projPath) { break; }
                 try {
-                    // Use the playwright-check generate tests command
                     await vscode.commands.executeCommand('cvs.audit.testCoverage');
-                    vscode.window.showInformationMessage(
-                        `Opening Test Coverage Dashboard for ${projName} — use "🤖 Generate Tests" on the project row.`,
-                        'Open Dashboard'
-                    );
+                    vscode.window.showInformationMessage(`Opening Test Coverage Dashboard for ${projName} \u2014 use "\u{1F916} Generate Tests" on the project row.`, 'Open Dashboard');
                 } catch {
-                    // Fallback: open the test coverage command picker
-                    vscode.window.showInformationMessage(
-                        `To generate tests for ${projName}: run "Audit: Test Coverage Dashboard" and click "🤖 Generate Tests" on that project.`,
-                        'Open Test Coverage'
-                    ).then(c => {
-                        if (c === 'Open Test Coverage') {
-                            vscode.commands.executeCommand('cvs.audit.testCoverage');
-                        }
-                    });
+                    vscode.window.showInformationMessage(`To generate tests for ${projName}: run "Audit: Test Coverage Dashboard" and click "\u{1F916} Generate Tests".`, 'Open Test Coverage')
+                        .then(c => { if (c === 'Open Test Coverage') { vscode.commands.executeCommand('cvs.audit.testCoverage'); } });
                 }
                 break;
             }
-
             case 'createClaude': {
                 const projPath   = msg.data as string;
                 const claudeDest = path.join(projPath, 'CLAUDE.md');
                 const projName   = path.basename(projPath);
                 const pkgPath    = path.join(projPath, 'package.json');
-                let scripts = '';
-                let projType = 'project';
+                let scripts = '', projType = 'project';
                 try {
                     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
                     projType  = pkg.description ?? projType;
                     const keys = Object.keys(pkg.scripts ?? {}).slice(0, 6);
                     if (keys.length) { scripts = '\n## Build & Run\n\n' + keys.map(k => `- \`npm run ${k}\``).join('\n') + '\n'; }
                 } catch { /* no package.json */ }
-
                 const today    = new Date().toISOString().slice(0, 10);
-                const template = `# CLAUDE.md — ${projName}\n\n> Created: ${today}\n\n## Project Overview\n\n**Name:** ${projName}\n**Path:** ${projPath}\n**Type:** ${projType}\n${scripts}\n## Architecture Notes\n\n<!-- Add key decisions here -->\n\n## Session Start Checklist\n\n- [ ] Read CLAUDE.md\n- [ ] Check CURRENT-STATUS.md\n- [ ] Review last session via recent_chats\n`;
+                const template = `# CLAUDE.md \u2014 ${projName}\n\n> Created: ${today}\n\n## Project Overview\n\n**Name:** ${projName}\n**Path:** ${projPath}\n**Type:** ${projType}\n${scripts}\n## Architecture Notes\n\n<!-- Add key decisions here -->\n\n## Session Start Checklist\n\n- [ ] Read CLAUDE.md\n- [ ] Check CURRENT-STATUS.md\n- [ ] Review last session via recent_chats\n`;
                 fs.writeFileSync(claudeDest, template, 'utf8');
                 log(FEATURE, `Created CLAUDE.md for ${projName}`);
                 const doc = await vscode.workspace.openTextDocument(claudeDest);
                 await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
                 _cachedCards = undefined;
-                vscode.window.showInformationMessage(`Created CLAUDE.md for ${projName} — catalog will refresh on next open.`);
+                vscode.window.showInformationMessage(`Created CLAUDE.md for ${projName} \u2014 catalog will refresh on next open.`);
+                break;
+            }
+            case 'wb-demo': {
+                // Ensure the wb-core demo server is running, then open the harness in the browser.
+                // The harness at http://localhost:3000/wb-harness.html?md=<path>&name=<name>
+                // fetches the markdown file, extracts HTML blocks, and runs WB.init live.
+                const demoPort = 3000;
+                const mdPath   = msg.data as string;
+                const compName = (msg.name as string) || path.basename(mdPath, '.md');
+                const harnessUrl = `http://localhost:${demoPort}/wb-harness.html?md=${encodeURIComponent(mdPath)}&name=${encodeURIComponent(compName)}`;
+
+                // Check if the demo server is already up; if not, start it
+                const net = require('net') as typeof import('net');
+                const checkPort = (port: number): Promise<boolean> => new Promise(resolve => {
+                    const sock = new net.Socket();
+                    sock.setTimeout(500);
+                    sock.once('connect', () => { sock.destroy(); resolve(true); });
+                    sock.once('error',   () => { sock.destroy(); resolve(false); });
+                    sock.once('timeout', () => { sock.destroy(); resolve(false); });
+                    sock.connect(port, '127.0.0.1');
+                });
+
+                const serverUp = await checkPort(demoPort);
+                if (!serverUp) {
+                    // Start the demo server as a background process
+                    const cp = require('child_process') as typeof import('child_process');
+                    const wbCorePath = 'C:\\dev\\wb-core';
+                    cp.spawn('node', ['demo-server.js'], {
+                        cwd: wbCorePath,
+                        detached: true,
+                        stdio: 'ignore',
+                    }).unref();
+                    // Give it a moment to start
+                    await new Promise(r => setTimeout(r, 1200));
+                }
+
+                await vscode.env.openExternal(vscode.Uri.parse(harnessUrl));
+                log(FEATURE, `Demo opened: ${harnessUrl}`);
+                break;
+            }
+            case 'rebuild-catalog': {
+                clearCachedCards();
+                await openCatalog(true);
                 break;
             }
         }
     });
 }
 
+
 export async function openCatalog(forceRebuild = false): Promise<void> {
     const registry     = loadRegistry();
-    const projectInfos = registry
-        ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo)
-        : [];
-
+    const projectInfos = registry ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo) : [];
     const cards = await buildCatalog(forceRebuild);
     if (!cards?.length) { vscode.window.showWarningMessage('No docs found to catalog.'); return; }
-
-    const html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString());
-
+    const html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
+    const hadPanel = Boolean(_catalogPanel);
     if (_catalogPanel) {
         _catalogPanel.webview.html = html;
-        _catalogPanel.reveal();
+        _catalogPanel.reveal(vscode.ViewColumn.Beside);
     } else {
-        const col = vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.One;
-        _catalogPanel = vscode.window.createWebviewPanel(
-            'docCatalog', '📚 Doc Catalog', col,
-            { enableScripts: true, retainContextWhenHidden: true }
-        );
+        _catalogPanel = vscode.window.createWebviewPanel('docCatalog', '\u{1F4DA} Doc Catalog', vscode.ViewColumn.Beside,
+            { enableScripts: true, retainContextWhenHidden: true });
         _catalogPanel.webview.html = html;
         _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
         attachMessageHandler(_catalogPanel);
     }
-
-    log(FEATURE, `Catalog opened: ${cards.length} cards`);
+    sendCatalogInit(_catalogPanel, cards, projectInfos, registry?.projects ?? []);
+    if (hadPanel) {
+        log(FEATURE, 'Catalog revealed');
+    } else {
+        log(FEATURE, 'Catalog opened');
+    }
 }
 
-let _viewPanel: vscode.WebviewPanel | undefined;
+// ---------------------------------------------------------------------------
+// viewSpecificDoc — opens in the system browser via a local HTTP server.
+// No webview, no CSP, no document.write() bootstrap — just a real browser.
+// ---------------------------------------------------------------------------
+let _viewServer: http.Server | undefined;
+let _viewServerPort: number | undefined;
+let _viewDocPanel: vscode.WebviewPanel | undefined;
+
+function showViewDocPanel(port: number): void {
+        // Open the documentation server directly in the default browser.
+        // All links work natively without webview/CSP constraints.
+        const serverUrl = `http://127.0.0.1:${port}`;
+        vscode.env.openExternal(vscode.Uri.parse(serverUrl));
+        log(FEATURE, `View a Doc server running at ${serverUrl}`);
+}
+
+/** Call from extension deactivate to shut down the server cleanly. */
+export function disposeViewServer(): void {
+    _viewDocPanel?.dispose();
+    _viewDocPanel = undefined;
+    if (_viewServer) { _viewServer.close(); _viewServer = undefined; _viewServerPort = undefined; }
+}
 
 function _escV(s: string): string {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function buildViewDocHtml(cards: CatalogCard[]): string {
-    // Group by project name, sorted by categoryNum then projectName
+function rewriteDocLinks(html: string, filePath: string, port: number, backQ = ''): string {
+    const dir = path.dirname(filePath);
+    return html.replace(/href="([^"]*)"/g, (match, href) => {
+        if (!href || href.startsWith('#') || /^(https?|vscode|mailto|data|ftp):/i.test(href)) {
+            return match;
+        }
+        const resolved = path.resolve(dir, href);
+        const qParam   = backQ ? `&q=${encodeURIComponent(backQ)}` : '';
+        return `href="http://127.0.0.1:${port}/doc?path=${encodeURIComponent(resolved)}${qParam}"`;
+    });
+}
+
+function buildDocPageHtml(filePath: string, rendered: string, port: number, backQ = ''): string {
+    const fileName = path.basename(filePath);
+    const dirParts = path.dirname(filePath).split(/[\\/]/).filter(Boolean);
+    const breadcrumb = dirParts.map((seg, i) => `<span class="seg">${seg}</span><span class="sep">/</span>`).join('') + `<span class="seg cur">${fileName}</span>`;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${fileName}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,5 61,35 95,35 68,57 79,91 50,70 21,91 32,57 5,35 39,35' fill='%230078d4'/></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column;min-height:100vh}
+#bar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0}
+#back{background:#2d2d2d;color:#9cdcfe;border:1px solid #555;border-radius:3px;padding:4px 12px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap}
+#back:hover{background:#3c3c3c;border-color:#0078d4}
+#copy-path{background:#2d2d2d;color:#858585;border:1px solid #555;border-radius:3px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap}
+#copy-path:hover{background:#3c3c3c;border-color:#0078d4;color:#d4d4d4}
+#copy-path.copied{color:#3fb950;border-color:#3fb950;background:#2d2d2d}
+#path{font-family:monospace;font-size:10px;color:#858585;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.seg{color:#858585}.sep{color:#555;margin:0 2px}.cur{color:#d4d4d4;font-weight:700}
+#content{flex:1;padding:24px 40px 64px;max-width:900px;width:100%;margin:0 auto}
+h1,h2,h3,h4{margin:1.1em 0 .45em;line-height:1.3;font-weight:700}
+h1{font-size:1.8em;border-bottom:2px solid #0078d4;padding-bottom:8px}
+h2{font-size:1.3em;border-bottom:1px solid #404040;padding-bottom:4px}
+h3{font-size:1.1em}h4{font-size:.95em;color:#858585}
+p{margin:.55em 0;line-height:1.75}
+blockquote{border-left:4px solid #0078d4;padding:6px 14px;margin:10px 0;background:#252526;border-radius:0 4px 4px 0;font-style:italic}
+code{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.87em;background:#2d2d2d;padding:1px 6px;border-radius:3px;border:1px solid #404040;color:#ce9178}
+pre{background:#1f1f1f;border:1px solid #404040;border-radius:5px;padding:14px 16px;overflow-x:auto;margin:12px 0}
+pre code{background:none;padding:0;font-size:12px;line-height:1.6;border:none;color:#d4d4d4}
+li{margin:4px 0 4px 22px;line-height:1.65}ul,ol{margin:6px 0}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+td,th{border:1px solid #404040;padding:7px 12px;text-align:left}
+th{background:#252526;font-weight:700;font-size:12px}
+tr:nth-child(even) td{background:rgba(255,255,255,.03)}
+hr{border:none;border-top:1px solid #404040;margin:18px 0}
+a{color:#4ec9b0}a:hover{text-decoration:underline}
+strong{font-weight:700}em{font-style:italic}del{opacity:.6;text-decoration:line-through}
+img{max-width:100%;height:auto}
+</style>
+</head>
+<body>
+<div id="bar">
+  <a id="back" href="http://127.0.0.1:${port}${backQ ? '?q=' + encodeURIComponent(backQ) : ''}">&#8592; View a Doc</a>
+  <button id="copy-path" title="Copy file path to clipboard">&#128203; Copy Path</button>
+  <div id="path">${breadcrumb}</div>
+</div>
+<div id="content">${rendered}</div>
+<script>document.addEventListener('DOMContentLoaded',function(){if(window.hljs){hljs.highlightAll();}});
+document.getElementById('copy-path').addEventListener('click',function(){
+  var fp=${JSON.stringify(filePath)};
+  navigator.clipboard.writeText(fp).then(function(){
+    var btn=document.getElementById('copy-path');
+    btn.textContent='\u2713 Copied';
+    btn.classList.add('copied');
+    setTimeout(function(){btn.innerHTML='&#128203; Copy Path';btn.classList.remove('copied');},2000);
+  });
+});
+</script>
+</body>
+</html>`;
+}
+
+function buildViewDocBrowserHtml(cards: CatalogCard[], port: number): string {
     const byProject = new Map<string, CatalogCard[]>();
     for (const card of cards) {
         if (!byProject.has(card.projectName)) { byProject.set(card.projectName, []); }
@@ -219,193 +447,365 @@ function buildViewDocHtml(cards: CatalogCard[]): string {
         const numB = b[1][0]?.categoryNum ?? 999;
         return numA - numB || a[0].localeCompare(b[0]);
     });
-
-    const totalDocs = cards.length;
+    const totalDocs     = cards.length;
     const totalProjects = sortedProjects.length;
 
-    const tableRows = sortedProjects.map(([projName, projCards]) => {
-        // Priority docs always sort first, then alphabetical
-        const PRIORITY = ['CLAUDE.md','README.md','CURRENT-STATUS.md','CURRENT STATUS','TODO','CHANGELOG','ARCHITECTURE','STANDARDS','LAWS','SESSION'];
-        const priority = (c: CatalogCard) => {
-            const upper = c.fileName.toUpperCase();
-            const idx   = PRIORITY.findIndex(p => upper.includes(p));
-            return idx === -1 ? 999 : idx;
-        };
+    const PRIORITY = ['CLAUDE.MD','README.MD','CURRENT-STATUS.MD','CURRENT STATUS','TODO','CHANGELOG','ARCHITECTURE','STANDARDS','LAWS','SESSION'];
+    const getPriority = (fileName: string) => {
+        const upper = fileName.toUpperCase();
+        const idx   = PRIORITY.findIndex(p => upper.includes(p));
+        return idx === -1 ? 999 : idx;
+    };
+
+    // Index panel: one entry per doc link (no table rows — flat list grouped by project)
+    const indexHtml = sortedProjects.map(([projName, projCards]) => {
         const sortedCards = [...projCards].sort((a, b) => {
-            const pa = priority(a), pb = priority(b);
+            const pa = getPriority(a.fileName), pb = getPriority(b.fileName);
             if (pa !== pb) { return pa - pb; }
             return a.title.localeCompare(b.title);
         });
         const deweyBase   = String(projCards[0]?.categoryNum ?? 0).padStart(3, '0');
+        const projectPath = projCards[0]?.projectPath || '';
         const links = sortedCards.map(c => {
-            const isPriority = priority(c) < 999;
-            return `<a class="doc-link${isPriority ? ' doc-link-priority' : ''}" href="#" data-path="${_escV(c.filePath)}" title="${_escV(c.filePath)}">${_escV(c.title)}</a>`;
+            const pri = getPriority(c.fileName) < 999 ? ' pri' : '';
+            return `<a class="doc-link${pri}" href="#" data-path="${_escV(c.filePath)}" title="${_escV(c.filePath)}">${_escV(c.title)}</a>`;
         }).join('');
-        return `<tr>
-  <td class="folder-cell"><span class="dewey">${_escV(deweyBase)}</span><span class="folder-name">${_escV(projName)}</span><span class="doc-count">${sortedCards.length}</span></td>
-  <td class="links-cell">${links}</td>
-</tr>`;
+        const folderBtn = projectPath
+            ? `<button class="folder-btn" data-folder="${_escV(projectPath)}" title="Open folder">&#128194;</button>`
+            : '';
+        return `<div class="proj-group" data-proj="${_escV(projName)}">
+  <div class="proj-hd"><span class="dw">${_escV(deweyBase)}</span><span class="fn">${_escV(projName)}</span>${folderBtn}<span class="cnt">${sortedCards.length}</span></div>
+  <div class="proj-links">${links}</div>
+</div>`;
     }).join('');
 
-    const CSS = `
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>View a Doc</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,5 61,35 95,35 68,57 79,91 50,70 21,91 32,57 5,35 39,35' fill='%230078d4'/></svg>">
+<style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
-#toolbar{position:sticky;top:0;z-index:10;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:10px}
-#toolbar h1{font-size:1.05em;font-weight:700;flex-shrink:0}
-#search{flex:1;padding:6px 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:3px;font-size:13px}
-#search:focus{outline:1px solid var(--vscode-focusBorder)}
-#stat{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
-#content{padding:12px 16px 40px}
-table{width:100%;border-collapse:collapse}
-thead th{text-align:left;padding:7px 12px;background:var(--vscode-textCodeBlock-background);border-bottom:2px solid var(--vscode-focusBorder);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap}
-tbody tr{border-bottom:1px solid var(--vscode-panel-border)}
-tbody tr:hover{background:var(--vscode-list-hoverBackground)}
-tbody tr.hidden{display:none}
-.folder-cell{width:220px;padding:8px 12px;vertical-align:top;white-space:nowrap;border-right:1px solid var(--vscode-panel-border)}
-.dewey{font-family:var(--vscode-editor-font-family,monospace);font-size:9px;font-weight:700;background:var(--vscode-focusBorder);color:var(--vscode-editor-background);border-radius:3px;padding:1px 5px;margin-right:6px;letter-spacing:0.05em}
-.folder-name{font-weight:700;font-size:0.9em}
-.doc-count{margin-left:6px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 6px;font-size:10px;font-weight:400}
-.links-cell{padding:6px 12px;vertical-align:top}
-.doc-link{display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:3px;background:var(--vscode-textCodeBlock-background);color:var(--vscode-textLink-foreground);text-decoration:none;font-size:11px;border:1px solid var(--vscode-panel-border);white-space:nowrap;cursor:pointer}
-.doc-link:hover{background:var(--vscode-list-hoverBackground);border-color:var(--vscode-focusBorder)}
-.doc-link-priority{border-color:var(--vscode-focusBorder);font-weight:700;color:var(--vscode-editor-foreground)}
-.doc-link.active-link{background:rgba(63,185,80,0.15) !important;border-color:#3fb950 !important;color:#3fb950 !important;font-weight:700}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column}
 
-/* Narrow panel: stack everything into one column */
-@media (max-width:600px){
-  table{display:block}
-  thead{display:none}
-  tbody{display:block}
-  tbody tr{display:flex;flex-direction:column;border-bottom:1px solid var(--vscode-panel-border);padding:4px 0}
-  tbody tr.hidden{display:none}
-  .folder-cell{width:100%;border-right:none;border-bottom:1px solid var(--vscode-panel-border);padding:4px 8px}
-  .links-cell{padding:4px 8px}
-  .doc-link{display:block;width:100%;margin:2px 0;white-space:normal;box-sizing:border-box}
-}
-tbody tr.active-row{background:rgba(63,185,80,0.08) !important;border-left:3px solid #3fb950}
-tbody tr.active-row .folder-name{color:#3fb950}
-tbody tr.active-row .dewey{background:#3fb950}
-/* active-link must win over narrow mode and any other rules */
-a.doc-link.active-link,a.doc-link.active-link:visited{background:rgba(63,185,80,0.18) !important;border-color:#3fb950 !important;color:#3fb950 !important;font-weight:700 !important}
-#empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground);display:none}
-#empty.visible{display:block}`;
+/* \u2500\u2500 Top bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+#topbar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0;height:40px}
+#topbar h1{font-size:.9em;font-weight:700;color:#d4d4d4;white-space:nowrap}
+#search{flex:1;padding:4px 8px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:12px;font-family:inherit;outline:none}
+#search:focus{border-color:#0078d4}
+#stat{font-size:10px;color:#858585;white-space:nowrap}
+#proj-filter{padding:3px 6px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:11px;font-family:inherit;outline:none;cursor:pointer;max-width:140px}
+#proj-filter:focus{border-color:#0078d4}
+#proj-filter option{background:#252526}
 
-    const JS = `
+/* \u2500\u2500 Split layout \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+#split{display:flex;flex:1;overflow:hidden}
+
+/* \u2500\u2500 Index panel (12vw) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+#index{width:12vw;min-width:140px;max-width:240px;background:#252526;border-right:1px solid #404040;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+.proj-group{}
+.proj-hd{display:flex;align-items:center;gap:4px;padding:6px 8px 4px;background:#1e1e1e;border-bottom:1px solid #333;position:sticky;top:0;z-index:1}
+.dw{font-family:monospace;font-size:8px;font-weight:700;background:#0078d4;color:#fff;border-radius:2px;padding:1px 4px;flex-shrink:0}
+.fn{font-weight:700;font-size:10px;color:#9cdcfe;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder-btn{background:none;border:none;cursor:pointer;font-size:11px;padding:0 2px;opacity:.6}
+.folder-btn:hover{opacity:1}
+.cnt{font-size:9px;background:#1b6ac9;color:#fff;border-radius:8px;padding:0 4px;flex-shrink:0}
+.proj-links{display:flex;flex-direction:column;padding:2px 0 6px}
+.doc-link{display:block;padding:3px 10px 3px 16px;color:#a0c4c4;text-decoration:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid transparent;transition:all .1s}
+.doc-link:hover{background:#2a2d2e;color:#9cdcfe;border-left-color:#0078d4}
+.doc-link.pri{color:#d4d4d4;font-weight:600}
+.doc-link.active{background:rgba(63,185,80,.12)!important;border-left-color:#3fb950!important;color:#3fb950!important;font-weight:700}
+.doc-link.hi{background:#ffe066!important;color:#1a1a00!important;font-weight:700}
+.index-searching .doc-link:not(.hi){display:none}
+.index-searching .proj-hd{display:none}
+.index-searching .proj-group:not(:has(.doc-link.hi)){display:none}
+
+/* \u2500\u2500 Resize handle \u2500\u2500 */
+#resize-handle{width:5px;background:#404040;cursor:col-resize;flex-shrink:0;transition:background .12s}
+#resize-handle:hover,#resize-handle.dragging{background:#0078d4}
+
+/* \u2500\u2500 Doc viewer (88vw iframe) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+#viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
+#viewer-path{font-family:monospace;font-size:10px;color:#858585;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#btn-copy-path{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
+#btn-copy-path:hover{border-color:#0078d4;color:#d4d4d4}
+#doc-frame{flex:1;border:none;background:#1e1e1e;}
+#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;gap:8px;}
+#welcome svg{opacity:.25}
+
+/* \u2500\u2500 Empty state \u2500\u2500 */
+#idx-empty{padding:20px 10px;text-align:center;color:#555;font-size:11px;display:none}
+#idx-empty.show{display:block}
+
+/* \u2500\u2500 Toast \u2500\u2500 */
+#toast{position:fixed;bottom:14px;right:14px;background:#2d333b;color:#cae8ff;border:1px solid #58a6ff;border-radius:4px;padding:5px 12px;font-size:11px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>&#128196; View a Doc</h1>
+  <input id="search" type="text" placeholder="Search..." autocomplete="off">
+  <select id="proj-filter"><option value="">All Projects</option>${sortedProjects.map(([n]) => `<option value="${_escV(n)}">${_escV(n)}</option>`).join('')}</select>
+  <span id="stat">${totalDocs} docs</span>
+</div>
+
+<div id="split">
+
+  <!-- 12vw index -->
+  <div id="index">
+    ${indexHtml}
+    <div id="idx-empty">No matches</div>
+  </div>
+
+  <div id="resize-handle" title="Drag to resize"></div>
+
+  <!-- 88vw viewer -->
+  <div id="viewer">
+    <div id="viewer-bar">
+      <span id="viewer-path">Select a document from the index</span>
+      <button id="btn-copy-path" style="display:none" title="Copy file path">&#128203; Copy Path</button>
+    </div>
+    <div id="welcome">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#888" stroke-width="2"/><line x1="11" y1="12" x2="29" y2="12" stroke="#888" stroke-width="1.5"/><line x1="11" y1="17" x2="29" y2="17" stroke="#888" stroke-width="1.5"/><line x1="11" y1="22" x2="22" y2="22" stroke="#888" stroke-width="1.5"/></svg>
+      <span>Select a document from the index</span>
+    </div>
+    <iframe id="doc-frame" style="display:none" sandbox="allow-scripts allow-same-origin"></iframe>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
 (function(){
-'use strict';
-const vscode   = acquireVsCodeApi();
-const searchEl = document.getElementById('search');
-const statEl   = document.getElementById('stat');
-const emptyEl  = document.getElementById('empty');
-const TOTAL    = ${totalDocs};
+var BASE='http://127.0.0.1:${port}';
+var searchEl  = document.getElementById('search');
+var statEl    = document.getElementById('stat');
+var idxEl     = document.getElementById('index');
+var idxEmpty  = document.getElementById('idx-empty');
+var frame     = document.getElementById('doc-frame');
+var welcome   = document.getElementById('welcome');
+var viewerPath= document.getElementById('viewer-path');
+var btnCopy   = document.getElementById('btn-copy-path');
+var TOTAL     = ${totalDocs};
+var _currentPath = '';
 
-searchEl.addEventListener('input', function() {
-  var q = searchEl.value.toLowerCase().trim();
-  var visible = 0;
-  document.querySelectorAll('tbody tr').forEach(function(row) {
-    var text = row.textContent.toLowerCase();
-    var show = !q || text.includes(q);
-    row.classList.toggle('hidden', !show);
-    if (show) { visible += row.querySelectorAll('.doc-link').length; }
+
+// \u2500\u2500 Project filter \u2500\u2500
+var projFilterEl = document.getElementById('proj-filter');
+var _projFilter = (localStorage.getItem('view-a-doc-proj') || '');
+projFilterEl.value = _projFilter;
+
+function applyProjFilter() {
+  _projFilter = projFilterEl.value;
+  localStorage.setItem('view-a-doc-proj', _projFilter);
+  idxEl.querySelectorAll('.proj-group').forEach(function(g) {
+    var show = !_projFilter || g.dataset.proj === _projFilter;
+    g.style.display = show ? '' : 'none';
   });
-  emptyEl.classList.toggle('visible', document.querySelectorAll('tbody tr:not(.hidden)').length === 0);
-  statEl.textContent = q ? (visible + ' of ' + TOTAL + ' docs') : (TOTAL + ' docs across ${totalProjects} projects');
-});
-searchEl.focus();
+  var visLinks = idxEl.querySelectorAll('.proj-group:not([style*="display: none"]) .doc-link').length
+                + idxEl.querySelectorAll('.proj-group:not([style*="display:none"]) .doc-link').length;
+  // Count unique visible links
+  var cnt = 0;
+  idxEl.querySelectorAll('.proj-group').forEach(function(g){
+    if(!_projFilter || g.dataset.proj===_projFilter) cnt += g.querySelectorAll('.doc-link').length;
+  });
+  statEl.textContent = _projFilter ? (cnt + ' docs \u2014 ' + _projFilter) : (TOTAL + ' docs');
+}
+projFilterEl.addEventListener('change', applyProjFilter);
+applyProjFilter();
 
-function _activate(path, scroll) {
-  document.querySelectorAll('tbody tr.active-row').forEach(function(r) { r.classList.remove('active-row'); });
-  document.querySelectorAll('.doc-link.active-link').forEach(function(l) { l.classList.remove('active-link'); });
-  // Attribute selector must match the raw value, not HTML-encoded
-  var allLinks = document.querySelectorAll('.doc-link');
-  var link = null;
-  allLinks.forEach(function(l) { if (l.dataset.path === path) { link = l; } });
-  if (!link) return;
-  link.classList.add('active-link');
-  var row = link.closest('tr');
-  if (row) { row.classList.add('active-row'); }
-  if (scroll) {
-    // Scroll the link itself — works in both normal and narrow (flex-column) mode
-    link.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+// \u2500\u2500 Search \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+function applySearch() {
+  var q = searchEl.value.toLowerCase().trim();
+  idxEl.classList.toggle('index-searching', q.length > 0);
+  idxEl.querySelectorAll('.doc-link').forEach(function(lnk) {
+    lnk.classList.toggle('hi', q.length > 0 && lnk.textContent.toLowerCase().includes(q));
+  });
+  var visible = idxEl.querySelectorAll('.doc-link' + (q ? '.hi' : '')).length;
+  idxEmpty.classList.toggle('show', visible === 0);
+  statEl.textContent = q ? (visible + ' matching') : (TOTAL + ' docs');
+}
+searchEl.addEventListener('input', applySearch);
+
+// \u2500\u2500 Open a doc in the iframe \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+function openDoc(docPath, linkEl) {
+  _currentPath = docPath;
+
+  // Mark active link
+  idxEl.querySelectorAll('.doc-link.active').forEach(function(l){ l.classList.remove('active'); });
+  if (linkEl) { linkEl.classList.add('active'); scrollIntoViewIfNeeded(linkEl); }
+
+  // Update viewer bar
+  viewerPath.textContent = docPath;
+  btnCopy.style.display = '';
+
+  // Load in iframe
+  var docUrl = BASE + '/doc?path=' + encodeURIComponent(docPath);
+  frame.src = docUrl;
+  frame.style.display = 'block';
+  welcome.style.display = 'none';
+}
+
+function scrollIntoViewIfNeeded(el) {
+  var rect = el.getBoundingClientRect();
+  var pRect = document.getElementById('index').getBoundingClientRect();
+  if (rect.top < pRect.top || rect.bottom > pRect.bottom) {
+    el.scrollIntoView({ block: 'nearest' });
   }
 }
 
-// Restore last selection after layout is complete
-var _state = vscode.getState();
-if (_state && _state.activePath) {
-  // rAF ensures DOM is laid out before scrollIntoView fires
-  requestAnimationFrame(function() {
-    requestAnimationFrame(function() {
-      _activate(_state.activePath, true);
-    });
+// \u2500\u2500 Click handling \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+document.addEventListener('click', function(e) {
+  var lnk = e.target.closest('.doc-link');
+  if (lnk) { e.preventDefault(); openDoc(lnk.dataset.path, lnk); return; }
+  var btn = e.target.closest('.folder-btn');
+  if (btn) { e.preventDefault(); fetch(BASE + '/openfolder?path=' + encodeURIComponent(btn.dataset.folder)).catch(function(){}); return; }
+});
+
+// \u2500\u2500 Copy path \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+btnCopy.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  navigator.clipboard.writeText(_currentPath).then(function() {
+    btnCopy.textContent = '\u2713 Copied';
+    setTimeout(function() { btnCopy.innerHTML = '&#128203; Copy Path'; }, 1800);
   });
+});
+
+// \u2500\u2500 Toast \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 1800);
 }
 
-document.addEventListener('click', function(e) {
-  var link = e.target.closest('.doc-link');
-  if (!link) return;
-  e.preventDefault();
-  _activate(link.dataset.path, true);
-  // Persist selection so it survives panel hide/show
-  vscode.setState({ activePath: link.dataset.path });
-  vscode.postMessage({ command: 'open', data: link.dataset.path });
+// Ctrl+A copies all visible paths
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    e.preventDefault();
+    var paths = [];
+    idxEl.querySelectorAll('.doc-link:not([style*="display:none"])').forEach(function(l) { paths.push(l.dataset.path); });
+    navigator.clipboard && navigator.clipboard.writeText(paths.join('\\r\\n')).then(function() { toast(paths.length + ' paths copied'); });
+  }
 });
-})();`;
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
-<div id="toolbar">
-  <h1>&#128196; View a Doc</h1>
-  <input id="search" type="text" placeholder="Search docs, folders\u2026" autocomplete="off">
-  <span id="stat">${totalDocs} docs across ${totalProjects} projects</span>
-</div>
-<div id="content">
-  <table>
-    <thead><tr><th>Folder</th><th>Documents</th></tr></thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-  <div id="empty">No docs match your search.</div>
-</div>
-<script>${JS}</script>
-</body></html>`;
+
+// \u2500\u2500 Resize handle \u2500\u2500
+var handle = document.getElementById('resize-handle');
+var indexEl2 = document.getElementById('index');
+var isDragging = false;
+handle.addEventListener('mousedown', function(e) {
+  isDragging = true;
+  handle.classList.add('dragging');
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
+  e.preventDefault();
+});
+document.addEventListener('mousemove', function(e) {
+  if (!isDragging) return;
+  var splitRect = document.getElementById('split').getBoundingClientRect();
+  var newW = Math.max(100, Math.min(e.clientX - splitRect.left, splitRect.width - 200));
+  indexEl2.style.width = newW + 'px';
+  indexEl2.style.minWidth = newW + 'px';
+  indexEl2.style.maxWidth = newW + 'px';
+});
+document.addEventListener('mouseup', function() {
+  if (isDragging) {
+    isDragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }
+});
+
+searchEl.focus();
+})();
+</script>
+</body>
+</html>`;
 }
 
 export async function viewSpecificDoc(): Promise<void> {
     const cards = await buildCatalog();
     if (!cards?.length) { return; }
 
-    const html = buildViewDocHtml(cards);
-
-    if (_viewPanel) {
-        _viewPanel.webview.html = html;
-        _viewPanel.reveal(vscode.ViewColumn.One, true);
-    } else {
-        _viewPanel = vscode.window.createWebviewPanel(
-            'viewDoc', '\u{1F4C4} View a Doc', vscode.ViewColumn.One,
-            { enableScripts: true, retainContextWhenHidden: true }
-        );
-        _viewPanel.webview.html = html;
-        _viewPanel.onDidDispose(() => { _viewPanel = undefined; });
+    // If server is already running, just reveal the webview host in the next group
+    if (_viewServer && _viewServerPort) {
+        showViewDocPanel(_viewServerPort);
+        return;
     }
 
-    _viewPanel.webview.onDidReceiveMessage(async msg => {
-        if (msg.command === 'open' && msg.data && fs.existsSync(msg.data)) {
-            openDocPreview(msg.data, '\u{1F4C4} View a Doc', 'cvs.catalog.view');
+    // Start a fresh server
+    _viewServer = http.createServer((req, res) => {
+        const url = new URL(req.url || '/', 'http://localhost');
+
+        // CORS so browser fetch() works
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        if (url.pathname === '/favicon.ico') {
+            res.writeHead(204); res.end(); return;
+        }
+
+        if (url.pathname === '/') {
+            const port = (_viewServer!.address() as { port: number }).port;
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(buildViewDocBrowserHtml(cards!, port));
+
+        } else if (url.pathname === '/doc') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            const backQ    = url.searchParams.get('q') || '';
+            if (!filePath || !fs.existsSync(filePath)) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('File not found'); return;
+            }
+            const rawMd  = fs.readFileSync(filePath, 'utf8');
+            const port = (_viewServer!.address() as { port: number }).port;
+            const rendered = rewriteDocLinks(mdToHtml(rawMd), filePath, port, backQ);
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(buildDocPageHtml(filePath, rendered, port, backQ));
+
+        } else if (url.pathname === '/openfolder') {
+            const folderPath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (folderPath) {
+                vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPath), { forceNewWindow: true });
+            }
+
+        } else {
+            res.writeHead(404); res.end('Not found');
         }
     });
 
-    log(FEATURE, `View Doc panel opened: ${cards.length} docs`);
+    _viewServer.on('error', err => {
+        log(FEATURE, `View Doc server error: ${err.message}`);
+        _viewServer = undefined; _viewServerPort = undefined;
+    });
+
+    _viewServer.listen(0, '127.0.0.1', async () => {
+        const addr = _viewServer!.address() as { port: number };
+        _viewServerPort = addr.port;
+        showViewDocPanel(_viewServerPort);
+        log(FEATURE, `View Doc browser server on port ${_viewServerPort} — ${cards!.length} docs`);
+    });
 }
 
+// ---------------------------------------------------------------------------
+// deserializeCatalogPanel
+// ---------------------------------------------------------------------------
 export function deserializeCatalogPanel(panel: vscode.WebviewPanel): void {
     _catalogPanel = panel;
     _catalogPanel.webview.options = { enableScripts: true };
     buildCatalog(true).then(cards => {
         if (!cards?.length) { return; }
         const registry     = loadRegistry();
-        const projectInfos = registry
-            ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo)
-            : [];
-        _catalogPanel!.webview.html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString());
+        const projectInfos = registry ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo) : [];
+        _catalogPanel!.webview.html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
+        sendCatalogInit(_catalogPanel!, cards, projectInfos, registry?.projects ?? []);
     });
     _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
     attachMessageHandler(_catalogPanel);

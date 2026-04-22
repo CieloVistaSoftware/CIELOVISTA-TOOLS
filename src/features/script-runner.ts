@@ -50,6 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
           action: `node ${picked}`,
           output,
           durationMs: duration,
+          failed: !!err,
           onRerun: () => {
             vscode.commands.executeCommand('cvs.scripts.runScript');
           },
@@ -60,3 +61,4 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+// FILE REMOVED BY REQUEST

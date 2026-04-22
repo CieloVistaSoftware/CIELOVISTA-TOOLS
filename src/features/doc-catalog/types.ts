@@ -38,4 +38,7 @@ export interface CatalogCard {
     sizeBytes: number;
     lastModified: string;
     tags: string[];
+    dewey?: string;
+    helpDoc?: string;
+    helpMarkdown?: string;
 }

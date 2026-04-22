@@ -1,9 +1,12 @@
-// Copyright (c) 2025 CieloVista Software. All rights reserved.
+﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
+import { mdToHtml } from './md-renderer';
+import { getNonce } from './webview-utils';
 
 let _previewPanel: vscode.WebviewPanel | undefined;
 
@@ -17,48 +20,13 @@ export function esc(s: string): string {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Pure Node markdown renderer — no CDN, no npm imports.
-export function mdToHtml(md: string): string {
-    let html = md;
-    html = html.replace(/^```(\w*)\n([\s\S]*?)^```/gm, (_m, lang, code) => {
-        const cls = lang ? ` class="language-${esc(lang)}"` : '';
-        return `<pre><code${cls}>${esc(code.replace(/\n$/, ''))}</code></pre>`;
-    });
-    html = html.replace(/^(\|.+\|\n)((?:\|[-: ]+)+\|\n)((?:\|.+\|\n?)*)/gm, (_m, header, _sep, body) => {
-        const parseRow = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
-        const hCells = parseRow(header).map(c => `<th>${c}</th>`).join('');
-        const bRows  = body.trim().split('\n').filter(Boolean).map((r: string) => '<tr>' + parseRow(r).map(c => `<td>${c}</td>`).join('') + '</tr>').join('');
-        return `<table><thead><tr>${hCells}</tr></thead><tbody>${bRows}</tbody></table>`;
-    });
-    html = html.replace(/^(#{1,6})\s+(.+)$/gm, (_m, hashes, text) => `<h${hashes.length}>${text}</h${hashes.length}>`);
-    html = html.replace(/^>\s?(.+)$/gm, (_m, text) => `<blockquote>${text}</blockquote>`);
-    html = html.replace(/^(?:[*\-+]\s.+\n?)+/gm, block => `<ul>${block.trim().split('\n').map(l => `<li>${l.replace(/^[*\-+]\s/, '')}</li>`).join('')}</ul>`);
-    html = html.replace(/^(?:\d+\.\s.+\n?)+/gm, block => `<ol>${block.trim().split('\n').map(l => `<li>${l.replace(/^\d+\.\s/, '')}</li>`).join('')}</ol>`);
-    html = html.replace(/^[-*_]{3,}\s*$/gm, '<hr>');
-    html = html.replace(/`([^`\n]+)`/g, (_m, code) => `<code>${esc(code)}</code>`);
-    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
-    html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
-    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">');
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-    html = html.replace(/^(?!<[a-z]|\s*$)(.+)$/gm, '<p>$1</p>');
-    html = html.replace(/\n{3,}/g, '\n\n');
-    return html;
-}
+// Markdown rendering now handled by md-renderer.ts (markdown-it + highlight.js)
 
 // ── Breadcrumb ────────────────────────────────────────────────────────────────
+// â”€â”€ Breadcrumb â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Only show the current document name â€” no history trail
 function buildBreadcrumbHtml(history: Crumb[], currentTitle: string): string {
-    const crumbs = [...history, { label: currentTitle, filePath: null }];
-    return crumbs.map((c, i) => {
-        const isLast = i === crumbs.length - 1;
-        const sep    = i > 0 ? '<span class="bc-sep">›</span>' : '';
-        if (isLast)    { return `${sep}<span class="bc-item bc-current">${esc(c.label)}</span>`; }
-        if (c.filePath){ return `${sep}<button class="bc-item bc-link" data-path="${esc(c.filePath)}">${esc(c.label)}</button>`; }
-        return `${sep}<button class="bc-item bc-source" data-idx="${i}">${esc(c.label)}</button>`;
-    }).join('');
+    return `<span class="bc-item bc-current">${esc(currentTitle)}</span>`;
 }
 
 // ── Folder path bar ───────────────────────────────────────────────────────────
@@ -77,6 +45,7 @@ function buildFolderPathHtml(filePath: string): string {
 
 // ── Preview HTML ──────────────────────────────────────────────────────────────
 function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[]): string {
+    const nonce = getNonce();
     const jsPath = filePath.replace(/\\/g, '\\\\');
     const jsDir  = path.dirname(filePath).replace(/\\/g, '\\\\');
     const bcHtml = buildBreadcrumbHtml(history, title);
@@ -122,41 +91,88 @@ hr{border:none;border-top:1px solid var(--vscode-panel-border);margin:18px 0}
 a{color:var(--vscode-textLink-foreground)} a:hover{text-decoration:underline}
 strong{font-weight:700} em{font-style:italic} del{opacity:0.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
+/* ── highlight.js — github-dark theme (inline, no CDN needed) ── */
+.hljs{color:#adbac7;background:#22272e}.hljs-doctag,.hljs-keyword,.hljs-meta .hljs-keyword,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-variable.language_{color:#f47067}.hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__,.hljs-title.function_{color:#dcbdfb}.hljs-attr,.hljs-attribute,.hljs-literal,.hljs-meta,.hljs-number,.hljs-operator,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-variable{color:#6cb6ff}.hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#96d0ff}.hljs-built_in,.hljs-symbol{color:#f69d50}.hljs-code,.hljs-comment,.hljs-formula{color:#768390}.hljs-name,.hljs-quote,.hljs-selector-pseudo,.hljs-selector-tag{color:#8ddb8c}.hljs-subst{color:#adbac7}.hljs-section{color:#316dca;font-weight:700}.hljs-bullet{color:#eac55f}.hljs-emphasis{color:#adbac7;font-style:italic}.hljs-strong{color:#adbac7;font-weight:700}.hljs-addition{color:#b4f1b4;background-color:#1b4721}.hljs-deletion{color:#ffd8d3;background-color:#78191b}
 `;
 
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<style>${CSS}</style></head><body>
 <div id="topbar">
   <div id="topbar-row1">
     <span id="topbar-title">&#128196; ${esc(title)}</span>
     <button class="btn-action" id="btn-vscode">&#128195; Open in VS Code</button>
-    <button class="btn-action" id="btn-terminal">&#8250;_ Terminal</button>
+    <button class="btn-action" id="btn-terminal">&#8250;_ Change Working Directory</button>
     <button class="btn-action" id="btn-explorer">&#128193; Explorer</button>
-    <button class="btn-action" id="btn-edit">&#9998; Editor</button>
+    <button class="btn-action" id="btn-edit">&#9998; Edit</button>
   </div>
   <div id="breadcrumb">${bcHtml}</div>
   <div id="folder-bar"><div id="folder-path">${fpHtml}</div></div>
 </div>
 <div id="content">${renderedHtml}</div>
-<script>
+<script nonce="${nonce}">
+let _pendingScrollY = 0;
 (function(){
-  const vscode = acquireVsCodeApi();
-  document.getElementById('btn-edit').addEventListener('click',     () => vscode.postMessage({ command: 'open',           path: '${jsPath}' }));
-  document.getElementById('btn-vscode').addEventListener('click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
-  document.getElementById('btn-terminal').addEventListener('click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
-  document.getElementById('btn-explorer').addEventListener('click', () => vscode.postMessage({ command: 'reveal-explorer',path: '${jsPath}' }));
-  document.getElementById('breadcrumb').addEventListener('click', e => {
-    const link = e.target.closest('.bc-link');
-    if (link?.dataset.path) { vscode.postMessage({ command: 'navigate', path: link.dataset.path }); return; }
-    const src = e.target.closest('.bc-source');
-    if (src) { vscode.postMessage({ command: 'navigate-source', idx: parseInt(src.dataset.idx || '0', 10) }); }
-  });
-  document.getElementById('folder-bar').addEventListener('click', e => {
-    const seg = e.target.closest('[data-action="open-folder"]');
-    if (seg?.dataset.path) { vscode.postMessage({ command: 'open-folder-full', dir: seg.dataset.path }); }
-  });
+    const vscode = acquireVsCodeApi();
+    function safeAddListener(id, event, handler) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener(event, handler);
+        } else {
+            console.error('DocPreview: Button not found:', id);
+        }
+    }
+    safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'open',           path: '${jsPath}' }));
+    safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
+    safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
+    safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-explorer',path: '${jsPath}' }));
+    const bc = document.getElementById('breadcrumb');
+    if (bc) {
+        bc.addEventListener('click', e => {
+            const link = e.target.closest('.bc-link');
+            if (link && link.dataset.path) { vscode.postMessage({ command: 'navigate', path: link.dataset.path }); return; }
+            const src = e.target.closest('.bc-source');
+            if (src) { vscode.postMessage({ command: 'navigate-source', idx: parseInt(src.dataset.idx || '0', 10) }); }
+        });
+    }
+    const fb = document.getElementById('folder-bar');
+    if (fb) {
+        fb.addEventListener('click', e => {
+            const seg = e.target.closest('.fp-link');
+            if (seg && seg.dataset.path) { vscode.postMessage({ command: 'open-folder-full', dir: seg.dataset.path }); }
+        });
+    }
+    // Intercept all <a> clicks in the content area and always navigate via VS Code
+    const content = document.getElementById('content');
+    if (content) {
+        content.addEventListener('click', function(e) {
+            let el = e.target;
+            while (el && el !== this) {
+                if (el.tagName && el.tagName.toLowerCase() === 'a' && el.getAttribute('href')) {
+                    e.preventDefault();
+                    vscode.postMessage({ command: 'open', path: el.getAttribute('href'), scrollY: window.scrollY });
+                    return;
+                }
+                el = el.parentNode;
+            }
+        });
+    }
+    // (syntax highlighting handled server-side by md-renderer.ts)
+    // Listen for scroll restore message
+    window.addEventListener('message', event => {
+        if (event.data && typeof event.data.scrollY === 'number') {
+            window.scrollTo(0, event.data.scrollY);
+        }
+    });
+    // If scrollY was passed in URL hash, restore it
+    if (window.location.hash.startsWith('#scroll=')) {
+        const y = parseInt(window.location.hash.replace('#scroll=', ''), 10);
+        if (!isNaN(y)) window.scrollTo(0, y);
+    }
 })();
 </script>
-</body></html>`;
+</body>
+</html>`;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -190,20 +206,21 @@ export function openDocPreview(
     _currentTitle       = title;
     _currentSourceCmdId = sourceCmdId ?? _currentSourceCmdId;
 
-    const html = buildPreviewHtml(title, filePath, rendered, _history);
 
     if (_previewPanel) {
-        _previewPanel.title        = `📄 ${title}`;
-        _previewPanel.webview.html = html;
+        _previewPanel.title            = `\u{1F4C4} ${title}`;
+        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history);
+        // preserveFocus=true keeps the catalog panel active so it doesn't scroll
         _previewPanel.reveal(vscode.ViewColumn.Beside, true);
         return;
     }
 
     _previewPanel = vscode.window.createWebviewPanel(
-        'docPreview', `📄 ${title}`, vscode.ViewColumn.Beside,
-        { enableScripts: true, retainContextWhenHidden: true } as any
+        'docPreview', `📄 ${title}`,
+        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+        { enableScripts: true, retainContextWhenHidden: true }
     );
-    _previewPanel.webview.html = html;
+    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history);
     _previewPanel.onDidDispose(() => {
         _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
         _history = [];
@@ -211,9 +228,51 @@ export function openDocPreview(
 
     _previewPanel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
-            case 'open':
-                if (msg.path) { const doc = await vscode.workspace.openTextDocument(msg.path); await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside); }
+            case 'open': {
+                if (!msg.path) { break; }
+                const rawTarget = String(msg.path).trim();
+
+                // Pass through external links to the OS/browser.
+                if (/^(https?:|mailto:|vscode:)/i.test(rawTarget)) {
+                    await vscode.env.openExternal(vscode.Uri.parse(rawTarget));
+                    break;
+                }
+
+                // Resolve local file targets (relative markdown links, file:// links,
+                // URL-encoded spaces, optional query/hash fragments).
+                let target = rawTarget;
+                if (/^file:/i.test(target)) {
+                    target = vscode.Uri.parse(target).fsPath;
+                }
+
+                const queryIdx = target.indexOf('?');
+                if (queryIdx !== -1) { target = target.slice(0, queryIdx); }
+                const hashIdx = target.indexOf('#');
+                if (hashIdx !== -1) { target = target.slice(0, hashIdx); }
+
+                try { target = decodeURIComponent(target); } catch { /* keep raw value */ }
+
+                if (!path.isAbsolute(target) && _currentFilePath) {
+                    target = path.resolve(path.dirname(_currentFilePath), target);
+                }
+                target = path.normalize(target);
+
+                if (!fs.existsSync(target)) {
+                    vscode.window.showWarningMessage(`File not found: ${target}`);
+                    break;
+                }
+                // .md files open in the doc preview (navigate in place)
+                // .html files open rendered in the system browser
+                if (target.toLowerCase().endsWith('.md')) {
+                    openDocPreview(target, _currentSourceCmdId ? undefined : _currentTitle, _currentSourceCmdId);
+                } else if (target.toLowerCase().endsWith('.html')) {
+                    await vscode.env.openExternal(vscode.Uri.file(target));
+                } else {
+                    const doc = await vscode.workspace.openTextDocument(target);
+                    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                }
                 break;
+            }
             case 'open-in-vscode': {
                 if (!msg.dir) { break; }
                 const markers = ['package.json', '.git', '.sln', '.csproj', 'CLAUDE.md'];
@@ -245,9 +304,19 @@ export function openDocPreview(
             case 'open-terminal':
                 if (msg.dir) { vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(); }
                 break;
-            case 'reveal-explorer':
-                if (msg.path) { await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(msg.path)); }
+            case 'reveal-explorer': {
+                if (!msg.path) { break; }
+                const revUri = vscode.Uri.file(msg.path);
+                const inWorkspace = vscode.workspace.workspaceFolders?.some(
+                    wf => (msg.path as string).toLowerCase().startsWith(wf.uri.fsPath.toLowerCase())
+                );
+                if (inWorkspace) {
+                    await vscode.commands.executeCommand('revealInExplorer', revUri);
+                } else {
+                    await vscode.commands.executeCommand('revealFileInOS', revUri);
+                }
                 break;
+            }
             case 'navigate':
                 if (msg.path) { openDocPreview(msg.path); }
                 break;
@@ -265,3 +334,4 @@ export function disposeDocPreview(): void {
     _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
     _history = [];
 }
+// FILE REMOVED BY REQUEST

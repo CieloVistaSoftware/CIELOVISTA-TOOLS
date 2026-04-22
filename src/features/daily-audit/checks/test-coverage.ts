@@ -28,8 +28,8 @@ export interface TestCoverageResult {
     hasConfig:     boolean;
     hasDep:        boolean;
     hasNpm:        boolean;     // false = dotnet-only, skip playwright checks
-    specFiles:     string[];    // all .spec.ts / .spec.js files found
-    realTestCount: number;      // spec files with actual test() calls beyond placeholder
+    specFiles:     string[];    // all .spec.ts / .spec.js / .test.ts / .test.js / .test.mjs files found
+    realTestCount: number;      // test files with actual test() calls beyond placeholder
     issues:        string[];
 }
 
@@ -54,13 +54,13 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
         // Find all spec files
         try {
             result.specFiles = fs.readdirSync(testsDir)
-                .filter(f => /\.spec\.(ts|js)$/.test(f))
+                .filter(f => /\.(spec|test)\.(ts|js|mjs)$/.test(f))
                 .map(f => path.join(testsDir, f));
         } catch { result.specFiles = []; }
 
         // Count files that have real test() calls (not just the placeholder)
         const PLACEHOLDER = 'placeholder test';
-        const REAL_TEST   = /^\s*test\s*\(/m;
+        const REAL_TEST   = /^\s*(test|it)\s*\(/m;
         result.realTestCount = result.specFiles.filter(f => {
             try {
                 const content = fs.readFileSync(f, 'utf8');
@@ -69,9 +69,9 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
         }).length;
 
         if (result.specFiles.length === 0) {
-            result.issues.push('tests/ folder is empty — no .spec.ts files');
+            result.issues.push('tests/ folder is empty — no .spec.ts or .test.js files');
         } else if (result.realTestCount === 0) {
-            result.issues.push(`${result.specFiles.length} spec file${result.specFiles.length > 1 ? 's' : ''} contain only placeholder tests — real tests needed`);
+            result.issues.push(`${result.specFiles.length} test file${result.specFiles.length > 1 ? 's' : ''} contain only placeholder tests — real tests needed`);
         }
     }
 

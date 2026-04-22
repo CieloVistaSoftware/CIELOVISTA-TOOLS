@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * doc-header.ts
  *
@@ -98,7 +98,7 @@ function loadRegistry(): ProjectRegistry | undefined {
         }
         return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
     } catch (err) {
-        logError(FEATURE, 'Failed to load registry', err);
+        logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return undefined;
     }
 }
@@ -330,7 +330,7 @@ function applyHeader(filePath: string, projectName: string, projectRoot: string)
         fs.writeFileSync(filePath, newContent, 'utf8');
         return true;
     } catch (err) {
-        logError(FEATURE, `Failed to apply header to ${filePath}`, err);
+        logError(`Failed to apply header to ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return false;
     }
 }
@@ -687,3 +687,15 @@ export function deactivate(): void {
     _allReports = [];
     _registry   = undefined;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+    parseFrontmatter,
+    serializeFrontmatter,
+    extractTitle,
+    extractDescription,
+    extractTags,
+    assignCategory,
+    toRelativePath,
+    buildRequiredFrontmatter,
+};

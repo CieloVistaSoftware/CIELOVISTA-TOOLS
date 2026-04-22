@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * js-error-audit.ts
  *
@@ -716,7 +716,7 @@ async function runJsErrorAudit(): Promise<void> {
     try {
         const root = findDiskCleanUpRoot();
         if (!root) {
-            logError(FEATURE, 'Could not find DiskCleanUp project. Check your project registry.');
+            logError('Could not find DiskCleanUp project. Check your project registry.', '', FEATURE);
             vscode.window.showErrorMessage('Could not find DiskCleanUp project. Check your project registry.');
             return;
         }
@@ -731,7 +731,7 @@ async function runJsErrorAudit(): Promise<void> {
             await runAuditScript(root);
             report = loadReport(root);
             if (!report) {
-                logError(FEATURE, 'Audit failed — check the terminal.');
+                logError('Audit failed — check the terminal.', '', FEATURE);
                 vscode.window.showErrorMessage('Audit failed — check the terminal.');
                 return;
             }
@@ -740,7 +740,7 @@ async function runJsErrorAudit(): Promise<void> {
         const state = mergeState(root, report);
         showPanel(report, state, root);
     } catch (err) {
-        logError(FEATURE, 'runJsErrorAudit failed', err);
+        logError('runJsErrorAudit failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage('JS Error Audit failed: ' + (err instanceof Error ? err.message : String(err)));
     }
 }
@@ -749,7 +749,7 @@ function loadReport(root: string): AuditReport | undefined {
     const p = findAuditJson(root);
     if (!fs.existsSync(p)) { return undefined; }
     try { return JSON.parse(fs.readFileSync(p, 'utf8')) as AuditReport; }
-    catch (err) { logError(FEATURE, 'Failed to parse audit JSON', err); return undefined; }
+    catch (err) { logError('Failed to parse audit JSON', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); return undefined; }
 }
 
 function refresh(root: string): void {
@@ -791,7 +791,7 @@ function attachHandler(root: string): void {
                 case 'open': {
                     try {
                         if (!fs.existsSync(msg.path)) {
-                            logError(FEATURE, `File not found: ${msg.path}`);
+                            logError(`File not found: ${msg.path}`, '', FEATURE);
                             _panel?.webview.postMessage({ type: 'error', text: 'File not found: ' + msg.path });
                             break;
                         }
@@ -804,7 +804,7 @@ function attachHandler(root: string): void {
                             editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
                         }
                     } catch (err) {
-                        logError(FEATURE, `Failed to open file: ${msg.path}`, err);
+                        logError(`Failed to open file: ${msg.path}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: 'Failed to open file: ' + msg.path });
                     }
                     break;
@@ -813,7 +813,7 @@ function attachHandler(root: string): void {
                     try {
                         await handleAiFix(root, msg.id, msg.path);
                     } catch (err) {
-                        logError(FEATURE, `AI fix failed for ${msg.id}`, err);
+                        logError(`AI fix failed for ${msg.id}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: `AI fix failed for ${msg.id}: ${err}` });
                     }
                     break;
@@ -832,7 +832,7 @@ function attachHandler(root: string): void {
                         for (const e of open.slice(1)) { _fixQueue.push(e.id); }
                         await handleAiFix(root, first.id, absPath);
                     } catch (err) {
-                        logError(FEATURE, 'Fix All failed', err);
+                        logError('Fix All failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: 'Fix All failed: ' + (err instanceof Error ? err.message : String(err)) });
                     }
                     break;
@@ -841,7 +841,7 @@ function attachHandler(root: string): void {
                     try {
                         const pending = _pendingFix.get(msg.id);
                         if (!pending) {
-                            logError(FEATURE, `No pending fix found for ${msg.id}`);
+                            logError(`No pending fix found for ${msg.id}`, '', FEATURE);
                             _panel?.webview.postMessage({ type: 'error', text: 'No pending fix found for ' + msg.id });
                             break;
                         }
@@ -868,7 +868,7 @@ function attachHandler(root: string): void {
                             _panel?.webview.postMessage({ type: 'done', text: `Fix accepted and written — audit refreshed.` });
                         }
                     } catch (err) {
-                        logError(FEATURE, `Accept fix failed for ${msg.id}`, err);
+                        logError(`Accept fix failed for ${msg.id}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: `Accept fix failed for ${msg.id}: ${err}` });
                     }
                     break;
@@ -892,7 +892,7 @@ function attachHandler(root: string): void {
                             }
                         }
                     } catch (err) {
-                        logError(FEATURE, `Reject fix failed for ${msg.id}`, err);
+                        logError(`Reject fix failed for ${msg.id}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: `Reject fix failed for ${msg.id}: ${err}` });
                     }
                     break;
@@ -901,7 +901,7 @@ function attachHandler(root: string): void {
                     try {
                         const scriptPath = findAuditScript(root);
                         if (!fs.existsSync(scriptPath)) {
-                            logError(FEATURE, 'Audit script not found.');
+                            logError('Audit script not found.', '', FEATURE);
                             _panel?.webview.postMessage({ type: 'error', text: 'Audit script not found.' });
                             break;
                         }
@@ -919,7 +919,7 @@ function attachHandler(root: string): void {
                         await runAuditScript(root);
                         refresh(root);
                     } catch (err) {
-                        logError(FEATURE, `Exclude failed for ${msg.id}`, err);
+                        logError(`Exclude failed for ${msg.id}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: `Exclude failed for ${msg.id}: ${err}` });
                     }
                     break;
@@ -930,7 +930,7 @@ function attachHandler(root: string): void {
                         refresh(root);
                         _panel?.webview.postMessage({ type: 'done', text: 'Audit complete.' });
                     } catch (err) {
-                        logError(FEATURE, 'Re-run audit failed', err);
+                        logError('Re-run audit failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: 'Re-run audit failed: ' + (err instanceof Error ? err.message : String(err)) });
                     }
                     break;
@@ -939,14 +939,14 @@ function attachHandler(root: string): void {
                     try {
                         refresh(root);
                     } catch (err) {
-                        logError(FEATURE, 'Reload failed', err);
+                        logError('Reload failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         _panel?.webview.postMessage({ type: 'error', text: 'Reload failed: ' + (err instanceof Error ? err.message : String(err)) });
                     }
                     break;
                 }
             }
         } catch (err) {
-            logError(FEATURE, `Handler error: ${msg.command}`, err);
+            logError(`Handler error: ${msg.command}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             _panel?.webview.postMessage({ type: 'error', text: String(err) });
         }
     });
@@ -993,7 +993,7 @@ async function handleAiFix(root: string, id: string, absPath: string): Promise<v
             },
         });
     } catch (err) {
-        logError(FEATURE, `AI fix failed for ${id}`, err);
+        logError(`AI fix failed for ${id}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         _panel?.webview.postMessage({ type: 'error', text: `AI fix failed for ${id}: ${err}` });
     }
 }
@@ -1028,3 +1028,18 @@ export function deactivate(): void {
     _pendingFix.clear();
     _fixQueue.length = 0;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = {
+    classifyFixKind,
+    findIssueLine,
+    buildDiff,
+    computeLCS,
+    collapseDiff,
+    mergeState,
+    loadState,
+    saveState,
+    esc,
+    findAuditJson,
+    findStateJson,
+};

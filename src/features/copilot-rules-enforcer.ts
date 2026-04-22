@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * copilot-rules-enforcer.ts
  * Injects custom Copilot instruction rules into the workspace or user settings
@@ -17,7 +17,7 @@
  */
 import * as vscode from 'vscode';
 import { log, logError as logErr } from '../shared/output-channel';
-import { applyRules, removeRules, getCurrentRules, readRulesFile } from '../shared/copilot-rules-utils';
+import { applyRules, removeRules, getCurrentRules, readRulesFile, sanitizeCopilotInstructionSettings } from '../shared/copilot-rules-utils';
 import { buildMarkdownPage } from '../shared/webview-utils';
 import { logError as trackError } from '../shared/error-log-utils';
 
@@ -30,7 +30,7 @@ let _statusBar: vscode.StatusBarItem | undefined;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function autoEnforceEnabled(): boolean {
-    return vscode.workspace.getConfiguration(CFG).get<boolean>('autoEnforce', true);
+    return vscode.workspace.getConfiguration(CFG).get<boolean>('autoEnforce', false);
 }
 
 function updateStatusBar(): void {
@@ -71,6 +71,9 @@ function openOrRefreshPanel(): void {
 export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');
 
+    // Repair malformed Copilot instruction payloads that can crash chat startup.
+    void sanitizeCopilotInstructionSettings();
+
     // Defensive singleton behavior so status bar entries do not duplicate.
     _statusBar?.dispose();
     _statusBar = undefined;
@@ -82,11 +85,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.copilotRules.enable', () => {
-            try { applyRules(); } catch (e) { trackError(e, FEATURE); }
+            try { applyRules(); } catch (e) { trackError(
+                e instanceof Error ? e.message : String(e),
+                e instanceof Error && e.stack ? e.stack : '',
+                FEATURE
+            ); }
             updateStatusBar();
         }),
         vscode.commands.registerCommand('cvs.copilotRules.disable', () => {
-            try { removeRules(); } catch (e) { trackError(e, FEATURE); }
+            try { removeRules(); } catch (e) { trackError(
+                e instanceof Error ? e.message : String(e),
+                e instanceof Error && e.stack ? e.stack : '',
+                FEATURE
+            ); }
             updateStatusBar();
         }),
         vscode.commands.registerCommand('cvs.copilotRules.reload', () => {
@@ -97,15 +108,23 @@ export function activate(context: vscode.ExtensionContext): void {
                 if (_panel) { openOrRefreshPanel(); }
                 vscode.window.showInformationMessage('Copilot rules reloaded.');
             } catch (e) {
-                trackError(e, FEATURE);
-                logErr(FEATURE, 'Reload failed', e);
+                trackError(
+                    e instanceof Error ? e.message : String(e),
+                    e instanceof Error && e.stack ? e.stack : '',
+                    FEATURE
+                );
+                logErr('Reload failed', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
             }
         }),
         vscode.commands.registerCommand('cvs.copilotRules.view', openOrRefreshPanel),
     );
 
     if (autoEnforceEnabled()) {
-        try { applyRules(); } catch (e) { trackError(e, FEATURE); }
+        try { applyRules(); } catch (e) { trackError(
+            e instanceof Error ? e.message : String(e),
+            e instanceof Error && e.stack ? e.stack : '',
+            FEATURE
+        ); }
     }
 
     updateStatusBar();

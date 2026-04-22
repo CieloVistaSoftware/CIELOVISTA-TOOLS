@@ -1,577 +1,587 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
 /**
  * npm-command-launcher.ts
  *
- * Adds a bottom status bar button that shows all npm scripts discovered
- * from package.json files in the current workspace, then runs the selected
- * script immediately in a terminal.
+ * Shows all workspace npm scripts grouped as project cards.
+ * Uses the shared PROJECT_CARD_SHELL_HTML + ProjectCardData[].
+ * TypeScript never generates HTML — it only sends JSON.
  *
- * Commands registered:
- *   cvs.npm.showAndRunScripts — show npm scripts picker and run selection
- *   cvs.npm.addScriptDescription — add/edit/remove custom script descriptions
+ * Commands:
+ *   cvs.npm.showAndRunScripts
+ *   cvs.npm.addScriptDescription
  */
+
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { getActiveOrCreateTerminal } from '../shared/terminal-utils';
+import * as cp     from 'child_process';
+import * as path   from 'path';
+import * as fs     from 'fs';
 import { log, logError } from '../shared/output-channel';
+import { PROJECT_CARD_SHELL_HTML } from '../shared/project-card-shell';
+import { buildCardFromPackageDir  } from '../shared/project-card-builder';
+import type { ProjectCardData }     from '../shared/project-card-types';
+import { loadRegistry, REGISTRY_PATH } from '../shared/registry';
+import { sendToCopilotChat } from './terminal-copy-output';
+import { getMcpServerStatus, onMcpServerStatusChange, offMcpServerStatusChange } from './mcp-server-status';
 
-const FEATURE = 'npm-command-launcher';
-const SHOW_AND_RUN_COMMAND = 'cvs.npm.showAndRunScripts';
+const FEATURE                 = 'npm-command-launcher';
+const SHOW_AND_RUN_COMMAND    = 'cvs.npm.showAndRunScripts';
 const ADD_DESCRIPTION_COMMAND = 'cvs.npm.addScriptDescription';
-const CFG_ROOT = 'cielovistaTools';
-const CFG_DESCRIPTIONS_KEY = 'npmScriptDescriptions';
 
-let _statusBar: vscode.StatusBarItem | undefined;
+let _statusBar:    vscode.StatusBarItem | undefined;
+let _panel:        vscode.WebviewPanel  | undefined;
+let _outputPanel:  vscode.WebviewPanel  | undefined;
+let _outputReady = false;
+let _outputQueue: Array<Record<string, unknown>> = [];
 
-/**
- * Represents one runnable npm script found in a specific package.json file.
- */
-interface NpmScriptEntry {
-    packageDir: string;
-    packageJsonPath: string;
-    scriptName: string;
-    scriptCommand: string;
+// key = cardId::scriptName
+const _running = new Map<string, cp.ChildProcess>();
+
+function normalizeFsPath(value: string): string {
+    return path.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
 }
 
-/**
- * Represents the user-configurable map used to persist custom descriptions.
- *
- * Key format:
- *   <workspace-relative-package-json-path>::<script-name>
- *
- * Example:
- *   "packages/web/package.json::build": "Production webpack build"
- */
-type DescriptionMap = Record<string, string>;
-
-/**
- * Parses `scripts` object from package.json text safely.
- */
-function parseScriptsFromPackageJson(rawText: string): Record<string, string> {
-    const parsed = JSON.parse(rawText) as { scripts?: unknown };
-    const scripts = parsed.scripts;
-
-    if (!scripts || typeof scripts !== 'object') {
-        return {};
-    }
-
-    const result: Record<string, string> = {};
-    for (const [key, value] of Object.entries(scripts as Record<string, unknown>)) {
-        if (typeof value === 'string') {
-            result[key] = value;
-        }
-    }
-
-    return result;
+function saveRegistry(data: { globalDocsPath: string; projects: Array<{ name: string; path: string; type: string; description: string }> }): void {
+    fs.writeFileSync(REGISTRY_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
-/**
- * Builds a stable key for each script so custom descriptions can be saved
- * and later matched even after VS Code restarts.
- */
-function makeDescriptionKey(entry: NpmScriptEntry): string {
-    const relativePackagePath = vscode.workspace.asRelativePath(entry.packageJsonPath);
-    return `${relativePackagePath}::${entry.scriptName}`;
-}
-
-/**
- * Reads the persisted npm script description map from extension settings.
- */
-function getDescriptionMap(): DescriptionMap {
-    const raw = vscode.workspace.getConfiguration(CFG_ROOT).get<unknown>(CFG_DESCRIPTIONS_KEY, {});
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return {};
-    }
-
-    const map: DescriptionMap = {};
-    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (typeof value === 'string') {
-            map[key] = value;
-        }
-    }
-
-    return map;
-}
-
-/**
- * Writes the updated npm script description map back to workspace settings.
- */
-async function saveDescriptionMap(map: DescriptionMap): Promise<void> {
-    await vscode.workspace.getConfiguration(CFG_ROOT).update(
-        CFG_DESCRIPTIONS_KEY,
-        map,
-        vscode.ConfigurationTarget.Workspace
-    );
-}
-
-/**
- * Resolves a user-defined description for a script entry, if one exists.
- */
-function getCustomDescription(entry: NpmScriptEntry, map: DescriptionMap): string | undefined {
-    const key = makeDescriptionKey(entry);
-    const value = map[key]?.trim();
-    return value || undefined;
-}
-
-/**
- * Discovers all package.json files in workspace excluding node_modules and
- * extracts npm scripts from each one.
- */
-async function collectWorkspaceNpmScripts(): Promise<NpmScriptEntry[]> {
-    const packageFiles = await vscode.workspace.findFiles('**/package.json', '**/node_modules/**');
-    const entries: NpmScriptEntry[] = [];
-    const seen = new Set<string>();
-
-    for (const file of packageFiles) {
-        try {
-            const doc = await vscode.workspace.openTextDocument(file);
-            const scripts = parseScriptsFromPackageJson(doc.getText());
-
-            for (const [scriptName, scriptCommand] of Object.entries(scripts)) {
-                // Deduplicate by package path + script name in case multiple scans
-                // surface the same package file through overlapping workspace roots.
-                const uniqueKey = `${file.fsPath}::${scriptName}`;
-                if (seen.has(uniqueKey)) {
-                    continue;
-                }
-                seen.add(uniqueKey);
-
-                entries.push({
-                    packageDir: path.dirname(file.fsPath),
-                    packageJsonPath: file.fsPath,
-                    scriptName,
-                    scriptCommand,
-                });
-            }
-        } catch (error) {
-            logError(FEATURE, `Failed to parse package.json: ${file.fsPath}`, error);
-        }
-    }
-
-    return entries;
-}
-
-/**
- * Creates quick pick items from discovered scripts. Includes script source
- * path so users can distinguish scripts across monorepos.
- */
-function toQuickPickItems(entries: NpmScriptEntry[]): Array<vscode.QuickPickItem & { data: NpmScriptEntry }> {
-    const descriptionMap = getDescriptionMap();
-
-    // Determine the active local folder — open editor file's folder,
-    // falling back to the first workspace folder root.
-    const activeFile = vscode.window.activeTextEditor?.document.uri.fsPath;
-    const localRoot = activeFile
-        ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(activeFile))?.uri.fsPath
-        : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-    const mapped = entries
-        .map(entry => {
-            const relativePath  = vscode.workspace.asRelativePath(entry.packageJsonPath);
-            const customDesc    = getCustomDescription(entry, descriptionMap);
-            const isLocal       = !!localRoot && entry.packageDir.toLowerCase().startsWith(localRoot.toLowerCase());
-
-            // Label: just the script name — bold, no repetitive "npm run" prefix
-            // Description: custom description if set, otherwise the raw command (truncated)
-            const rawCmd        = entry.scriptCommand.length > 80
-                ? entry.scriptCommand.slice(0, 77) + '…'
-                : entry.scriptCommand;
-            const description   = customDesc ?? rawCmd;
-
-            // Detail: only shown for non-local entries so user knows which project
-            const detail        = isLocal ? undefined : `$(folder) ${relativePath}`;
-
-            const folderPrefix = path.basename(entry.packageDir);
-            return {
-                label:       `$(play) ${folderPrefix}.${entry.scriptName}`,
-                description,
-                detail,
-                data:        entry,
-                _isLocal:    isLocal,
-            };
-        })
-        .sort((a, b) => {
-            if (a._isLocal !== b._isLocal) { return a._isLocal ? -1 : 1; }
-            return a.label.localeCompare(b.label);
-        });
-
-    // Build final list with section separators
-    const result: Array<vscode.QuickPickItem & { data: NpmScriptEntry }> = [];
-    let addedLocalSep  = false;
-    let addedOtherSep  = false;
-
-    for (const item of mapped) {
-        if (item._isLocal && !addedLocalSep) {
-            const folderName = localRoot ? path.basename(localRoot) : 'Current Folder';
-            result.push({ label: `$(folder-active) ${folderName}`, kind: vscode.QuickPickItemKind.Separator, data: undefined as any });
-            addedLocalSep = true;
-        } else if (!item._isLocal && !addedOtherSep) {
-            result.push({ label: '$(files) Other Projects', kind: vscode.QuickPickItemKind.Separator, data: undefined as any });
-            addedOtherSep = true;
-        }
-        result.push(item);
-    }
-
-    return result;
-}
-
-/**
- * Converts scripts to picker items specifically for description editing.
- */
-function toDescriptionEditItems(entries: NpmScriptEntry[]): Array<vscode.QuickPickItem & { data: NpmScriptEntry }> {
-    const descriptionMap = getDescriptionMap();
-
-    return entries
-        .map(entry => {
-            const relativePath = vscode.workspace.asRelativePath(entry.packageJsonPath);
-            const customDescription = getCustomDescription(entry, descriptionMap) ?? 'No description set';
-
-            return {
-                label: `$(edit) ${entry.scriptName}`,
-                description: customDescription,
-                detail: relativePath,
-                data: entry,
-            };
-        })
-        .sort((a, b) => a.label.localeCompare(b.label));
-}
-
-/**
- * Runs a selected npm script in terminal and ensures the command executes
- * from the package's own folder.
- */
-function runNpmScript(entry: NpmScriptEntry): void {
-    const terminal = getActiveOrCreateTerminal('CieloVista NPM');
-    terminal.show();
-
-    // Change into the package directory first so npm resolves local scripts correctly.
-    terminal.sendText(`cd "${entry.packageDir}"`);
-    terminal.sendText(`npm run ${entry.scriptName}`);
-
-    log(FEATURE, `Executed npm script: ${entry.scriptName} @ ${entry.packageDir}`);
-}
-
-// ── Webview panel (replaces quick pick) ──────────────────────────────────
-
-let _panel: vscode.WebviewPanel | undefined;
-
-function esc(s: string): string {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function buildNpmWebviewHtml(entries: NpmScriptEntry[], localRoot: string | undefined): string {
-    const descriptionMap = getDescriptionMap();
-
-    // Group entries by folder
-    const byFolder = new Map<string, NpmScriptEntry[]>();
-    for (const entry of entries) {
-        const folder = path.basename(entry.packageDir);
-        if (!byFolder.has(folder)) { byFolder.set(folder, []); }
-        byFolder.get(folder)!.push(entry);
-    }
-
-    // Sort folders: local first, then alphabetical
-    const localFolderName = localRoot ? path.basename(localRoot) : '';
-    const sortedFolders = [...byFolder.keys()].sort((a, b) => {
-        if (a === localFolderName) { return -1; }
-        if (b === localFolderName) { return  1; }
-        return a.localeCompare(b);
-    });
-
-    // Build JSON payload for the webview JS
-    const allScripts = entries.map(e => ({
-        id:          `${e.packageDir}::${e.scriptName}`,
-        folder:      path.basename(e.packageDir),
-        scriptName:  e.scriptName,
-        command:     e.scriptCommand,
-        description: getCustomDescription(e, descriptionMap) ?? '',
-        isLocal:     !!localRoot && e.packageDir.toLowerCase().startsWith(localRoot.toLowerCase()),
+function postRegistryToPanel(): void {
+    if (!_panel) { return; }
+    const registry = loadRegistry();
+    const projects = (registry?.projects ?? []).map(project => ({
+        ...project,
+        exists: fs.existsSync(project.path),
     }));
-
-    const sectionsHtml = sortedFolders.map(folder => {
-        const folderEntries = byFolder.get(folder)!.sort((a, b) => a.scriptName.localeCompare(b.scriptName));
-        const isLocal = folder === localFolderName;
-        const cards = folderEntries.map(e => {
-            const desc = getCustomDescription(e, descriptionMap);
-            const rawCmd = e.scriptCommand.length > 120 ? e.scriptCommand.slice(0, 117) + '\u2026' : e.scriptCommand;
-            const id = `${esc(e.packageDir)}::${esc(e.scriptName)}`;
-            return `<div class="script-card" data-id="${esc(e.packageDir + '::' + e.scriptName)}" data-folder="${esc(folder)}" data-name="${esc(e.scriptName)}" data-cmd="${esc(e.scriptCommand)}">
-  <div class="card-name">${esc(folder)}<span class="card-sep">.</span>${esc(e.scriptName)}</div>
-  <div class="card-cmd">${esc(rawCmd)}</div>
-  ${desc ? `<div class="card-desc">${esc(desc)}</div>` : ''}
-  <button class="run-btn" data-action="run" data-id="${esc(e.packageDir + '::' + e.scriptName)}">&#9654; Run</button>
-</div>`;
-        }).join('');
-
-        return `<section class="folder-section" data-folder="${esc(folder)}">
-  <h2 class="folder-heading">${isLocal ? '&#128193;' : '&#128194;'} ${esc(folder)} <span class="folder-count">${folderEntries.length}</span></h2>
-  <div class="card-grid">${cards}</div>
-</section>`;
-    }).join('');
-
-    const totalScripts = entries.length;
-    const scriptsJson  = JSON.stringify(allScripts);
-
-    const CSS = `
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
-#toolbar{position:sticky;top:0;z-index:50;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:8px}
-#toolbar h1{font-size:1.05em;font-weight:700;white-space:nowrap;flex-shrink:0}
-#search{flex:1;padding:6px 10px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:3px;font-size:13px}
-#search:focus{outline:1px solid var(--vscode-focusBorder)}
-#stat{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
-#content{padding:12px 16px 40px}
-.folder-section{margin-bottom:22px}
-.folder-section.hidden{display:none}
-.folder-heading{font-size:0.9em;font-weight:700;border-bottom:2px solid var(--vscode-focusBorder);padding-bottom:5px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
-.folder-count{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 7px;font-size:0.8em;font-weight:400}
-.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:7px}
-.script-card{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;transition:border-color 0.1s}
-.script-card:hover{border-color:var(--vscode-focusBorder)}
-.script-card.hidden{display:none}
-.card-name{font-weight:700;font-size:0.88em}.card-sep{color:var(--vscode-descriptionForeground);margin:0 1px}
-.card-cmd{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);word-break:break-all;line-height:1.4}
-.card-desc{font-size:11px;color:var(--vscode-descriptionForeground);line-height:1.4}
-.run-btn{align-self:flex-start;margin-top:2px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
-.run-btn:hover{background:var(--vscode-button-hoverBackground)}
-#empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground);display:none}
-#empty.visible{display:block}
-#status{position:fixed;bottom:0;left:0;right:0;padding:6px 16px;font-size:12px;background:var(--vscode-statusBar-background);color:var(--vscode-statusBar-foreground);display:none;align-items:center;gap:8px;border-top:1px solid var(--vscode-panel-border);z-index:100}
-#status.visible{display:flex}
-.spin{display:inline-block;animation:spin 0.8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}`;
-
-    const JS = `
-(function(){
-'use strict';
-const vscode  = acquireVsCodeApi();
-const SCRIPTS = ${scriptsJson};
-const TOTAL   = ${totalScripts};
-const searchEl = document.getElementById('search');
-const statEl   = document.getElementById('stat');
-const emptyEl  = document.getElementById('empty');
-const statusEl = document.getElementById('status');
-const statusTx = document.getElementById('status-text');
-
-searchEl.addEventListener('input', applyFilter);
-searchEl.focus();
-
-function applyFilter() {
-  var q = searchEl.value.toLowerCase().trim();
-  var visible = 0;
-  document.querySelectorAll('.script-card').forEach(function(card) {
-    var name = (card.dataset.name || '').toLowerCase();
-    var cmd  = (card.dataset.cmd  || '').toLowerCase();
-    var fld  = (card.dataset.folder || '').toLowerCase();
-    var show = !q || name.includes(q) || cmd.includes(q) || fld.includes(q);
-    card.classList.toggle('hidden', !show);
-    if (show) visible++;
-  });
-  document.querySelectorAll('.folder-section').forEach(function(sec) {
-    sec.classList.toggle('hidden', !sec.querySelector('.script-card:not(.hidden)'));
-  });
-  emptyEl.classList.toggle('visible', visible === 0);
-  statEl.textContent = visible === TOTAL ? TOTAL + ' scripts' : visible + ' of ' + TOTAL;
+    void _panel.webview.postMessage({ type: 'cfg-registry', projects });
 }
 
-document.addEventListener('click', function(e) {
-  var btn = e.target.closest('[data-action="run"]');
-  if (!btn) return;
-  var id = btn.dataset.id;
-  var script = SCRIPTS.find(function(s) { return s.folder + '::' + s.scriptName === id.split('::').slice(-2).join('::') || (s.folder + '::' + s.scriptName) === id.replace(/^.*[\\/]([^\\/]+)::/, '$1::'); });
-  // Find by full id match
-  var found = SCRIPTS.find(function(s) { return s.id === id; });
-  var label = found ? found.folder + '.' + found.scriptName : id;
-  btn.textContent = '\u23f3';
-  btn.disabled = true;
-  statusTx.textContent = '\u25b6 Running: npm run ' + (found ? found.scriptName : id);
-  statusEl.classList.add('visible');
-  setTimeout(function() { statusEl.classList.remove('visible'); btn.textContent = '\u25b6 Run'; btn.disabled = false; }, 15000);
-  vscode.postMessage({ command: 'run', id: id });
-});
+async function scanFolderForRegistry(folderPath: string): Promise<Array<{ name: string; path: string; alreadyAdded: boolean; typeHint: string }>> {
+    const registry = loadRegistry();
+    const registeredSet = new Set((registry?.projects ?? []).map(project => project.path.toLowerCase()));
+    const skipDirs = new Set(['.git', 'node_modules', 'out', 'dist', '.vscode', 'bin', 'obj']);
+    const results: Array<{ name: string; path: string; alreadyAdded: boolean; typeHint: string }> = [];
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
 
-window.addEventListener('message', function(e) {
-  var m = e.data;
-  if (m.type === 'done')  { statusTx.textContent = '\u2705 Done: npm run ' + (m.script||''); setTimeout(function(){ statusEl.classList.remove('visible'); }, 3000); }
-  if (m.type === 'error') { statusTx.textContent = '\u274c Failed: ' + (m.error||''); setTimeout(function(){ statusEl.classList.remove('visible'); }, 5000); }
-  if (m.type === 'reset-btn') {
-    var b = document.querySelector('[data-action="run"][data-id="' + m.id + '"]');
-    if (b) { b.textContent = '\u25b6 Run'; b.disabled = false; }
+    for (const entry of entries) {
+        if (!entry.isDirectory()) { continue; }
+        if (entry.name.startsWith('.') || skipDirs.has(entry.name)) { continue; }
+
+        const fullPath = path.join(folderPath, entry.name);
+        const alreadyAdded = registeredSet.has(fullPath.toLowerCase());
+        let typeHint = 'app';
+
+        try {
+            const pkgFile = path.join(fullPath, 'package.json');
+            if (fs.existsSync(pkgFile)) {
+                const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as { engines?: { vscode?: string } };
+                typeHint = pkg.engines?.vscode ? 'vscode-extension' : 'app';
+            } else {
+                const subItems = fs.readdirSync(fullPath);
+                if (subItems.some(item => /\.sln[x]?$/i.test(item)) || subItems.some(item => /\.csproj$/i.test(item))) {
+                    typeHint = 'dotnet-service';
+                }
+            }
+        } catch {
+            // Keep default app hint.
+        }
+
+        results.push({ name: entry.name, path: fullPath, alreadyAdded, typeHint });
+    }
+
+    results.sort((left, right) => left.name.localeCompare(right.name));
+    return results;
+}
+
+// ─── ANSI strip ───────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[\d;]*[a-zA-Z]|\x1b[()][AB012]|\r/g;
+function stripAnsi(s: string): string { return s.replace(ANSI_RE, ''); }
+
+// ─── Output panel ─────────────────────────────────────────────────────────────
+
+function buildOutputShellHtml(): string {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:var(--vscode-editor-font-family,monospace);font-size:12px;background:var(--vscode-terminal-background,#1e1e1e);color:var(--vscode-terminal-foreground,#d4d4d4);display:flex;flex-direction:column}
+#log{flex:1;overflow-y:auto;padding:8px 12px}
+.job{border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px;padding-bottom:8px}
+.job-hd{display:flex;align-items:baseline;gap:10px;padding:5px 0;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.job-name{font-weight:700;font-size:12px;color:#9cdcfe}
+.job-folder{font-size:10px;color:#858585}
+.job-time{font-size:10px;color:#858585;margin-left:auto}
+.job-cmd{font-size:10px;color:#569cd6;margin-bottom:4px;word-break:break-all}
+.job-out{white-space:pre-wrap;word-break:break-all;line-height:1.5;font-size:11px}
+.job-footer{display:flex;align-items:center;gap:8px;margin-top:4px}
+.job-rc{font-size:11px;font-weight:700}
+.job-rc.ok{color:#3fb950}.job-rc.fail{color:#f85149}.job-rc.killed{color:#cca700}
+.job-rc.running{color:#858585;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.btn-chat{display:none;background:rgba(99,102,241,.18);color:#818cf8;border:1px solid rgba(99,102,241,.35);border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:600;transition:background .12s}
+.btn-chat:hover{background:rgba(99,102,241,.38);color:#fff}
+.btn-chat.show{display:inline-block}
+.btn-chat.done{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.12);cursor:default}
+#stopbar{display:none;align-items:center;gap:8px;padding:6px 12px;background:rgba(248,81,73,.08);border-top:1px solid rgba(248,81,73,.25);flex-shrink:0}
+#stopbar.show{display:flex}
+#stopbar span{font-size:11px;color:#f85149;font-weight:600;flex:1}
+#btn-stop-cur{background:#f85149;color:#fff;border:none;border-radius:3px;padding:4px 14px;cursor:pointer;font-size:12px;font-weight:700}
+#btn-stop-cur:hover{background:#e03e36}
+</style></head><body>
+<div id="log"></div>
+<div id="stopbar"><span id="stop-label"></span><button id="btn-stop-cur">&#9632; Stop</button></div>
+<script>(function(){
+var vsc=acquireVsCodeApi();
+var logEl=document.getElementById('log');
+var stopbar=document.getElementById('stopbar');
+var stopLabel=document.getElementById('stop-label');
+document.getElementById('btn-stop-cur').addEventListener('click',function(){
+  vsc.postMessage({command:'stop-current'});
+});
+// Copy to Chat — delegate on log container so dynamically-added buttons are covered
+logEl.addEventListener('click',function(e){
+  var btn=e.target.closest('.btn-chat');
+  if(!btn||btn.classList.contains('done')){return;}
+  var key=btn.dataset.jobkey;
+  var outEl=document.getElementById('out-'+key);
+  var rcEl =document.getElementById('rc-' +key);
+  var job  =btn.closest('.job');
+  var name =job?job.querySelector('.job-name').textContent:key;
+  var output=outEl?outEl.textContent.trim():'';
+  var status=rcEl ?rcEl.textContent.trim():'';
+  var text='npm run '+name+'\n\n'+output+(status?'\n\n'+status:'');
+  btn.textContent='Sending...';
+  vsc.postMessage({command:'copy-to-chat',text:text,jobKey:key});
+});
+window.addEventListener('message',function(ev){
+  var m=ev.data;
+  if(m.type==='job-start'){
+    var div=document.createElement('div');
+    div.className='job';
+    div.id='job-'+m.jobKey;
+    div.innerHTML=
+      '<div class="job-hd">'
+        +'<span class="job-name">'+esc(m.script)+'</span>'
+        +'<span class="job-folder">'+esc(m.folder)+'</span>'
+        +'<span class="job-time">'+esc(m.time)+'</span>'
+      +'</div>'
+      +'<div class="job-cmd">npm run '+esc(m.script)+'</div>'
+      +'<div class="job-out" id="out-'+esc(m.jobKey)+'"></div>'
+      +'<div class="job-footer">'
+        +'<span class="job-rc running" id="rc-'+esc(m.jobKey)+'">● Running…</span>'
+        +'<button class="btn-chat" data-jobkey="'+esc(m.jobKey)+'">📤 Copy to Chat</button>'
+      +'</div>';
+    logEl.appendChild(div);
+    logEl.scrollTop=logEl.scrollHeight;
+    stopbar.classList.add('show');
+    stopLabel.textContent='Running: '+m.script;
+  } else if(m.type==='output'){
+    var out=document.getElementById('out-'+m.jobKey);
+    if(out){out.textContent+=m.text;logEl.scrollTop=logEl.scrollHeight;}
+  } else if(m.type==='done'){
+    var rc=document.getElementById('rc-'+m.jobKey);
+    if(rc){
+      rc.classList.remove('running');
+      if(m.killed){rc.textContent='■ Stopped';rc.className='job-rc killed';}
+      else if(m.code===0){rc.textContent='✓ Exit 0';rc.className='job-rc ok';}
+      else{rc.textContent='✗ Exit '+m.code;rc.className='job-rc fail';}
+    }
+    // Reveal the Copy to Chat button
+    var job2=document.getElementById('job-'+m.jobKey);
+    if(job2){var cb=job2.querySelector('.btn-chat');if(cb){cb.classList.add('show');}}
+    stopbar.classList.remove('show');
+  } else if(m.type==='chat-sent'){
+    var job3=document.getElementById('job-'+m.jobKey);
+    if(job3){
+      var cb2=job3.querySelector('.btn-chat');
+      if(cb2){
+        cb2.textContent=m.ok?'✓ Sent to Chat':'✓ On Clipboard';
+        cb2.classList.add('done');
+      }
+    }
   }
 });
-
-})();`;
-
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
-<div id="toolbar">
-  <h1>&#128230; NPM Scripts</h1>
-  <input id="search" type="text" placeholder="Search scripts, commands, folders\u2026" autocomplete="off">
-  <span id="stat">${totalScripts} scripts</span>
-</div>
-<div id="content">
-  ${sectionsHtml}
-  <div id="empty">No scripts match your search.</div>
-</div>
-<div id="status"><span class="spin">&#9696;</span><span id="status-text"></span></div>
-<script>${JS}</script>
-</body></html>`;
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+vsc.postMessage({command:'output-ready'});
+// Retry in case the first ready was missed (race between HTML load and handler registration)
+setTimeout(function(){vsc.postMessage({command:'output-ready'});},1000);
+})();</script></body></html>`;
 }
 
-/**
- * Opens a webview panel showing all npm scripts grouped by folder.
- * Clicking Run executes the script in a terminal.
- */
-async function showAndRunNpmScripts(): Promise<void> {
-    if (!vscode.workspace.workspaceFolders?.length) {
-        vscode.window.showWarningMessage('Open a workspace folder first to run npm scripts.');
+function postToOutput(payload: Record<string, unknown>): void {
+    if (_outputReady) {
+        void _outputPanel?.webview.postMessage(payload);
         return;
     }
+    _outputQueue.push(payload);
+}
 
-    const entries = await collectWorkspaceNpmScripts();
-    if (!entries.length) {
-        vscode.window.showWarningMessage('No npm scripts found in workspace package.json files.');
-        return;
+function flushOutputQueue(): void {
+    if (!_outputPanel || !_outputReady || _outputQueue.length === 0) { return; }
+    for (const message of _outputQueue) {
+        void _outputPanel.webview.postMessage(message);
     }
+    _outputQueue = [];
+}
 
-    const activeFile = vscode.window.activeTextEditor?.document.uri.fsPath;
-    const localRoot  = activeFile
-        ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(activeFile))?.uri.fsPath
-        : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-    const html = buildNpmWebviewHtml(entries, localRoot);
-
-    if (_panel) {
-        _panel.webview.html = html;
-        _panel.reveal(vscode.ViewColumn.One, true);
-    } else {
-        _panel = vscode.window.createWebviewPanel(
-            'npmScripts', '\u{1F4E6} NPM Scripts', vscode.ViewColumn.One,
-            { enableScripts: true, retainContextWhenHidden: true }
-        );
-        _panel.webview.html = html;
-        _panel.onDidDispose(() => { _panel = undefined; });
-    }
-
-    _panel.webview.onDidReceiveMessage(async msg => {
-        if (msg.command !== 'run') { return; }
-        // msg.id = "<packageDir>::<scriptName>"
-        const parts      = msg.id.split('::');
-        const scriptName = parts[parts.length - 1];
-        const packageDir = parts.slice(0, -1).join('::');
-        const entry      = entries.find(e => e.packageDir === packageDir && e.scriptName === scriptName);
-        if (!entry) {
-            _panel?.webview.postMessage({ type: 'error', error: `Script not found: ${msg.id}` });
+function ensureOutputPanel(): void {
+    if (_outputPanel) { _outputPanel.reveal(vscode.ViewColumn.Beside, true); return; }
+    _outputReady = false;
+    _outputQueue = [];
+    _outputPanel = vscode.window.createWebviewPanel(
+        'npmOutput', '\u25b6 NPM Output',
+        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+        { enableScripts: true, retainContextWhenHidden: true }
+    );
+    _outputPanel.onDidDispose(() => {
+        _outputPanel = undefined;
+        _outputReady = false;
+        _outputQueue = [];
+    });
+    // Register handler BEFORE setting HTML so output-ready is never missed
+    _outputPanel.webview.onDidReceiveMessage(async msg => {
+        if (msg.command === 'output-ready') {
+            _outputReady = true;
+            flushOutputQueue();
             return;
         }
-        try {
-            runNpmScript(entry);
-            _panel?.webview.postMessage({ type: 'done', script: `${path.basename(entry.packageDir)}.${entry.scriptName}` });
-        } catch (err) {
-            logError(FEATURE, `Failed to run ${entry.scriptName}`, err);
-            _panel?.webview.postMessage({ type: 'error', error: String(err) });
+        if (msg.command === 'stop-current') {
+            _running.forEach(proc => { try { proc.kill(); } catch { /**/ } });
         }
-        _panel?.webview.postMessage({ type: 'reset-btn', id: msg.id });
+        if (msg.command === 'copy-to-chat') {
+            const text   = (msg.text as string) || '';
+            const jobKey = (msg.jobKey as string) || '';
+            try {
+                const sent = await sendToCopilotChat(text);
+                // Tell the webview: update the button state
+                postToOutput({ type: 'chat-sent', jobKey, ok: sent });
+                if (!sent) {
+                    vscode.window.showInformationMessage('Output on clipboard — press Ctrl+V in Copilot Chat.');
+                }
+            } catch (err) {
+                postToOutput({ type: 'chat-sent', jobKey, ok: false });
+                logError('copy-to-chat failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            }
+        }
     });
-
-    log(FEATURE, `NPM Scripts panel opened — ${entries.length} scripts`);
+    // Set HTML after handler is registered so output-ready is never missed
+    _outputPanel.webview.html = buildOutputShellHtml();
 }
 
-/**
- * Opens a picker for scripts, then prompts for a custom description.
- *
- * Behavior:
- * - Non-empty input saves or updates description
- * - Empty input removes existing description
- */
-async function addOrEditScriptDescription(): Promise<void> {
-    if (!vscode.workspace.workspaceFolders?.length) {
-        vscode.window.showWarningMessage('Open a workspace folder first to manage npm script descriptions.');
+// ─── Collect scripts ──────────────────────────────────────────────────────────
+
+async function collectCards(): Promise<ProjectCardData[]> {
+    const byDir = new Map<string, Record<string, string>>();
+    const seen  = new Set<string>();
+
+    // Always check the root package.json of every open workspace folder first.
+    // vscode.workspace.findFiles can miss the root-level package.json in some
+    // workspace configurations (e.g. multi-root, no folder open, extension host).
+    for (const wsFolder of vscode.workspace.workspaceFolders ?? []) {
+        const pkgPath = path.join(wsFolder.uri.fsPath, 'package.json');
+        if (!fs.existsSync(pkgPath)) { continue; }
+        const dir = wsFolder.uri.fsPath;
+        if (seen.has(dir)) { continue; }
+        seen.add(dir);
+        try {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
+            const scr = pkg.scripts ?? {};
+            if (Object.keys(scr).length > 0) { byDir.set(dir, scr); }
+        } catch (err) {
+            logError(`Failed to parse root package.json: ${pkgPath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
+    }
+
+    // Also scan deeper via glob to pick up nested packages (monorepos etc)
+    const files = await vscode.workspace.findFiles('**/package.json', '**/node_modules/**');
+
+    for (const file of files) {
+        const dir = path.dirname(file.fsPath);
+        if (seen.has(dir)) { continue; }
+        seen.add(dir);
+        try {
+            const doc  = await vscode.workspace.openTextDocument(file);
+            const pkg  = JSON.parse(doc.getText()) as { scripts?: Record<string, string> };
+            const scr  = pkg.scripts ?? {};
+            if (Object.keys(scr).length > 0) { byDir.set(dir, scr); }
+        } catch (err) {
+            logError(`Failed to parse: ${file.fsPath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
+    }
+
+    // Fallback: if the workspace has no npm scripts, scan all registered projects instead.
+    // This happens when the current workspace (e.g. DrAlex) has no package.json.
+    if (byDir.size === 0) {
+        const registry = loadRegistry();
+        if (registry?.projects) {
+            for (const project of registry.projects) {
+                if (!fs.existsSync(project.path)) { continue; }
+                const pkgPath = path.join(project.path, 'package.json');
+                if (!fs.existsSync(pkgPath)) { continue; }
+                try {
+                    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
+                    const scr = pkg.scripts ?? {};
+                    if (Object.keys(scr).length > 0) { byDir.set(project.path, scr); }
+                } catch (err) {
+                    logError(`Failed to parse: ${pkgPath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                }
+            }
+        }
+    }
+
+    // Final fallback: include known local roots even when no workspace folders are open.
+    if (byDir.size === 0) {
+        const fallbackDirs = [path.resolve(__dirname, '../../'), process.cwd()];
+        for (const dir of fallbackDirs) {
+            if (!dir || byDir.has(dir)) { continue; }
+            const pkgPath = path.join(dir, 'package.json');
+            if (!fs.existsSync(pkgPath)) { continue; }
+            try {
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
+                const scr = pkg.scripts ?? {};
+                if (Object.keys(scr).length > 0) { byDir.set(dir, scr); }
+            } catch (err) {
+                logError(`Failed to parse: ${pkgPath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            }
+        }
+    }
+
+    let idx = 0;
+    const cards: ProjectCardData[] = [];
+    for (const [dir, scripts] of byDir) {
+        idx++;
+        const card = buildCardFromPackageDir(path.basename(dir), dir, scripts, idx * 100);
+        if (card.name === 'mcp-server') {
+            card.mcpStatusDot = getMcpServerStatus();
+        }
+        cards.push(card);
+    }
+    return cards;
+}
+
+// ─── Panel ────────────────────────────────────────────────────────────────────
+
+async function openPanel(): Promise<void> {
+    const cards = await collectCards();
+    if (!cards.length) {
+        vscode.window.showWarningMessage('No npm scripts found in workspace.');
         return;
     }
 
-    const entries = await collectWorkspaceNpmScripts();
-    if (!entries.length) {
-        vscode.window.showWarningMessage('No npm scripts found in workspace package.json files.');
+    let latestCards = cards;
+    const sendInit = () => {
+        const folderSuffix = cards.length === 1 ? '  \u00b7  ' + cards[0].name : '';
+        _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix, cards });
+    };
+
+    if (_panel) {
+        latestCards = cards;
+        sendInit();
+        _panel.reveal(vscode.ViewColumn.One, false);
         return;
     }
 
-    const picked = await vscode.window.showQuickPick(toDescriptionEditItems(entries), {
-        placeHolder: 'Select npm script to add/edit description',
-        matchOnDescription: true,
-        matchOnDetail: true,
-    });
-
-    if (!picked) {
-        return;
-    }
-
-    const descriptionMap = getDescriptionMap();
-    const key = makeDescriptionKey(picked.data);
-    const currentDescription = descriptionMap[key] ?? '';
-
-    const input = await vscode.window.showInputBox({
-        prompt: `Description for "npm run ${picked.data.scriptName}" (leave empty to remove)`,
-        value: currentDescription,
-        placeHolder: 'Example: Builds production bundles and type-checks',
-    });
-
-    if (input === undefined) {
-        return;
-    }
-
-    const trimmed = input.trim();
-    if (!trimmed) {
-        delete descriptionMap[key];
-        await saveDescriptionMap(descriptionMap);
-        require('../shared/show-result-webview').showResultWebview(
-            'NPM Script Description Removed',
-            `Remove Description: npm run ${picked.data.scriptName}`,
-            0,
-            `Removed description for <b>npm run ${picked.data.scriptName}</b>`
-        );
-        log(FEATURE, `Removed description: ${key}`);
-        return;
-    }
-
-    descriptionMap[key] = trimmed;
-    await saveDescriptionMap(descriptionMap);
-    require('../shared/show-result-webview').showResultWebview(
-        'NPM Script Description Saved',
-        `Save Description: npm run ${picked.data.scriptName}`,
-        0,
-        `Saved description for <b>npm run ${picked.data.scriptName}</b>`
+    _panel = vscode.window.createWebviewPanel(
+        'npmScripts', 'package.json',
+        { viewColumn: vscode.ViewColumn.One, preserveFocus: false },
+        { enableScripts: true, retainContextWhenHidden: true }
     );
-    log(FEATURE, `Saved description: ${key}`);
+    _panel.webview.html = PROJECT_CARD_SHELL_HTML;
+
+    // Live MCP status dot — push updates to the webview whenever status changes
+    const mcpStatusListener = (status: 'up' | 'down') => {
+        _panel?.webview.postMessage({ type: 'mcp-dot', name: 'mcp-server', status });
+    };
+    onMcpServerStatusChange(mcpStatusListener);
+
+    _panel.onDidDispose(() => {
+        offMcpServerStatusChange(mcpStatusListener);
+        _running.forEach(proc => { try { proc.kill(); } catch { /**/ } });
+        _running.clear();
+        _panel = undefined;
+    });
+
+    // Send data once the webview is ready — 800ms gives Electron enough time
+    // to load and run the shell HTML before the init message fires.
+    setTimeout(sendInit, 800);
+
+    _panel.webview.onDidReceiveMessage(async msg => {
+        switch (msg.command) {
+            case 'run': {
+                const { id, script, dir, folder } = msg as { id:string; script:string; dir:string; folder:string };
+                const jobKey = `${id}::${script}`;
+                ensureOutputPanel();
+
+                const sendOut  = (type: string, payload: object) => postToOutput({ jobKey, type, ...payload });
+                const sendCard = (type: string, payload: object) => _panel?.webview.postMessage({ type, id, script, ...payload });
+
+                sendOut('job-start', { script, folder, time: new Date().toLocaleTimeString() });
+                sendCard('status', { state: 'running' });
+
+                const proc = cp.spawn('npm', ['run', script], { cwd: dir, shell: true, env: { ...process.env } });
+                _running.set(jobKey, proc);
+
+                proc.stdout?.on('data', (chunk: Buffer) => sendOut('output', { text: stripAnsi(chunk.toString()) }));
+                proc.stderr?.on('data', (chunk: Buffer) => sendOut('output', { text: stripAnsi(chunk.toString()) }));
+
+                let killed = false;
+                proc.on('close', (code, signal) => {
+                    _running.delete(jobKey);
+                    killed = signal === 'SIGTERM' || signal === 'SIGKILL';
+                    const state = killed ? 'stopped' : code === 0 ? 'ok' : 'error';
+                    sendOut('done', { code: code ?? 1, killed });
+                    sendCard('status', { state, code: code ?? 1 });
+                    log(FEATURE, `${script} exited ${code ?? 1}${killed ? ' (killed)' : ''}`);
+                });
+                proc.on('error', err => {
+                    _running.delete(jobKey);
+                    sendOut('output', { text: `\nError: ${err.message}\n` });
+                    sendOut('done', { code: 1, killed: false });
+                    sendCard('status', { state: 'error', code: 1 });
+                    logError(`Failed to spawn: ${script}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                });
+                break;
+            }
+            case 'stop': {
+                const jobKey = `${msg.id}::${msg.script}`;
+                const proc = _running.get(jobKey);
+                if (proc) { try { proc.kill(); } catch { /**/ } }
+                break;
+            }
+            case 'stop-current': {
+                _running.forEach(proc => { try { proc.kill(); } catch { /**/ } });
+                break;
+            }
+            case 'open-folder': {
+                if (msg.path) {
+                    vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path), { forceNewWindow: true });
+                }
+                break;
+            }
+            case 'open-claude': {
+                if (msg.path && fs.existsSync(msg.path)) {
+                    vscode.workspace.openTextDocument(msg.path).then(doc =>
+                        vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside)
+                    );
+                }
+                break;
+            }
+            case 'create-claude': {
+                if (msg.path) {
+                    const dest    = path.join(msg.path, 'CLAUDE.md');
+                    const name    = path.basename(msg.path);
+                    const today   = new Date().toISOString().slice(0, 10);
+                    const content = `# CLAUDE.md \u2014 ${name}\n\n> Created: ${today}\n\n## Project Overview\n\n**Path:** ${msg.path}\n\n## Session Start Checklist\n\n- [ ] Read CLAUDE.md\n- [ ] Check CURRENT-STATUS.md\n- [ ] Review last session via recent_chats\n`;
+                    fs.writeFileSync(dest, content, 'utf8');
+                    vscode.workspace.openTextDocument(dest).then(doc =>
+                        vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside)
+                    );
+                }
+                break;
+            }
+            case 'create-tests': {
+                const projectPath = msg.path as string | undefined;
+                const projectName = msg.name as string | undefined;
+                if (!projectPath) { break; }
+                vscode.commands.executeCommand('cvs.audit.testCoverage').then(() => {
+                    void vscode.window.showInformationMessage(`Opening Test Coverage Dashboard for ${projectName || path.basename(projectPath)}.`);
+                }, () => {
+                    void vscode.window.showInformationMessage(`Run "Audit: Test Coverage Dashboard" to generate tests for ${projectName || path.basename(projectPath)}.`);
+                });
+                break;
+            }
+            case 'get-registry':
+                postRegistryToPanel();
+                break;
+            case 'ready': {
+                latestCards = cards;
+                const folderSuffix2 = latestCards.length === 1 ? '  \u00b7  ' + latestCards[0].name : '';
+                void _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix2, cards: latestCards });
+                break;
+            }
+            case 'browse-for-scan': {
+                const current = msg.current as string | undefined;
+                vscode.window.showOpenDialog({
+                    canSelectFolders: true, canSelectFiles: false, canSelectMany: false,
+                    openLabel: 'Select folder to scan for projects',
+                    defaultUri: current ? vscode.Uri.file(current) : undefined,
+                }).then(result => {
+                    if (result?.[0]) { void _panel?.webview.postMessage({ command: 'set-scan-path', value: result[0].fsPath }); }
+                });
+                break;
+            }
+            case 'cfg-scan-folder': {
+                const folderPath = msg.path as string | undefined;
+                if (!folderPath || !fs.existsSync(folderPath)) {
+                    void _panel?.webview.postMessage({ type: 'cfg-scan-results', error: `Path not found: ${folderPath || ''}`, results: [] });
+                    break;
+                }
+                scanFolderForRegistry(folderPath).then(results => {
+                    void _panel?.webview.postMessage({ type: 'cfg-scan-results', results, error: null });
+                }).catch(error => {
+                    void _panel?.webview.postMessage({ type: 'cfg-scan-results', error: String(error), results: [] });
+                });
+                break;
+            }
+            case 'cfg-remove-project': {
+                const removePath = msg.path as string | undefined;
+                if (!removePath) { break; }
+                const registry = loadRegistry();
+                if (!registry) { break; }
+                const targetPath = normalizeFsPath(removePath);
+                const beforeCount = registry.projects.length;
+                registry.projects = registry.projects.filter(project => normalizeFsPath(project.path) !== targetPath);
+                const removed = registry.projects.length < beforeCount;
+                if (removed) {
+                    saveRegistry(registry);
+                }
+                void _panel?.webview.postMessage({ type: 'cfg-remove-result', path: removePath, removed });
+                postRegistryToPanel();
+                break;
+            }
+            case 'cfg-add-project': {
+                const addPath = msg.path as string | undefined;
+                const name = msg.name as string | undefined;
+                const type = msg.type as string | undefined;
+                if (!addPath || !name) { break; }
+                const registry = loadRegistry();
+                if (!registry) { break; }
+                const normalizedAddPath = normalizeFsPath(addPath);
+                if (!registry.projects.some(project => normalizeFsPath(project.path) === normalizedAddPath)) {
+                    registry.projects.push({ name, path: addPath, type: type || 'app', description: '' });
+                    saveRegistry(registry);
+                }
+                postRegistryToPanel();
+                break;
+            }
+        }
+    });
+
+    log(FEATURE, `Opened with ${cards.length} project cards`);
 }
+
+// ─── Activation ───────────────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
-    log(FEATURE, 'Activating');
-
-    // Defensively dispose any previously created status bar item before creating
-    // a new one. This avoids duplicate right-click entries if activation runs
-    // more than once in the same extension host lifecycle.
-    _statusBar?.dispose();
-    _statusBar = undefined;
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand(SHOW_AND_RUN_COMMAND, showAndRunNpmScripts),
-        vscode.commands.registerCommand(ADD_DESCRIPTION_COMMAND, addOrEditScriptDescription)
-    );
-
-    // Provide a stable id so VS Code can track this item consistently in UI
-    // surfaces (including right-click visibility controls).
-    _statusBar = vscode.window.createStatusBarItem('cielovista.npmCmds', vscode.StatusBarAlignment.Left, 101);
-    _statusBar.name = 'CieloVista NPM Commands';
-    _statusBar.text = '$(package) NPM Cmds';
-    _statusBar.tooltip = 'Show all npm scripts in workspace and run selected script';
+    _statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 95);
+    _statusBar.text    = '$(package) package.json';
+    _statusBar.tooltip = 'package.json Scripts: Show and Run';
     _statusBar.command = SHOW_AND_RUN_COMMAND;
     _statusBar.show();
     context.subscriptions.push(_statusBar);
+    context.subscriptions.push(
+        vscode.commands.registerCommand(SHOW_AND_RUN_COMMAND, openPanel),
+        vscode.commands.registerCommand(ADD_DESCRIPTION_COMMAND, openPanel),
+    );
+    log(FEATURE, 'activated');
 }
 
 export function deactivate(): void {
-    _statusBar?.dispose();
-    _statusBar = undefined;
+    _running.forEach(proc => { try { proc.kill(); } catch { /**/ } });
+    _running.clear();
+    if (_panel)       { _panel.dispose();       _panel = undefined; }
+    if (_outputPanel) { _outputPanel.dispose(); _outputPanel = undefined; }
+    if (_statusBar)   { _statusBar.dispose();   _statusBar = undefined; }
 }

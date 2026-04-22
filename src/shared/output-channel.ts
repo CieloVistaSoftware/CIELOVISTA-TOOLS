@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * output-channel.ts
  * ONE shared OutputChannel for the entire CieloVista Tools extension.
@@ -30,7 +30,8 @@ export function getChannel(): vscode.OutputChannel {
  * @param message  The message to log
  */
 export function log(feature: string, message: string): void {
-    const ts = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+    const now = new Date();
+    const ts = now.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
     getChannel().appendLine(`[${ts}] [${feature}] ${message}`);
 }
 
@@ -41,16 +42,23 @@ export function log(feature: string, message: string): void {
  * @param error       The caught error object (optional)
  * @param showPanel   If true, brings the Output panel into view
  */
-export function logError(feature: string, message: string, error?: unknown, showPanel = false): void {
-    // Import lazily to avoid circular dependency at module load time
+
+/**
+ * Write an error line to the channel and persist it using error-log-utils.
+ * @param message     Human-readable error message
+ * @param stacktrace  Full stack trace string
+ * @param context     Short name of the calling feature/module
+ * @param showPanel   If true, brings the Output panel into view
+ */
+export function logError(message: string, stacktrace: string, context: string, showPanel = false): void {
     try {
+        // Import lazily to avoid circular dependency at module load time
         // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { logError: persistError } = require('./error-log') as { logError: (prefix: string, err: unknown, opts: object) => void };
-        persistError(`[${feature}]`, error ?? new Error(message), { context: message });
+        const { logError: persistError } = require('./error-log-utils') as { logError: (message: string, stacktrace: string, context: string) => void };
+        persistError(message, stacktrace, context);
     } catch {
-        // Fallback: just write to output channel if error-log module isn't ready
-        const detail = error instanceof Error ? error.message : String(error ?? '');
-        log(feature, `ERROR: ${message}${detail ? ' — ' + detail : ''}`);
+        // Fallback: just write to output channel if error-log-utils module isn't ready
+        log(context, `ERROR: ${message}\n${stacktrace}`);
     }
     if (showPanel) { getChannel().show(true); }
 }

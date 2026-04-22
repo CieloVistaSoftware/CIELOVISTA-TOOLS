@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * readme-generator.ts
  *
@@ -334,10 +334,10 @@ async function runScan(): Promise<void> {
 
     if (_panel) {
         _panel.webview.html = html;
-        _panel.reveal();
+        _panel.reveal(vscode.ViewColumn.Beside, true);
     } else {
         _panel = vscode.window.createWebviewPanel(
-            'readmeGenerator', '🤖 README Generator', vscode.ViewColumn.One,
+            'readmeGenerator', '🤖 README Generator', vscode.ViewColumn.Beside,
             { enableScripts: true, retainContextWhenHidden: true }
         );
         _panel.webview.html = html;
@@ -406,7 +406,7 @@ async function generateAllMissing(): Promise<void> {
             log(FEATURE, `Generated README: ${outPath}`);
             generated++;
         } catch (err) {
-            logError(FEATURE, `Failed for ${item.project.name}`, err);
+            logError(`Failed for ${item.project.name}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             failed++;
         }
     }
@@ -456,7 +456,7 @@ async function generateSingleByName(projectName: string): Promise<void> {
         setTimeout(() => runScan(), 1500);
 
     } catch (err) {
-        logError(FEATURE, `Failed for ${item.project.name}`, err);
+        logError(`Failed for ${item.project.name}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         postError(`❌ Failed for ${item.project.name}: ${err}`);
         vscode.window.showErrorMessage(`README generation failed for ${item.project.name}: ${err}`);
     }

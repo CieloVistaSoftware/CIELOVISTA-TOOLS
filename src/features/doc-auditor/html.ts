@@ -10,7 +10,7 @@ export function esc(s: string): string {
 function buildTabPreview(groupId: string, files: DocFile[]): string {
     const MAX = 4000;
     const tabs = files.map((f, i) =>
-        `<button class="tab-btn${i===0?' active':''}" data-group="${groupId}" data-tab="${i}" onclick="switchTab('${groupId}',${i})">${esc(`${f.projectName}/${f.fileName}`)}</button>`
+        `<button class="tab-btn${i===0?' active':''}" data-group="${groupId}" data-tab="${i}" data-action="switch-tab">${esc(`${f.projectName}/${f.fileName}`)}</button>`
     ).join('');
     const panes = files.map((f, i) => {
         const preview = f.content.length > MAX ? f.content.slice(0, MAX) + `\n\n… (${f.content.length-MAX} more chars)` : f.content;
@@ -18,7 +18,7 @@ function buildTabPreview(groupId: string, files: DocFile[]): string {
           <div class="file-meta">
             <span class="path-label">${esc(f.filePath)}</span>
             <span class="size-label">${f.sizeBytes} bytes</span>
-            <button class="sm-btn" onclick="openFile(${JSON.stringify(esc(f.filePath)).replace(/&quot;/g,'"')})">Open in editor ↗</button>
+            <button class="sm-btn" data-action="open-file" data-path="${esc(f.filePath)}">Open in editor ↗</button>
           </div>
           <pre class="preview">${esc(preview)}</pre>
         </div>`;
@@ -56,8 +56,8 @@ export function buildAuditHtml(results: AuditResults): string {
         return `<div class="card"><div class="card-title">📄 ${esc(g.fileName)} — ${g.files.length} copies</div>
           <div class="recommendation">${rec}</div>${buildTabPreview(gid, g.files)}
           <div class="actions">
-            <button onclick="cmd('merge',${JSON.stringify(allPaths)})">⛙ Merge all into one…</button>
-            <button class="secondary" onclick="cmd('walkGroup',${JSON.stringify(allPaths)})">👣 Walk through individually</button>
+            <button data-action="cmd-merge" data-paths="${esc(allPaths)}">⛙ Merge all into one…</button>
+            <button class="secondary" data-action="cmd-walkgroup" data-paths="${esc(allPaths)}">👣 Walk through individually</button>
           </div></div>`;
     }).join('');
 
@@ -69,8 +69,8 @@ export function buildAuditHtml(results: AuditResults): string {
           <div class="recommendation">✅ Diff first to see what's different, then decide whether to merge.</div>
           ${buildTabPreview(gid, [g.fileA, g.fileB])}
           <div class="actions">
-            <button onclick="cmd('diff',${JSON.stringify(pairPaths)})">⬛ Diff side by side</button>
-            <button class="secondary" onclick="cmd('merge',${JSON.stringify(pairPaths)})">⛙ Merge…</button>
+            <button data-action="cmd-diff" data-paths="${esc(pairPaths)}">⬛ Diff side by side</button>
+            <button class="secondary" data-action="cmd-merge" data-paths="${esc(pairPaths)}">⛙ Merge…</button>
           </div></div>`;
     }).join('');
 
@@ -80,7 +80,7 @@ export function buildAuditHtml(results: AuditResults): string {
           <div class="muted">${esc(c.reason)}</div>
           ${buildTabPreview(gid, [c.file])}
           <div class="actions">
-            <button onclick="cmd('moveToGlobal',${JSON.stringify(JSON.stringify(c.file.filePath))})">📦 Move to Global Standards…</button>
+            <button data-action="cmd-movetoglobal" data-path="${esc(c.file.filePath)}">📦 Move to Global Standards…</button>
           </div></div>`;
     }).join('');
 
@@ -90,7 +90,7 @@ export function buildAuditHtml(results: AuditResults): string {
           <div class="muted">${esc(o.reason)}</div>
           ${buildTabPreview(gid, [o.file])}
           <div class="actions">
-            <button class="danger" onclick="cmd('delete',${JSON.stringify(JSON.stringify(o.file.filePath))})">🗑 Delete…</button>
+            <button class="danger" data-action="cmd-delete" data-path="${esc(o.file.filePath)}">🗑 Delete…</button>
           </div></div>`;
     }).join('');
 
@@ -103,11 +103,11 @@ export function buildAuditHtml(results: AuditResults): string {
 <h1>📋 CieloVista Docs Audit</h1>
 <p class="muted">Scanned ${results.totalDocsScanned} docs across ${results.projectsScanned} projects</p>
 <div class="summary">
-  <div class="stat" onclick="filterSection('all')"><span class="stat-n">${results.totalDocsScanned}</span><span class="stat-label">Docs scanned</span></div>
-  <div class="stat" data-filter="duplicates" onclick="filterSection('duplicates')"><span class="stat-n" style="color:${results.duplicates.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.duplicates.length}</span><span class="stat-label">Duplicates</span></div>
-  <div class="stat" data-filter="similar" onclick="filterSection('similar')"><span class="stat-n" style="color:${results.similar.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.similar.length}</span><span class="stat-label">Similar pairs</span></div>
-  <div class="stat" data-filter="move" onclick="filterSection('move')"><span class="stat-n" style="color:${results.moveCandidates.length?'var(--vscode-inputValidation-infoForeground)':'inherit'}">${results.moveCandidates.length}</span><span class="stat-label">Move candidates</span></div>
-  <div class="stat" data-filter="orphans" onclick="filterSection('orphans')"><span class="stat-n" style="color:${results.orphans.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.orphans.length}</span><span class="stat-label">Orphans</span></div>
+  <div class="stat" data-action="filter-section" data-section="all"><span class="stat-n">${results.totalDocsScanned}</span><span class="stat-label">Docs scanned</span></div>
+  <div class="stat" data-action="filter-section" data-section="duplicates"><span class="stat-n" style="color:${results.duplicates.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.duplicates.length}</span><span class="stat-label">Duplicates</span></div>
+  <div class="stat" data-action="filter-section" data-section="similar"><span class="stat-n" style="color:${results.similar.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.similar.length}</span><span class="stat-label">Similar pairs</span></div>
+  <div class="stat" data-action="filter-section" data-section="move"><span class="stat-n" style="color:${results.moveCandidates.length?'var(--vscode-inputValidation-infoForeground)':'inherit'}">${results.moveCandidates.length}</span><span class="stat-label">Move candidates</span></div>
+  <div class="stat" data-action="filter-section" data-section="orphans"><span class="stat-n" style="color:${results.orphans.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.orphans.length}</span><span class="stat-label">Orphans</span></div>
 </div>
 ${guidanceHtml}
 ${warnings.length ? `<div class="section" data-section="claude-warnings"><h2>⚠️ CLAUDE.md Warnings <span class="badge">${warnings.length}</span></h2>${warningRows}</div>` : ''}
@@ -116,11 +116,46 @@ ${section('🔀 Similar Content', results.similar.length, simRows, 'similar')}
 ${section('📦 Should Move to Global Standards', results.moveCandidates.length, moveRows, 'move')}
 ${section('👻 Orphaned Docs', results.orphans.length, orphanRows, 'orphans')}
 <script>
+(function(){
+'use strict';
 const vscode = acquireVsCodeApi();
-function cmd(command, pathsJson){let data;try{data=JSON.parse(pathsJson);}catch{data=pathsJson;}vscode.postMessage({command,data});}
-function openFile(fp){vscode.postMessage({command:'open',data:fp});}
-let _f='all';
-function filterSection(id){if(_f===id){id='all';}_f=id;document.querySelectorAll('.stat[data-filter]').forEach(el=>el.classList.toggle('active-filter',el.dataset.filter===id));document.querySelectorAll('.section[data-section]').forEach(el=>el.classList.toggle('filtered-out',id!=='all'&&el.dataset.section!==id));if(id!=='all'){const t=document.querySelector('.section[data-section="'+id+'"]');if(t)t.scrollIntoView({behavior:'smooth',block:'start'});}}
-function switchTab(gid,idx){document.querySelectorAll('[data-group="'+gid+'"].tab-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));document.querySelectorAll('[data-group="'+gid+'"][data-pane]').forEach(p=>p.classList.toggle('hidden',parseInt(p.dataset.pane||'-1')!==idx));}
+let _f = 'all';
+function filterSection(id) {
+  if (_f === id) { id = 'all'; } _f = id;
+  document.querySelectorAll('.stat[data-action="filter-section"]').forEach(function(el) {
+    el.classList.toggle('active-filter', el.dataset.section === id);
+  });
+  document.querySelectorAll('.section[data-section]').forEach(function(el) {
+    el.classList.toggle('filtered-out', id !== 'all' && el.dataset.section !== id);
+  });
+  if (id !== 'all') { var t = document.querySelector('.section[data-section="' + id + '"]'); if (t) { t.scrollIntoView({behavior:'smooth',block:'start'}); } }
+}
+function switchTab(gid, idx) {
+  document.querySelectorAll('[data-group="' + gid + '"].tab-btn').forEach(function(b, i) { b.classList.toggle('active', i === idx); });
+  document.querySelectorAll('[data-group="' + gid + '"][data-pane]').forEach(function(p) { p.classList.toggle('hidden', parseInt(p.dataset.pane || '-1') !== idx); });
+}
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-action]');
+  if (!el) { return; }
+  var action = el.dataset.action;
+  if (action === 'switch-tab') {
+    switchTab(el.dataset.group, parseInt(el.dataset.tab || '0'));
+  } else if (action === 'open-file') {
+    vscode.postMessage({command:'open', data:el.dataset.path});
+  } else if (action === 'filter-section') {
+    filterSection(el.dataset.section);
+  } else if (action === 'cmd-merge') {
+    vscode.postMessage({command:'merge', data:JSON.parse(el.dataset.paths)});
+  } else if (action === 'cmd-walkgroup') {
+    vscode.postMessage({command:'walkGroup', data:JSON.parse(el.dataset.paths)});
+  } else if (action === 'cmd-diff') {
+    vscode.postMessage({command:'diff', data:JSON.parse(el.dataset.paths)});
+  } else if (action === 'cmd-movetoglobal') {
+    vscode.postMessage({command:'moveToGlobal', data:el.dataset.path});
+  } else if (action === 'cmd-delete') {
+    vscode.postMessage({command:'delete', data:el.dataset.path});
+  }
+});
+})();
 </script></body></html>`;
 }

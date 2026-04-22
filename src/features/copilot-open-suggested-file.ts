@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * copilot-open-suggested-file.ts
  * When Copilot suggests opening a file (e.g. "see utils.ts"), this command
@@ -73,7 +73,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 await openFileAtLine(resolved);
                 log(FEATURE, `Opened suggested file: ${resolved}`);
             } catch (err) {
-                logError(FEATURE, 'openSuggestedFile failed', err);
+                logError('openSuggestedFile failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                 vscode.window.showErrorMessage(`Failed to open file: ${err}`);
             }
         })

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * terminal-copy-output.ts
  * ──────────────────────────────────────────────────────────────────────────────
@@ -59,6 +59,7 @@ const FEATURE: string = 'terminal-copy-output';
 interface CopyOptions {
     formatAsMarkdown?: boolean;
     pasteToChat?: boolean;
+    commandOnly?: boolean;
 }
 
 // ─── Copilot Chat integration ────────────────────────────────────────────────
@@ -87,12 +88,11 @@ interface CopyOptions {
  * @returns true if content was successfully placed in the chat input,
  *          false if only the clipboard fallback was used.
  */
-async function sendToCopilotChat(content: string): Promise<boolean> {
-    // Strategy 1 — structured query payload (most reliable)
+export async function sendToCopilotChat(content: string): Promise<boolean> {
+    // Strategy 1 — query-only payload (no mode — mode:'ask' causes attachment errors)
     try {
         await vscode.commands.executeCommand('workbench.action.chat.open', {
             query: content,
-            mode: 'ask',
         });
         return true;
     } catch {
@@ -107,18 +107,13 @@ async function sendToCopilotChat(content: string): Promise<boolean> {
         // Not supported in this version — try next strategy.
     }
 
-    // Strategy 3 — focus chat + clipboard (best-effort fallback)
-    // The user will need to Ctrl+V manually since we can't paste into the
-    // chat widget programmatically.
+    // Strategy 3 — focus chat + write to clipboard so user can Ctrl+V
+    await vscode.env.clipboard.writeText(content);
     try {
         await vscode.commands.executeCommand('github.copilot.chat.focus');
-        await delay(500);
-        await vscode.env.clipboard.writeText(content);
-        return false;
     } catch {
-        // Could not focus chat at all — give up entirely.
+        // Chat panel not available — clipboard still has the content.
     }
-
     return false;
 }
 
@@ -198,27 +193,17 @@ async function copyTerminalOutput(opts: CopyOptions = {}): Promise<boolean> {
         return false;
     }
 
+    if (opts.commandOnly) {
+        const commandLine = extractLastCommandLine(content);
+        if (!commandLine) {
+            vscode.window.showWarningMessage('Could not determine the last terminal command.');
+            return false;
+        }
+        content = commandLine;
+    }
+
     // Sanitise raw terminal capture — remove shell noise.
-    content = content
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
-        // Remove "History restored" lines injected by VS Code terminal
-        .replace(/^\s*\*\s*History restored\s*\n?/gm, '')
-        // Remove lines that are only ">" prompts (empty continuation lines)
-        .replace(/^>\s*$/gm, '')
-        // Deduplicate consecutive identical lines (keep first occurrence)
-        .replace(/^(.+)(\n\1)+$/gm, '$1')
-        // Remove corrupted lines with repeated fragments (garbled rendering)
-        .replace(/^.*(.{4,})\1{2,}.*$/gm, '')
-        // Remove corrupted PS prompt fragments (keep only full prompts ending with ">")
-        .replace(/^PS [a-zA-Z]:[\\\/].*$/gm, (match: string): string => {
-            return />\s*$/.test(match) ? match : '';
-        })
-        // Remove lines that are only whitespace
-        .replace(/^\s+$/gm, '')
-        // Collapse blank-line runs (3+ → 1)
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
+    content = sanitizeTerminalOutput(content);
 
     if (opts.formatAsMarkdown) {
         // Strip trailing PS prompt at end of output
@@ -241,7 +226,7 @@ async function copyTerminalOutput(opts: CopyOptions = {}): Promise<boolean> {
             }
             vscode.window.showInformationMessage('Terminal output pasted to Copilot chat.');
         } catch (err) {
-            logError(FEATURE, 'Failed to paste to Copilot chat', err);
+            logError('Failed to paste to Copilot chat', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             vscode.window.showWarningMessage(
                 'Could not send to chat — content is on your clipboard. Press Ctrl+V in the chat input.'
             );
@@ -259,6 +244,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.terminal.copyOutputClipboard', () => copyTerminalOutput({ formatAsMarkdown: true })),
         vscode.commands.registerCommand('cvs.terminal.pasteOutputToChat',   () => copyTerminalOutput({ pasteToChat: true, formatAsMarkdown: true })),
+        vscode.commands.registerCommand('cvs.terminal.pasteLastCommandToChat', () => copyTerminalOutput({ pasteToChat: true, commandOnly: true })),
     );
 }
 
@@ -269,3 +255,43 @@ export function deactivate(): void { /* nothing to clean up */ }
 function delay(ms: number): Promise<void> {
     return new Promise<void>((resolve: () => void) => setTimeout(resolve, ms));
 }
+
+/** Sanitises raw terminal capture — removes shell noise. @internal */
+export function sanitizeTerminalOutput(raw: string): string {
+    return raw
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/^\s*\*\s*History restored\s*\n?/gm, '')
+        .replace(/^>\s*$/gm, '')
+        .replace(/^(.+)(\n\1)+$/gm, '$1')
+        .replace(/^.*(.{4,})\1{2,}.*$/gm, '')
+        .replace(/^PS [a-zA-Z]:[\\\/].*$/gm, (m: string) => />\s*$/.test(m) ? m : '')
+        .replace(/^\s+$/gm, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function extractLastCommandLine(raw: string): string {
+    const lines = raw
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line: string) => line.trim())
+        .filter(Boolean);
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index];
+        const promptMatch = line.match(/^PS\s+.+?>\s*(.+)$/);
+        if (promptMatch?.[1]?.trim()) {
+            return promptMatch[1].trim();
+        }
+        if (line.startsWith('>') && line.length > 1) {
+            return line.slice(1).trim();
+        }
+    }
+
+    return lines[0] ?? '';
+}
+
+/** @internal — exported for unit testing only */
+export const _test = { sanitizeTerminalOutput, extractLastCommandLine };

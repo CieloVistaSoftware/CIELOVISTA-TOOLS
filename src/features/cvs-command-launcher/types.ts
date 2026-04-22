@@ -22,10 +22,13 @@ export interface CmdEntry {
     groupIcon:     string;
     dewey:         string;
     scope:         CmdScope;   // REQUIRED — every command must declare its scope
+    location:      string;     // NEW: relative path to implementation file
     auditCheckId?: string;
     helpDoc?:      string;
     /** When 'read': button label shows 'Open' instead of 'Run' — use for commands that only open/display content */
     action?:       'run' | 'read';
     /** ID of the command to suggest as the next logical step after this one completes */
     nextAction?:   string;
+    /** Optional precomputed tooltip for the Run/Open button when generic text is misleading */
+    runTooltip?:   string;
 }

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * openai-chat.ts
  * Adds OpenAI-powered commands directly into VS Code:
@@ -129,7 +129,7 @@ async function runWithProgress(title: string, messages: OpenAIMessage[]): Promis
                 log(FEATURE, `${title} — done`);
                 showResultPanel(title.replace('…', ''), result);
             } catch (err) {
-                logError(FEATURE, `${title} failed`, err);
+                logError(`${title} failed`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                 vscode.window.showErrorMessage(`OpenAI error: ${err}`);
             }
         }

@@ -36,3 +36,6 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
     walk(rootPath, 0);
     return results;
 }
+
+/** @internal — exported for unit testing only */
+export { SKIP_DIRS };

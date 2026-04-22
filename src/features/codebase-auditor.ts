@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * codebase-auditor.ts
  *
@@ -592,6 +592,23 @@ function runScan(): { findings: Finding[]; files: FileInfo[] } {
 
 // ─── Command ─────────────────────────────────────────────────────────────────
 
+/** @internal — exported for unit testing only */
+export const _test = {
+    collectTsFiles,
+    checkFileSizes,
+    checkFunctionLength,
+    checkDuplicateExports,
+    checkDeadMonoliths,
+    checkMissingReadmes,
+    checkOneTimeOnePlace,
+    checkSharedUtilUsage,
+    checkDeadFiles,
+    esc,
+    runScan,
+    SRC_DIR,
+    FEATURES_DIR,
+};
+
 export async function runCodebaseAudit(): Promise<void> {
     let { findings, files } = runScan();
     const totalLines = files.reduce((n, f) => n + f.lines, 0);
@@ -630,7 +647,7 @@ export async function runCodebaseAudit(): Promise<void> {
                 editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
             }
         } catch (err) {
-            logError(FEATURE, 'Codebase audit action failed', err);
+            logError('Codebase audit action failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             panel.webview.postMessage({ type: 'error', text: String(err) });
         }
     });

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * mcp-server-scaffolder.ts
  *
@@ -370,7 +370,7 @@ async function createMcpServer(): Promise<void> {
         }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      logError(FEATURE, `Failed to scaffold MCP server: ${msg}`);
+      logError(`Failed to scaffold MCP server: ${msg}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
       require('../shared/show-result-webview').showResultWebview(
         'MCP Server Creation Failed',
         'Create MCP Server',

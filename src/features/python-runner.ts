@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * python-runner.ts
  * Right-click any .py file in the Explorer and run it in the terminal.
@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 terminal.sendText(`${python} "${target.fsPath}"`);
                 log(FEATURE, `Running ${target.fsPath} with ${python}`);
             } catch (err) {
-                logError(FEATURE, 'runFile failed', err);
+                logError('runFile failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                 vscode.window.showErrorMessage(`Failed to run Python file: ${err}`);
             }
         })

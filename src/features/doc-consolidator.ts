@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * doc-consolidator.ts
  *
@@ -228,7 +228,7 @@ function updateReferences(oldPath: string, newPath: string, projects: ProjectEnt
                 log(FEATURE, `Updated references in: ${claudeMd}`);
             }
         } catch (err) {
-            logError(FEATURE, `Failed to update references in ${claudeMd}`, err);
+            logError(`Failed to update references in ${claudeMd}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         }
     }
 
@@ -309,7 +309,7 @@ async function consolidateGroup(group: ConsolidationGroup, registry: ProjectRegi
                         fs.writeFileSync(action.filePath, action.newContent || '', 'utf8');
                     }
                 } catch (err) {
-                    logError(FEATURE, `Failed to ${action.type} ${action.filePath}`, err);
+                    logError(`Failed to ${action.type} ${action.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                     ok = false;
                 }
             }
@@ -445,12 +445,12 @@ async function runConsolidation(): Promise<void> {
         if (ok) { consolidated++; } else { skipped++; }
     }
 
-    require('../shared/show-result-webview').showResultWebview(
-        'Consolidation Complete',
-        'Run Doc Consolidation',
-        0,
-        `Consolidation complete. <b>${consolidated}</b> groups consolidated, <b>${skipped}</b> skipped. <a href="#" onclick="window.acquireVsCodeApi().postMessage({openLog:true})">Open Log</a>`
-    );
+    require('../shared/show-interactive-result-webview').showInteractiveResultWebview({
+        title:   'Consolidation Complete',
+        action:  'Run Doc Consolidation',
+        output:  `Consolidation complete. <b>${consolidated}</b> groups consolidated, <b>${skipped}</b> skipped.`,
+        onOpenLog: openConsolidationLog,
+    });
     // Optionally, open log if user clicks in webview (handled by message)
 }
 
@@ -582,3 +582,6 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void { /* nothing to clean up */ }
+
+/** @internal — exported for unit testing only */
+export const _test = { scanDir, computeSimilarity, discoverGroups, appendToLog, updateReferences, escapeRegex };

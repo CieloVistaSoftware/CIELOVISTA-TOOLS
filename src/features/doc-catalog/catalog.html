@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
+#toolbar{position:sticky;top:0;z-index:100;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:8px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#toolbar h1{font-size:1.1em;font-weight:700;white-space:nowrap;margin-right:4px}
+#search{flex:1;min-width:160px;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;font-size:12px}
+select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-foreground);border:1px solid var(--vscode-dropdown-border);border-radius:2px;font-size:12px;cursor:pointer}
+#stat-bar{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
+#btn-reset{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px}
+#btn-reset:hover{background:var(--vscode-button-secondaryHoverBackground)}
+#catalog{padding:12px 16px}
+.cat-section{margin-bottom:28px}
+.cat-heading{font-size:0.95em;font-weight:700;border-bottom:2px solid var(--vscode-focusBorder);padding-bottom:5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.cat-dewey{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;font-weight:700;background:var(--vscode-focusBorder);color:var(--vscode-editor-background);border-radius:3px;padding:1px 7px;letter-spacing:0.05em;flex-shrink:0}
+.cat-count{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 7px;font-size:0.8em;font-weight:400}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.card{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:5px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;transition:border-color 0.15s}
+.card:hover{border-color:var(--vscode-focusBorder)}
+.card.hidden{display:none}
+.cat-section.hidden{display:none}
+.card.pinned{border-color:var(--vscode-focusBorder);box-shadow:0 0 0 1px var(--vscode-focusBorder)}
+.card-header{display:flex;justify-content:space-between;align-items:center}
+.card-project{font-size:10px;font-weight:700;color:var(--vscode-textLink-foreground);text-transform:uppercase;letter-spacing:0.05em}
+.card-date{font-size:10px;color:var(--vscode-descriptionForeground)}
+.card-dewey-row{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.card-dewey{font-family:var(--vscode-editor-font-family);font-size:10px;font-weight:700;background:var(--vscode-editor-background);color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:1px 6px;letter-spacing:0.05em;flex-shrink:0}
+.card-filename{font-family:var(--vscode-editor-font-family);font-size:10px;color:var(--vscode-descriptionForeground)}
+.card-title{font-weight:700;font-size:0.92em;line-height:1.3;transition:color 0.1s;cursor:pointer}
+.card-title[data-action]:hover{color:var(--vscode-textLink-foreground)}
+.card-desc{font-size:11px;line-height:1.45;opacity:0.85;flex:1}
+.card-path{font-family:var(--vscode-editor-font-family);font-size:9px;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
+.tag{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);cursor:pointer}
+.card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:4px;flex-wrap:wrap;gap:4px}
+.card-size{font-size:10px;color:var(--vscode-descriptionForeground)}
+.card-btns{display:flex;gap:4px;flex-wrap:wrap}
+.btn-view,.btn-open{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500}
+.btn-view{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+.btn-view:hover{background:var(--vscode-button-hoverBackground)}
+.btn-open{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
+.btn-open:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.btn-demo{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(99,102,241,0.18);color:#818cf8;border:1px solid rgba(99,102,241,0.35)}
+.btn-demo:hover{background:rgba(99,102,241,0.35);color:#fff}
+mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <h1>&#128218; Doc Catalog</h1>
+  <input id="search" type="text" placeholder="Search titles, descriptions, tags&hellip;" autocomplete="off">
+  <select id="proj-filter"><option value="">All projects</option></select>
+  <select id="section-filter" disabled><option value="">All sections</option></select>
+  <button id="btn-reset">&#10005; Clear</button>
+  <button id="btn-npm-scripts" title="Open NPM Scripts panel" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128230; Projects</button>
+  <span id="stat-bar"></span>
+</div>
+<div id="catalog"></div>
+
+<script>
+'use strict';
+(function() {
+
+var vscode = acquireVsCodeApi();
+var _totalCards = 0, _totalCats = 0, _totalProjects = 0;
+var _projSections = {};
+var _pinnedCard = null;   // the last card the user interacted with
+
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Pin a card so it stays in view when VS Code shifts focus to a side panel ──
+// VS Code's webview can reset scroll when focus moves to a panel beside it.
+// We save the card's position and restore it in the next animation frame.
+function pinCard(card) {
+    if (!card) { return; }
+    if (_pinnedCard && _pinnedCard !== card) {
+        _pinnedCard.classList.remove('pinned');
+    }
+    _pinnedCard = card;
+    card.classList.add('pinned');
+
+    // Save scroll position immediately
+    var savedScrollY = window.scrollY;
+    var cardTop = card.getBoundingClientRect().top + window.scrollY;
+
+    // Restore on the next two frames (covers VS Code's internal focus-shift delay)
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            // If VS Code reset scroll to 0, bring the card back into view
+            if (window.scrollY !== savedScrollY) {
+                window.scrollTo({ top: cardTop - 80, behavior: 'auto' });
+            }
+        });
+    });
+}
+
+function buildSectionMap() {
+    _projSections = {};
+    document.querySelectorAll('.card').forEach(function(card) {
+        var proj = card.dataset.project;
+        var sec  = card.dataset.section;
+        if (!proj || !sec) { return; }
+        if (!_projSections[proj]) { _projSections[proj] = new Set(); }
+        _projSections[proj].add(sec);
+    });
+}
+
+function populateProjectDropdown() {
+    var sel = document.getElementById('proj-filter');
+    var projs = Array.from(new Set(
+        Array.from(document.querySelectorAll('.card[data-project]')).map(function(c){ return c.dataset.project; })
+    )).sort();
+    sel.innerHTML = '<option value="">All projects</option>';
+    projs.forEach(function(p){ sel.innerHTML += '<option value="'+esc(p)+'">'+esc(p)+'</option>'; });
+}
+
+function updateSectionDropdown() {
+    var proj   = document.getElementById('proj-filter').value;
+    var secSel = document.getElementById('section-filter');
+    var cur    = secSel.value;
+    secSel.innerHTML = '<option value="">All sections</option>';
+    if (!proj) { secSel.disabled = true; secSel.value = ''; return; }
+    var secs = _projSections[proj] ? Array.from(_projSections[proj]).sort() : [];
+    secs.forEach(function(s) {
+        var o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        if (s === cur) { o.selected = true; }
+        secSel.appendChild(o);
+    });
+    secSel.disabled = secs.length === 0;
+}
+
+function applyFilters() {
+    var q    = document.getElementById('search').value.toLowerCase().trim();
+    var proj = document.getElementById('proj-filter').value;
+    var sec  = document.getElementById('section-filter').value;
+    var vis  = 0;
+
+    var qRe = null;
+    if (q) {
+        try { qRe = new RegExp(q.replace(/[[\].*+?^${}()|\\]/g, '\\$&'), 'gi'); } catch(e) { qRe = null; }
+    }
+
+    document.querySelectorAll('.card').forEach(function(card) {
+        var matchProj = !proj || card.dataset.project === proj;
+        var matchSec  = !sec  || card.dataset.section  === sec;
+        var matchQ    = true;
+        if (q) {
+            var t = function(sel){ var el = card.querySelector(sel); return el ? el.textContent : ''; };
+            var str = (card.dataset.project+' '+card.dataset.tags+' '+t('.card-title')+' '+t('.card-desc')+' '+t('.card-filename')+' '+t('.card-path')).toLowerCase();
+            matchQ = str.includes(q);
+        }
+        var show = matchProj && matchSec && matchQ;
+        card.classList.toggle('hidden', !show);
+
+        ['.card-title', '.card-desc', '.card-tags'].forEach(function(sel) {
+            var el = card.querySelector(sel);
+            if (!el) { return; }
+            if (show && qRe) {
+                el.innerHTML = el.textContent.replace(qRe, function(m) { return '<mark class="search-match">'+m+'</mark>'; });
+            } else {
+                el.innerHTML = el.textContent;
+            }
+        });
+
+        if (show) { vis++; }
+    });
+
+    document.querySelectorAll('.cat-section').forEach(function(s) {
+        s.classList.toggle('hidden', !s.querySelector('.card:not(.hidden)'));
+    });
+
+    var visibleSecs = document.querySelectorAll('.cat-section:not(.hidden)').length;
+    var filtered = proj || sec || q;
+    if (filtered) {
+        var statText = vis + ' docs \xb7 ' + visibleSecs + ' categories';
+        if (proj) { statText += ' \xb7 ' + proj; }
+        document.getElementById('stat-bar').textContent = statText;
+    } else {
+        document.getElementById('stat-bar').textContent =
+            _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
+    }
+}
+
+function resetFilters() {
+    document.getElementById('search').value = '';
+    document.getElementById('proj-filter').value = '';
+    document.getElementById('section-filter').value = '';
+    localStorage.removeItem('catalog-proj-filter');
+    updateSectionDropdown();
+    document.querySelectorAll('.card').forEach(function(c) { c.classList.remove('hidden'); });
+    document.querySelectorAll('.cat-section').forEach(function(s) { s.classList.remove('hidden'); });
+    document.querySelectorAll('.card-title, .card-desc, .card-tags').forEach(function(el) {
+        el.innerHTML = el.textContent;
+    });
+    document.getElementById('stat-bar').textContent =
+        _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
+}
+
+// ── Toolbar listeners ─────────────────────────────────────────────────────────
+
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('proj-filter').addEventListener('change', function() {
+  // Persist selected project across catalog opens
+  localStorage.setItem('catalog-proj-filter', document.getElementById('proj-filter').value);
+  updateSectionDropdown(); applyFilters();
+});
+document.getElementById('section-filter').addEventListener('change', applyFilters);
+document.getElementById('btn-reset').addEventListener('click', resetFilters);
+document.getElementById('btn-npm-scripts').addEventListener('click', function() { vscode.postMessage({ command: 'open-npm-scripts' }); });
+
+// ── Click handler ─────────────────────────────────────────────────────────────
+
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) {
+        var ct = e.target.closest('.card-title');
+        if (ct && ct.dataset.path) {
+            pinCard(ct.closest('.card'));
+            vscode.postMessage({ command: 'preview', data: ct.dataset.path });
+        }
+        return;
+    }
+
+    // Prevent any browser default that might scroll (e.g. focusing a button)
+    e.preventDefault();
+
+    // Pin the card before VS Code shifts focus to the preview panel
+    pinCard(btn.closest('.card'));
+
+    var a = btn.dataset.action;
+    if      (a === 'filter-tag')          { var s = document.getElementById('search'); if (s) { s.value = btn.dataset.tag; applyFilters(); } }
+    else if (a === 'open-preview')        { vscode.postMessage({ command: 'preview',           data: btn.dataset.path }); }
+    else if (a === 'open')                { vscode.postMessage({ command: 'open',               data: btn.dataset.path }); }
+    else if (a === 'open-npm-scripts')    { vscode.postMessage({ command: 'open-npm-scripts' }); }
+    else if (a === 'open-folder')         { vscode.postMessage({ command: 'openFolder',         data: btn.dataset.path || btn.dataset.projPath }); }
+    else if (a === 'wb-demo')             { vscode.postMessage({ command: 'wb-demo',             data: btn.dataset.path, name: btn.dataset.name }); }
+    else if (a === 'open-project-folder') { vscode.postMessage({ command: 'openProjectFolder',  data: btn.dataset.projPath }); }
+    else if (a === 'open-claude')         { vscode.postMessage({ command: 'openClaude',          data: btn.dataset.projPath }); }
+    else if (a === 'create-claude')       { vscode.postMessage({ command: 'createClaude',        data: btn.dataset.projPath }); }
+    else if (a === 'create-tests')        { vscode.postMessage({ command: 'create-tests',        data: btn.dataset.projPath, projName: btn.dataset.projName }); }
+});
+
+// ── Messages from extension host ─────────────────────────────────────────────
+
+window.addEventListener('message', function(ev) {
+    var msg = ev.data;
+    if (!msg) { return; }
+    if (msg.command === 'init') {
+        document.getElementById('catalog').innerHTML = msg.html;
+        _totalCards    = msg.totalCards    || 0;
+        _totalCats     = msg.totalCats     || 0;
+        _totalProjects = msg.totalProjects || 0;
+        document.getElementById('stat-bar').textContent =
+            _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
+        buildSectionMap();
+        populateProjectDropdown();
+        // Restore sticky project filter from localStorage
+        var savedProj = localStorage.getItem('catalog-proj-filter') || '';
+        var projSel = document.getElementById('proj-filter');
+        if (savedProj && projSel) {
+            projSel.value = savedProj;
+            updateSectionDropdown();
+            applyFilters();
+        }
+        return;
+    }
+    if (msg.type === 'highlight' && msg.filePath) {
+        document.querySelectorAll('.card').forEach(function(c) {
+            c.classList.toggle('active-link', c.dataset && c.dataset.path === msg.filePath);
+        });
+    }
+});
+
+})();
+</script>
+</body>
+</html>

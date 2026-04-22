@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * terminal-utils.ts
  * Shared terminal and file-system navigation helpers.
@@ -77,7 +77,7 @@ export async function cdToFolderFromUri(uri?: vscode.Uri): Promise<void> {
             `Terminal → ${vscode.workspace.asRelativePath(target)}`
         );
     } catch (err) {
-        logError(FEATURE, 'cdToFolderFromUri failed', err);
+        logError('cdToFolderFromUri failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Failed to set terminal directory: ${err}`);
     }
 }
@@ -105,7 +105,7 @@ export async function openFolderInVSCode(uri?: vscode.Uri): Promise<void> {
         }
         await vscode.commands.executeCommand('vscode.openFolder', target);
     } catch (err) {
-        logError(FEATURE, 'openFolderInVSCode failed', err);
+        logError('openFolderInVSCode failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Failed to open folder: ${err}`);
     }
 }
@@ -134,7 +134,7 @@ export async function openFileAtLine(filePath: string, line?: number): Promise<v
             : undefined;
         await vscode.window.showTextDocument(doc, { selection: range, preview: false });
     } catch (err) {
-        logError(FEATURE, `openFileAtLine failed for ${filePath}`, err);
+        logError(`openFileAtLine failed for ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Failed to open file: ${err}`);
     }
 }

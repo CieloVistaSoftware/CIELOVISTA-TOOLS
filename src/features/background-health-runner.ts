@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * background-health-runner.ts
  *
@@ -17,10 +17,22 @@
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
+import * as net    from 'net';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
 import { CATALOG }       from './cvs-command-launcher/catalog';
+
+function isPortOpen(port: number): Promise<boolean> {
+    return new Promise(resolve => {
+        const socket = new net.Socket();
+        socket.setTimeout(400);
+        socket.once('connect', () => { socket.destroy(); resolve(true); });
+        socket.once('error',   () => { socket.destroy(); resolve(false); });
+        socket.once('timeout', () => { socket.destroy(); resolve(false); });
+        socket.connect(port, '127.0.0.1');
+    });
+}
 
 const FEATURE    = 'bg-health-runner';
 const DATA_DIR   = path.join(__dirname, '..', '..', 'data');
@@ -56,6 +68,14 @@ let _timer: NodeJS.Timeout | undefined;
 let _running = false;
 let _panel: vscode.WebviewPanel | undefined;
 
+// Singleton guard — prevents duplicate runners when extension re-activates
+// without a clean deactivate (e.g. window reload while runner was live).
+const SINGLETON_KEY = 'cvt.bg-health-runner.active';
+declare const global: Record<string, unknown>;
+function isAlreadyRunning(): boolean  { return !!(global as any)[SINGLETON_KEY]; }
+function claimSingleton(): void        { (global as any)[SINGLETON_KEY] = true; }
+function releaseSingleton(): void      { delete (global as any)[SINGLETON_KEY]; }
+
 function ensureDataDir(): void {
     if (!fs.existsSync(DATA_DIR)) { fs.mkdirSync(DATA_DIR, { recursive: true }); }
 }
@@ -74,7 +94,7 @@ function saveState(): void {
         _state.lastRun = new Date().toISOString();
         fs.writeFileSync(HEALTH_FILE, JSON.stringify(_state, null, 2), 'utf8');
     } catch (e) {
-        logError(FEATURE, 'Failed to save health state', e);
+        logError('Failed to save health state', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
     }
 }
 
@@ -330,7 +350,7 @@ async function runNextCheck(): Promise<void> {
         log(FEATURE, `Check: ${check.name}`);
         await check.run();
     } catch (e) {
-        logError(FEATURE, `Check failed: ${check.id}`, e);
+        logError(`Check failed: ${check.id}`, e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
     }
 
     saveState();
@@ -385,7 +405,7 @@ function buildFixBugsHtml(state: HealthState): string {
     const nextCheck    = CHECKS[state.checkIndex % totalChecks]?.name ?? '';
     const stateJson    = JSON.stringify(state);
 
-    const CSS = `
+    let CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
 #toolbar{position:sticky;top:0;z-index:10;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:12px}
@@ -398,7 +418,10 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #content{padding:12px 16px 40px}
 .section-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--vscode-descriptionForeground);margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--vscode-panel-border)}
 .bug-card{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:10px 12px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
-.bug-card:hover{border-color:var(--vscode-focusBorder)}
+    .bug-card:hover{border-color:var(--vscode-focusBorder)}
+    .mcp-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+    .mcp-dot.green{background:#3fb950;box-shadow:0 0 6px #3fb950}
+    .mcp-dot.red{background:#f85149;box-shadow:0 0 6px #f85149}
 .bug-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bug-priority{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;flex-shrink:0}
 .bug-title{font-weight:700;font-size:0.9em;flex:1}
@@ -454,21 +477,46 @@ window.addEventListener('message', function(e) {
         ? `<div class="empty">&#10003; No bugs found across ${state.totalChecks} checks. Background runner is active.</div>`
         : '';
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
+        // MCP status indicator (async, so we use a placeholder and update via script)
+        const mcpStatusHtml = `<span id="mcp-status-dot" class="mcp-dot red"></span><span id="mcp-status-text">MCP Checking...</span>`;
+
+        return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div id="toolbar">
-  <h1>&#128027; Fix Bugs</h1>
-  <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
-  <span class="stat"><span class="spin">&#9696;</span> Running</span>
+    <h1>&#128027; Fix Bugs</h1>
+    <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
+    <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
 </div>
 <div id="progress-bar-wrap"><div id="progress-bar" style="width:${pct}%"></div></div>
 <div id="next-check">&#9203; Next: ${nextCheck}</div>
 <div id="content">
-  ${emptyHtml}
-  ${sorted.length > 0 ? `<div class="section-heading">Active bugs (${sorted.length})</div>${bugRows}` : ''}
-  ${fixedBugs.length > 0 ? `<div class="section-heading">Fixed this session (${fixedBugs.length})</div>
-  ${fixedBugs.map(b => `<div class="bug-card" style="opacity:0.4"><div class="bug-header"><span class="bug-title">&#10003; ${b.title}</span></div></div>`).join('')}` : ''}
+    ${emptyHtml}
+    ${sorted.length > 0 ? `<div class="section-heading">Active bugs (${sorted.length})</div>${bugRows}` : ''}
+    ${fixedBugs.length > 0 ? `<div class="section-heading">Fixed this session (${fixedBugs.length})</div>
+    ${fixedBugs.map(b => `<div class="bug-card" style="opacity:0.4"><div class="bug-header"><span class="bug-title">&#10003; ${b.title}</span></div></div>`).join('')}` : ''}
 </div>
-<script>${JS}</script>
+<script>
+${JS}
+(function(){
+    // Check MCP port status and update dot
+    const vscode = acquireVsCodeApi();
+    vscode.postMessage({ command: 'checkMcpPort' });
+    window.addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'mcpPortStatus') {
+            var dot = document.getElementById('mcp-status-dot');
+            var txt = document.getElementById('mcp-status-text');
+            if (dot && txt) {
+                if (e.data.open) {
+                    dot.className = 'mcp-dot green';
+                    txt.textContent = 'MCP Running';
+                } else {
+                    dot.className = 'mcp-dot red';
+                    txt.textContent = 'MCP Stopped';
+                }
+            }
+        }
+    });
+})();
+</script>
 </body></html>`;
 }
 
@@ -494,7 +542,7 @@ export async function showFixBugsPanel(): Promise<void> {
                 clearBug(msg.bugId);
                 saveState();
             } catch (e) {
-                logError(FEATURE, `Fix command failed: ${msg.cmdId}`, e);
+                logError(`Fix command failed: ${msg.cmdId}`, e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
             }
         }
         if (msg.command === 'dismiss') {
@@ -504,15 +552,30 @@ export async function showFixBugsPanel(): Promise<void> {
         if (msg.command === 'reload') {
             if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
         }
+        if (msg.command === 'checkMcpPort') {
+            // Check MCP port and post result
+            const open = await isPortOpen(3000);
+            _panel?.webview.postMessage({ type: 'mcpPortStatus', open });
+        }
     });
 }
 
 // ── Activate / Deactivate ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
+    if (isAlreadyRunning()) {
+        log(FEATURE, 'Runner already active — skipping duplicate activation');
+        // Still register the command so the panel can be opened
+        context.subscriptions.push(
+            vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
+        );
+        return;
+    }
+
     log(FEATURE, 'Background health runner starting');
     loadState();
     _running = true;
+    claimSingleton();
 
     // Start the first check after a short delay so activation isn't blocked
     _timer = setTimeout(runNextCheck, 5000);
@@ -529,5 +592,9 @@ export function deactivate(): void {
     if (_timer) { clearTimeout(_timer); _timer = undefined; }
     _panel?.dispose();
     _panel = undefined;
+    releaseSingleton();
     log(FEATURE, 'Background health runner stopped');
 }
+
+/** @internal — exported for unit testing only, not part of the public API */
+export const _test = { get state() { return _state; }, set state(v) { _state = v; }, addBug, clearBug, saveState };

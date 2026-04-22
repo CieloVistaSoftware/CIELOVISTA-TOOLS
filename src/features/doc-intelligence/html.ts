@@ -34,6 +34,27 @@ function kindLabel(kind: string): string {
     return kind.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+function avoidNextRun(kind: string): string {
+  switch (kind) {
+    case 'missing-readme':
+      return 'Create README.md when a project is first registered and keep it updated during each release.';
+    case 'missing-claude':
+      return 'Create CLAUDE.md in every project root using the standard starter template.';
+    case 'missing-changelog':
+      return 'Add CHANGELOG.md at project start and append entries on every shipped change.';
+    case 'duplicate':
+      return 'Keep one canonical document per topic and replace duplicates with links.';
+    case 'similar':
+      return 'Consolidate overlapping docs early and store shared guidance in one canonical file.';
+    case 'misplaced':
+      return 'Store cross-project standards in global docs and keep project docs focused on local implementation.';
+    case 'orphan':
+      return 'Link every important doc from README.md, CLAUDE.md, or docs index files.';
+    default:
+      return 'Keep docs in one canonical location and review doc health during each release cycle.';
+  }
+}
+
 export function buildDashboardHtml(report: IntelligenceReport): string {
     const { findings, summary, totalDocs, projects, scannedAt, durationMs } = report;
 
@@ -55,7 +76,7 @@ export function buildDashboardHtml(report: IntelligenceReport): string {
     // Cards — one per finding
     const cardsHtml = findings.length === 0
         ? `<div class="di-empty">🎉 No issues found across ${totalDocs} docs in ${projects} projects.<br><span style="opacity:0.6;font-size:12px">Your doc health is perfect.</span></div>`
-        : findings.map(f => buildCard(f)).join('');
+      : findings.map(f => buildCard(f, scanDate)).join('');
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -145,9 +166,8 @@ body{
 .di-card-header{
   display:flex;align-items:center;gap:8px;
   padding:10px 14px;background:var(--vscode-textCodeBlock-background);
-  cursor:pointer;user-select:none;
+  user-select:none;
 }
-.di-card-header:hover{background:var(--vscode-list-hoverBackground)}
 .di-dot{font-size:12px;flex-shrink:0}
 .di-kind-badge{
   font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;
@@ -158,17 +178,16 @@ body{
   white-space:nowrap;flex-shrink:0;
 }
 .di-card-title{font-weight:700;font-size:0.92em;flex:1;line-height:1.3}
+.di-project-context{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
 .di-card-decision{font-size:11px;font-weight:700;white-space:nowrap;margin-left:auto}
 .di-card-decision.accepted{color:var(--vscode-testing-iconPassed)}
 .di-card-decision.skipped{color:var(--vscode-descriptionForeground)}
-.di-chevron{
-  font-size:10px;color:var(--vscode-descriptionForeground);
-  transition:transform 0.15s;flex-shrink:0;
-}
-.di-card.open .di-chevron{transform:rotate(90deg)}
 
-.di-card-body{display:none;padding:12px 14px;border-top:1px solid var(--vscode-panel-border)}
-.di-card.open .di-card-body{display:block}
+.di-card-body{display:block;padding:12px 14px;border-top:1px solid var(--vscode-panel-border)}
+
+.di-context-grid{display:grid;grid-template-columns:90px 1fr;gap:5px 10px;margin-bottom:12px;font-size:12px}
+.di-context-grid .k{color:var(--vscode-descriptionForeground);font-weight:700}
+.di-context-grid .v{line-height:1.45}
 
 .di-reason{
   font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:10px;
@@ -282,12 +301,12 @@ body{
     </span>
     <div style="flex:1"></div>
     <div class="di-actions">
-      <button class="di-btn" id="btn-execute-all" title="Execute all accepted actions" onclick="executeAll()">
+      <button class="di-btn" id="btn-execute-all" title="Execute all accepted actions">
         ✅ Execute Accepted (${accepted.length})
       </button>
-      <button class="di-btn-sec" onclick="acceptAll()">✅ Accept All</button>
-      <button class="di-btn-sec" onclick="skipAll()">⏭ Skip All</button>
-      <button class="di-btn-sec" onclick="rescan()">↺ Rescan</button>
+      <button class="di-btn-sec" id="btn-accept-all">✅ Accept All</button>
+      <button class="di-btn-sec" id="btn-skip-all">⏭ Skip All</button>
+      <button class="di-btn-sec" id="btn-rescan">↺ Rescan</button>
     </div>
   </div>
 
@@ -304,12 +323,12 @@ body{
 
   <div class="di-filter-bar">
     <span style="font-size:11px;color:var(--vscode-descriptionForeground)">Filter:</span>
-    <button class="di-filter-btn active" data-filter="all" onclick="setFilter('all')">All (${findings.length})</button>
-    <button class="di-filter-btn" data-filter="red" onclick="setFilter('red')">🔴 Red (${summary.red})</button>
-    <button class="di-filter-btn" data-filter="yellow" onclick="setFilter('yellow')">🟡 Yellow (${summary.yellow})</button>
-    <button class="di-filter-btn" data-filter="info" onclick="setFilter('info')">ℹ️ Info (${summary.info})</button>
-    <button class="di-filter-btn" data-filter="pending" onclick="setFilter('pending')">⏳ Pending</button>
-    <button class="di-filter-btn" data-filter="accepted" onclick="setFilter('accepted')">✅ Accepted</button>
+    <button class="di-filter-btn active" data-filter="all">All (${findings.length})</button>
+    <button class="di-filter-btn" data-filter="red">🔴 Red (${summary.red})</button>
+    <button class="di-filter-btn" data-filter="yellow">🟡 Yellow (${summary.yellow})</button>
+    <button class="di-filter-btn" data-filter="info">ℹ️ Info (${summary.info})</button>
+    <button class="di-filter-btn" data-filter="pending">⏳ Pending</button>
+    <button class="di-filter-btn" data-filter="accepted">✅ Accepted</button>
   </div>
 </div>
 
@@ -328,15 +347,6 @@ body{
 (function(){
 'use strict';
 const vscode = acquireVsCodeApi();
-
-// ── Card toggle ────────────────────────────────────────────────────────────
-document.querySelectorAll('.di-card-header').forEach(function(hdr) {
-  hdr.addEventListener('click', function(e) {
-    if (e.target.closest('button')) { return; } // don't collapse on button click
-    var card = hdr.closest('.di-card');
-    card.classList.toggle('open');
-  });
-});
 
 // ── Decision tracking ─────────────────────────────────────────────────────
 var decisions = {}; // id -> 'accepted' | 'skipped' | 'pending'
@@ -417,6 +427,7 @@ function skipAll() {
   });
 }
 
+
 // ── Execute all accepted ──────────────────────────────────────────────────
 function executeAll() {
   var accepted = Object.entries(decisions)
@@ -487,6 +498,17 @@ window.addEventListener('message', function(e) {
 });
 
 updateProgress();
+
+// Wire up toolbar buttons
+document.getElementById('btn-execute-all').addEventListener('click', executeAll);
+document.getElementById('btn-accept-all').addEventListener('click', acceptAll);
+document.getElementById('btn-skip-all').addEventListener('click', skipAll);
+document.getElementById('btn-rescan').addEventListener('click', rescan);
+
+// Filter buttons use data-filter — delegate instead of inline onclick
+document.querySelectorAll('.di-filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() { setFilter(btn.dataset.filter); });
+});
 })();
 </script>
 </body>
@@ -529,7 +551,7 @@ function buildFileTable(f: Finding): string {
     return `<div class="di-file-table">${fileRows}</div>${diffButtons ? `<div class="di-pair-btns">${diffButtons}</div>` : ''}`;
 }
 
-function buildCard(f: Finding): string {
+function buildCard(f: Finding, scanDate: string): string {
     const pathsJson     = esc(JSON.stringify(f.paths));
     const decisionClass = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
     const decisionLabel = f.decision === 'accepted' ? '<span class="di-card-decision accepted">✅ Accepted</span>'
@@ -538,16 +560,25 @@ function buildCard(f: Finding): string {
 
     const actionLabel = ACTION_LABEL[f.action] ?? f.action;
     const filesHtml   = buildFileTable(f);
+    const primaryProject = f.projects[0] ?? 'global';
+    const whereText = f.paths.length ? f.paths.map(p => p.split('\\').pop() ?? p).join(', ') : 'No file path provided';
+    const avoidTip = avoidNextRun(f.kind);
 
     return `<div class="di-card${decisionClass}" data-id="${esc(f.id)}" data-severity="${esc(f.severity)}" data-kind="${esc(f.kind)}">
   <div class="di-card-header">
     <span class="di-dot">${dotHtml(f.severity)}</span>
     <span class="di-kind-badge">${esc(kindLabel(f.kind))}</span>
+    <span class="di-project-context" title="${esc(primaryProject)}">Project: ${esc(primaryProject)}</span>
     <span class="di-card-title">${esc(f.title)}</span>
     ${decisionLabel}
-    <span class="di-chevron">▶</span>
   </div>
   <div class="di-card-body">
+    <div class="di-context-grid">
+      <div class="k">What</div><div class="v">${esc(f.reason)}</div>
+      <div class="k">When</div><div class="v">Found during scan on ${esc(scanDate)}</div>
+      <div class="k">Where</div><div class="v">${esc(whereText)}</div>
+      <div class="k">How</div><div class="v">${esc(avoidTip)}</div>
+    </div>
     <div class="di-reason">${esc(f.reason)}</div>
     <div class="di-recommendation">💡 ${esc(f.recommendation)}</div>
     ${filesHtml}

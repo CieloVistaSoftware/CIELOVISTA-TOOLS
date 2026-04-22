@@ -6,22 +6,20 @@ tests/**
 playwright.config.ts
 playwright-report/**
 
-# MCP server — separate process, not part of the extension
-mcp-server/**
+# MCP server — include compiled dist and package.json (needed for ESM type),
+# but exclude source and dev-only files
+mcp-server/src/**
+mcp-server/tsconfig.json
+mcp-server/install-config.mjs
 
 # Dev scripts — not needed at runtime
 scripts/**
-fix-catalog.js
-fix-imports.js
 patch-help-docs.js
 install.js
 
 # Build artifacts and temp files
-!node_modules/diff/**
-node_modules/**
-Downloads/**
-data/**
 *.vsix
+test-results/**
 
 # Config and meta files not needed in extension
 .vscode/**
@@ -29,3 +27,17 @@ tsconfig.json
 package-lock.json
 config.json
 CLAUDE.md
+Downloads/**
+data/**
+
+# Keep production dependencies available in VSIX (MCP runtime requires SDK).
+# vsce will package runtime dependencies; do not blanket-exclude node_modules.
+
+# Explicit runtime keep-list — referenced by REG-011. Each runtime dep in
+# package.json "dependencies" MUST have a matching !node_modules/<pkg>/** line
+# here so it survives vsce packaging. If the extension fails to activate after
+# build with "Cannot find module X", the culprit is almost always a missing
+# entry in this block.
+!node_modules/@modelcontextprotocol/sdk/**
+!node_modules/diff/**
+!node_modules/highlight.js/**

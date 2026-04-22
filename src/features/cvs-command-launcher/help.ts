@@ -55,7 +55,7 @@ export function openHelpPanel(docPath: string, launcherPanel: vscode.WebviewPane
             );
             _helpPanel?.webview.postMessage({ type: 'done', title });
         } catch (err) {
-            logError(FEATURE, `Failed to execute ${msg.id}`, err);
+            logError(`Failed to execute ${msg.id}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             _helpPanel?.webview.postMessage({ type: 'error', title, message: String(err) });
         }
     });

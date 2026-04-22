@@ -10,5 +10,5 @@ export function loadRegistry(): ProjectRegistry | undefined {
     try {
         if (!fs.existsSync(REGISTRY_PATH)) { vscode.window.showErrorMessage(`Registry not found: ${REGISTRY_PATH}`); return undefined; }
         return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
-    } catch (err) { logError('marketplace-compliance', 'Failed to load registry', err); return undefined; }
+    } catch (err) { logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), 'marketplace-compliance'); return undefined; }
 }

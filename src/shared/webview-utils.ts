@@ -1,5 +1,22 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+import { mdToHtml } from './md-renderer';
+import * as crypto from 'crypto';
+
+/** Generate a cryptographic nonce for VS Code webview CSP script-src.
+ *  Uses alphanumeric chars only — avoids +/= from base64 which can confuse
+ *  VS Code Insiders swVersion=4 document.write() bootstrap parser.
+ */
+export function getNonce(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = crypto.randomBytes(32);
+    let result = '';
+    for (let i = 0; i < 32; i++) {
+        result += chars[bytes[i] % chars.length];
+    }
+    return result;
+}
+// FILE REMOVED BY REQUEST
 
 /**
  * webview-utils.ts
@@ -484,37 +501,7 @@ export function cvsPill(text: string, variant: 'ok' | 'warn' | 'error' | '' = ''
     return `<span class="cvs-pill${cls}">${esc(text)}</span>`;
 }
 
-// ─── Markdown → HTML ─────────────────────────────────────────────────────────
-
-/**
- * Converts a README-style subset of Markdown to HTML.
- * Used by the doc catalog viewer and anywhere else markdown is rendered inline.
- */
-export function mdToHtml(md: string): string {
-    return md
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/```(\w*)\n([\s\S]*?)```/gm, '<pre><code class="lang-$1">$2</code></pre>')
-        .replace(/```([\s\S]*?)```/gm, '<pre><code>$1</code></pre>')
-        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        .replace(/^---+$/gm, '<hr>')
-        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-        .replace(/^\* (.+)$/gm, '<li>$1</li>')
-        .replace(/^- (.+)$/gm, '<li>$1</li>')
-        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-        .replace(/^\|(.+)\|$/gm, (row) => {
-            const cells = row.split('|').slice(1, -1).map(c => `<td>${c.trim()}</td>`).join('');
-            return `<tr>${cells}</tr>`;
-        })
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/^(?!<[hlbptcr])(.+)$/gm, '$1<br>');
-}
+// Markdown rendering is now handled by md-renderer.ts using markdown-it and highlight.js
 
 // ─── Standard JS snippets ─────────────────────────────────────────────────────
 

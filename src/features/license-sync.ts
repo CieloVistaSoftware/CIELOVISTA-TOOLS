@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * license-sync.ts
  *
@@ -417,7 +417,7 @@ export async function runLicenseSync(): Promise<void> {
                         log(FEATURE, `Updated LICENSE: ${licensePath}`);
                         updated++;
                     } catch (err) {
-                        logError(FEATURE, `Failed to write LICENSE for ${p.name}`, err);
+                        logError(`Failed to write LICENSE for ${p.name}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                         skipped++;
                     }
                 }
@@ -464,10 +464,13 @@ export async function runLicenseSync(): Promise<void> {
             }
 
         } catch (err) {
-            logError(FEATURE, `License sync error: ${action}`, err);
+            logError(`License sync error: ${action}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             panel.webview.postMessage({ type: 'error', text: String(err) });
         }
     });
 
     log(FEATURE, `License sync opened — ${projects.length} projects scanned`);
 }
+
+/** @internal — exported for unit testing only */
+export const _test = { scanProject, esc, loadCanonical };

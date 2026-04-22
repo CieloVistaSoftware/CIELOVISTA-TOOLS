@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * html-template-downloader.ts
  * Downloads HTML templates from the CieloVistaSoftware GitHub repository
@@ -90,7 +90,7 @@ async function downloadTemplate(): Promise<void> {
             }
         );
     } catch (err) {
-        logError(FEATURE, 'Template download failed', err);
+        logError('Template download failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         require('../shared/show-result-webview').showResultWebview(
             'Download Failed',
             `Download ${template.label}`,
@@ -120,7 +120,7 @@ async function openClipboardPath(): Promise<void> {
         terminal.sendText(cmd);
         log(FEATURE, `Opened path in Explorer: ${text}`);
     } catch (err) {
-        logError(FEATURE, 'openClipboardPath failed', err);
+        logError('openClipboardPath failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
     }
 }
 

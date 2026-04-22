@@ -14,7 +14,7 @@
  *  - cvs.audit.testCoverage.refresh — Re-run the audit
  *  - cvs.audit.testCoverage.export — Export report as markdown
  */
-
+// FILE REMOVED BY REQUEST
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -86,14 +86,14 @@ async function runAudit(): Promise<AuditReport> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
     const err = new Error('No workspace folder open — cannot run audit-test-coverage.js');
-    logError('[test-coverage-auditor]', err, { context: 'runAudit' });
+    logError('No workspace folder open — cannot run audit-test-coverage.js', err.stack || String(err), { context: 'test-coverage-auditor' });
     throw err;
   }
 
   const scriptPath = path.join(workspaceRoot, 'scripts', 'audit-test-coverage.js');
   if (!require('fs').existsSync(scriptPath)) {
     const err = new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project, not in ${path.basename(workspaceRoot)}`);
-    logError('[test-coverage-auditor]', err, { context: 'runAudit', type: 'FILE_IO_ERROR' });
+    logError(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project, not in ${path.basename(workspaceRoot)}`, err.stack || String(err), { context: 'test-coverage-auditor' });
     throw err;
   }
 
@@ -107,7 +107,7 @@ async function runAudit(): Promise<AuditReport> {
     const stderr = execErr.stderr || '';
     if (!rawOutput.trim()) {
       const err = new Error(`audit-test-coverage.js crashed with no output. stderr: ${stderr.slice(0, 300)}`);
-      logError('[test-coverage-auditor]', err, { context: 'runAudit — execSync failed', type: 'COMMAND_ERROR' });
+      logError(`audit-test-coverage.js crashed with no output. stderr: ${stderr.slice(0, 300)}`, err.stack || String(err), { context: 'test-coverage-auditor' });
       throw err;
     }
   }
@@ -119,7 +119,7 @@ async function runAudit(): Promise<AuditReport> {
   if (!jsonLine) {
     const preview = lines.slice(-5).join(' | ');
     const err = new Error(`audit-test-coverage.js produced no JSON output. Last output: ${preview}`);
-    logError('[test-coverage-auditor]', err, { context: 'runAudit — no JSON line found', type: 'AUDIT_ERROR' });
+    logError(`audit-test-coverage.js produced no JSON output. Last output: ${preview}`, err.stack || String(err), { context: 'test-coverage-auditor' });
     throw err;
   }
 
@@ -129,7 +129,7 @@ async function runAudit(): Promise<AuditReport> {
   } catch (parseErr: any) {
     const snippet = jsonLine.slice(0, 200);
     const err = new Error(`JSON.parse failed on script output. Parse error: ${parseErr.message}. Offending line (first 200 chars): ${snippet}`);
-    logError('[test-coverage-auditor]', err, { context: 'runAudit — JSON.parse', type: 'JSON_PARSE_ERROR' });
+    logError(`JSON.parse failed on script output. Parse error: ${parseErr.message}. Offending line (first 200 chars): ${snippet}`, err.stack || String(err), { context: 'test-coverage-auditor' });
     throw err;
   }
 
@@ -455,9 +455,9 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport): string {
 <h1>📊 Test Coverage Audit</h1>
 
 <div class="button-group">
-  <button onclick="refresh()">🔄 Refresh Audit</button>
-  <button class="secondary" onclick="exportReport()">📄 Export as Markdown</button>
-  <button style="background: #F44336;" onclick="generateTests()">📝 Generate Unit Tests</button>
+  <button id="btn-refresh">🔄 Refresh Audit</button>
+  <button id="btn-export" class="secondary">📄 Export as Markdown</button>
+  <button id="btn-generate" style="background: #F44336;">📝 Generate Unit Tests</button>
 </div>
 
 <h2>📈 Metrics</h2>
@@ -536,21 +536,17 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
 
 <script>
   const vscode = acquireVsCodeApi();
-  
-  function refresh() {
-    vscode.postMessage({ command: 'refresh' });
-  }
-  
-  function exportReport() {
-    vscode.postMessage({ command: 'export' });
-  }
-  
+
+  function refresh() { vscode.postMessage({ command: 'refresh' }); }
+  function exportReport() { vscode.postMessage({ command: 'export' }); }
   function generateTests() {
     const confirmed = confirm('Generate unit test skeleton files for features without tests?');
-    if (confirmed) {
-      vscode.postMessage({ command: 'generate' });
-    }
+    if (confirmed) { vscode.postMessage({ command: 'generate' }); }
   }
+
+  document.getElementById('btn-refresh').addEventListener('click', refresh);
+  document.getElementById('btn-export').addEventListener('click', exportReport);
+  document.getElementById('btn-generate').addEventListener('click', generateTests);
 </script>
 
 </body>

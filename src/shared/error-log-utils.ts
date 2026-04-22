@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * error-log-utils.ts
  * Persistent error tracking to a JSON file in the workspace.
@@ -32,8 +32,8 @@ export interface ErrorEntry {
     count: number;
     /** Error message text. */
     message: string;
-    /** Stack trace on first occurrence (if available). */
-    stack?: string;
+    /** Stack trace (mandatory). */
+    stacktrace: string;
     /** Feature/function name where the error occurred. */
     context: string;
     /** Whether a known fix has been recorded. */
@@ -81,18 +81,17 @@ export function createErrorId(message: string): string {
 
 /**
  * Logs an error to the workspace JSON log.
- * If this error has been seen before and has a solution, returns that solution.
+ * All parameters are mandatory.
  *
- * @param error    The caught error (Error object or any value)
- * @param context  Short name of the calling feature/function
- * @returns        The solution string if one exists, otherwise undefined
+ * @param message     The error message (string)
+ * @param stacktrace  The full stack trace (string)
+ * @param context     Short name of the calling feature/module (string)
+ * @returns           The solution string if one exists, otherwise undefined
  */
-export function logError(error: unknown, context: string): string | undefined {
+export function logError(message: string, stacktrace: string, context: string): string | undefined {
     const logFile = getLogFilePath();
     if (!logFile) { return undefined; }
 
-    const message = error instanceof Error ? error.message : String(error ?? 'unknown error');
-    const stack   = error instanceof Error ? error.stack   : undefined;
     const id      = createErrorId(message);
     const now     = new Date().toISOString();
 
@@ -102,15 +101,15 @@ export function logError(error: unknown, context: string): string | undefined {
     if (idx >= 0) {
         entries[idx].count++;
         entries[idx].lastOccurred = now;
-        if (stack && !entries[idx].stack) { entries[idx].stack = stack; }
+        if (!entries[idx].stacktrace) { entries[idx].stacktrace = stacktrace; }
         writeLog(logFile, entries);
-        log(FEATURE, `Known error #${id} (×${entries[idx].count}): ${message}`);
+        log(FEATURE, `Known error #${id} (×${entries[idx].count}): ${message}\n${stacktrace}`);
         return entries[idx].solved ? entries[idx].solution : undefined;
     }
 
-    entries.push({ id, timestamp: now, lastOccurred: now, count: 1, message, stack, context, solved: false });
+    entries.push({ id, timestamp: now, lastOccurred: now, count: 1, message, stacktrace, context, solved: false });
     writeLog(logFile, entries);
-    log(FEATURE, `New error #${id} in [${context}]: ${message}`);
+    log(FEATURE, `New error #${id} in [${context}]: ${message}\n${stacktrace}`);
     return undefined;
 }
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * code-highlight-audit.ts
  *
@@ -50,24 +50,54 @@ function guessLanguage(firstLine: string): string {
     return '';
 }
 
-function scanFile(filePath: string, project: string): UntaggedBlock[] {
+export function scanFile(filePath: string, project: string): UntaggedBlock[] {
     const results: UntaggedBlock[] = [];
     let content: string;
     try { content = fs.readFileSync(filePath, 'utf8'); } catch { return results; }
 
     const lines = content.split('\n');
+    let insideBlock = false;
+    let blockStartLine = 0;
+    let blockLang = '';
+    let blockPreview = '';
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Match opening ``` with no language (just whitespace after)
-        if (/^```\s*$/.test(line.trim()) && line.trim() === '```') {
-            const preview = (lines[i + 1] ?? '').trim().slice(0, 80);
-            results.push({
-                filePath,
-                project,
-                lineNumber: i + 1,
-                preview,
-            });
+        const fenceMatch = line.match(/^```(.*)$/);
+        if (fenceMatch) {
+            if (!insideBlock) {
+                // Opening fence
+                insideBlock = true;
+                blockStartLine = i + 1;
+                blockLang = fenceMatch[1].trim();
+                blockPreview = '';
+            } else {
+                // Closing fence
+                if (blockLang === '') {
+                    // Only flag blocks missing a language tag
+                    results.push({
+                        filePath,
+                        project,
+                        lineNumber: blockStartLine,
+                        preview: blockPreview.trim().slice(0, 80),
+                    });
+                }
+                insideBlock = false;
+                blockLang = '';
+                blockPreview = '';
+            }
+        } else if (insideBlock && blockPreview === '') {
+            // First line inside the code block
+            blockPreview = line;
         }
+    }
+    // If file ends with an unclosed block
+    if (insideBlock && blockLang === '') {
+        results.push({
+            filePath,
+            project,
+            lineNumber: blockStartLine,
+            preview: blockPreview.trim().slice(0, 80),
+        });
     }
     return results;
 }
@@ -304,7 +334,7 @@ async function showPanel(): Promise<void> {
                         ed.selection = new vscode.Selection(pos, pos);
                         ed.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
                     } catch (e) {
-                        logError(FEATURE, 'Failed to open file', e);
+                        logError('Failed to open file', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
                     }
                 }
                 if (msg.command === 'rescan') {

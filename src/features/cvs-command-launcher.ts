@@ -44,16 +44,18 @@ function getLauncherHtml(lastState: string) {
   <html><body>
     <h1>CieloVista Tools Launcher</h1>
     <div id="last-state">${lastState ? `<pre>${lastState}</pre>` : 'No card click yet.'}</div>
-    <button onclick="clickCard('example')">Simulate Card Click</button>
+    <button id="sim-card-btn">Simulate Card Click</button>
     <script>
+      const vscode = acquireVsCodeApi();
       function clickCard(id) {
         const msg = { type: 'cardClick', cardId: id, timestamp: new Date().toISOString() };
         vscode.postMessage(msg);
         document.getElementById('last-state').innerHTML = '<pre>' + JSON.stringify(msg, null, 2) + '</pre>';
       }
-      const vscode = acquireVsCodeApi();
+      document.getElementById('sim-card-btn').addEventListener('click', function() { clickCard('example'); });
     </script>
   </body></html>`;
 }
 
 export function deactivate() {}
+// FILE REMOVED BY REQUEST

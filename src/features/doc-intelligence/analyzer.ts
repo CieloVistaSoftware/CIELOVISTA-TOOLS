@@ -128,20 +128,16 @@ export function analyze({ allDocs, projects, globalDocsPath }: AnalysisInput): F
         const fnKey = fn.toLowerCase();
 
         // ── Root-file exemption ───────────────────────────────────────────────
-        // README.md, CLAUDE.md, CHANGELOG.md etc. are expected once per project.
-        // Skip the group when every copy sits at a distinct project root.
         if (ROOT_STANDARD_FILES.has(fnKey)) {
             const rootCopies   = files.filter(f =>  isAtProjectRoot(f.filePath, projectRoots));
             const nestedCopies = files.filter(f => !isAtProjectRoot(f.filePath, projectRoots));
             const rootDirs     = rootCopies.map(f => path.dirname(f.filePath));
             const allDistinct  = new Set(rootDirs).size === rootDirs.length;
 
-            // Case A: every copy is at a different project root — completely normal, skip
             if (nestedCopies.length === 0 && allDistinct) {
                 continue;
             }
 
-            // Case B: root copies are fine but there are also nested copies — report only the nested ones
             if (nestedCopies.length > 0 && rootCopies.length > 0) {
                 const affectedProjects = [...new Set(files.map(f => f.projectName))];
                 findings.push({
@@ -159,29 +155,49 @@ export function analyze({ allDocs, projects, globalDocsPath }: AnalysisInput): F
                 });
                 continue;
             }
-
-            // Case C: multiple copies in the same root (unusual) — fall through to normal duplicate logic below
+            // Case C: multiple copies in the same root (unusual) — fall through
         }
 
-        // ── Standard duplicate logic ──────────────────────────────────────────
-        const isProjectSpecific = /^CLAUDE\.md$|^CURRENT-STATUS\.md$/i.test(fn);
-        const projNames = files.map(f => f.projectName);
+        // ── Require 50% content similarity for duplicate grouping ──
+        // Build groups of files where each file is at least 50% similar to at least one other in the group
+        const groups: DocFile[][] = [];
+        const used = new Set<number>();
+        for (let i = 0; i < files.length; i++) {
+            if (used.has(i)) continue;
+            const group = [files[i]];
+            used.add(i);
+            for (let j = 0; j < files.length; j++) {
+                if (i === j || used.has(j)) continue;
+                try {
+                    const sim = jaccard(files[i].content, files[j].content);
+                    if (sim >= 0.5) {
+                        group.push(files[j]);
+                        used.add(j);
+                    }
+                } catch {}
+            }
+            if (group.length > 1) groups.push(group);
+        }
 
-        findings.push({
-            id:             nextId(),
-            kind:           'duplicate',
-            severity:       isProjectSpecific ? 'info' : 'yellow',
-            title:          `Duplicate: ${fn} — ${files.length} copies`,
-            reason:         `Found in: ${projNames.join(', ')}`,
-            recommendation: isProjectSpecific
-                ? `${fn} is project-specific — keep all copies unless content is truly identical.`
-                : `Review each copy. Keep the most complete version and delete the rest, or merge into one.`,
-            action:         'merge',
-            paths:          files.map(f => f.filePath),
-            projects:       projNames,
-            priority:       isProjectSpecific ? 20 : 60,
-            meta:           { copies: files.length },
-        });
+        for (const group of groups) {
+            const isProjectSpecific = /^CLAUDE\.md$|^CURRENT-STATUS\.md$/i.test(fn);
+            const projNames = group.map(f => f.projectName);
+            findings.push({
+                id:             nextId(),
+                kind:           'duplicate',
+                severity:       isProjectSpecific ? 'info' : 'yellow',
+                title:          `Duplicate: ${fn} — ${group.length} copies (≥50% similar)`,
+                reason:         `Found in: ${projNames.join(', ')}`,
+                recommendation: isProjectSpecific
+                    ? `${fn} is project-specific — keep all copies unless content is truly identical.`
+                    : `Review each copy. Keep the most complete version and delete the rest, or merge into one.`,
+                action:         'merge',
+                paths:          group.map(f => f.filePath),
+                projects:       projNames,
+                priority:       isProjectSpecific ? 20 : 60,
+                meta:           { copies: group.length },
+            });
+        }
     }
 
     // ── 2. Similar content ────────────────────────────────────────────────────

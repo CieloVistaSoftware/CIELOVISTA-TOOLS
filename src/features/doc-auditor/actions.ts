@@ -44,12 +44,12 @@ export async function mergeFiles(filePaths: string[]): Promise<void> {
         const del = await vscode.window.showWarningMessage(`Delete the ${filePaths.length} source files now?`, { modal: true }, 'Delete Sources', 'Keep Sources');
         if (del === 'Delete Sources') {
             for (const fp of filePaths) {
-                try { fs.unlinkSync(fp); } catch (err) { logError(FEATURE, `Failed to delete ${fp}`, err); }
+                try { fs.unlinkSync(fp); } catch (err) { logError(`Failed to delete ${fp}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
             }
             vscode.window.showInformationMessage('Source files deleted.');
         }
     } catch (err) {
-        logError(FEATURE, 'Merge failed', err);
+        logError('Merge failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Merge failed: ${err}`);
     }
 }
@@ -73,7 +73,7 @@ export async function moveToGlobal(filePath: string): Promise<void> {
         const open = await vscode.window.showInformationMessage('Open the moved file?', 'Open', 'No');
         if (open === 'Open') { const doc = await vscode.workspace.openTextDocument(destPath); await vscode.window.showTextDocument(doc); }
     } catch (err) {
-        logError(FEATURE, 'Move to global failed', err);
+        logError('Move to global failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Move failed: ${err}`);
     }
 }
@@ -87,7 +87,7 @@ export async function deleteDoc(filePath: string): Promise<void> {
         log(FEATURE, `Deleted: ${filePath}`);
         vscode.window.showInformationMessage(`Deleted: ${fileName}`);
     } catch (err) {
-        logError(FEATURE, 'Delete failed', err);
+        logError('Delete failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Delete failed: ${err}`);
     }
 }

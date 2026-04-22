@@ -1,6 +1,6 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-
+// FILE REMOVED BY REQUEST
 /**
  * doc-header-scan.ts
  *
@@ -47,7 +47,7 @@ function loadRegistry(): ProjectRegistry | undefined {
         }
         return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
     } catch (err) {
-        logError(FEATURE, 'Failed to load registry', err);
+        logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return undefined;
     }
 }
@@ -103,29 +103,18 @@ function scanDirectory(rootPath: string, projectName: string, projectRoot: strin
 function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-function buildReportHtml(reports: DocHeaderReport[], registry: ProjectRegistry): string {
-    // ...existing code for HTML omitted for brevity...
-    return `<html><body><h1>Doc Header Scan (split demo)</h1><pre>${JSON.stringify(reports, null, 2)}</pre></body></html>`;
-}
-let _panel: vscode.WebviewPanel | undefined;
-let _allReports: DocHeaderReport[] = [];
-let _registry: ProjectRegistry | undefined;
 export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.headers.scan', runScan)
     );
 }
-export function deactivate(): void {
-    _panel?.dispose();
-    _panel = undefined;
-    _allReports = [];
-    _registry = undefined;
-}
+export function deactivate(): void {}
+
 async function runScan(): Promise<void> {
     const registry = loadRegistry();
     if (!registry) { return; }
-    _registry = registry;
+
     const reports: DocHeaderReport[] = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'Scanning doc headers…', cancellable: false },
         async (progress) => {
@@ -140,17 +129,51 @@ async function runScan(): Promise<void> {
             return all;
         }
     ) as DocHeaderReport[];
-    _allReports = reports;
-    const html = buildReportHtml(reports, registry);
-    if (_panel) {
-        _panel.webview.html = html;
-        _panel.reveal();
+
+    // Log a concise summary to the output channel.
+    // The streaming result panel captures this — no separate webview panel needed.
+    const total     = reports.length;
+    const compliant = reports.filter(r => r.missingFields.length === 0).length;
+    const issues    = reports.filter(r => r.missingFields.length > 0);
+    const noFm      = issues.filter(r => !r.hasFrontmatter).length;
+    const partial   = issues.filter(r =>  r.hasFrontmatter).length;
+
+    log(FEATURE, `=== Doc Header Scan Results ===`);
+    log(FEATURE, `Scanned ${total} markdown files across ${registry.projects.length + 1} projects`);
+    log(FEATURE, `  ✅ Compliant:        ${compliant}`);
+    log(FEATURE, `  ⚠️  Partial (has FM):  ${partial}`);
+    log(FEATURE, `  ❌ No frontmatter:   ${noFm}`);
+    log(FEATURE, `  🚨 Total issues:      ${issues.length}`);
+
+    if (issues.length > 0) {
+        log(FEATURE, '');
+        log(FEATURE, '--- Files needing attention ---');
+        // Group by project
+        const byProject = new Map<string, DocHeaderReport[]>();
+        for (const r of issues) {
+            if (!byProject.has(r.projectName)) { byProject.set(r.projectName, []); }
+            byProject.get(r.projectName)!.push(r);
+        }
+        for (const [proj, projIssues] of byProject) {
+            log(FEATURE, `\n[${proj}] — ${projIssues.length} file(s)`);
+            for (const r of projIssues.slice(0, 15)) {
+                const status = r.hasFrontmatter ? '⚠️ partial' : '❌ no FM';
+                const missing = r.missingFields.slice(0, 5).join(', ');
+                const more = r.missingFields.length > 5 ? ` +${r.missingFields.length - 5} more` : '';
+                log(FEATURE, `  ${status}  ${r.relativePath}`);
+                log(FEATURE, `    Missing: ${missing}${more}`);
+            }
+            if (projIssues.length > 15) {
+                log(FEATURE, `  ... and ${projIssues.length - 15} more files`);
+            }
+        }
+        log(FEATURE, '');
+        log(FEATURE, `--- Fix command ---`);
+        log(FEATURE, `Run: Headers: Add/Fix All Headers   (cvs.headers.fixAll)`);
+        log(FEATURE, `Or:  Headers: Fix Headers in One Project (cvs.headers.fixOne)`);
     } else {
-        _panel = vscode.window.createWebviewPanel(
-            'docHeaders', '📝 Doc Headers', vscode.ViewColumn.One,
-            { enableScripts: true, retainContextWhenHidden: true }
-        );
-        _panel.webview.html = html;
-        _panel.onDidDispose(() => { _panel = undefined; });
+        log(FEATURE, '');
+        log(FEATURE, '🎉 All files have complete frontmatter — nothing to fix.');
     }
+    log(FEATURE, `=== End of Scan ===`);
 }
