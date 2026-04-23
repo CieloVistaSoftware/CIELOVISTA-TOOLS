@@ -45,6 +45,13 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
         return result;
     }
 
+    // Skip non-NPM non-extension projects entirely.
+    const pkgPath = path.join(project.path, 'package.json');
+    const isExtension = project.type === 'vscode-extension';
+    if (!fs.existsSync(pkgPath) && !isExtension) {
+        return result;
+    }
+
     // tests/ folder — check existence AND whether it has real tests
     const testsDir = path.join(project.path, 'tests');
     result.hasTests = fs.existsSync(testsDir);
@@ -75,11 +82,11 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
         }
     }
 
-    // package.json — if missing assume dotnet-only, skip playwright checks
-    const pkgPath = path.join(project.path, 'package.json');
+    // package.json — if missing, keep only the tests/ signal for extension projects
     if (!fs.existsSync(pkgPath)) {
         result.hasNpm = false;
-        return result;  // dotnet-only: only tests/ folder check applies
+        result.issues.push('Missing package.json');
+        return result;
     }
     result.hasNpm = true;
 

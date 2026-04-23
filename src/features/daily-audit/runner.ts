@@ -25,7 +25,13 @@ import { AUDIT_REPORT_PATH } from '../../shared/audit-schema';
 
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
 
-interface ProjectEntry { name: string; path: string; type: string; description: string; }
+interface ProjectEntry {
+    name: string;
+    path: string;
+    type: string;
+    description: string;
+    status?: 'product' | 'workbench' | 'generated' | 'archived';
+}
 interface ProjectRegistry { globalDocsPath: string; projects: ProjectEntry[]; }
 
 function loadRegistry(): ProjectRegistry {
@@ -68,15 +74,16 @@ export async function runDailyAudit(): Promise<RunAuditResult> {
     }
 
     const projects = registry.projects;
+    const strictProjects = projects.filter(p => (p.status ?? 'product') === 'product' || (p.status ?? 'product') === 'workbench');
 
     // Run all checks — each is independent, failures don't block others
     const checks: AuditCheck[] = await Promise.all([
         safeRun(() => runRegistryHealthCheck(projects)),
-        safeRun(() => runMarketplaceCheck(projects)),
-        safeRun(() => runReadmeQualityCheck(projects)),
-        safeRun(() => runClaudeCoverageCheck(projects)),
-        safeRun(() => runChangelogCheck(projects)),
-        safeRun(() => runTestCoverageCheck(projects)),
+        safeRun(() => runMarketplaceCheck(strictProjects)),
+        safeRun(() => runReadmeQualityCheck(strictProjects)),
+        safeRun(() => runClaudeCoverageCheck(strictProjects)),
+        safeRun(() => runChangelogCheck(strictProjects)),
+        safeRun(() => runTestCoverageCheck(strictProjects)),
     ]);
 
     const summary = {
