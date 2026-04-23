@@ -5,3 +5,6 @@ data/
 *.vsix
 playwright-report/
 Downloads/
+
+# Runtime error logs — never committed; regenerated on every run
+.vscode/logs/
