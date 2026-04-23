@@ -1,0 +1,68 @@
+name: 🐛 Bug report
+description: Something is broken or behaving incorrectly
+title: "[BUG] "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What happened? What did you see?
+      placeholder: The MCP Viewer list_symbols tab throws a SyntaxError in the browser console and renders nothing below the tab bar.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+      placeholder: The tab should render a table of indexed symbols grouped by project.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Step-by-step. "Works on my machine" is the wrong answer — assume future-you forgot everything.
+      placeholder: |
+        1. Open VS Code Insiders with cielovista-tools installed
+        2. Run `cvs.mcp.viewer.open` from the command palette
+        3. Click the list_symbols tab in the browser
+        4. Open DevTools → Console
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - minor — cosmetic or nice-to-have
+        - major — real impact on usability
+        - critical — blocks work or breaks builds
+      default: 1
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: What was running when this happened?
+      placeholder: |
+        - VS Code Insiders 1.91.x
+        - cielovista-tools VSIX version from 2026-04-20
+        - Windows 11
+        - Node 24.13.1
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Stack trace, screenshots, related FIX-NNN IDs, anything else useful
+    validations:
+      required: false

@@ -1,0 +1,56 @@
+name: 📄 Docs work
+description: Documentation is missing, wrong, or drifting from the system it describes
+title: "[DOCS] "
+labels: ["type:docs"]
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Which doc(s)?
+      description: File paths or URLs. If the doc doesn't exist yet, say so.
+      placeholder: C:\Users\jwpmi\Downloads\CieloVistaStandards\improved_dev_guidelines.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: whats_wrong
+    attributes:
+      label: What's drifting?
+      description: Missing content, broken links, outdated screenshots, wrong code examples, missing diagram at a cited Dewey number — be specific.
+      placeholder: |
+        - 47 internal relative links in the doc
+        - ~15 are expected to be dead (folder reorganizations)
+        - Several code examples reference functions that were renamed
+        - Footer still lists 2024 contributors
+    validations:
+      required: true
+
+  - type: textarea
+    id: target_state
+    attributes:
+      label: What should it say / show?
+      description: The endpoint, not the process of getting there.
+      placeholder: |
+        - All internal links resolve
+        - External links spot-checked and marked dead where appropriate
+        - Code examples match current function signatures
+        - Contributors list current
+    validations:
+      required: true
+
+  - type: input
+    id: owner_repo
+    attributes:
+      label: Which repo owns the doc?
+      description: Some docs live in CieloVistaStandards, some in the project's own repo, some in both.
+      placeholder: CieloVistaStandards (global docs)
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Related Dewey subject IDs, screenshots, links to the authoritative source if one exists elsewhere.
+    validations:
+      required: false

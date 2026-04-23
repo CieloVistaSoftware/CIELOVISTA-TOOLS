@@ -1,0 +1,57 @@
+name: ✨ Feature request
+description: A new capability or enhancement
+title: "[FEATURE] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation — what problem does this solve?
+      description: Lead with the user pain, not the proposed solution.
+      placeholder: When CVT detects an error in the Error Log Viewer, there's no way to turn it into a trackable GitHub issue without copy-pasting the stack trace manually. Friction kills the practice.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: High-level shape. Don't get lost in implementation details here — those go in the scope section below.
+      placeholder: Add a "File as Issue" button to every row in the Error Log Viewer. Opens a pre-filled issue creation dialog with title, stack trace, labels, scoped to the correct repo by file path.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will we know this is done? List concrete, testable conditions.
+      placeholder: |
+        - [ ] Button appears on every Error Log Viewer row
+        - [ ] Click opens a modal with pre-filled title, body, labels
+        - [ ] Body includes stack trace, timestamp, file:line
+        - [ ] Repo is selected automatically from file path via symbol index
+        - [ ] Submit creates a real GitHub issue, returns URL
+        - [ ] Failure surfaces a visible error, not a silent no-op
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: What's NOT in this pass
+      description: Being explicit about scope boundaries prevents scope creep and future arguments.
+      placeholder: |
+        - Deduplication by stack-trace hash (Phase 2, separate issue)
+        - Auto-filing for critical patterns without user click (Phase 3, separate issue)
+        - Integration with non-GitHub issue trackers
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Design notes, related issues, references
+      description: Links to CURRENT-STATUS.md entries, prior art, related FIX-NNN IDs.
+    validations:
+      required: false

@@ -1,0 +1,64 @@
+name: 🔴 Regression
+description: Something that used to work is now broken, or a regression test is failing
+title: "[REG-???] "
+labels: ["type:regression"]
+body:
+  - type: input
+    id: reg_id
+    attributes:
+      label: REG-NNN identifier
+      description: If this comes from the regression suite, use its existing ID (REG-002, REG-010, etc). Otherwise leave blank and we'll assign one.
+      placeholder: REG-002
+    validations:
+      required: false
+
+  - type: textarea
+    id: failing_test
+    attributes:
+      label: Failing test or check
+      description: Which test, which script, and what's the output?
+      placeholder: |
+        Script: `node scripts/run-regression-tests.js`
+        Failing test: test-logerror-interface.js
+        Output: 91 call sites fail the required `(message, stacktrace, context)` signature
+    validations:
+      required: true
+
+  - type: textarea
+    id: last_known_good
+    attributes:
+      label: Last known good state
+      description: Commit SHA, date, or VSIX version where this last worked. "Never worked" is a valid answer.
+      placeholder: Never worked — introduced when logError interface was standardized, violations were not swept.
+    validations:
+      required: false
+
+  - type: textarea
+    id: root_cause
+    attributes:
+      label: Root cause (if known)
+      description: If you've investigated, describe the cause. If not, leave blank.
+      placeholder: Three divergent logError implementations — error-log-utils.ts line 91, output-channel.ts line 53, error-log.ts line 143 — have incompatible signatures. Call sites don't match any one of them consistently.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - minor — regression suite fails but feature works at runtime
+        - major — regression suite fails and feature is degraded
+        - critical — regression suite fails and blocks `npm run rebuild`
+      default: 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope of fix
+      description: Rough estimate of what fixing this touches
+      placeholder: 91 call sites across src/features/. Need a dedicated sweep session.
+    validations:
+      required: false
