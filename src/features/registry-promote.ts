@@ -260,8 +260,7 @@ async function promoteCommand(explicitUri?: vscode.Uri): Promise<void> {
             await vscode.commands.executeCommand('revealFileInOS', folderUri);
         }
     } catch (err) {
-        const stack = err instanceof Error ? err.stack || String(err) : String(err);
-        logError('promoteCommand failed', stack, FEATURE);
+        logError('promoteCommand failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         vscode.window.showErrorMessage(`Promote failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 }
