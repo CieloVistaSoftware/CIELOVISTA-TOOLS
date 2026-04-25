@@ -13,8 +13,8 @@
 
 import * as vscode from 'vscode';
 import * as path   from 'path';
-import { getErrors, clearErrors, getLogPath } from '../shared/error-log';
-import type { ErrorEntry } from '../shared/error-log';
+import { getErrors, clearErrors, getLogPath, ensureLogFile } from '../shared/error-log-adapter';
+import type { ErrorEntry } from '../shared/error-log-adapter';
 import { log } from '../shared/output-channel';
 
 const FEATURE = 'error-log-viewer';
@@ -140,6 +140,10 @@ export async function openErrorLogViewer(): Promise<void> {
             void vscode.window.showInformationMessage('Tools Error Log cleared.');
         }
         if (msg.command === 'open-file') {
+            // Make sure the file exists before opening - otherwise the user gets
+            // a confusing "file not found" error on a fresh install where no
+            // errors have been logged yet.
+            ensureLogFile();
             const logPath = getLogPath();
             const doc = await vscode.workspace.openTextDocument(logPath);
             await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
