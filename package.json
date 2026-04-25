@@ -97,7 +97,7 @@
     "commands": [
       {
         "command": "cvs.tools.home",
-        "title": "CieloVista Tools: Open Home Page",
+        "title": "Open Home Dashboard",
         "category": "CieloVista",
         "description": "Open the main CieloVista Tools home webview with all features and documentation."
       },
@@ -115,7 +115,7 @@
       },
       {
         "command": "cvs.project.openHome",
-        "title": "Project: Open Home",
+        "title": "Open Home Project Folder",
         "category": "CieloVista",
         "description": "Open your configured CieloVista home project root in VS Code."
       },
@@ -293,6 +293,12 @@
         "category": "CieloVista Docs",
         "description": "Add a new project entry to the documentation registry."
       },
+        {
+          "command": "cvs.docs.scanBrokenRefs",
+          "title": "Docs: Scan Broken References",
+          "category": "CieloVista Docs",
+          "description": "Detect missing images and dead markdown links with candidate target paths."
+        },
       {
         "command": "cvs.audit.docs",
         "title": "Audit: Run Full Docs Audit",
