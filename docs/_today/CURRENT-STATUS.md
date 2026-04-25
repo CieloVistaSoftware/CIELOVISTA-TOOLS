@@ -2,6 +2,16 @@
 
 ---
 
+## Session notes — 2026-04-25
+
+- Verified live after junction install: ✅ MCP Viewer status column + pills, ✅ Symbol Index (`list_symbols` / `list_cvt_commands`), ✅ Send Path tooltip + click on Recent Projects. Still unverified: ⏳ Promote Folder to Product (right-click), ⏳ Daily Audit 0 red.
+- Shipped commit `0e78795` (`Add github-issues-view`): the missing source file behind the 1.0.2 disaster. TODO List / Open Issues now actually works. Anonymous fetch from `api.github.com/repos/CieloVistaSoftware/cielovista-tools/issues`, click-through to GitHub. Includes `tests/github-issues-view.test.js` (7 assertions, hits the real API).
+- Shipped commit `340dd63` (`Add import-resolution gate to rebuild`): `scripts/verify-imports.js` walks `out/*.js`, parses every `require("...")`, refuses to package a VSIX if any relative import is unresolved. Verified by reproducing the exact 1.0.2 failure mode (rename `github-issues-view.js`, gate catches it). The same `rebuild.ps1` was rewritten to fail-fast on tsc errors, refuse to install while Insiders is running, auto-bump patch, strip stale `.obsolete` entries, and post-install verify.
+- Switched the Insiders install from VSIX to a directory junction at `~\.vscode-insiders\extensions\cielovistasoftware.cielovista-tools` → `Downloads\VSCode\projects\cielovista-tools`. Edit `.ts`, `tsc`, reload window. No more install/uninstall cycles.
+- Added `+ CVT` / `− CVT` toggle + `in CVT` badge on Recent Projects panel (Edit mode). Source-tracked but not committed yet — `src/shared/cvt-registry.ts` and home-page edits.
+
+---
+
 ## ✅ DONE — 2026-04-22 (GitHub Projects + Issue Automation setup)
 
 **All 24 issues live on the cielovista-tools Project board at https://github.com/users/CieloVistaSoftware/projects/4**
