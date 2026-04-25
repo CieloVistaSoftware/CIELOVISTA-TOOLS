@@ -1,0 +1,73 @@
+name: Auto Triage Issue Form
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Apply scope and project labels from issue form
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || "";
+
+            const parseField = (fieldName) => {
+              const escaped = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const re = new RegExp(`###\\s+${escaped}\\s*\\n+([\\s\\S]*?)(?=\\n###\\s+|$)`, "i");
+              const m = body.match(re);
+              if (!m) return "";
+              return m[1].trim();
+            };
+
+            const pickValue = (raw) => {
+              if (!raw) return "";
+              const line = raw
+                .split("\n")
+                .map(s => s.trim())
+                .find(Boolean) || "";
+              return line.replace(/^-\\s*/, "").trim();
+            };
+
+            const scopeRaw = parseField("Scope Type");
+            const projectRaw = parseField("Project/Folder") || parseField("Primary Project/Folder");
+            const scope = pickValue(scopeRaw);
+            const project = pickValue(projectRaw);
+
+            const labelsToAdd = [];
+
+            if (scope.includes("Tooling issue")) labelsToAdd.push("scope:tooling");
+            if (scope.includes("Project issue")) labelsToAdd.push("scope:project");
+            if (scope.includes("Cross-project issue")) labelsToAdd.push("scope:cross-project");
+
+            const projectLabelMap = {
+              "jesus-family-tree": "project:jesus-family-tree",
+              "cielovista-website-generator": "project:cielovista-website-generator",
+              "wb-core": "project:wb-core",
+              "wb-theme-extension": "project:wb-theme-extension",
+              "vscode-claude": "project:vscode-claude",
+              "VSCodePlugins": "project:VSCodePlugins"
+            };
+
+            if (projectLabelMap[project]) {
+              labelsToAdd.push(projectLabelMap[project]);
+            }
+
+            if (context.payload.action === "opened") {
+              labelsToAdd.push("status:triage");
+            }
+
+            const unique = [...new Set(labelsToAdd)];
+            if (!unique.length) return;
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: unique
+            });

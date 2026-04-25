@@ -1,0 +1,78 @@
+name: Cross-Project Issue
+description: Report a shared problem affecting multiple projects
+title: "[Cross-Project] "
+labels:
+  - status:triage
+body:
+  - type: dropdown
+    id: project_folder
+    attributes:
+      label: Primary Project/Folder
+      description: Where this was first observed
+      options:
+        - jesus-family-tree
+        - cielovista-website-generator
+        - wb-core
+        - wb-theme-extension
+        - vscode-claude
+        - VSCodePlugins
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: folder_path
+    attributes:
+      label: Primary Folder Path
+      placeholder: C:/dev/jesus-family-tree
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope_type
+    attributes:
+      label: Scope Type
+      options:
+        - Tooling issue (belongs in central tools repo)
+        - Project issue (belongs in app repo)
+        - Cross-project issue
+      default: 2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected_projects
+    attributes:
+      label: Affected Projects
+      multiple: true
+      options:
+        - jesus-family-tree
+        - cielovista-website-generator
+        - wb-core
+        - wb-theme-extension
+        - vscode-claude
+        - VSCodePlugins
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Summary
+    validations:
+      required: true
+
+  - type: textarea
+    id: shared_repro
+    attributes:
+      label: Shared Reproduction Pattern
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Known Workaround
+    validations:
+      required: false

@@ -1,0 +1,98 @@
+name: Tooling Issue
+description: Report a CVT/platform behavior problem that should be fixed in the central tools repo
+title: "[Tooling] "
+labels:
+  - status:triage
+body:
+  - type: dropdown
+    id: project_folder
+    attributes:
+      label: Project/Folder
+      description: Project where this was observed
+      options:
+        - jesus-family-tree
+        - cielovista-website-generator
+        - wb-core
+        - wb-theme-extension
+        - vscode-claude
+        - VSCodePlugins
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: folder_path
+    attributes:
+      label: Folder Path
+      description: Full local project path
+      placeholder: C:/dev/jesus-family-tree
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope_type
+    attributes:
+      label: Scope Type
+      description: Where the fix belongs
+      options:
+        - Tooling issue (belongs in central tools repo)
+        - Project issue (belongs in app repo)
+        - Cross-project issue
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - terminal
+        - browser-launch
+        - cwd-routing
+        - ports
+        - logging
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro_steps
+    attributes:
+      label: Reproduction Steps
+      placeholder: |
+        1. Open project...
+        2. Click Start...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Output
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Verification
+      options:
+        - label: I confirmed this appears to be tooling behavior, not app business logic
+          required: true

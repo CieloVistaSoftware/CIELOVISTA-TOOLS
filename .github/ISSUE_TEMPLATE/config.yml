@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 📝 Parking lot entry
-    url: https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/blob/main/docs/_today/CURRENT-STATUS.md
-    about: For in-session working notes that don't outlive the session. File an issue only when work outlives the current session.
+  - name: Security Report
+    url: https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/security/advisories/new
+    about: Report security vulnerabilities privately
