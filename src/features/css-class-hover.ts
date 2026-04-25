@@ -119,18 +119,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.cssClassHover.enable', () => {
-            const start = Date.now();
-            const duration = Date.now() - start;
-            // Use showResultWebview to display feedback
-            // Import at top: import { showResultWebview } from '../shared/show-result-webview';
-            // (If not present, add the import)
-            // Show a webview result
-            require('../shared/show-result-webview').showResultWebview(
-                'CSS Class Hover',
-                'Enable CSS Class Hover',
-                duration,
-                'CSS Class Hover is now <b>active</b>.'
-            );
+            // The hover provider was registered above on activation, so this command
+            // is a no-op confirmation. It previously called showResultWebview here
+            // to display 'CSS Class Hover is now active' — but that opened a
+            // SECOND tab on top of the Guided Launcher's own result panel,
+            // producing two tabs from one Run click (issue #32). Fix: do nothing
+            // visible here. The launcher's result panel already shows success.
+            log(FEATURE, 'Enable command invoked (hover provider was registered at activate time)');
         })
     );
 }
