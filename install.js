@@ -12,6 +12,8 @@ const pkg  = require('./package.json');
 const vsix = `${pkg.name}-${pkg.version}.vsix`;
 const extId = `${pkg.publisher.toLowerCase()}.${pkg.name}`;
 const installedRoot = path.join(os.homedir(), '.vscode-insiders', 'extensions', `${extId}-${pkg.version}`);
+const extensionsRoot = path.join(os.homedir(), '.vscode-insiders', 'extensions');
+const extensionsRegistryPath = path.join(os.homedir(), '.vscode-insiders', 'extensions', 'extensions.json');
 
 function sleep(ms) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -22,10 +24,67 @@ function isLockError(err) {
     return code === 'EBUSY' || code === 'EPERM' || code === 'EACCES' || code === 'ENOTEMPTY';
 }
 
+function backupFile(filePath) {
+    try {
+        if (!fs.existsSync(filePath)) { return null; }
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = `${filePath}.bak-${stamp}`;
+        fs.copyFileSync(filePath, backupPath);
+        return backupPath;
+    } catch {
+        return null;
+    }
+}
+
+function isValidRegistryEntry(entry) {
+    return !!entry &&
+        typeof entry === 'object' &&
+        !!entry.identifier &&
+        typeof entry.identifier === 'object' &&
+        typeof entry.identifier.id === 'string' &&
+        entry.identifier.id.length > 0;
+}
+
+function repairExtensionsRegistry() {
+    try {
+        if (!fs.existsSync(extensionsRegistryPath)) {
+            return;
+        }
+
+        const raw = fs.readFileSync(extensionsRegistryPath, 'utf8').replace(/^\uFEFF/, '');
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            const backupPath = backupFile(extensionsRegistryPath);
+            fs.writeFileSync(extensionsRegistryPath, '[]\n', 'utf8');
+            console.warn(`Repaired invalid extensions registry JSON at ${extensionsRegistryPath}${backupPath ? ` (backup: ${backupPath})` : ''}`);
+            return;
+        }
+
+        const beforeIsArray = Array.isArray(parsed);
+        const entries = (beforeIsArray ? parsed : [parsed]).filter(isValidRegistryEntry);
+        const changed = !beforeIsArray || entries.length !== (beforeIsArray ? parsed.length : 1);
+
+        if (!changed) {
+            return;
+        }
+
+        const backupPath = backupFile(extensionsRegistryPath);
+        fs.writeFileSync(extensionsRegistryPath, `${JSON.stringify(entries, null, 2)}\n`, 'utf8');
+        console.warn(`Normalized extensions registry at ${extensionsRegistryPath}${backupPath ? ` (backup: ${backupPath})` : ''}`);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`Could not validate extensions registry: ${message}`);
+    }
+}
+
 if (!fs.existsSync(vsix)) {
     console.error(`VSIX not found: ${vsix}`);
     process.exit(1);
 }
+
+repairExtensionsRegistry();
 
 function findCodeInsiders() {
     // 1. Use where.exe to find whatever is on PATH first
@@ -123,14 +182,58 @@ function verifyInstalledFiles() {
     return true;
 }
 
+function removeInstalledRootWithRetry() {
+    for (let i = 0; i < 4; i++) {
+        try {
+            fs.rmSync(installedRoot, { recursive: true, force: true });
+            return true;
+        } catch (err) {
+            if (!isLockError(err) || i === 3) {
+                return false;
+            }
+            sleep(250);
+        }
+    }
+    return false;
+}
+
+function cleanupStaleCliTempDirs() {
+    if (!fs.existsSync(extensionsRoot)) { return; }
+    const tempDirPattern = /^\.[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    for (const entry of fs.readdirSync(extensionsRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !tempDirPattern.test(entry.name)) {
+            continue;
+        }
+        const full = path.join(extensionsRoot, entry.name);
+        try {
+            fs.rmSync(full, { recursive: true, force: true });
+        } catch (err) {
+            if (!isLockError(err)) {
+                console.warn(`Could not remove stale temp extension folder: ${full}`);
+            }
+        }
+    }
+}
+
 let installed = false;
 for (const code of candidates) {
     try {
         // Try uninstall first to avoid stale/half-extracted extension folders.
         runCli(code, ['--uninstall-extension', extId]);
+        removeInstalledRootWithRetry();
+        cleanupStaleCliTempDirs();
 
-        const ok = runCli(code, ['--install-extension', path.resolve(vsix), '--force']);
-        if (!ok) {
+        let ok = runCli(code, ['--install-extension', path.resolve(vsix), '--force']);
+        if (!ok && !verifyInstalledFiles()) {
+            // One remediation attempt for transient EPERM rename races in the extension folder.
+            runCli(code, ['--uninstall-extension', extId]);
+            removeInstalledRootWithRetry();
+            cleanupStaleCliTempDirs();
+            sleep(300);
+            ok = runCli(code, ['--install-extension', path.resolve(vsix), '--force']);
+        }
+
+        if (!ok && !verifyInstalledFiles()) {
             continue;
         }
 
