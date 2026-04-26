@@ -1,3 +1,0 @@
-2026-04-02 21:39:27.038 [error] Error: Code - Insiders is currently being updated. Please wait for the update to complete before launching.
-    at file:///C:/Users/jwpmi/Downloads/VSCode/projects/cielovista-tools/.vscode-test/vscode-win32-x64-archive-insiders/69eb462356/resources/app/out/main.js:622:48665
-    at async ZI.startup (file:///C:/Users/jwpmi/Downloads/VSCode/projects/cielovista-tools/.vscode-test/vscode-win32-x64-archive-insiders/69eb462356/resources/app/out/main.js:622:48069)
