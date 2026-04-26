@@ -15,6 +15,7 @@ import * as vscode from 'vscode';
 import * as path   from 'path';
 import { getErrors, clearErrors, getLogPath, ensureLogFile } from '../shared/error-log-adapter';
 import type { ErrorEntry } from '../shared/error-log-adapter';
+import { fileErrorAsIssue } from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
 
 const FEATURE = 'error-log-viewer';
@@ -57,6 +58,7 @@ function buildHtml(errors: ErrorEntry[]): string {
     ${e.context  ? `<span class="entry-ctx">in ${esc(e.context)}</span>` : ''}
     ${e.command  ? `<span class="entry-cmd">cmd: ${esc(e.command)}</span>` : ''}
     <span class="entry-time">${esc(time)}</span>
+    <button class="btn-file-issue" data-action="file-as-issue" data-id="${e.id}" title="Open a GitHub issue on cielovista-tools with this error pre-filled">⚡ File as Issue</button>
   </div>
   <div class="entry-msg">${esc(e.message)}</div>
   ${e.filename ? `<div class="entry-loc">${esc(e.filename)}:${e.lineno}:${e.colno}</div>` : ''}
@@ -85,6 +87,9 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .entry-ctx{font-size:10px;color:var(--vscode-descriptionForeground);font-style:italic}
 .entry-cmd{font-size:10px;color:#58a6ff;font-family:var(--vscode-editor-font-family)}
 .entry-time{font-size:10px;color:var(--vscode-descriptionForeground);margin-left:auto}
+.btn-file-issue{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid transparent;border-radius:3px;padding:2px 9px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;white-space:nowrap}
+.btn-file-issue:hover{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-focusBorder)}
+.btn-file-issue:disabled{opacity:.5;cursor:wait}
 .entry-msg{font-size:12px;line-height:1.5;color:var(--vscode-editor-foreground);word-break:break-word}
 .entry-loc{font-size:10px;color:#58a6ff;font-family:var(--vscode-editor-font-family);margin-top:4px}
 .entry-stack{font-family:var(--vscode-editor-font-family);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:6px;background:var(--vscode-editor-background);padding:6px 8px;border-radius:3px;max-height:100px;overflow-y:auto;white-space:pre}
@@ -108,7 +113,26 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   document.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-action]');
     if (!btn) { return; }
-    vscode.postMessage({ command: btn.dataset.action });
+    var action = btn.dataset.action;
+    if (action === 'file-as-issue') {
+      btn.disabled = true;
+      btn.textContent = '⏳ Filing…';
+      vscode.postMessage({ command: action, id: btn.dataset.id });
+      return;
+    }
+    vscode.postMessage({ command: action });
+  });
+  // Re-enable a button when the extension reports back (success or fail)
+  window.addEventListener('message', function(ev) {
+    var m = ev.data || {};
+    if (m.type === 'file-as-issue-result') {
+      var btn = document.querySelector('.btn-file-issue[data-id="' + m.id + '"]');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = m.ok ? '✅ Filed #' + m.number : '⚡ File as Issue';
+        if (m.ok) { btn.title = 'Filed as issue #' + m.number + ' — ' + m.url; }
+      }
+    }
   });
 })();
 </script>
@@ -147,6 +171,40 @@ export async function openErrorLogViewer(): Promise<void> {
             const logPath = getLogPath();
             const doc = await vscode.workspace.openTextDocument(logPath);
             await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+        }
+        if (msg.command === 'file-as-issue' && msg.id !== undefined) {
+            // Phase 1 of issue #23: file the selected error as a GitHub
+            // issue on cielovista-tools. Routing-by-symbol-index is Phase 2.
+            const all   = getErrors();
+            // The viewer keeps id as a number for legacy entries and a hex
+            // string-derived number for utils entries. Match loosely.
+            const entry = all.find(e => String(e.id) === String(msg.id));
+            if (!entry) {
+                log(FEATURE, `file-as-issue: no entry found for id=${msg.id}`);
+                _panel!.webview.postMessage({ type: 'file-as-issue-result', id: msg.id, ok: false });
+                void vscode.window.showErrorMessage(`Couldn't find that error entry — try reloading the viewer.`);
+                return;
+            }
+            log(FEATURE, `file-as-issue: posting issue for entry #${entry.id}`);
+            const result = await fileErrorAsIssue(entry);
+            _panel!.webview.postMessage({
+                type:   'file-as-issue-result',
+                id:     msg.id,
+                ok:     result.ok,
+                url:    result.issueUrl,
+                number: result.issueNumber,
+            });
+            if (result.ok && result.issueUrl) {
+                const action = await vscode.window.showInformationMessage(
+                    `Filed as issue #${result.issueNumber}.`,
+                    'Open in browser'
+                );
+                if (action === 'Open in browser') {
+                    void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
+                }
+            } else {
+                void vscode.window.showErrorMessage(`Couldn't file as issue: ${result.error ?? 'unknown error'}`);
+            }
         }
     });
 
