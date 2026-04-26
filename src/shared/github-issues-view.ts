@@ -178,17 +178,28 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .loading{padding:24px;text-align:center;color:var(--vscode-descriptionForeground)}
 .error{padding:14px 16px;border:1px solid #f85149;border-radius:6px;background:rgba(248,81,73,.08);color:#f85149;margin-bottom:14px;line-height:1.5}
 .empty{padding:32px;text-align:center;color:var(--vscode-descriptionForeground);font-size:14px}
-.summary{display:flex;gap:14px;margin-bottom:12px;padding:8px 12px;background:var(--vscode-textCodeBlock-background);border-radius:4px;font-size:11px;color:var(--vscode-descriptionForeground);align-items:center}
-.issue{display:block;width:100%;text-align:left;border:1px solid var(--vscode-panel-border);border-radius:6px;padding:12px 14px;margin-bottom:8px;cursor:pointer;background:var(--vscode-textCodeBlock-background);transition:border-color .12s,background .12s;color:inherit;font-family:inherit;font-size:inherit}
-.issue:hover{border-color:var(--vscode-focusBorder);background:var(--vscode-list-hoverBackground)}
-.issue-top{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
-.issue-num{font-family:var(--vscode-editor-font-family,monospace);font-size:12px;color:var(--vscode-descriptionForeground);flex-shrink:0}
-.issue-title{font-weight:700;font-size:14px;flex:1;min-width:0;line-height:1.35}
-.issue-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--vscode-descriptionForeground)}
-.labels{display:inline-flex;gap:4px;flex-wrap:wrap}
-.label{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;line-height:1.45;border:1px solid rgba(0,0,0,.1)}
-.assignees{font-style:italic}
-.comments{display:inline-flex;align-items:center;gap:3px}
+.summary{display:flex;gap:14px;margin-bottom:10px;padding:8px 12px;background:var(--vscode-textCodeBlock-background);border-radius:4px;font-size:11px;color:var(--vscode-descriptionForeground);align-items:center;flex-wrap:wrap}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+#search{flex:1;min-width:240px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 10px;font-size:12px;font-family:inherit}
+#search:focus{outline:1px solid var(--vscode-focusBorder)}
+#clear{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
+#clear:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.table-wrap{border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:auto;background:var(--vscode-textCodeBlock-background);max-height:calc(100vh - 210px)}
+table{width:100%;border-collapse:collapse;min-width:1240px}
+thead th{position:sticky;top:0;background:var(--vscode-sideBar-background);z-index:2;border-bottom:1px solid var(--vscode-panel-border);text-align:left;padding:7px 8px;white-space:nowrap}
+th button{background:transparent;border:none;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:5px}
+th button:hover{text-decoration:underline}
+th .sort-ind{font-size:10px;color:var(--vscode-descriptionForeground)}
+tbody td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 8px;vertical-align:top;font-size:12px}
+tbody tr:hover{background:var(--vscode-list-hoverBackground)}
+.num{font-family:var(--vscode-editor-font-family,monospace)}
+.title-btn{background:none;border:none;padding:0;color:var(--vscode-textLink-foreground);cursor:pointer;font:inherit;text-align:left;line-height:1.3;font-weight:600}
+.title-btn:hover{text-decoration:underline}
+.muted{color:var(--vscode-descriptionForeground)}
+.tags{display:flex;gap:4px;flex-wrap:wrap}
+.label{padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;line-height:1.45;border:1px solid rgba(0,0,0,.1)}
+.priority{background:var(--vscode-dropdown-background, var(--vscode-input-background));color:var(--vscode-dropdown-foreground, var(--vscode-input-foreground));border:1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));border-radius:4px;padding:2px 4px;font-size:11px}
+.state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45)}
 `;
 
     let bodyHtml: string;
@@ -199,49 +210,208 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
     } else if (!issues || issues.length === 0) {
         bodyHtml = `<div class="empty">\u2728 No open issues.</div>`;
     } else {
-        const summary = `<div class="summary"><span><strong>${issues.length}</strong> open ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sorted by recently updated</span></div>`;
-        const cards = issues.map((iss) => {
+                const summary = `<div class="summary"><span><strong id="countShown">${issues.length}</strong> / <strong id="countTotal">${issues.length}</strong> open ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sticky field headers + sortable columns</span><span>\u2022</span><span>priority 1 = highest</span></div>`;
+                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><button id="clear" type="button">Clear</button></div>`;
+                const rows = issues.map((iss) => {
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
                 return `<span class="label" style="background:#${esc(bg)};color:${fg}">${esc(l.name)}</span>`;
             }).join('');
-            const assignees = iss.assignees.length > 0
-                ? `<span class="assignees">assigned ${esc(iss.assignees.map((a) => '@' + a.login).join(', '))}</span>`
-                : '';
-            const comments = iss.comments > 0
-                ? `<span class="comments">\u{1F4AC} ${iss.comments}</span>`
-                : '';
-            return `<button class="issue" data-url="${esc(iss.html_url)}" type="button" title="Open #${iss.number} on GitHub">
-  <div class="issue-top">
-    <span class="issue-num">#${iss.number}</span>
-    <span class="issue-title">${esc(iss.title)}</span>
-  </div>
-  <div class="issue-meta">
-    <span>opened ${esc(ago(iss.created_at))} by @${esc(iss.user.login)}</span>
-    <span>updated ${esc(ago(iss.updated_at))}</span>
-    ${comments}
-    ${assignees}
-    ${labels ? `<span class="labels">${labels}</span>` : ''}
-  </div>
-</button>`;
+                        const assigneesText = iss.assignees.map((a) => '@' + a.login).join(', ');
+                        const labelsText = iss.labels.map((l) => l.name).join(' ');
+                        const filterText = `${iss.number} ${iss.title} ${iss.body ?? ''} ${iss.user.login} ${labelsText} ${assigneesText}`.toLowerCase().replace(/\s+/g, ' ').trim();
+                        return `<tr class="issue-row"
+    data-number="${iss.number}"
+    data-title="${esc(iss.title.toLowerCase())}"
+    data-created="${new Date(iss.created_at).getTime()}"
+    data-updated="${new Date(iss.updated_at).getTime()}"
+    data-comments="${iss.comments}"
+    data-state="${esc(iss.state.toLowerCase())}"
+    data-author="${esc(iss.user.login.toLowerCase())}"
+    data-priority="3"
+    data-filter="${esc(filterText)}">
+    <td class="num">#${iss.number}</td>
+    <td>
+        <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
+    </td>
+    <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></td>
+    <td><span class="state-pill">${esc(iss.state)}</span></td>
+    <td><span class="muted">@${esc(iss.user.login)}</span></td>
+    <td>${labels ? `<span class="tags">${labels}</span>` : `<span class="muted">-</span>`}</td>
+    <td>${assigneesText ? `<span class="muted">${esc(assigneesText)}</span>` : `<span class="muted">-</span>`}</td>
+    <td>${iss.comments}</td>
+    <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
+    <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
+</tr>`;
         }).join('');
-        bodyHtml = summary + cards;
+                const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
+<th><button type="button" data-sort="number">number <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="title">title <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="priority">priority <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="state">state <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="author">user.login <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="labels">labels[].name <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="assignees">assignees[].login <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="comments">comments <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="created">created_at <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="updated">updated_at <span class="sort-ind"></span></button></th>
+</tr></thead><tbody id="issueRows">${rows}</tbody></table></div>`;
+                bodyHtml = summary + controls + table;
     }
 
     const js = `
 (function(){
   var vsc = acquireVsCodeApi();
+    var STORAGE_KEY = 'cvt.issuePriorities.v1';
+    var sortState = { key: 'priority', dir: 'asc' };
+
+    function loadPriorities(){
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) { return {}; }
+            var parsed = JSON.parse(raw);
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch { return {}; }
+    }
+
+    function savePriorities(map){
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(map)); }
+        catch { /* ignore storage failures */ }
+    }
+
+    var priorities = loadPriorities();
+
+    function compareText(a, b){
+        return String(a || '').localeCompare(String(b || ''));
+    }
+
+    function compareNum(a, b){
+        return Number(a || 0) - Number(b || 0);
+    }
+
+    function rowSortValue(row, key){
+        if (key === 'number')    { return Number(row.dataset.number || 0); }
+        if (key === 'title')     { return String(row.dataset.title || ''); }
+        if (key === 'priority')  { return Number(row.dataset.priority || 3); }
+        if (key === 'state')     { return String(row.dataset.state || ''); }
+        if (key === 'author')    { return String(row.dataset.author || ''); }
+        if (key === 'labels')    { var c = row.children[5]; return c ? c.textContent || '' : ''; }
+        if (key === 'assignees') { var a = row.children[6]; return a ? a.textContent || '' : ''; }
+        if (key === 'comments')  { return Number(row.dataset.comments || 0); }
+        if (key === 'created')   { return Number(row.dataset.created || 0); }
+        if (key === 'updated')   { return Number(row.dataset.updated || 0); }
+        return '';
+    }
+
+    function applySort(){
+        var tbody = document.getElementById('issueRows');
+        if (!tbody) { return; }
+        var rows = Array.from(tbody.querySelectorAll('.issue-row'));
+        rows.sort(function(a, b){
+            var av = rowSortValue(a, sortState.key);
+            var bv = rowSortValue(b, sortState.key);
+            var cmp = (typeof av === 'number' && typeof bv === 'number') ? compareNum(av, bv) : compareText(av, bv);
+            if (cmp === 0) {
+                // Stable fallback: updated_at desc, then number asc
+                cmp = compareNum(Number(b.dataset.updated || 0), Number(a.dataset.updated || 0));
+                if (cmp === 0) { cmp = compareNum(Number(a.dataset.number || 0), Number(b.dataset.number || 0)); }
+            }
+            return sortState.dir === 'asc' ? cmp : -cmp;
+        });
+        rows.forEach(function(r){ tbody.appendChild(r); });
+        updateSortIndicators();
+    }
+
+    function updateSortIndicators(){
+        document.querySelectorAll('th button[data-sort]').forEach(function(btn){
+            var ind = btn.querySelector('.sort-ind');
+            if (!ind) { return; }
+            if (btn.getAttribute('data-sort') === sortState.key) {
+                ind.textContent = sortState.dir === 'asc' ? '▲' : '▼';
+            } else {
+                ind.textContent = '';
+            }
+        });
+    }
+
+    function applyFilter(){
+        var input = document.getElementById('search');
+        var q = input ? String(input.value || '').trim().toLowerCase() : '';
+        var total = 0;
+        var shown = 0;
+        document.querySelectorAll('.issue-row').forEach(function(row){
+            total++;
+            var txt = String(row.getAttribute('data-filter') || '');
+            var ok = !q || txt.indexOf(q) !== -1;
+            row.style.display = ok ? '' : 'none';
+            if (ok) { shown++; }
+        });
+        var countShown = document.getElementById('countShown');
+        var countTotal = document.getElementById('countTotal');
+        if (countShown) { countShown.textContent = String(shown); }
+        if (countTotal) { countTotal.textContent = String(total); }
+    }
+
   var refresh = document.getElementById('refresh');
   if (refresh) {
     refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
   }
-  document.querySelectorAll('.issue').forEach(function(b){
+    var search = document.getElementById('search');
+    if (search) {
+        search.addEventListener('input', applyFilter);
+    }
+    var clear = document.getElementById('clear');
+    if (clear && search) {
+        clear.addEventListener('click', function(){
+            search.value = '';
+            applyFilter();
+            search.focus();
+        });
+    }
+    document.querySelectorAll('th button[data-sort]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var key = btn.getAttribute('data-sort') || '';
+            if (!key) { return; }
+            if (sortState.key === key) {
+                sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.key = key;
+                sortState.dir = key === 'updated' ? 'desc' : 'asc';
+            }
+            applySort();
+        });
+    });
+    document.querySelectorAll('.priority').forEach(function(sel){
+        var n = String(sel.getAttribute('data-number') || '');
+        if (n && priorities[n] >= 1 && priorities[n] <= 5) {
+            sel.value = String(priorities[n]);
+        }
+        var row = sel.closest('.issue-row');
+        if (row) { row.dataset.priority = sel.value || '3'; }
+        sel.addEventListener('change', function(){
+            var num = String(sel.getAttribute('data-number') || '');
+            var val = Number(sel.value || '3');
+            if (num) {
+                priorities[num] = (val >= 1 && val <= 5) ? val : 3;
+                savePriorities(priorities);
+            }
+            var r = sel.closest('.issue-row');
+            if (r) { r.dataset.priority = String((val >= 1 && val <= 5) ? val : 3); }
+            if (sortState.key === 'priority') {
+                applySort();
+                applyFilter();
+            }
+        });
+    });
+    document.querySelectorAll('.title-btn').forEach(function(b){
     b.addEventListener('click', function(){
       var url = b.dataset.url;
       if (url) { vsc.postMessage({ type: 'open', url: url }); }
     });
   });
+    applySort();
+    applyFilter();
 })();
 `;
 
@@ -252,7 +422,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 </head><body>
 <div id="hd">
   <div id="hd-text">
-    <h1>\u{1F4CB} Open Issues</h1>
+        <h1>\u{1F4CB} Issue Viewer</h1>
     <div class="subtitle">github.com/${REPO_OWNER}/${REPO_NAME}</div>
   </div>
   <button id="refresh" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>

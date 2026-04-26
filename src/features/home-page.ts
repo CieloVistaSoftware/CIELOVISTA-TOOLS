@@ -19,7 +19,11 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { getHistory }        from './cvs-command-launcher/command-history';
-import { getRecentProjects } from './cvs-command-launcher/recent-projects';
+import {
+    getDisplayProjects,
+    addPinnedProject,
+    removeFromDisplay
+} from './cvs-command-launcher/recent-projects';
 import {
     startMcpServer,
     getMcpServerStatus,
@@ -27,112 +31,179 @@ import {
     offMcpServerStatusChange
 } from './mcp-server-status';
 import { openDocPreview } from '../shared/doc-preview';
+import { showGithubIssues } from '../shared/github-issues-view';
+import {
+    loadRegistry,
+    registryPathSet,
+    addToRegistry,
+    removeFromRegistry
+} from '../shared/cvt-registry';
+
+let homePanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.tools.home', () => showHomePage(context))
     );
-    showHomePage(context);
+
+  // Opening the webview synchronously during startup is unreliable on reload
+  // because VS Code may still be restoring editors. Defer slightly.
+  setTimeout(() => showHomePage(context), 300);
+}
+
+export function buildGroupedCommands(registered: Set<string>): Record<string, Array<{title:string;command:string;description?:string}>> {
+  const pkgPath = path.join(__dirname, '../../package.json');
+  let commands: Array<{title:string; command:string; description?:string}> = [];
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    commands = pkg.contributes?.commands ?? [];
+  } catch { commands = []; }
+
+  // The Home page should only show commands that are currently registered.
+  const visible = commands.filter(cmd => registered.has(cmd.command));
+  const grouped: Record<string, typeof visible> = {};
+  for (const cmd of visible) {
+    if (!cmd.title || typeof cmd.title !== 'string') { continue; }
+    const match  = cmd.title.match(/^([\w\s\-]+:)/);
+    const prefix = match ? match[1].trim() : 'Other';
+    if (!grouped[prefix]) { grouped[prefix] = []; }
+    grouped[prefix].push(cmd);
+  }
+
+  return grouped;
 }
 
 function showHomePage(context: vscode.ExtensionContext): void {
-    const panel = vscode.window.createWebviewPanel(
-        'cvsHome',
-        'CieloVista Tools \u2014 Home',
-        vscode.ViewColumn.One,
-        { enableScripts: true }
-    );
+  if (homePanel) {
+    homePanel.reveal(vscode.ViewColumn.One);
+    return;
+  }
 
-    const wsFolder = vscode.workspace.workspaceFolders?.[0];
-    const wsName   = wsFolder?.name ?? 'No Workspace';
-    const wsPath   = wsFolder?.uri.fsPath ?? '';
+  const panel = vscode.window.createWebviewPanel(
+    'cvsHome',
+    'CieloVista Tools \u2014 Home',
+    vscode.ViewColumn.One,
+    { enableScripts: true }
+  );
+  homePanel = panel;
 
-    // Rule: every time the home page shows, the MCP server must be running.
-    startMcpServer();
+  const wsFolder = vscode.workspace.workspaceFolders?.[0];
+  const wsName   = wsFolder?.name ?? 'No Workspace';
+  const wsPath   = wsFolder?.uri.fsPath ?? '';
 
+  startMcpServer();
+
+  const render = async (): Promise<void> => {
     const history    = getHistory();
-    const recents    = getRecentProjects();
+    const recents    = getDisplayProjects();
     const mcpRunning = getMcpServerStatus() === 'up';
+    const registered = new Set(await vscode.commands.getCommands(false));
+    const grouped    = buildGroupedCommands(registered);
+    let cvtPaths: Set<string>;
+    try { cvtPaths = registryPathSet(loadRegistry()); }
+    catch { cvtPaths = new Set(); }
+    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered);
+  };
 
-    // Build command groups for the Browse All section
-    const pkgPath = path.join(__dirname, '../../package.json');
-    let commands: Array<{title:string; command:string; description?:string}> = [];
-    try {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-        commands = pkg.contributes?.commands ?? [];
-    } catch { commands = []; }
+  void render();
+  setTimeout(() => { void render(); }, 1500);
 
-    const grouped: Record<string, typeof commands> = {};
-    for (const cmd of commands) {
-        if (!cmd.title || typeof cmd.title !== 'string') { continue; }
-        const match  = cmd.title.match(/^([\w\s\-]+:)/);
-        const prefix = match ? match[1].trim() : 'Other';
-        if (!grouped[prefix]) { grouped[prefix] = []; }
-        grouped[prefix].push(cmd);
+  const mcpStatusHandler = (status: 'up' | 'down') => {
+    panel.webview.postMessage({ type: 'mcpStatus', status });
+  };
+  onMcpServerStatusChange(mcpStatusHandler);
+  panel.onDidDispose(() => {
+    if (homePanel === panel) {
+      homePanel = undefined;
     }
+    offMcpServerStatusChange(mcpStatusHandler);
+  }, null, context.subscriptions);
 
-    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped);
-
-    // Push live MCP status changes into the webview badge — no polling.
-    const mcpStatusHandler = (status: 'up' | 'down') => {
-        panel.webview.postMessage({ type: 'mcpStatus', status });
-    };
-    onMcpServerStatusChange(mcpStatusHandler);
-    panel.onDidDispose(() => offMcpServerStatusChange(mcpStatusHandler), null, context.subscriptions);
-
-    panel.webview.onDidReceiveMessage(async msg => {
-        if (!msg?.type) { return; }
-        if (msg.type === 'runCommand' && msg.command) {
-            // TODO List button — open in doc preview
-            if (msg.command === '__openTodo__') {
-                const todoPath = path.join(__dirname, '../../docs/_today/TODO-UPDATED.md');
-                if (fs.existsSync(todoPath)) {
-                    openDocPreview(todoPath, 'Home');
-                } else {
-                    vscode.window.showWarningMessage(`TODO file not found: ${todoPath}`);
-                }
-                return;
-            }
-            // Commands that open panels go direct — no streaming result window
-            // Commands that do work go through runWithOutput for streaming output
-            const OPEN_DIRECT = [
-                'cvs.commands.showAll',
-                'cvs.catalog.open',
-                'cvs.npm.showAndRunScripts',
-              'cvs.claude.processMonitor',
-                'cvs.catalog.view',
-                'cvs.tools.home',
-                'cvs.mcp.viewer.open',
-                'workbench.action.reloadWindow',
-            ];
-            if (OPEN_DIRECT.includes(msg.command)) {
-                vscode.commands.executeCommand(msg.command);
-            } else {
-                vscode.commands.executeCommand('cvs.launcher.runWithOutput', msg.command);
-            }
+  panel.webview.onDidReceiveMessage(async msg => {
+    if (!msg?.type) { return; }
+    if (msg.type === 'runCommand' && msg.command) {
+      if (msg.command === '__openIssues__') {
+        showGithubIssues();
+        return;
+      }
+      const OPEN_DIRECT = [
+        'cvs.commands.showAll',
+        'cvs.catalog.open',
+        'cvs.npm.showAndRunScripts',
+        'cvs.claude.processMonitor',
+        'cvs.catalog.view',
+        'cvs.tools.home',
+        'cvs.mcp.viewer.open',
+        'workbench.action.reloadWindow',
+      ];
+      if (OPEN_DIRECT.includes(msg.command)) {
+        vscode.commands.executeCommand(msg.command);
+      } else {
+        vscode.commands.executeCommand('cvs.launcher.runWithOutput', msg.command);
+      }
+    }
+    if (msg.type === 'openFolder' && msg.path) {
+      vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path), false);
+    }
+    if (msg.type === 'sendPathToChat' && msg.path) {
+      const folderPath = String(msg.path).trim();
+      try {
+        await vscode.commands.executeCommand('workbench.action.chat.open', {
+          query: folderPath,
+          isPartialQuery: true,
+        });
+      } catch {
+        await vscode.env.clipboard.writeText(folderPath);
+        try {
+          await vscode.commands.executeCommand('github.copilot.chat.focus');
+        } catch { /* chat panel not available */ }
+        vscode.window.showInformationMessage('Path in clipboard — press Ctrl+V to paste into chat.');
+      }
+    }
+    if (msg.type === 'addPinnedProject') {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Pin to Recent Projects',
+        title: 'Pick a folder to add to CVT Recent Projects',
+      });
+      if (picked && picked.length > 0) {
+        const fsPath = picked[0].fsPath;
+        const name   = path.basename(fsPath) || fsPath;
+        await addPinnedProject(fsPath, name);
+        void render();
+      }
+    }
+    if (msg.type === 'removeProject' && msg.path) {
+      await removeFromDisplay(String(msg.path));
+      void render();
+    }
+    if (msg.type === 'cvtRegistryAdd' && msg.path) {
+      try {
+        addToRegistry(String(msg.path), msg.name ? String(msg.name) : undefined);
+        void render();
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Couldn't add to CVT registry: ${m}`);
+      }
+    }
+    if (msg.type === 'cvtRegistryRemove' && msg.path) {
+      try {
+        const removed = removeFromRegistry(String(msg.path));
+        if (removed === 0) {
+          vscode.window.showWarningMessage('That path wasn\'t in the CVT registry.');
         }
-        if (msg.type === 'openFolder' && msg.path) {
-            vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path), false);
-        }
-        if (msg.type === 'sendPathToChat' && msg.path) {
-          const folderPath = String(msg.path).trim();
-          try {
-            await vscode.commands.executeCommand('workbench.action.chat.open', {
-              query: folderPath,
-              isPartialQuery: true,
-            });
-          } catch {
-            await vscode.env.clipboard.writeText(folderPath);
-            try {
-              await vscode.commands.executeCommand('github.copilot.chat.focus');
-            } catch { /* chat panel not available */ }
-            vscode.window.showInformationMessage('Path in clipboard — press Ctrl+V to paste into chat.');
-          }
-        }
-        if (msg.type === 'startMcp') {
-            startMcpServer();
-        }
-    });
+        void render();
+      } catch (err) {
+        const m = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Couldn't remove from CVT registry: ${m}`);
+      }
+    }
+    if (msg.type === 'startMcp') {
+      startMcpServer();
+    }
+  });
 }
 
 // ─── HTML ─────────────────────────────────────────────────────────────────────
@@ -146,13 +217,15 @@ function buildDashboardHtml(
     wsPath:    string,
     mcpRunning: boolean,
     history:   ReturnType<typeof getHistory>,
-    recents:   ReturnType<typeof getRecentProjects>,
-    grouped:   Record<string, Array<{title:string;command:string;description?:string}>>
+    recents:   ReturnType<typeof getDisplayProjects>,
+    grouped:   Record<string, Array<{title:string;command:string;description?:string}>>,
+  cvtPaths:  Set<string>,
+  registered: Set<string>
 ): string {
 
     // ── Quick Launch buttons ──────────────────────────────────────────────────
     const quickLaunch = [
-      { icon: '\uD83D\uDCCB', label: 'TODO List',       desc: 'View open tasks and methods',     cmd: '__openTodo__',                      primary: true },
+      { icon: '\uD83D\uDCCB', label: 'Issue Viewer',    desc: 'Live GitHub issues for cielovista-tools', cmd: '__openIssues__',                      primary: true },
       { icon: '\u26a1', label: 'Guided Launcher', desc: 'Search & run all 81 commands', cmd: 'cvs.commands.showAll',        primary: false  },
         { icon: '\uD83D\uDCDA', label: 'Doc Catalog',     desc: 'Browse project documentation',    cmd: 'cvs.catalog.open',           primary: false },
         { icon: '\uD83D\uDCE6', label: 'NPM Scripts',     desc: 'Run scripts across all projects', cmd: 'cvs.npm.showAndRunScripts',   primary: false },
@@ -161,7 +234,9 @@ function buildDashboardHtml(
       { icon: '\uD83D\uDD0C', label: 'MCP Viewer',      desc: 'Live viewer for the 4 catalog MCP endpoints', cmd: 'cvs.mcp.viewer.open', primary: false },
     ];
 
-    const quickHtml = quickLaunch.map(q => `
+    const quickHtml = quickLaunch
+        .filter(q => q.cmd === '__openIssues__' || registered.has(q.cmd))
+        .map(q => `
 <button class="ql-btn${q.primary ? ' ql-primary' : ''}" data-cmd="${esc(q.cmd)}">
   <span class="ql-icon">${q.icon}</span>
   <span class="ql-text">
@@ -188,14 +263,26 @@ function buildDashboardHtml(
 
     // ── Recent projects ───────────────────────────────────────────────────────
     const recHtml = recents.length === 0
-        ? `<div class="empty-state">No recent projects yet. Open CVT in other workspaces to build your list.</div>`
+        ? `<div class="empty-state">No recent projects yet. Use the Edit button to pin any folder, or open CVT in other workspaces to build your list.</div>`
         : recents.map(r => {
-            const isCurrent = r.fsPath === wsPath;
+            const isCurrent   = r.fsPath === wsPath;
+            const inCvt       = cvtPaths.has(r.fsPath.toLowerCase());
+            const pinnedBadge = r.pinned ? '<span class="rec-badge rec-badge-pinned" title="Pinned manually via Edit">pinned</span>' : '';
+            const cvtBadge    = inCvt ? '<span class="rec-badge rec-badge-cvt" title="Included in the CVT project registry">in CVT</span>' : '';
+            // CVT toggle — visible only in edit mode (CSS). Label + dataset flip
+            // depending on current membership.
+            const cvtBtn = inCvt
+                ? `<button class="rec-cvt rec-cvt-remove" data-path="${esc(r.fsPath)}" data-name="${esc(r.name)}" title="Remove this folder from the CVT project registry">\u2212 CVT</button>`
+                : `<button class="rec-cvt rec-cvt-add"    data-path="${esc(r.fsPath)}" data-name="${esc(r.name)}" title="Add this folder to the CVT project registry (project-registry.json)">+ CVT</button>`;
             return `<div class="rec-card${isCurrent ? ' rec-current' : ''}" data-path="${esc(r.fsPath)}" title="${esc(r.fsPath)}">
+  <button class="rec-remove" data-path="${esc(r.fsPath)}" title="Remove from CVT Recent Projects" aria-label="Remove">\u00d7</button>
   <div class="rec-top">
     <span class="rec-name">${esc(r.name)}</span>
     <div class="rec-actions">
+      ${pinnedBadge}
+      ${cvtBadge}
       ${isCurrent ? '<span class="rec-badge">current</span>' : ''}
+      ${cvtBtn}
       <button class="rec-chat" data-path="${esc(r.fsPath)}" title="Send this folder path to Copilot Chat (text only; no files attached).">Send Path</button>
     </div>
   </div>
@@ -239,8 +326,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #btn-configure:hover,#btn-reload:hover{background:var(--vscode-button-secondaryHoverBackground)}
 
 /* Layout */
-#body{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;max-width:1100px}
-.panel{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:14px 16px}
+#body{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(0,1.6fr);grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;max-width:1400px;width:100%}
+.panel{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:14px 16px;min-width:0}
 .panel-hd{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);margin-bottom:10px}
 
 /* Quick launch — spans full width */
@@ -300,6 +387,31 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .rec-chat:hover{background:#31a442}
 .rec-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* Recent-projects Edit mode */
+.panel-hd-split{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.panel-hd-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:2px 10px;cursor:pointer;font-size:10px;font-weight:600;text-transform:none;letter-spacing:0}
+.panel-hd-btn:hover{background:var(--vscode-button-secondaryHoverBackground);border-color:var(--vscode-focusBorder)}
+.panel-hd-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-background)}
+.rec-card{position:relative}
+.rec-remove{display:none;position:absolute;top:50%;left:-6px;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;border:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background);color:#f85149;font-size:14px;line-height:1;cursor:pointer;padding:0;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3);z-index:2}
+.rec-remove:hover{background:#f85149;color:#fff;border-color:#f85149}
+#panel-recents.edit-mode .rec-remove{display:block}
+#panel-recents.edit-mode .rec-card{cursor:default;padding-left:18px}
+#panel-recents.edit-mode .rec-card:hover{border-color:var(--vscode-panel-border);background:transparent}
+.rec-badge-pinned{background:#a37; color:#fff}
+.rec-badge-cvt{background:#2d7a46;color:#fff}
+/* CVT include/exclude toggle — visible only in edit mode */
+.rec-cvt{display:none;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap}
+.rec-cvt:hover{background:var(--vscode-button-secondaryHoverBackground);border-color:var(--vscode-focusBorder)}
+.rec-cvt-add{color:#3fb950;border-color:rgba(63,185,80,.4)}
+.rec-cvt-add:hover{background:rgba(63,185,80,.15);color:#56c76a;border-color:#3fb950}
+.rec-cvt-remove{color:#f85149;border-color:rgba(248,81,73,.4)}
+.rec-cvt-remove:hover{background:rgba(248,81,73,.15);color:#ff6e67;border-color:#f85149}
+#panel-recents.edit-mode .rec-cvt{display:inline-block}
+.rec-add-tile{display:none;width:100%;margin-top:8px;padding:8px 10px;border-radius:4px;border:1px dashed var(--vscode-panel-border);background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;text-align:center;transition:border-color .12s,color .12s,background .12s}
+.rec-add-tile:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground);background:var(--vscode-list-hoverBackground)}
+#panel-recents.edit-mode .rec-add-tile{display:block}
+
 /* Browse All */
 #panel-browse{grid-column:1/-1}
 #browse-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground)}
@@ -308,6 +420,12 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #browse-arrow.open{transform:rotate(90deg)}
 #browse-body{display:none;margin-top:12px;columns:3;column-gap:20px}
 #browse-body.open{display:block}
+#browse-search-wrap{margin-top:8px;display:none}
+#browse-search-wrap.open{display:block}
+#browse-search{width:100%;padding:5px 10px;border:1px solid var(--vscode-panel-border);border-radius:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);font-family:inherit;font-size:12px;outline:none;box-sizing:border-box}
+#browse-search:focus{border-color:var(--vscode-focusBorder)}
+#browse-search::placeholder{color:var(--vscode-input-placeholderForeground)}
+#browse-no-match{display:none;font-size:12px;color:var(--vscode-descriptionForeground);padding:8px 0}
 .browse-group{break-inside:avoid;margin-bottom:14px}
 .browse-group-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);margin-bottom:5px;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:3px}
 .browse-item{display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-wrap:wrap}
@@ -327,6 +445,15 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 /* Shared */
 .empty-state{font-size:12px;color:var(--vscode-descriptionForeground);padding:8px 0;line-height:1.6}
+
+@media (max-width: 1200px){
+  #body{grid-template-columns:minmax(240px,.95fr) minmax(0,1.35fr)}
+}
+
+@media (max-width: 940px){
+  #body{grid-template-columns:1fr}
+  #panel-history,#panel-recents,#panel-browse{grid-column:1}
+}
 `;
 
     // ── JS ────────────────────────────────────────────────────────────────────
@@ -370,10 +497,62 @@ document.querySelectorAll('.hist-rerun').forEach(function(b){
   b.addEventListener('click',function(){ vsc.postMessage({ type:'runCommand', command:b.dataset.cmd }); });
 });
 
-// Recent project click — skip current
+// Recent project click - skip current AND skip when in edit mode
 document.querySelectorAll('.rec-card:not(.rec-current)').forEach(function(c){
-  c.addEventListener('click',function(){ vsc.postMessage({ type:'openFolder', path:c.dataset.path }); });
+  c.addEventListener('click',function(e){
+    // In edit mode, card body clicks do nothing - use × to remove, Send Path stays active via its own stopPropagation.
+    if (document.getElementById('panel-recents').classList.contains('edit-mode')) { return; }
+    // Ignore clicks on interactive children (Send Path, ×, badges).
+    if (e.target.closest('button,.rec-badge')) { return; }
+    vsc.postMessage({ type:'openFolder', path:c.dataset.path });
+  });
 });
+
+// Edit-mode toggle + remove + add-folder wiring for the Recent Projects panel.
+var recPanel     = document.getElementById('panel-recents');
+var editToggle   = document.getElementById('rec-edit-toggle');
+var addTile      = document.getElementById('rec-add-tile');
+if (editToggle && recPanel) {
+  editToggle.addEventListener('click', function(){
+    var nowEditing = recPanel.classList.toggle('edit-mode');
+    editToggle.classList.toggle('active', nowEditing);
+    editToggle.textContent = nowEditing ? 'Done' : 'Edit';
+  });
+}
+document.querySelectorAll('.rec-remove').forEach(function(b){
+  b.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var p = b.dataset.path;
+    if (!p) { return; }
+    vsc.postMessage({ type:'removeProject', path:p });
+  });
+});
+// CVT registry toggle (visible only in edit mode).
+// rec-cvt-add posts cvtRegistryAdd; rec-cvt-remove posts cvtRegistryRemove.
+// Extension re-renders after the mutation so the button label flips automatically.
+document.querySelectorAll('.rec-cvt').forEach(function(b){
+  b.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var p    = b.dataset.path;
+    var name = b.dataset.name;
+    if (!p) { return; }
+    var adding = b.classList.contains('rec-cvt-add');
+    vsc.postMessage({
+      type: adding ? 'cvtRegistryAdd' : 'cvtRegistryRemove',
+      path: p,
+      name: name
+    });
+  });
+});
+if (addTile) {
+  addTile.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    vsc.postMessage({ type:'addPinnedProject' });
+  });
+}
 
 // Recent project path to chat
 document.querySelectorAll('.rec-chat').forEach(function(b){
@@ -394,7 +573,32 @@ var browseArrow  = document.getElementById('browse-arrow');
 browseToggle.addEventListener('click',function(){
   var open = browseBody.classList.toggle('open');
   browseArrow.classList.toggle('open', open);
+  var swrap = document.getElementById('browse-search-wrap');
+  if (swrap) { swrap.classList.toggle('open', open); }
+  if (open) { var si = document.getElementById('browse-search'); if (si) { si.focus(); } }
 });
+
+// Browse All search/filter
+var browseSearch  = document.getElementById('browse-search');
+var browseNoMatch = document.getElementById('browse-no-match');
+if (browseSearch) {
+  browseSearch.addEventListener('input', function() {
+    var q = browseSearch.value.toLowerCase().trim();
+    var anyVis = false;
+    document.querySelectorAll('.browse-group').forEach(function(grp) {
+      var grpVis = false;
+      grp.querySelectorAll('.browse-item').forEach(function(item) {
+        var lbl  = item.querySelector('.browse-link')  ? item.querySelector('.browse-link').textContent.toLowerCase()  : '';
+        var desc = item.querySelector('.browse-desc') ? item.querySelector('.browse-desc').textContent.toLowerCase() : '';
+        var show = !q || lbl.includes(q) || desc.includes(q);
+        item.style.display = show ? '' : 'none';
+        if (show) { grpVis = true; anyVis = true; }
+      });
+      grp.style.display = grpVis ? '' : 'none';
+    });
+    if (browseNoMatch) { browseNoMatch.style.display = anyVis || !q ? 'none' : 'block'; }
+  });
+}
 
 // Browse command links
 document.querySelectorAll('.browse-link').forEach(function(b){
@@ -503,8 +707,12 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   </div>
 
   <div class="panel" id="panel-recents">
-    <div class="panel-hd">\uD83D\uDCC1 Recent Projects</div>
+    <div class="panel-hd panel-hd-split">
+      <span>\uD83D\uDCC1 Recent Projects</span>
+      <button id="rec-edit-toggle" class="panel-hd-btn" title="Add or remove folders">Edit</button>
+    </div>
     ${recHtml}
+    <button id="rec-add-tile" class="rec-add-tile" title="Pick any folder to pin to this list">+ Add Folder…</button>
   </div>
 
   <div class="panel" id="panel-browse">
@@ -513,7 +721,11 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
       Browse All Commands
       <span style="font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px">(${totalCmds})</span>
     </div>
+      <div id="browse-search-wrap">
+        <input id="browse-search" type="text" placeholder="Filter commands\u2026" autocomplete="off" spellcheck="false">
+      </div>
     <div id="browse-body">${browseHtml}</div>
+      <div id="browse-no-match">No commands match your filter.</div>
   </div>
 
 </div>
