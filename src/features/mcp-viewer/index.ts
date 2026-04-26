@@ -18,6 +18,7 @@
 
 import * as vscode from 'vscode';
 import * as http   from 'http';
+import * as fs     from 'fs';
 import { log } from '../../shared/output-channel';
 import { loadRegistry } from '../../shared/registry';
 import { buildCatalog } from '../doc-catalog/commands';
@@ -48,7 +49,7 @@ export function disposeMcpViewerServer(): void {
 /* ── Endpoint handlers (reused by both HTTP and tests) ────────────────────── */
 
 interface ProjectJson { name: string; path: string; type: string; description: string; status: string; }
-interface DocJson     { projectName: string; fileName: string; filePath: string; title: string; description: string; }
+interface DocJson     { projectName: string; fileName: string; filePath: string; title: string; description: string; lastModified: string; dewey?: string; }
 
 function cardToDocJson(c: CatalogCard): DocJson {
     return {
@@ -57,6 +58,8 @@ function cardToDocJson(c: CatalogCard): DocJson {
         filePath:    c.filePath,
         title:       c.title,
         description: c.description,
+        lastModified: c.lastModified,
+        dewey:       c.dewey,
     };
 }
 
@@ -127,6 +130,86 @@ async function handleGetCatalog(projectName?: string): Promise<{ projectName: st
     };
 }
 
+function normalizeDewey(input: string): { raw: string; digits: string } {
+    const raw = input.trim().toLowerCase();
+    const digits = raw.replace(/\D+/g, '');
+    return { raw, digits };
+}
+
+function scoreDewey(candidate: string, query: string): number {
+    const c = normalizeDewey(candidate);
+    const q = normalizeDewey(query);
+    if (!q.raw) {
+        return 0;
+    }
+    if (c.raw === q.raw || (q.digits && c.digits === q.digits)) {
+        return 300;
+    }
+    if (c.raw.startsWith(q.raw) || (q.digits && c.digits.startsWith(q.digits))) {
+        return 200;
+    }
+    if (c.raw.includes(q.raw) || (q.digits && c.digits.includes(q.digits))) {
+        return 100;
+    }
+    return 0;
+}
+
+async function handleLookupDewey(params: URLSearchParams): Promise<{
+    query: string;
+    normalized: { raw: string; digits: string };
+    projectName: string;
+    includeCommands: boolean;
+    docMatchCount: number;
+    commandMatchCount: number;
+    docs: DocJson[];
+    commands: ReturnType<typeof loadCvtCommands>;
+}> {
+    const query = (params.get('query') || '').trim();
+    const projectName = (params.get('projectName') || '').trim();
+    const includeCommands = params.get('includeCommands') !== 'false';
+    const limit = Number(params.get('limit') || '25');
+    const max = Number.isFinite(limit) && limit > 0 ? limit : 25;
+
+    const cards = (await buildCatalog()) ?? [];
+    const docsSource = projectName ? cards.filter((c) => c.projectName === projectName) : cards;
+    const docs = docsSource
+        .map((c) => ({ c, score: scoreDewey(c.dewey || '', query) }))
+        .filter((row) => row.score > 0)
+        .sort((a, b) => {
+            if (b.score !== a.score) {
+                return b.score - a.score;
+            }
+            return (a.c.dewey || '').localeCompare(b.c.dewey || '');
+        })
+        .slice(0, max)
+        .map((row) => cardToDocJson(row.c));
+
+    const commands = includeCommands
+        ? loadCvtCommands()
+            .map((cmd) => ({ cmd, score: scoreDewey(cmd.dewey || '', query) }))
+            .filter((row) => row.score > 0)
+            .sort((a, b) => {
+                if (b.score !== a.score) {
+                    return b.score - a.score;
+                }
+                return (a.cmd.dewey || '').localeCompare(b.cmd.dewey || '');
+            })
+            .slice(0, max)
+            .map((row) => row.cmd)
+        : [];
+
+    return {
+        query,
+        normalized: normalizeDewey(query),
+        projectName: projectName || '(all)',
+        includeCommands,
+        docMatchCount: docs.length,
+        commandMatchCount: commands.length,
+        docs,
+        commands,
+    };
+}
+
 /* ── Symbol + command endpoints ────────────────────────────────────────── */
 
 function handleListSymbols(params: URLSearchParams): unknown {
@@ -184,6 +267,43 @@ function htmlResponse(res: http.ServerResponse, status: number, body: string): v
     res.end(body);
 }
 
+function escHtml(s: string): string {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function buildMarkdownPreviewHtml(filePath: string, markdown: string): string {
+    const safePath = escHtml(filePath);
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>${safePath}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#1e1e1e;color:#d4d4d4}
+header{position:sticky;top:0;background:#252526;border-bottom:1px solid #404040;padding:10px 16px;font-size:12px;color:#9cdcfe;font-family:Consolas,monospace}
+main{max-width:980px;margin:0 auto;padding:18px 20px 40px;line-height:1.65}
+h1,h2,h3,h4{color:#fff;margin-top:1.4em}
+a{color:#FFD700}
+code{background:#2d2d2d;border-radius:4px;padding:1px 4px}
+pre{background:#111;border:1px solid #2d2d2d;border-radius:6px;padding:12px;overflow:auto}
+blockquote{border-left:3px solid #0078d4;padding-left:10px;color:#9e9e9e}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #2d2d2d;padding:6px 8px}
+</style></head>
+<body>
+<header>${safePath}</header>
+<main id="content"></main>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+const raw = ${JSON.stringify(markdown)};
+const content = document.getElementById('content');
+content.innerHTML = marked.parse(raw);
+</script>
+</body></html>`;
+}
+
 async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse, port: number): Promise<void> {
     const url = new URL(req.url || '/', 'http://localhost');
     const p   = url.pathname;
@@ -224,6 +344,22 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         return;
     }
 
+    if (p === '/md-preview') {
+        const filePath = url.searchParams.get('path') || '';
+        if (!filePath || !filePath.toLowerCase().endsWith('.md') || !fs.existsSync(filePath)) {
+            htmlResponse(res, 404, '<h1>Markdown file not found</h1>');
+            return;
+        }
+        try {
+            const md = fs.readFileSync(filePath, 'utf8');
+            htmlResponse(res, 200, buildMarkdownPreviewHtml(filePath, md));
+            return;
+        } catch {
+            htmlResponse(res, 500, '<h1>Unable to read markdown file</h1>');
+            return;
+        }
+    }
+
     if (p === '/api/list_symbols') {
         jsonResponse(res, 200, handleListSymbols(url.searchParams));
         return;
@@ -236,6 +372,11 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
     if (p === '/api/list_cvt_commands') {
         jsonResponse(res, 200, handleListCvtCommands(url.searchParams));
+        return;
+    }
+
+    if (p === '/api/lookup_dewey') {
+        jsonResponse(res, 200, await handleLookupDewey(url.searchParams));
         return;
     }
 

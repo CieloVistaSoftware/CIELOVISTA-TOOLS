@@ -5,7 +5,7 @@
  * Imports every feature activate() and calls it via activateIfEnabled().
  */
 import * as vscode from 'vscode';
-import { disposeChannel, log } from './shared/output-channel';
+import { disposeChannel, log, logError } from './shared/output-channel';
 import { isFeatureEnabled } from './features/feature-toggle';
 
 import { activate as featureToggle,           deactivate as deactivateFeatureToggle    } from './features/feature-toggle';
@@ -27,6 +27,7 @@ import { activate as docConsolidator,         deactivate as deactivateDocConsoli
 import { activate as docCatalog,              deactivate as deactivateDocCatalog       } from './features/doc-catalog/index';
 import { activate as readmeCompliance,        deactivate as deactivateReadmeCompliance } from './features/readme-compliance';
 import { activate as readmeGenerator,         deactivate as deactivateReadmeGenerator  } from './features/readme-generator';
+import { activate as docsBrokenRefs,          deactivate as deactivateDocsBrokenRefs   } from './features/docs-broken-refs';
 import { activate as marketplaceCompliance,   deactivate as deactivateMarketplace      } from './features/marketplace-compliance/index';
 import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header';
 import { activate as docHeaderScan,           deactivate as deactivateDocHeaderScan    } from './features/doc-header-scan';
@@ -53,7 +54,8 @@ import { initMcpServerPath, startMcpServer }                                    
 
 import { runLicenseSync     } from './features/license-sync';
 import { runCodebaseAudit   } from './features/codebase-auditor';
-import { openErrorLogViewer } from './features/error-log-viewer';
+import { openErrorLogViewer }      from './features/error-log-viewer';
+
 
 // Force inclusion of 'diff' in VSIX bundle
 import * as _forceDiffBundle from 'diff';
@@ -67,22 +69,34 @@ function activateIfEnabled(
     context: vscode.ExtensionContext
 ): void {
     if (isFeatureEnabled(key)) {
-        activateFn(context);
+        try {
+            activateFn(context);
+        } catch (err) {
+            logError(`Feature activation failed: ${label}`, err instanceof Error ? err.stack || String(err) : String(err), 'extension', true);
+        }
     } else {
         log('extension', `Skipped (disabled): ${label}`);
     }
 }
 
+function runStartupStep(label: string, fn: () => void): void {
+    try {
+        fn();
+    } catch (err) {
+        logError(`Startup step failed: ${label}`, err instanceof Error ? err.stack || String(err) : String(err), 'extension', true);
+    }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
-    featureToggle(context);
+    runStartupStep('Feature Toggle', () => featureToggle(context));
     // Resolve MCP server path from extension root and start immediately in every workspace.
-    initMcpServerPath(context.extensionPath);
-    startMcpServer();
+    runStartupStep('MCP Server Path Init', () => initMcpServerPath(context.extensionPath));
+    runStartupStep('MCP Server Start', () => startMcpServer());
     // Initialize history and recents BEFORE home page renders so it gets real data
-    initHistory(context);
-    initRecentProjects(context);
-    touchCurrentProject();
-    homePage(context);
+    runStartupStep('Command History Init', () => initHistory(context));
+    runStartupStep('Recent Projects Init', () => initRecentProjects(context));
+    runStartupStep('Touch Current Project', () => touchCurrentProject());
+    runStartupStep('Home Page', () => homePage(context));
 
     activateIfEnabled('copilotRulesEnforcer',    'Copilot Rules Enforcer',        copilotRulesEnforcer,    context);
     activateIfEnabled('copilotOpenSuggested',    'Copilot Open Suggested File',   copilotOpenSuggested,    context);
@@ -102,6 +116,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('docCatalog',              'Doc Catalog',                   docCatalog,              context);
     activateIfEnabled('readmeCompliance',        'README Compliance',             readmeCompliance,        context);
     activateIfEnabled('readmeGenerator',         'README Generator',              readmeGenerator,         context);
+    activateIfEnabled('docsBrokenRefs',          'Docs Broken References Scanner',docsBrokenRefs,          context);
     activateIfEnabled('marketplaceCompliance',   'Marketplace Compliance',        marketplaceCompliance,   context);
     activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
     activateIfEnabled('docHeaderScan',           'Doc Header Scan',               docHeaderScan,           context);
@@ -128,11 +143,13 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.tools.errorLog', openErrorLogViewer),
         vscode.commands.registerCommand('cvs.tools.results',  () => { /* placeholder */ }),
     );
+
 }
 
 export function deactivate(): void {
     deactivateHomePage();
     deactivateJsErrorAudit();
+
     deactivateBgHealthRunner();
     deactivateCodeHighlightAudit();
     deactivateOpenFolderAsRoot();
@@ -159,6 +176,7 @@ export function deactivate(): void {
     deactivateDocCatalog();
     deactivateReadmeCompliance();
     deactivateReadmeGenerator();
+    deactivateDocsBrokenRefs();
     deactivateMarketplace();
     imageReaderDeactivate();
     mcpViewerDeactivate();

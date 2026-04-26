@@ -62,6 +62,30 @@ export const SearchDocsToolSchema = z.object({
   projectName: z.string().optional().describe("Optional: limit search to one project by exact name"),
 });
 
+export const LookupDeweyToolSchema = z.object({
+  query: z.string().describe("Full or partial Dewey ID to resolve, e.g. '1400.005', '1400', or '005'"),
+  projectName: z.string().optional().describe("Optional: limit document lookup to one project by exact name"),
+  includeCommands: z.boolean().optional().describe("If true, also return CVT command catalog matches by Dewey."),
+  limit: z.number().int().positive().optional().describe("Max matches per section (default 25)."),
+});
+
+export const ListBrokenRefsToolSchema = z.object({
+  projectName: z.string().optional().describe("Optional: limit scan to one project by exact name"),
+  createPlaceholder: z.boolean().optional().describe("If true, creates missing .svg placeholders only when no candidates are found."),
+});
+
+export const RepairBrokenRefsToolSchema = z.object({
+  edits: z.array(z.object({
+    filePath: z.string().describe("Markdown file to update."),
+    oldText: z.string().describe("Exact markdown reference text to replace."),
+    newText: z.string().describe("Replacement markdown reference text."),
+  })).optional().describe("Approved markdown updates to apply."),
+  placeholders: z.array(z.object({
+    filePath: z.string().describe("Absolute path for placeholder SVG to create."),
+    altText: z.string().optional().describe("Text rendered in placeholder SVG."),
+  })).optional().describe("Optional placeholder SVGs to create for unresolved image refs."),
+});
+
 // ─── Symbol index tools ────────────────────────────────────────────────
 // Cross-project reusable-code search. Indexes both TypeScript (via tsc's
 // generated .d.ts files) and plain JavaScript (direct regex over src/,
@@ -103,6 +127,9 @@ export type ListProjectsToolInput = z.infer<typeof ListProjectsToolSchema>;
 export type FindProjectToolInput = z.infer<typeof FindProjectToolSchema>;
 export type GetCatalogToolInput = z.infer<typeof GetCatalogToolSchema>;
 export type SearchDocsToolInput = z.infer<typeof SearchDocsToolSchema>;
+export type LookupDeweyToolInput = z.infer<typeof LookupDeweyToolSchema>;
+export type ListBrokenRefsToolInput = z.infer<typeof ListBrokenRefsToolSchema>;
+export type RepairBrokenRefsToolInput = z.infer<typeof RepairBrokenRefsToolSchema>;
 export type ListSymbolsToolInput = z.infer<typeof ListSymbolsToolSchema>;
 export type FindSymbolToolInput = z.infer<typeof FindSymbolToolSchema>;
 export type ListCvtCommandsToolInput = z.infer<typeof ListCvtCommandsToolSchema>;

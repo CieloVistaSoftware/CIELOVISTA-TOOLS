@@ -112,6 +112,7 @@ pre.json{background:#1a1a1a;border:1px solid #2d2d2d;border-radius:4px;padding:1
   <button class="tab" data-endpoint="list_symbols">list_symbols</button>
   <button class="tab" data-endpoint="find_symbol">find_symbol</button>
   <button class="tab" data-endpoint="list_cvt_commands">list_cvt_commands</button>
+  <button class="tab" data-endpoint="lookup_dewey">lookup_dewey</button>
 </div>
 
 <div id="controls"></div>
@@ -134,6 +135,8 @@ var resultEl   = document.getElementById('result');
 var toastEl    = document.getElementById('toast');
 
 var currentEndpoint = 'list_projects';
+var catalogSortBy = 'recent';
+var projectOptions = [];
 
 /* Control templates per endpoint. */
 var CONTROLS = {
@@ -151,7 +154,9 @@ var CONTROLS = {
                 '<input id="proj" type="text" placeholder="exact project name" autocomplete="off">' +
                 '<button id="btn-run">Run</button>',
   get_catalog:  '<label for="proj">project (optional)</label>' +
-                '<input id="proj" type="text" placeholder="blank = all projects" autocomplete="off">' +
+                '<select id="proj"><option value="">blank = all projects</option></select>' +
+                '<label for="sortBy">sort</label>' +
+                '<select id="sortBy"><option value="recent" selected>most recent date</option><option value="title">title</option><option value="file">file</option><option value="description">description</option></select>' +
                 '<button id="btn-run">Run</button>',
   list_symbols: '<label for="q">query</label>' +
                 '<input id="q" type="text" placeholder="name, signature, or doc text" autocomplete="off" style="min-width:220px">' +
@@ -168,6 +173,12 @@ var CONTROLS = {
                 '<button id="btn-run">Run</button>',
   list_cvt_commands: '<label for="group">group (optional)</label>' +
                 '<input id="group" type="text" placeholder="e.g. Other Tools, Doc Auditor" autocomplete="off">' +
+                '<button id="btn-run">Run</button>',
+  lookup_dewey: '<label for="q">dewey query</label>' +
+                '<input id="q" type="text" placeholder="e.g. 1400.005, 1400, 005" autocomplete="off">' +
+                '<label for="proj">project (optional)</label>' +
+                '<input id="proj" type="text" placeholder="exact project name" autocomplete="off">' +
+                '<label><input id="includeCommands" type="checkbox" checked> include commands</label>' +
                 '<button id="btn-run">Run</button>'
 };
 
@@ -249,11 +260,13 @@ function renderDocsTable(data){
     return;
   }
 
+  var docsSorted = sortDocs(matches, currentEndpoint === 'get_catalog' ? catalogSortBy : 'recent');
+
   /* Group by project name for readability. */
   var groups = {};
   var order  = [];
-  for (var i = 0; i < matches.length; i++) {
-    var m = matches[i];
+  for (var i = 0; i < docsSorted.length; i++) {
+    var m = docsSorted[i];
     var key = m.projectName || '(unknown)';
     if (!groups[key]) { groups[key] = []; order.push(key); }
     groups[key].push(m);
@@ -264,15 +277,17 @@ function renderDocsTable(data){
     var proj = order[g];
     var docs = groups[proj];
     html += '<div class="group-hd"><span>' + esc(proj) + '</span><span class="count">' + docs.length + ' doc' + (docs.length === 1 ? '' : 's') + '</span></div>';
-    html += '<table><thead><tr><th>#</th><th>Title</th><th>File</th><th>Description</th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>#</th><th>Title</th><th>File</th><th>Updated</th><th>Description</th></tr></thead><tbody>';
     for (var j = 0; j < docs.length; j++) {
       var d = docs[j];
       var descClass = d.description ? 'c-desc' : 'c-desc empty';
       var descText  = d.description ? esc(d.description) : '(empty)';
+      var mdLink = BASE + '/md-preview?path=' + encodeURIComponent(d.filePath || '');
       html += '<tr>' +
         '<td class="c-idx">' + (j + 1) + '</td>' +
-        '<td class="c-title">' + esc(d.title || d.fileName) + '</td>' +
-        '<td class="c-file" title="' + esc(d.filePath) + '">' + esc(d.fileName) + '</td>' +
+        '<td class="c-title"><a href="' + esc(mdLink) + '" target="_blank" rel="noopener" title="Open rendered markdown in new tab">' + esc(d.title || d.fileName) + '</a></td>' +
+        '<td class="c-file" title="' + esc(d.filePath) + '"><a href="' + esc(mdLink) + '" target="_blank" rel="noopener" title="Open rendered markdown in new tab">' + esc(d.fileName) + '</a></td>' +
+        '<td class="c-path" title="' + esc(d.lastModified || '') + '">' + esc(formatStamp(d.lastModified)) + '</td>' +
         '<td class="' + descClass + '">' + descText + '</td>' +
         '</tr>';
     }
@@ -353,6 +368,52 @@ function renderCvtCommandsTable(data){
   resultEl.innerHTML = html;
 }
 
+function renderLookupDewey(data){
+  var docs = (data && data.docs) || [];
+  var commands = (data && data.commands) || [];
+  if (!docs.length && !commands.length) {
+    resultEl.innerHTML = '<div class="state">No Dewey matches for &ldquo;' + esc((data && data.query) || '') + '&rdquo;.</div>';
+    return;
+  }
+
+  var html = '';
+  if (docs.length) {
+    html += '<div class="group-hd"><span>Documents</span><span class="count">' + docs.length + ' match' + (docs.length === 1 ? '' : 'es') + '</span></div>';
+    html += '<table><thead><tr><th>#</th><th>Dewey</th><th>Project</th><th>Title</th><th>File</th><th>Description</th></tr></thead><tbody>';
+    for (var i = 0; i < docs.length; i++) {
+      var d = docs[i];
+      html += '<tr>' +
+        '<td class="c-idx">' + (i + 1) + '</td>' +
+        '<td class="c-idx">' + esc(d.dewey || '') + '</td>' +
+        '<td class="c-proj">' + esc(d.projectName || '') + '</td>' +
+        '<td class="c-title">' + esc(d.title || d.fileName || '') + '</td>' +
+        '<td class="c-file" title="' + esc(d.filePath || '') + '">' + esc(d.fileName || '') + '</td>' +
+        '<td class="c-desc">' + esc(d.description || '') + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  if (commands.length) {
+    html += '<div class="group-hd"><span>CVT Commands</span><span class="count">' + commands.length + ' match' + (commands.length === 1 ? '' : 'es') + '</span></div>';
+    html += '<table><thead><tr><th>Dewey</th><th>ID</th><th>Title</th><th>Group</th><th>Scope</th><th>Description</th></tr></thead><tbody>';
+    for (var j = 0; j < commands.length; j++) {
+      var c = commands[j];
+      html += '<tr>' +
+        '<td class="c-idx">' + esc(c.dewey || '') + '</td>' +
+        '<td class="c-name">' + esc(c.id || '') + '</td>' +
+        '<td class="c-title">' + esc(c.title || '') + '</td>' +
+        '<td class="c-desc">' + esc(c.group || '') + '</td>' +
+        '<td><span class="c-type">' + esc(c.scope || '') + '</span></td>' +
+        '<td class="c-desc">' + esc(c.description || '') + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  resultEl.innerHTML = html;
+}
+
 /* Fetch and render the current endpoint. */
 function runEndpoint(params){
   var qs = params ? ('?' + new URLSearchParams(params).toString()) : '';
@@ -378,6 +439,7 @@ function runEndpoint(params){
         if (currentEndpoint === 'list_symbols')   { renderSymbolsTable(json); return; }
         if (currentEndpoint === 'find_symbol')    { renderSymbolsTable(json); return; }
         if (currentEndpoint === 'list_cvt_commands') { renderCvtCommandsTable(json); return; }
+        if (currentEndpoint === 'lookup_dewey')   { renderLookupDewey(json); return; }
         resultEl.innerHTML = '<pre class="json">' + esc(JSON.stringify(json, null, 2)) + '</pre>';
       });
     })
@@ -390,6 +452,11 @@ function runEndpoint(params){
 
 function countSummary(json){
   if (typeof json.projectCount === 'number') { return json.projectCount + ' projects'; }
+  if (typeof json.docMatchCount === 'number' || typeof json.commandMatchCount === 'number') {
+    var d = typeof json.docMatchCount === 'number' ? json.docMatchCount : 0;
+    var c = typeof json.commandMatchCount === 'number' ? json.commandMatchCount : 0;
+    return d + ' docs, ' + c + ' commands';
+  }
   if (typeof json.matchCount   === 'number') {
     if (typeof json.totalIndexed  === 'number') { return json.matchCount + ' / ' + json.totalIndexed + ' indexed'; }
     if (typeof json.totalCommands === 'number') { return json.matchCount + ' / ' + json.totalCommands + ' commands'; }
@@ -397,6 +464,63 @@ function countSummary(json){
   }
   if (typeof json.docCount     === 'number') { return json.docCount + ' docs'; }
   return '';
+}
+
+function byMostRecent(a, b){
+  var ta = Date.parse((a && a.lastModified) || '') || 0;
+  var tb = Date.parse((b && b.lastModified) || '') || 0;
+  return tb - ta;
+}
+
+function sortDocs(docs, mode){
+  var arr = docs.slice();
+  if (mode === 'title') {
+    arr.sort(function(a,b){ return String(a.title || '').localeCompare(String(b.title || '')); });
+  } else if (mode === 'file') {
+    arr.sort(function(a,b){ return String(a.fileName || '').localeCompare(String(b.fileName || '')); });
+  } else if (mode === 'description') {
+    arr.sort(function(a,b){ return String(a.description || '').localeCompare(String(b.description || '')); });
+  } else {
+    arr.sort(byMostRecent);
+  }
+  return arr;
+}
+
+function formatStamp(iso){
+  if (!iso) { return ''; }
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) { return ''; }
+  return d.toLocaleString();
+}
+
+function loadProjectOptions(selectEl){
+  if (!selectEl) { return; }
+  function renderOptions(names){
+    var selected = selectEl.value || '';
+    var opts = ['<option value="">blank = all projects</option>'];
+    for (var i = 0; i < names.length; i++) {
+      var n = names[i];
+      opts.push('<option value="' + esc(n) + '">' + esc(n) + '</option>');
+    }
+    selectEl.innerHTML = opts.join('');
+    selectEl.value = selected;
+  }
+
+  if (projectOptions.length) {
+    renderOptions(projectOptions);
+    return;
+  }
+
+  fetch(BASE + '/api/list_projects')
+    .then(function(res){ return res.json(); })
+    .then(function(json){
+      var rows = (json && json.projects) || [];
+      projectOptions = rows.map(function(p){ return p.name; }).sort();
+      renderOptions(projectOptions);
+    })
+    .catch(function(){
+      // Keep default blank option only.
+    });
 }
 
 /* Switch tabs. */
@@ -417,8 +541,17 @@ function selectTab(endpoint){
   var kindEl = document.getElementById('kind');
   var roleEl = document.getElementById('role');
   var expEl  = document.getElementById('exportedOnly');
+  var includeCommandsEl = document.getElementById('includeCommands');
   var groupEl = document.getElementById('group');
   var statusEl = document.getElementById('status');
+  var sortByEl = document.getElementById('sortBy');
+
+  if (endpoint === 'get_catalog' && pEl) {
+    loadProjectOptions(pEl);
+  }
+  if (endpoint === 'get_catalog' && sortByEl) {
+    sortByEl.value = catalogSortBy;
+  }
 
   function runFromControls(){
     if (endpoint === 'list_projects') {
@@ -440,6 +573,7 @@ function selectTab(endpoint){
       runEndpoint(params);
     } else if (endpoint === 'get_catalog') {
       var p3 = (pEl && pEl.value || '').trim();
+      catalogSortBy = (sortByEl && sortByEl.value) ? sortByEl.value : 'recent';
       runEndpoint(p3 ? { projectName: p3 } : null);
     } else if (endpoint === 'list_symbols') {
       var params2 = {};
@@ -458,6 +592,14 @@ function selectTab(endpoint){
     } else if (endpoint === 'list_cvt_commands') {
       var gr = (groupEl && groupEl.value || '').trim();
       runEndpoint(gr ? { group: gr } : null);
+    } else if (endpoint === 'lookup_dewey') {
+      var q3 = (qEl && qEl.value || '').trim();
+      if (!q3) { toast('Enter a Dewey query first'); qEl && qEl.focus(); return; }
+      var p4 = (pEl && pEl.value || '').trim();
+      var params3 = { query: q3 };
+      if (p4) { params3.projectName = p4; }
+      if (includeCommandsEl && !includeCommandsEl.checked) { params3.includeCommands = 'false'; }
+      runEndpoint(params3);
     }
   }
 
@@ -468,6 +610,7 @@ function selectTab(endpoint){
   });
   /* Status dropdown re-runs on change — no need to click Run. */
   if (statusEl) { statusEl.addEventListener('change', runFromControls); }
+  if (sortByEl) { sortByEl.addEventListener('change', runFromControls); }
 
   if (endpoint === 'list_projects') {
     runEndpoint(null);

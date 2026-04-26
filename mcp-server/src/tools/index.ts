@@ -12,6 +12,9 @@ import {
   FindProjectToolSchema,
   GetCatalogToolSchema,
   SearchDocsToolSchema,
+  LookupDeweyToolSchema,
+  ListBrokenRefsToolSchema,
+  RepairBrokenRefsToolSchema,
   ListSymbolsToolSchema,
   FindSymbolToolSchema,
   ListCvtCommandsToolSchema,
@@ -21,6 +24,9 @@ import {
   findProjects,
   scanAllDocs,
   searchDocs,
+  lookupDocsByDewey,
+  listBrokenRefs,
+  repairBrokenRefs,
 } from "./catalog-helpers.js";
 import {
   getSymbolIndex,
@@ -321,7 +327,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "get_catalog",
-    "Scans every project in the registry for .md docs and returns a flat catalog. Each entry includes projectName, fileName, filePath, title, and description. Optionally filter by projectName to scan just one project. This does a live disk scan — call once per session and reuse the result.",
+    "Scans every project in the registry for .md docs and returns a flat catalog. Each entry includes title/description plus Dewey identity, project metadata, tags, size, and last-modified date. Optionally filter by projectName to scan just one project. This does a live disk scan — call once per session and reuse the result.",
     GetCatalogToolSchema.shape,
     async ({ projectName }) => {
       try {
@@ -346,7 +352,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "search_docs",
-    "Case-insensitive search across all .md docs in the registry. Matches against title, description, and filename. Optionally restrict to a single project with projectName. Returns matching DocEntry records.",
+    "Case-insensitive search across all .md docs in the registry. Matches against title, description, filename, and extracted tags. Optionally restrict to a single project with projectName. Returns matching DocEntry records with Dewey and project metadata.",
     SearchDocsToolSchema.shape,
     async ({ query, projectName }) => {
       try {
@@ -366,6 +372,111 @@ export function registerTools(server: McpServer): void {
         const msg: string = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `Error searching docs: ${msg}` }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "lookup_dewey",
+    "Finds locations by full or partial Dewey ID. Matches catalog docs and, optionally, CVT command catalog entries. Use when you only have a Dewey number and need file/command location quickly.",
+    LookupDeweyToolSchema.shape,
+    async ({ query, projectName, includeCommands, limit }) => {
+      try {
+        const max = limit ?? 25;
+        const registry = loadRegistry();
+        const docs = scanAllDocs(registry, projectName);
+        const docMatches = lookupDocsByDewey(docs, query, max);
+
+        const allCommands = includeCommands === false ? [] : loadCvtCommands();
+        const normalizedRaw = query.trim().toLowerCase();
+        const normalizedDigits = normalizedRaw.replace(/\D+/g, "");
+        const rankedCommands = allCommands
+          .map((cmd) => {
+            const raw = (cmd.dewey ?? "").trim().toLowerCase();
+            const digits = raw.replace(/\D+/g, "");
+            if (!normalizedRaw) {
+              return { cmd, score: 0 };
+            }
+            const score =
+              raw === normalizedRaw || (normalizedDigits && digits === normalizedDigits)
+                ? 300
+                : raw.startsWith(normalizedRaw) || (normalizedDigits && digits.startsWith(normalizedDigits))
+                  ? 200
+                  : raw.includes(normalizedRaw) || (normalizedDigits && digits.includes(normalizedDigits))
+                    ? 100
+                    : 0;
+            return { cmd, score };
+          })
+          .filter((row) => row.score > 0)
+          .sort((a, b) => {
+            if (b.score !== a.score) {
+              return b.score - a.score;
+            }
+            return a.cmd.dewey.localeCompare(b.cmd.dewey);
+          })
+          .slice(0, max)
+          .map((row) => row.cmd);
+
+        const payload = {
+          query,
+          normalized: {
+            raw: normalizedRaw,
+            digits: normalizedDigits,
+          },
+          projectName: projectName ?? "(all)",
+          includeCommands: includeCommands !== false,
+          docMatchCount: docMatches.length,
+          commandMatchCount: rankedCommands.length,
+          docs: docMatches,
+          commands: rankedCommands,
+        };
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+        };
+      } catch (error: unknown) {
+        const msg: string = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error looking up Dewey: ${msg}` }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "list_broken_refs",
+    "Scans markdown docs for missing image/doc references across registered projects. Detects broken relative links and image refs, suggests filename candidates (project-first then global), and can optionally create placeholder SVGs when createPlaceholder=true.",
+    ListBrokenRefsToolSchema.shape,
+    async ({ projectName, createPlaceholder }) => {
+      try {
+        const registry = loadRegistry();
+        const report = listBrokenRefs(registry, projectName, createPlaceholder ?? false);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }],
+        };
+      } catch (error: unknown) {
+        const msg: string = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error scanning broken refs: ${msg}` }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "repair_broken_refs",
+    "Applies approved broken-reference changes. Supports exact markdown text replacements and optional SVG placeholder creation for unresolved image references.",
+    RepairBrokenRefsToolSchema.shape,
+    async ({ edits, placeholders }) => {
+      try {
+        const result = repairBrokenRefs({ edits, placeholders });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error: unknown) {
+        const msg: string = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error repairing broken refs: ${msg}` }],
         };
       }
     }
