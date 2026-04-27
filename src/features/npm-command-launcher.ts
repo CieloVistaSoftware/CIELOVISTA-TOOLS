@@ -107,7 +107,19 @@ function buildOutputShellHtml(): string {
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--vscode-editor-font-family,monospace);font-size:12px;background:var(--vscode-terminal-background,#1e1e1e);color:var(--vscode-terminal-foreground,#d4d4d4);display:flex;flex-direction:column}
-#log{flex:1;overflow-y:auto;padding:8px 12px}
+#log{flex:1;overflow-y:auto;padding:8px 12px;position:relative}
+#empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;color:#858585;pointer-events:none}
+#empty-state .ico{font-size:32px;margin-bottom:12px;opacity:.4}
+#empty-state .msg{font-size:13px;font-weight:600;color:#d4d4d4;margin-bottom:6px}
+#empty-state .sub{font-size:11px;line-height:1.5;max-width:360px}
+#log.has-jobs #empty-state{display:none}
+#cvt-header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;font-size:11px}
+#cvt-header .title{font-weight:700;color:#9cdcfe;letter-spacing:.02em}
+#cvt-header .sep{color:#404040}
+#cvt-header .hint{color:#858585;flex:1}
+#cvt-header .clear-btn{background:transparent;color:#858585;border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:2px 10px;cursor:pointer;font-size:11px;font-family:inherit}
+#cvt-header .clear-btn:hover{background:rgba(255,255,255,.06);color:#d4d4d4}
+#cvt-header .clear-btn:disabled{opacity:.4;cursor:not-allowed}
 .job{border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px;padding-bottom:8px}
 .job-hd{display:flex;align-items:baseline;gap:10px;padding:5px 0;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
 .job-name{font-weight:700;font-size:12px;color:#9cdcfe}
@@ -115,6 +127,7 @@ body{font-family:var(--vscode-editor-font-family,monospace);font-size:12px;backg
 .job-time{font-size:10px;color:#858585;margin-left:auto}
 .job-cmd{font-size:10px;color:#569cd6;margin-bottom:4px;word-break:break-all}
 .job-out{white-space:pre-wrap;word-break:break-all;line-height:1.5;font-size:11px}
+.job-out.empty::before{content:'(no output yet)';color:#606060;font-style:italic}
 .job-footer{display:flex;align-items:center;gap:8px;margin-top:4px}
 .job-rc{font-size:11px;font-weight:700}
 .job-rc.ok{color:#3fb950}.job-rc.fail{color:#f85149}.job-rc.killed{color:#cca700}
@@ -130,13 +143,37 @@ body{font-family:var(--vscode-editor-font-family,monospace);font-size:12px;backg
 #btn-stop-cur{background:#f85149;color:#fff;border:none;border-radius:3px;padding:4px 14px;cursor:pointer;font-size:12px;font-weight:700}
 #btn-stop-cur:hover{background:#e03e36}
 </style></head><body>
-<div id="log"></div>
+<div id="cvt-header">
+  <span class="title">&#9654; NPM Output</span>
+  <span class="sep">|</span>
+  <span class="hint" id="cvt-header-hint">Reflects every npm script run from the NPM Scripts panel</span>
+  <button class="clear-btn" id="btn-clear" title="Clear output history" disabled>Clear</button>
+</div>
+<div id="log">
+  <div id="empty-state">
+    <div class="ico">&#9654;</div>
+    <div class="msg">No npm scripts have run yet</div>
+    <div class="sub">Open the NPM Scripts panel and click <strong>Run</strong> on any script. The command, live output, and exit status will appear here.</div>
+  </div>
+</div>
 <div id="stopbar"><span id="stop-label"></span><button id="btn-stop-cur">&#9632; Stop</button></div>
 <script>(function(){
 var vsc=acquireVsCodeApi();
 var logEl=document.getElementById('log');
 var stopbar=document.getElementById('stopbar');
 var stopLabel=document.getElementById('stop-label');
+var clearBtn=document.getElementById('btn-clear');
+var headerHint=document.getElementById('cvt-header-hint');
+var jobCount=0;
+function refreshClearBtn(){clearBtn.disabled=(jobCount===0);}
+clearBtn.addEventListener('click',function(){
+  var jobs=logEl.querySelectorAll('.job');
+  jobs.forEach(function(j){j.remove();});
+  jobCount=0;
+  logEl.classList.remove('has-jobs');
+  headerHint.textContent='Reflects every npm script run from the NPM Scripts panel';
+  refreshClearBtn();
+});
 document.getElementById('btn-stop-cur').addEventListener('click',function(){
   vsc.postMessage({command:'stop-current'});
 });
@@ -158,6 +195,10 @@ logEl.addEventListener('click',function(e){
 window.addEventListener('message',function(ev){
   var m=ev.data;
   if(m.type==='job-start'){
+    logEl.classList.add('has-jobs');
+    jobCount++;
+    refreshClearBtn();
+    headerHint.textContent='Last started: '+m.script+' ('+m.folder+')';
     var div=document.createElement('div');
     div.className='job';
     div.id='job-'+m.jobKey;
@@ -168,7 +209,7 @@ window.addEventListener('message',function(ev){
         +'<span class="job-time">'+esc(m.time)+'</span>'
       +'</div>'
       +'<div class="job-cmd">npm run '+esc(m.script)+'</div>'
-      +'<div class="job-out" id="out-'+esc(m.jobKey)+'"></div>'
+      +'<div class="job-out empty" id="out-'+esc(m.jobKey)+'"></div>'
       +'<div class="job-footer">'
         +'<span class="job-rc running" id="rc-'+esc(m.jobKey)+'">● Running…</span>'
         +'<button class="btn-chat" data-jobkey="'+esc(m.jobKey)+'">📤 Copy to Chat</button>'
@@ -179,7 +220,7 @@ window.addEventListener('message',function(ev){
     stopLabel.textContent='Running: '+m.script;
   } else if(m.type==='output'){
     var out=document.getElementById('out-'+m.jobKey);
-    if(out){out.textContent+=m.text;logEl.scrollTop=logEl.scrollHeight;}
+    if(out){out.classList.remove('empty');out.textContent+=m.text;logEl.scrollTop=logEl.scrollHeight;}
   } else if(m.type==='done'){
     var rc=document.getElementById('rc-'+m.jobKey);
     if(rc){
@@ -423,8 +464,35 @@ async function openPanel(): Promise<void> {
                 const proc = cp.spawn('npm', ['run', script], { cwd: dir, shell: true, env: { ...process.env } });
                 _running.set(jobKey, proc);
 
-                proc.stdout?.on('data', (chunk: Buffer) => sendOut('output', { text: stripAnsi(chunk.toString()) }));
-                proc.stderr?.on('data', (chunk: Buffer) => sendOut('output', { text: stripAnsi(chunk.toString()) }));
+                // For server scripts (start/dev/serve), watch stdout for a
+                // localhost URL and open it in VS Code's Simple Browser so
+                // the user never has to leave VS Code.  Only fires once per
+                // run; stale-server duplicates are avoided by the flag.
+                const SERVER_SCRIPTS = /^(start|dev|serve|preview)$/;
+                const LOCALHOST_URL  = /(https?:\/\/localhost:\d+[^\s'"]*)/;
+                let   _browserOpened = false;
+
+                function maybeOpenBrowser(text: string): void {
+                    if (_browserOpened || !SERVER_SCRIPTS.test(script)) { return; }
+                    const m = text.match(LOCALHOST_URL);
+                    if (!m) { return; }
+                    _browserOpened = true;
+                    const url = m[1];
+                    log(FEATURE, `Detected server URL: ${url} — opening Simple Browser`);
+                    sendOut('output', { text: `\n[CVT] Server ready → opening ${url} in VS Code Simple Browser\n` });
+                    void vscode.commands.executeCommand('simpleBrowser.show', url);
+                }
+
+                proc.stdout?.on('data', (chunk: Buffer) => {
+                    const text = stripAnsi(chunk.toString());
+                    sendOut('output', { text });
+                    maybeOpenBrowser(text);
+                });
+                proc.stderr?.on('data', (chunk: Buffer) => {
+                    const text = stripAnsi(chunk.toString());
+                    sendOut('output', { text });
+                    maybeOpenBrowser(text);  // many dev servers write their URL to stderr
+                });
 
                 let killed = false;
                 proc.on('close', (code, signal) => {
