@@ -73,18 +73,20 @@ function parseStackTop(stack: string): { filename: string; lineno: number; colno
 function adapt(u: UtilsErrorEntry): LegacyErrorEntry {
     const { filename, lineno, colno } = parseStackTop(u.stacktrace || '');
     return {
-        id:        Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0,
-        timestamp: u.lastOccurred || u.timestamp,
-        type:      inferType(u.message),
-        prefix:    `[${u.context || 'unknown'}]`,
-        context:   u.context || '',
-        command:   '',
-        message:   u.count > 1 ? `${u.message} (×${u.count})` : u.message,
-        stack:     u.stacktrace || '',
+        id:               Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0,
+        timestamp:        u.lastOccurred || u.timestamp,
+        type:             inferType(u.message),
+        prefix:           `[${u.context || 'unknown'}]`,
+        context:          u.context || '',
+        command:          '',
+        message:          u.count > 1 ? `${u.message} (×${u.count})` : u.message,
+        stack:            u.stacktrace || '',
         filename,
         lineno,
         colno,
-        raw:       u.message,
+        raw:              u.message,
+        githubIssueNumber: u.githubIssueNumber,
+        githubIssueUrl:    u.githubIssueUrl,
     };
 }
 
@@ -150,3 +152,52 @@ export async function clearErrors(): Promise<void> {
 
 /** Pass-through. The legacy file is always the "primary" so we ensure it exists. */
 export function ensureLogFile(): void { ensureLegacyLogFile(); }
+
+// ─── Patch an entry with its filed GitHub issue number ────────────────────────
+
+/**
+ * After a GitHub issue is filed from the error log viewer, write the issue
+ * number and URL back into the on-disk entry so the viewer renders
+ * "✅ Filed #N" on subsequent reopens.
+ *
+ * Searches both the utils log and the legacy log for an entry whose
+ * numeric id matches `id`, then patches and writes the file.
+ */
+export function patchEntry(id: string | number, issueNumber: number, issueUrl: string): void {
+    const numericId = typeof id === 'string' ? Number(id) : id;
+
+    // ── utils log (cielovista-errors.json) ──────────────────────────────────
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders?.length) {
+        const utilsPath = path.join(folders[0].uri.fsPath, '.vscode', 'logs', 'cielovista-errors.json');
+        if (fs.existsSync(utilsPath)) {
+            try {
+                const entries: UtilsErrorEntry[] = JSON.parse(fs.readFileSync(utilsPath, 'utf8'));
+                const idx = entries.findIndex(
+                    u => (Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0) === numericId
+                );
+                if (idx !== -1) {
+                    entries[idx].githubIssueNumber = issueNumber;
+                    entries[idx].githubIssueUrl    = issueUrl;
+                    fs.writeFileSync(utilsPath, JSON.stringify(entries, null, 2), 'utf8');
+                }
+            } catch { /* best-effort */ }
+        }
+    }
+
+    // ── legacy log (data/tools-errors.json) ─────────────────────────────────
+    const legacyPath = getLegacyLogPath();
+    if (fs.existsSync(legacyPath)) {
+        try {
+            const log = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
+            if (Array.isArray(log.errors)) {
+                const idx = log.errors.findIndex((e: LegacyErrorEntry) => e.id === numericId);
+                if (idx !== -1) {
+                    log.errors[idx].githubIssueNumber = issueNumber;
+                    log.errors[idx].githubIssueUrl    = issueUrl;
+                    fs.writeFileSync(legacyPath, JSON.stringify(log, null, 2), 'utf8');
+                }
+            }
+        } catch { /* best-effort */ }
+    }
+}

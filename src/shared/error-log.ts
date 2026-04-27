@@ -51,6 +51,8 @@ export interface ErrorEntry {
     lineno:    number;
     colno:     number;
     raw:       string;       // String(error) — the full raw error
+    githubIssueNumber?: number;
+    githubIssueUrl?:    string;
 }
 
 export interface ErrorLog {
@@ -207,6 +209,18 @@ export function getErrors():   ErrorEntry[] { return loadLog().errors; }
 export async function clearErrors(): Promise<void> {
     saveLog({ lastUpdated: new Date().toISOString(), count: 0, errors: [] });
     _sessionNotified = false;
+}
+
+/**
+ * Make sure the log file exists on disk. Lets the viewer's "Open JSON" button
+ * work even when no errors have been logged yet - without this, opening a
+ * non-existent path throws ENOENT and the button looks broken on a fresh
+ * install.
+ */
+export function ensureLogFile(): void {
+    if (!fs.existsSync(LOG_PATH)) {
+        saveLog({ lastUpdated: new Date().toISOString(), count: 0, errors: [] });
+    }
 }
 
 /** @internal — exported for unit testing only */

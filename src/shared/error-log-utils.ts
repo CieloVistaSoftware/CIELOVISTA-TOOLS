@@ -40,6 +40,10 @@ export interface ErrorEntry {
     solved: boolean;
     /** Short description of the fix (when solved = true). */
     solution?: string;
+    /** GitHub issue number filed from the error log viewer. */
+    githubIssueNumber?: number;
+    /** GitHub issue URL filed from the error log viewer. */
+    githubIssueUrl?: string;
 }
 
 // ─── File path helper ─────────────────────────────────────────────────────────

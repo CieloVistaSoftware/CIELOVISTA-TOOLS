@@ -158,6 +158,20 @@ function postIssue(token: string, title: string, body: string, labels: string[])
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+export interface RegressionEntry {
+    regId:            string;
+    title:            string;
+    date:             string;
+    severity:         string;
+    status:           string;
+    description:      string;
+    rule?:            string;
+    githubIssueNumber: number | null;
+    githubIssueUrl:    string | null;
+    fixedDate:         string | null;
+    releaseVersion:    string | null;
+}
+
 /**
  * File a GitHub issue for the given error entry.
  * Always files to CieloVistaSoftware/cielovista-tools (Phase 1 routing).
@@ -171,6 +185,44 @@ export async function fileErrorAsIssue(e: ErrorEntry): Promise<FileIssueResult> 
     const title  = buildTitle(e);
     const body   = buildBody(e);
     const labels = ['type:bug', 'auto-filed'];
+
+    try {
+        const res = await postIssue(token, title, body, labels);
+        return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: msg };
+    }
+}
+
+/**
+ * File a GitHub issue for the given regression entry.
+ */
+export async function fileRegressionAsIssue(r: RegressionEntry): Promise<FileIssueResult> {
+    const token = await getGithubToken();
+    if (!token) {
+        return { ok: false, error: 'GitHub authentication was canceled or failed.' };
+    }
+
+    const title = `[${r.regId}] ${r.title}`;
+    const lines: string[] = [];
+    lines.push('## Regression Report — ' + r.regId);
+    lines.push('');
+    lines.push(`**Severity:** ${r.severity}`);
+    lines.push(`**Date discovered:** ${r.date}`);
+    lines.push('');
+    lines.push('### Description');
+    lines.push(r.description);
+    if (r.rule) {
+        lines.push('');
+        lines.push('### Rule established');
+        lines.push(r.rule);
+    }
+    lines.push('');
+    lines.push('---');
+    lines.push('*Filed from `cvs.tools.regressionLog` viewer on ' + new Date().toISOString() + '*');
+    const body   = lines.join('\n');
+    const labels = ['type:regression', 'auto-filed'];
 
     try {
         const res = await postIssue(token, title, body, labels);
