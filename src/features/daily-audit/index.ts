@@ -121,8 +121,14 @@ export function activate(context: vscode.ExtensionContext): void {
                     let output = '';
                     if (result.written) {
                         const checks = result.report.checks;
+                        const runAt = result.report.generatedAt || new Date().toISOString();
                         output += `=== Daily Audit Results ===\n`;
+                        output += `Run at: ${runAt}\n`;
                         output += `Projects (${result.projectNames.length}): ${result.projectNames.join(', ')}\n`;
+                        output += `All projects:\n`;
+                        for (const projectName of result.projectNames) {
+                            output += `  - ${projectName}\n`;
+                        }
                         output += `Scanned ${checks.length} checks in ${result.report.durationMs}ms\n`;
                         output += `Summary: ${r.red} red, ${r.yellow} yellow, ${r.green} green, ${r.grey} grey\n`;
                         output += `\n---\n`;

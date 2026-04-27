@@ -23,6 +23,8 @@ export interface TestCoverageResult {
     name:          string;
     projPath:      string;
     type:          string;
+    isApplicable:  boolean;
+    skipReason:    string;
     hasTests:      boolean;
     hasPlaywright: boolean;
     hasConfig:     boolean;
@@ -33,9 +35,47 @@ export interface TestCoverageResult {
     issues:        string[];
 }
 
+const PLAYWRIGHT_REQUIRED_TYPES = new Set([
+    'vscode-extension',
+    'component-library',
+    'website',
+]);
+
+function hasNestedPackageJson(rootPath: string, maxDepth = 2): boolean {
+    const skip = new Set(['node_modules', '.git', '.vscode', 'out', 'dist', 'build', 'coverage']);
+
+    function walk(dir: string, depth: number): boolean {
+        if (depth > maxDepth) {
+            return false;
+        }
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            return false;
+        }
+        for (const entry of entries) {
+            if (!entry.isDirectory() || skip.has(entry.name)) {
+                continue;
+            }
+            const sub = path.join(dir, entry.name);
+            if (fs.existsSync(path.join(sub, 'package.json'))) {
+                return true;
+            }
+            if (walk(sub, depth + 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    return walk(rootPath, 1);
+}
+
 export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
     const result: TestCoverageResult = {
         name: project.name, projPath: project.path, type: project.type,
+        isApplicable: true, skipReason: '',
         hasTests: false, hasPlaywright: false, hasConfig: false, hasDep: false,
         hasNpm: false, specFiles: [], realTestCount: 0, issues: [],
     };
@@ -45,11 +85,38 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
         return result;
     }
 
+    const typeNormalized = (project.type || '').toLowerCase();
+
+    // Only specific project types are Playwright-required.
+    const typeRequiresPlaywright = PLAYWRIGHT_REQUIRED_TYPES.has(typeNormalized);
+
+    if (!typeRequiresPlaywright) {
+        result.isApplicable = false;
+        result.skipReason = `Project type "${project.type}" is not Playwright-required`;
+        return result;
+    }
+
     // Skip non-NPM non-extension projects entirely.
     const pkgPath = path.join(project.path, 'package.json');
-    const isExtension = project.type === 'vscode-extension';
+    const isExtension = typeNormalized === 'vscode-extension';
     if (!fs.existsSync(pkgPath) && !isExtension) {
+        result.isApplicable = false;
+        result.skipReason = `Project type "${project.type}" has no package.json`; 
         return result;
+    }
+
+    // Some registry entries are container workspaces (for example a parent folder
+    // that holds multiple extensions). If there is no root package.json but nested
+    // package.json files exist, treat it as a container and skip Playwright checks.
+    if (!fs.existsSync(pkgPath) && hasNestedPackageJson(project.path)) {
+        result.isApplicable = false;
+        result.skipReason = 'Container workspace with nested package.json files';
+        return result;
+    }
+
+    let pkg: Record<string, unknown> = {};
+    if (fs.existsSync(pkgPath)) {
+        try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { pkg = {}; }
     }
 
     // tests/ folder — check existence AND whether it has real tests
@@ -90,8 +157,9 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
     }
     result.hasNpm = true;
 
-    let pkg: Record<string, unknown> = {};
-    try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { /* ignore */ }
+    if (!Object.keys(pkg).length) {
+        try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { /* ignore */ }
+    }
 
     // Test script uses playwright
     const testScript = ((pkg.scripts as Record<string, string> | undefined)?.test ?? '').toLowerCase();
@@ -122,16 +190,20 @@ export function checkTestCoverage(project: ProjectEntry): TestCoverageResult {
 export function runTestCoverageCheck(projects: ProjectEntry[]): AuditCheck {
     const t0 = Date.now();
     const results = projects.map(p => checkTestCoverage(p));
+    const applicable = results.filter(r => r.isApplicable);
 
-    const failing  = results.filter(r => r.issues.length > 0);
-    const passing  = results.filter(r => r.issues.length === 0);
+    const failing  = applicable.filter(r => r.issues.length > 0);
+    const passing  = applicable.filter(r => r.issues.length === 0);
 
     let status: AuditCheck['status'];
     let summary: string;
 
-    if (failing.length === 0) {
+    if (applicable.length === 0) {
+        status  = 'grey';
+        summary = 'No projects require Playwright checks';
+    } else if (failing.length === 0) {
         status  = 'green';
-        summary = `All ${passing.length} projects have Playwright tests configured`;
+        summary = `All ${passing.length} applicable project${passing.length > 1 ? 's' : ''} have Playwright tests configured`;
     } else if (failing.length <= 2) {
         status  = 'yellow';
         summary = `${failing.length} project${failing.length > 1 ? 's' : ''} missing Playwright setup: ${failing.map(r => r.name).join(', ')}`;
