@@ -55,6 +55,46 @@ interface AuditReport {
   bugsTotal: number;
 }
 
+function extractBalancedJsonObject(text: string, startIdx: number): string | undefined {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIdx; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      depth++;
+      continue;
+    }
+
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        return text.slice(startIdx, i + 1);
+      }
+    }
+  }
+
+  return undefined;
+}
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -112,24 +152,58 @@ async function runAudit(): Promise<AuditReport> {
     }
   }
 
-  // Find the JSON line — it's the last non-empty line starting with '{'
-  const lines   = rawOutput.split('\n').map(l => l.trim()).filter(Boolean);
-  const jsonLine = [...lines].reverse().find(l => l.startsWith('{'));
-
-  if (!jsonLine) {
-    const preview = lines.slice(-5).join(' | ');
-    const err = new Error(`audit-test-coverage.js produced no JSON output. Last output: ${preview}`);
-    logError(`audit-test-coverage.js produced no JSON output. Last output: ${preview}`, err.stack || String(err), { context: 'test-coverage-auditor' });
-    throw err;
-  }
+  const lines = rawOutput.split('\n').map(l => l.trim()).filter(Boolean);
 
   let metricsJson: any;
-  try {
-    metricsJson = JSON.parse(jsonLine);
-  } catch (parseErr: any) {
-    const snippet = jsonLine.slice(0, 200);
-    const err = new Error(`JSON.parse failed on script output. Parse error: ${parseErr.message}. Offending line (first 200 chars): ${snippet}`);
-    logError(`JSON.parse failed on script output. Parse error: ${parseErr.message}. Offending line (first 200 chars): ${snippet}`, err.stack || String(err), { context: 'test-coverage-auditor' });
+  let parsed = false;
+
+  // Preferred: parse the whole output (works when script emits only JSON).
+  const trimmed = rawOutput.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      metricsJson = JSON.parse(trimmed);
+      parsed = true;
+    } catch {
+      // Fall through to extraction mode below.
+    }
+  }
+
+  // Fallback: scan for balanced JSON objects and parse the first one with metrics.
+  if (!parsed) {
+    let sawCandidate = false;
+    let lastParseError = '';
+    let lastSnippet = '';
+
+    for (let i = 0; i < rawOutput.length; i++) {
+      if (rawOutput[i] !== '{') { continue; }
+      const candidate = extractBalancedJsonObject(rawOutput, i);
+      if (!candidate) { continue; }
+      sawCandidate = true;
+
+      try {
+        const parsedCandidate = JSON.parse(candidate);
+        if (parsedCandidate && typeof parsedCandidate === 'object' && parsedCandidate.metrics) {
+          metricsJson = parsedCandidate;
+          parsed = true;
+          break;
+        }
+      } catch (parseErr: any) {
+        lastParseError = parseErr.message;
+        lastSnippet = candidate.slice(0, 200).replace(/\s+/g, ' ');
+      }
+    }
+
+    if (!parsed && sawCandidate && lastParseError) {
+      const err = new Error(`JSON.parse failed on script output. Parse error: ${lastParseError}. Offending payload (first 200 chars): ${lastSnippet}`);
+      logError(`JSON.parse failed on script output. Parse error: ${lastParseError}. Offending payload (first 200 chars): ${lastSnippet}`, err.stack || String(err), { context: 'test-coverage-auditor' });
+      throw err;
+    }
+  }
+
+  if (!parsed) {
+    const preview = lines.slice(-8).join(' | ');
+    const err = new Error(`audit-test-coverage.js produced no parseable JSON output. Last output: ${preview}`);
+    logError(`audit-test-coverage.js produced no parseable JSON output. Last output: ${preview}`, err.stack || String(err), { context: 'test-coverage-auditor' });
     throw err;
   }
 
