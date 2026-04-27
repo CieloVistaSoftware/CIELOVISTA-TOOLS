@@ -112,7 +112,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 /* ── Tooltip ── */
 .tt-wrap{position:relative;display:inline-block}
-.tt-box{display:none;position:absolute;bottom:calc(100% + 6px);left:0;min-width:270px;max-width:340px;background:var(--vscode-editorHoverWidget-background,#252526);border:1px solid var(--vscode-focusBorder,#0078d4);border-radius:5px;padding:10px 12px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:11px;pointer-events:none}
+.tt-box{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:270px;max-width:340px;background:var(--vscode-editorHoverWidget-background,#252526);border:1px solid var(--vscode-focusBorder,#0078d4);border-radius:5px;padding:10px 12px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.5);font-size:11px;pointer-events:none}
 .tt-box.show{display:block}
 .tt-name{font-weight:700;font-size:12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
 .tt-dewey{font-family:var(--vscode-editor-font-family,monospace);font-size:9px;background:var(--vscode-focusBorder,#0078d4);color:#fff;border-radius:3px;padding:1px 4px}
@@ -202,6 +202,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
       <div class="tt-row"><span class="tt-lbl">Where</span><span class="tt-where"></span></div>
       <div class="tt-row"><span class="tt-lbl">How</span><span class="tt-how"></span></div>
       <div class="tt-row"><span class="tt-lbl">Why</span><span class="tt-why"></span></div>
+      <div class="tt-row"><span class="tt-lbl">Output</span><span class="tt-output"></span></div>
       <div class="tt-doc"></div>
     </div>
   </div>
@@ -323,7 +324,7 @@ document.addEventListener('mouseover', function(e) {
   if (!wrap) return;
   var box = wrap.querySelector('.tt-box');
   if (!box) return;
-  _ttTimer = setTimeout(function(){ box.classList.add('show'); }, 2000);
+  _ttTimer = setTimeout(function(){ box.classList.add('show'); }, 700);
 });
 document.addEventListener('mouseout', function(e) {
   var wrap = e.target.closest('.tt-wrap');
@@ -460,17 +461,20 @@ function buildCard(c) {
   var folderBtn = makeBtn('secondary', '\uD83D\uDCC2 Open Folder');
   folderBtn.dataset.action = 'open-folder';
   folderBtn.dataset.path   = c.rootPath;
+  folderBtn.title = 'Open this project folder in VS Code Explorer';
   footer.appendChild(folderBtn);
 
   if (c.claudeMdPath) {
     var cBtn = makeBtn('secondary', '\uD83D\uDCC1 CLAUDE.md');
     cBtn.dataset.action = 'open-claude';
     cBtn.dataset.path   = c.claudeMdPath;
+    cBtn.title = 'Open CLAUDE.md for this project';
     footer.appendChild(cBtn);
   } else {
     var cBtn2 = makeBtn('ghost', '\u2795 Create CLAUDE.md');
     cBtn2.dataset.action = 'create-claude';
     cBtn2.dataset.path   = c.rootPath;
+    cBtn2.title = 'Create CLAUDE.md from template in this project root';
     footer.appendChild(cBtn2);
   }
 
@@ -527,13 +531,14 @@ function buildScriptBtn(s, size) {
   btn.querySelector('.btn-label').textContent = s.name;
   btn.dataset.action  = 'run';
   btn.dataset.script  = s.name;
-  btn.title = 'Hold to see details';
+  btn.title = 'Hover to view details';
 
   // Stop button (hidden by default)
   var stopBtn = makeBtn('secondary', '\u25a0');
   stopBtn.style.display = 'none';
   stopBtn.dataset.action = 'stop';
   stopBtn.dataset.script = s.name;
+  stopBtn.title = 'Stop the running script process';
   stopBtn.style.padding  = '4px 7px';
   wrap.appendChild(stopBtn);
 
@@ -545,6 +550,7 @@ function buildScriptBtn(s, size) {
   tt.querySelector('.tt-where').textContent        = s.doc.where;
   tt.querySelector('.tt-how').textContent          = s.doc.how;
   tt.querySelector('.tt-why').textContent          = s.doc.why;
+  tt.querySelector('.tt-output').textContent       = s.doc.expectedOutput;
   tt.querySelector('.tt-doc').textContent          = s.doc.sourceLabel;
 
   return node;

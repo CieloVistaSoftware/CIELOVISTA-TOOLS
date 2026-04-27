@@ -31,7 +31,9 @@ const PROMINENT = ['start', 'build', 'rebuild', 'test', 'watch', 'tray', 'tray:r
 
 // ─── Script doc synthesis ─────────────────────────────────────────────────────
 
-const KNOWN_DOCS: Record<string, Omit<ScriptDoc, 'docFile' | 'where' | 'sourceLabel'>> = {
+type KnownScriptDoc = Omit<ScriptDoc, 'docFile' | 'where' | 'sourceLabel' | 'expectedOutput'> & { expectedOutput?: string };
+
+const KNOWN_DOCS: Record<string, KnownScriptDoc> = {
     'build':           { what:'Compiles TypeScript source to JavaScript.',        when:'Before testing, packaging, or deploying.',      how:'tsc -p ./',                              why:'Produces runnable JS from TS source.' },
     'rebuild':         { what:'Full pipeline: test, compile, package, install.',  when:'After any code change to ship a new version.',  how:'catalog \u2192 regression \u2192 compile \u2192 install', why:'One command guarantees a clean, tested, live build.' },
     'compile':         { what:'TypeScript compile only, no install.',             when:'Quick syntax check during development.',         how:'tsc -p ./',                              why:'Fast feedback without full rebuild overhead.' },
@@ -50,16 +52,26 @@ const KNOWN_DOCS: Record<string, Omit<ScriptDoc, 'docFile' | 'where' | 'sourceLa
     'mcp:dev':         { what:'MCP server in watch/dev mode.',                   when:'Actively developing MCP tools.',                how:'cd mcp-server && tsc --watch',           why:'Recompiles MCP server on every save.' },
 };
 
+function synthesizeExpectedOutput(cmd: string): string {
+    const v = cmd.toLowerCase();
+    if (v.includes('tsc')) { return 'Compiler output showing emitted files or typed diagnostics.'; }
+    if (v.includes('jest') || v.includes('playwright') || v.includes('mocha')) { return 'Test summary with passing/failing counts.'; }
+    if (v.includes('webpack') || v.includes('rollup') || v.includes('esbuild')) { return 'Bundle artifacts and build summary.'; }
+    if (v.includes('eslint') || v.includes('tslint')) { return 'Lint violations and exit status.'; }
+    if (v.includes('dotnet')) { return '.NET command output with build/run status.'; }
+    return 'Command output stream in NPM Output panel.';
+}
+
 function synthesizeDoc(cmd: string): Omit<ScriptDoc, 'docFile' | 'where' | 'sourceLabel'> {
     const v = cmd.toLowerCase();
-    if (v.includes('tsc'))                                                        { return { what:'Compiles TypeScript source.', when:'Before running.', how:cmd, why:'Produces JavaScript from TypeScript.' }; }
-    if (v.includes('jest')||v.includes('playwright')||v.includes('mocha'))       { return { what:'Runs the test suite.',        when:'Before committing.',how:cmd, why:'Catches regressions.' }; }
-    if (v.includes('webpack')||v.includes('rollup')||v.includes('esbuild'))      { return { what:'Bundles source files.',       when:'Before deployment.',how:cmd, why:'Creates optimised output bundles.' }; }
-    if (v.includes('eslint')||v.includes('tslint'))                               { return { what:'Lints the source code.',      when:'Before committing.',how:cmd, why:'Enforces code style.' }; }
-    if (v.includes('dotnet'))                                                     { return { what:'Runs a .NET CLI command.',    when:'Building .NET.',    how:cmd, why:'Compiles or launches .NET code.' }; }
-    if (v.includes('node '))                                                      { return { what:'Runs a Node.js script.',      when:'On demand.',        how:cmd, why:'Executes a standalone script.' }; }
+    if (v.includes('tsc'))                                                        { return { what:'Compiles TypeScript source.', when:'Before running.', how:cmd, why:'Produces JavaScript from TypeScript.', expectedOutput: synthesizeExpectedOutput(cmd) }; }
+    if (v.includes('jest')||v.includes('playwright')||v.includes('mocha'))       { return { what:'Runs the test suite.',        when:'Before committing.',how:cmd, why:'Catches regressions.', expectedOutput: synthesizeExpectedOutput(cmd) }; }
+    if (v.includes('webpack')||v.includes('rollup')||v.includes('esbuild'))      { return { what:'Bundles source files.',       when:'Before deployment.',how:cmd, why:'Creates optimised output bundles.', expectedOutput: synthesizeExpectedOutput(cmd) }; }
+    if (v.includes('eslint')||v.includes('tslint'))                               { return { what:'Lints the source code.',      when:'Before committing.',how:cmd, why:'Enforces code style.', expectedOutput: synthesizeExpectedOutput(cmd) }; }
+    if (v.includes('dotnet'))                                                     { return { what:'Runs a .NET CLI command.',    when:'Building .NET.',    how:cmd, why:'Compiles or launches .NET code.', expectedOutput: synthesizeExpectedOutput(cmd) }; }
+    if (v.includes('node '))                                                      { return { what:'Runs a Node.js script.',      when:'On demand.',        how:cmd, why:'Executes a standalone script.', expectedOutput: synthesizeExpectedOutput(cmd) }; }
     const disp = cmd.length > 80 ? cmd.slice(0, 77) + '\u2026' : cmd;
-    return { what:`Runs: ${disp}`, when:'On demand.', how:cmd, why:'Custom script.' };
+    return { what:`Runs: ${disp}`, when:'On demand.', how:cmd, why:'Custom script.', expectedOutput: synthesizeExpectedOutput(cmd) };
 }
 
 function formatDocSourceLabel(docPath: string, projectPath: string): string {
@@ -81,6 +93,7 @@ function loadScriptDoc(scriptName: string, scriptCmd: string, projectPath: strin
                 const whenM = txt.match(/^#{1,3}\s+when[^\n]*\n([\s\S]*?)(?=^#{1,3}|\s*$)/im);
                 const howM  = txt.match(/^#{1,3}\s+how[^\n]*\n([\s\S]*?)(?=^#{1,3}|\s*$)/im);
                 const whyM  = txt.match(/^#{1,3}\s+why[^\n]*\n([\s\S]*?)(?=^#{1,3}|\s*$)/im);
+                const outM  = txt.match(/^#{1,3}\s+(?:expected\s+output|output|result)[^\n]*\n([\s\S]*?)(?=^#{1,3}|\s*$)/im);
                 return {
                     what,
                     where: projectPath,
@@ -89,13 +102,14 @@ function loadScriptDoc(scriptName: string, scriptCmd: string, projectPath: strin
                     when: whenM?.[1]?.trim().slice(0, 150) ?? 'On demand.',
                     how:  howM?.[1]?.trim().slice(0, 150)  ?? scriptCmd,
                     why:  whyM?.[1]?.trim().slice(0, 150)  ?? 'See doc file.',
+                    expectedOutput: outM?.[1]?.trim().slice(0, 180) ?? synthesizeExpectedOutput(scriptCmd),
                 };
             } catch { /* fall through */ }
         }
     }
     const known = KNOWN_DOCS[scriptName.toLowerCase()];
     if (known) {
-        return { ...known, where: projectPath, docFile: false, sourceLabel: '\u26A1 Synthesized' };
+        return { ...known, where: projectPath, docFile: false, sourceLabel: '\u26A1 Synthesized', expectedOutput: known.expectedOutput ?? synthesizeExpectedOutput(scriptCmd) };
     }
     return { ...synthesizeDoc(scriptCmd), where: projectPath, docFile: false, sourceLabel: '\u26A1 Synthesized' };
 }
@@ -147,7 +161,7 @@ export function buildCardFromProjectInfo(
         scriptEntries.push({
             name: 'dotnet:build', command: 'dotnet build',
             dewey: `${deweyLabel}.001`, primary: true,
-            doc: { what:'Compiles the .NET project.', when:'Before running or publishing.', where: rootPath, how:'dotnet build', why:'Produces compiled binaries.', docFile: false, sourceLabel: '\u26A1 Synthesized' },
+            doc: { what:'Compiles the .NET project.', when:'Before running or publishing.', where: rootPath, how:'dotnet build', why:'Produces compiled binaries.', expectedOutput:'Build succeeded with generated binaries in bin/obj.', docFile: false, sourceLabel: '\u26A1 Synthesized' },
         });
     }
 

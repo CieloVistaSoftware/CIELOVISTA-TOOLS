@@ -2,7 +2,7 @@
   "name": "cielovista-tools",
   "displayName": "CieloVista Tools",
   "description": "CieloVistaSoftware developer toolkit — Copilot utilities, terminal helpers, CSS hover, Python runner, OpenAI chat, and more. One install, one extension.",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "publisher": "CieloVistaSoftware",
   "license": "PROPRIETARY",
   "repository": {

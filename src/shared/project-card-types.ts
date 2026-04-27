@@ -19,6 +19,7 @@ export interface ScriptDoc {
     where:   string;
     how:     string;
     why:     string;
+    expectedOutput: string;
     docFile: boolean;   // true = read from a .md file, false = synthesized
     sourceLabel: string;
 }
