@@ -20,6 +20,7 @@ function highlightCode(code: string, lang: string): string {
 export function mdToHtml(input: string): string {
     const lines  = input.split('\n').map(l => l.replace(/\r$/, ''));
     const out: string[] = [];
+    const headingIds = new Map<string, number>();
     let i = 0;
 
     while (i < lines.length) {
@@ -70,13 +71,33 @@ export function mdToHtml(input: string): string {
 
         // ── ATX Headings ──────────────────────────────────────────────────────
         const h4 = line.match(/^#### (.+)$/);
-        if (h4) { out.push(`<h4>${inlineMarkdown(esc(h4[1]))}</h4>`); i++; continue; }
+        if (h4) {
+            const id = getUniqueHeadingId(h4[1], headingIds);
+            out.push(`<h4 id="${id}">${inlineMarkdown(esc(h4[1]))}</h4>`);
+            i++;
+            continue;
+        }
         const h3 = line.match(/^### (.+)$/);
-        if (h3) { out.push(`<h3>${inlineMarkdown(esc(h3[1]))}</h3>`); i++; continue; }
+        if (h3) {
+            const id = getUniqueHeadingId(h3[1], headingIds);
+            out.push(`<h3 id="${id}">${inlineMarkdown(esc(h3[1]))}</h3>`);
+            i++;
+            continue;
+        }
         const h2 = line.match(/^## (.+)$/);
-        if (h2) { out.push(`<h2>${inlineMarkdown(esc(h2[1]))}</h2>`); i++; continue; }
+        if (h2) {
+            const id = getUniqueHeadingId(h2[1], headingIds);
+            out.push(`<h2 id="${id}">${inlineMarkdown(esc(h2[1]))}</h2>`);
+            i++;
+            continue;
+        }
         const h1 = line.match(/^# (.+)$/);
-        if (h1) { out.push(`<h1>${inlineMarkdown(esc(h1[1]))}</h1>`); i++; continue; }
+        if (h1) {
+            const id = getUniqueHeadingId(h1[1], headingIds);
+            out.push(`<h1 id="${id}">${inlineMarkdown(esc(h1[1]))}</h1>`);
+            i++;
+            continue;
+        }
 
         // ── Horizontal rule ───────────────────────────────────────────────────
         if (/^---+$/.test(line.trim())) { out.push('<hr>'); i++; continue; }
@@ -120,6 +141,25 @@ export function mdToHtml(input: string): string {
     }
 
     return out.join('\n');
+}
+
+function getUniqueHeadingId(rawHeading: string, seen: Map<string, number>): string {
+    const base = slugifyHeading(rawHeading) || 'section';
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    return count === 0 ? base : `${base}-${count}`;
+}
+
+function slugifyHeading(rawHeading: string): string {
+    return rawHeading
+        .toLowerCase()
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+        .replace(/[*_`~]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
 }
 
 function esc(s: string): string {

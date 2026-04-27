@@ -114,6 +114,25 @@ img{max-width:100%;height:auto}
 let _pendingScrollY = 0;
 (function(){
     const vscode = acquireVsCodeApi();
+    function findAnchorTarget(anchorId) {
+        if (!anchorId) { return null; }
+        const decoded = decodeURIComponent(anchorId).trim();
+        if (!decoded) { return null; }
+        const byId = document.getElementById(decoded);
+        if (byId) { return byId; }
+        const escaped = (window.CSS && CSS.escape)
+            ? CSS.escape(decoded)
+            : decoded.replace(/(["\\])/g, '\\$1');
+        return document.querySelector('[name="' + escaped + '"]');
+    }
+    function scrollToAnchor(anchorId) {
+        const target = findAnchorTarget(anchorId);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return true;
+        }
+        return false;
+    }
     function safeAddListener(id, event, handler) {
         const el = document.getElementById(id);
         if (el) {
@@ -149,8 +168,14 @@ let _pendingScrollY = 0;
             let el = e.target;
             while (el && el !== this) {
                 if (el.tagName && el.tagName.toLowerCase() === 'a' && el.getAttribute('href')) {
+                    const href = (el.getAttribute('href') || '').trim();
+                    if (href.startsWith('#')) {
+                        e.preventDefault();
+                        scrollToAnchor(href.slice(1));
+                        return;
+                    }
                     e.preventDefault();
-                    vscode.postMessage({ command: 'open', path: el.getAttribute('href'), scrollY: window.scrollY });
+                    vscode.postMessage({ command: 'open', path: href, scrollY: window.scrollY });
                     return;
                 }
                 el = el.parentNode;
@@ -163,11 +188,16 @@ let _pendingScrollY = 0;
         if (event.data && typeof event.data.scrollY === 'number') {
             window.scrollTo(0, event.data.scrollY);
         }
+        if (event.data && typeof event.data.anchor === 'string') {
+            scrollToAnchor(event.data.anchor.replace(/^#/, ''));
+        }
     });
     // If scrollY was passed in URL hash, restore it
     if (window.location.hash.startsWith('#scroll=')) {
         const y = parseInt(window.location.hash.replace('#scroll=', ''), 10);
         if (!isNaN(y)) window.scrollTo(0, y);
+    } else if (window.location.hash.length > 1) {
+        scrollToAnchor(window.location.hash.slice(1));
     }
 })();
 </script>

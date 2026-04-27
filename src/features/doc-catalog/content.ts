@@ -17,6 +17,7 @@ export function extractDescription(content: string): string {
     const lines = content.split('\n');
     const textLines: string[] = [];
     let pastFirstHeading = false;
+    const metadataLine = /^\s*\*\*[^*]+\*\*\s*:/;
 
     for (const line of lines) {
         const trimmed = line.trim();
@@ -28,7 +29,7 @@ export function extractDescription(content: string): string {
         }
         if (trimmed.startsWith('>') || trimmed.startsWith('<!--') ||
             trimmed.startsWith('---') || trimmed.startsWith('|') ||
-            trimmed.startsWith('```')) { continue; }
+            trimmed.startsWith('```') || metadataLine.test(trimmed)) { continue; }
         textLines.push(trimmed.replace(/\*\*|__|\*|_|`/g, ''));
         if (textLines.join(' ').length > 160) { break; }
     }
