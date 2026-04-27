@@ -44,6 +44,8 @@ export interface HealthBug {
     checkId:     string;
     title:       string;
     detail:      string;
+    recommendation?: string;
+    evidence?:    string[];
     priority:    'critical' | 'high' | 'medium' | 'low';
     category:    string;
     fixCommandId?: string;
@@ -113,6 +115,51 @@ function clearBug(id: string): void {
     if (b) { b.fixed = true; }
 }
 
+function esc(s: string): string {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function defaultRecommendation(bug: HealthBug): string {
+    if (bug.recommendation && bug.recommendation.trim()) { return bug.recommendation.trim(); }
+    if (bug.fixLabel && bug.fixCommandId) { return `${bug.fixLabel}, then verify this card clears on the next health pass.`; }
+    return 'Inspect the evidence below, fix the underlying cause, and rerun the relevant check.';
+}
+
+function buildIssueUrl(bug: HealthBug): string {
+    const title = `[${bug.category}] ${bug.title}`;
+    const bodyLines = [
+        '## Background Health Runner report',
+        '',
+        `**Check ID:** \`${bug.checkId}\``,
+        `**Priority:** \`${bug.priority}\``,
+        `**Category:** ${bug.category}`,
+        `**Detected:** ${bug.detectedAt}`,
+        '',
+        '### What\'s wrong',
+        bug.detail,
+        '',
+        '### Recommended fix',
+        defaultRecommendation(bug),
+    ];
+
+    if (bug.evidence && bug.evidence.length > 0) {
+        bodyLines.push('', '### Evidence', '```text', ...bug.evidence, '```');
+    }
+
+    bodyLines.push('', '---', '*Filed from CVT Background Health Runner*');
+
+    const params = new URLSearchParams({
+        title,
+        body: bodyLines.join('\n'),
+        labels: `type:bug,status:triage,area:${bug.category.toLowerCase().replace(/\s+/g, '-')}`,
+    });
+    return `https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/new?${params.toString()}`;
+}
+
 // ── Individual health checks ──────────────────────────────────────────────────
 
 interface Check {
@@ -139,6 +186,8 @@ const CHECKS: Check[] = [
                     checkId: 'chk-catalog-registered',
                     title: `${missing.length} catalog command(s) not registered`,
                     detail: `Commands exist in catalog but have no registerCommand(): ${missing.slice(0,5).join(', ')}${missing.length > 5 ? ` +${missing.length-5} more` : ''}`,
+                    recommendation: 'Register each missing command in its owning feature activate() function, or remove stale entries from the launcher catalog if the command was intentionally deleted.',
+                    evidence: missing,
                     priority: 'critical',
                     category: 'Commands',
                     fixCommandId: 'cvs.audit.codebase',
@@ -280,6 +329,7 @@ const CHECKS: Check[] = [
             const registry = loadRegistry();
             if (!registry) { return; }
             let untagged = 0;
+            const offenders: string[] = [];
             const scan = (dir: string, depth = 0) => {
                 if (depth > 3) { return; }
                 try {
@@ -289,8 +339,13 @@ const CHECKS: Check[] = [
                         if (entry.isDirectory()) { scan(full, depth + 1); }
                         else if (entry.name.endsWith('.md')) {
                             const lines = fs.readFileSync(full, 'utf8').split('\n');
-                            for (const line of lines) {
-                                if (line.trim() === '```') { untagged++; }
+                            for (let idx = 0; idx < lines.length; idx++) {
+                                if (lines[idx].trim() === '```') {
+                                    untagged++;
+                                    if (offenders.length < 50) {
+                                        offenders.push(`${full}:${idx + 1}`);
+                                    }
+                                }
                             }
                         }
                     }
@@ -304,7 +359,9 @@ const CHECKS: Check[] = [
                     id: 'bug-untagged-code',
                     checkId: 'chk-untagged-code-blocks',
                     title: `${untagged} untagged fenced code block(s) across all docs`,
-                    detail: 'Code blocks without language tags will not get syntax highlighting.',
+                    detail: `Code blocks without language tags will not get syntax highlighting. Showing ${Math.min(offenders.length, 50)} example location(s).`,
+                    recommendation: 'Replace bare fences with tagged fences such as ```ts, ```js, ```powershell, ```json, or ```bash so docs render with the right syntax highlighting.',
+                    evidence: offenders,
                     priority: 'low',
                     category: 'Documentation',
                     fixCommandId: 'cvs.audit.codeHighlight',
@@ -384,16 +441,23 @@ function buildFixBugsHtml(state: HealthState): string {
         const fixBtn = b.fixCommandId
             ? `<button class="fix-btn" data-action="fix" data-cmd="${b.fixCommandId}" data-id="${b.id}">${b.fixLabel ?? '🔧 Fix'}</button>`
             : '';
+                const recommendation = defaultRecommendation(b);
+                const evidenceHtml = b.evidence && b.evidence.length > 0
+                        ? `<details class="bug-evidence"><summary>What\'s wrong (${b.evidence.length})</summary><pre>${esc(b.evidence.join('\n'))}</pre></details>`
+                        : '';
         return `<div class="bug-card" data-id="${b.id}">
   <div class="bug-header">
     <span class="bug-priority" style="background:${color};color:${b.priority === 'high' ? '#000' : '#fff'}">${b.priority.toUpperCase()}</span>
-    <span class="bug-title">${b.title}</span>
-    <span class="bug-cat">${b.category}</span>
+        <span class="bug-title">${esc(b.title)}</span>
+        <span class="bug-cat">${esc(b.category)}</span>
   </div>
-  <div class="bug-detail">${b.detail}</div>
+    <div class="bug-detail">${esc(b.detail)}</div>
+    <div class="bug-recommendation"><strong>Recommended fix:</strong> ${esc(recommendation)}</div>
+    ${evidenceHtml}
   <div class="bug-footer">
     <span class="bug-time">Detected: ${new Date(b.detectedAt).toLocaleString()}</span>
     ${fixBtn}
+        <button class="issue-btn" data-action="file-issue" data-id="${b.id}">File Issue</button>
     <button class="dismiss-btn" data-action="dismiss" data-id="${b.id}">Dismiss</button>
   </div>
 </div>`;
@@ -427,10 +491,16 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .bug-title{font-weight:700;font-size:0.9em;flex:1}
 .bug-cat{font-size:10px;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:1px 6px}
 .bug-detail{font-size:11px;color:var(--vscode-descriptionForeground);line-height:1.5}
+.bug-recommendation{font-size:11px;line-height:1.5;padding:7px 8px;border-radius:4px;background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.22)}
+.bug-evidence{font-size:11px}
+.bug-evidence summary{cursor:pointer;color:var(--vscode-textLink-foreground);user-select:none}
+.bug-evidence pre{margin-top:6px;padding:8px;border-radius:4px;max-height:200px;overflow:auto;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);font-size:10px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
 .bug-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bug-time{font-size:10px;color:var(--vscode-descriptionForeground);flex:1}
 .fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
 .fix-btn:hover{background:var(--vscode-button-hoverBackground)}
+.issue-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
+.issue-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .dismiss-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px}
 .dismiss-btn:hover{border-color:var(--vscode-focusBorder)}
 .empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground)}
@@ -451,6 +521,11 @@ document.addEventListener('click', function(e) {
     btn.textContent = '\\u23f3 Running\\u2026';
     btn.disabled = true;
   }
+    if (btn.dataset.action === 'file-issue') {
+        vscode.postMessage({ command: 'file-issue', bugId: btn.dataset.id });
+        btn.textContent = 'Opening\u2026';
+        btn.disabled = true;
+    }
   if (btn.dataset.action === 'dismiss') {
     vscode.postMessage({ command: 'dismiss', bugId: btn.dataset.id });
     var card = btn.closest('.bug-card');
@@ -470,6 +545,13 @@ window.addEventListener('message', function(e) {
     var next = document.getElementById('next-check');
     if (next) next.textContent = '\\u23f3 Next: ' + (m.nextCheck || '');
   }
+    if (m.type === 'issue-opened') {
+        var btn = document.querySelector('.issue-btn[data-id="' + m.bugId + '"]');
+        if (btn) {
+            btn.textContent = 'File Issue';
+            btn.disabled = false;
+        }
+    }
 });
 })();`;
 
@@ -549,6 +631,13 @@ export async function showFixBugsPanel(): Promise<void> {
             clearBug(msg.bugId);
             saveState();
         }
+        if (msg.command === 'file-issue') {
+            const bug = _state.bugs.find(b => b.id === msg.bugId && !b.fixed);
+            if (bug) {
+                await vscode.env.openExternal(vscode.Uri.parse(buildIssueUrl(bug)));
+            }
+            _panel?.webview.postMessage({ type: 'issue-opened', bugId: msg.bugId });
+        }
         if (msg.command === 'reload') {
             if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
         }
@@ -597,4 +686,12 @@ export function deactivate(): void {
 }
 
 /** @internal — exported for unit testing only, not part of the public API */
-export const _test = { get state() { return _state; }, set state(v) { _state = v; }, addBug, clearBug, saveState };
+export const _test = {
+    get state() { return _state; },
+    set state(v) { _state = v; },
+    addBug,
+    clearBug,
+    saveState,
+    buildIssueUrl,
+    defaultRecommendation,
+};

@@ -75,6 +75,8 @@ const sampleBug = {
     id: 'bug-test', checkId: 'chk-test', title: 'Test Bug',
     detail: 'A test bug detail', priority: 'high', category: 'test',
     fixCommandId: 'fix.test', fixLabel: 'Fix Test',
+    recommendation: 'Apply the targeted fix and rerun the check.',
+    evidence: ['file-a.md:10', 'file-b.md:22'],
 };
 
 function reset() {
@@ -98,6 +100,8 @@ test('addBug adds a bug with detectedAt and fixed:false', () => {
     eq(t.state.bugs[0].id, 'bug-test');
     eq(t.state.bugs[0].fixed, false, 'New bug must have fixed:false');
     ok(t.state.bugs[0].detectedAt, 'New bug must have detectedAt timestamp');
+    eq(t.state.bugs[0].recommendation, sampleBug.recommendation);
+    eq(t.state.bugs[0].evidence.length, 2);
 });
 
 test('addBug deduplicates — updates existing bug with same id', () => {
@@ -177,6 +181,27 @@ test('activate and deactivate are exported functions', () => {
 
 test('showFixBugsPanel is exported', () => {
     ok(typeof bgHealth.showFixBugsPanel === 'function', 'showFixBugsPanel must be exported');
+});
+
+test('defaultRecommendation returns explicit recommendation when present', () => {
+    eq(t.defaultRecommendation(sampleBug), sampleBug.recommendation);
+});
+
+test('defaultRecommendation falls back to fixLabel when recommendation missing', () => {
+    const bug = { ...sampleBug, recommendation: undefined };
+    ok(t.defaultRecommendation(bug).includes('Fix Test'), 'fallback should mention fix label');
+});
+
+test('buildIssueUrl includes title, detail, recommendation, and evidence', () => {
+    const url = t.buildIssueUrl({ ...sampleBug, detectedAt: '2026-04-26T12:00:00.000Z', fixed: false });
+    ok(url.includes('github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/new?'), 'should target GitHub new issue URL');
+    // URLSearchParams.toString() uses '+' for spaces (form-urlencoded);
+    // decodeURIComponent does NOT decode '+', so swap to %20 first.
+    const decoded = decodeURIComponent(url.replace(/\+/g, '%20'));
+    ok(decoded.includes('[test] Test Bug'), 'title missing from URL');
+    ok(decoded.includes('A test bug detail'), 'detail missing from issue body');
+    ok(decoded.includes('Apply the targeted fix and rerun the check.'), 'recommendation missing from issue body');
+    ok(decoded.includes('file-a.md:10'), 'evidence missing from issue body');
 });
 
 // cleanup
