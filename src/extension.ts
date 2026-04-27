@@ -23,13 +23,13 @@ import { activate as docsManager,             deactivate as deactivateDocsManage
 import { activate as docAuditor,              deactivate as deactivateDocAuditor       } from './features/doc-auditor/index';
 import { activate as dailyAudit,              deactivate as deactivateDailyAudit       } from './features/daily-audit/index';
 import { activate as docIntelligence,         deactivate as deactivateDocIntelligence  } from './features/doc-intelligence/index';
-import { activate as docConsolidator,         deactivate as deactivateDocConsolidator  } from './features/doc-consolidator';
+import { activate as docConsolidator,         deactivate as deactivateDocConsolidator  } from './features/doc-consolidator/index';
 import { activate as docCatalog,              deactivate as deactivateDocCatalog       } from './features/doc-catalog/index';
-import { activate as readmeCompliance,        deactivate as deactivateReadmeCompliance } from './features/readme-compliance';
+import { activate as readmeCompliance,        deactivate as deactivateReadmeCompliance } from './features/readme-compliance/index';
 import { activate as readmeGenerator,         deactivate as deactivateReadmeGenerator  } from './features/readme-generator';
 import { activate as docsBrokenRefs,          deactivate as deactivateDocsBrokenRefs   } from './features/docs-broken-refs';
 import { activate as marketplaceCompliance,   deactivate as deactivateMarketplace      } from './features/marketplace-compliance/index';
-import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header';
+import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header/index';
 import { activate as docHeaderScan,           deactivate as deactivateDocHeaderScan    } from './features/doc-header-scan';
 import { activate as projectLauncher,         deactivate as deactivateProjectLauncher  } from './features/project-launcher';
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
@@ -189,6 +189,7 @@ export function deactivate(): void {
     deactivateDocHeader();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
-    disposeChannel();
+    disposeChannel();
+
     deactivateFileListViewer();
 }
