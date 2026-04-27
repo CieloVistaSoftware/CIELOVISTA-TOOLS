@@ -293,12 +293,12 @@
         "category": "CieloVista Docs",
         "description": "Add a new project entry to the documentation registry."
       },
-        {
-          "command": "cvs.docs.scanBrokenRefs",
-          "title": "Docs: Scan Broken References",
-          "category": "CieloVista Docs",
-          "description": "Detect missing images and dead markdown links with candidate target paths."
-        },
+      {
+        "command": "cvs.docs.scanBrokenRefs",
+        "title": "Docs: Scan Broken References",
+        "category": "CieloVista Docs",
+        "description": "Detect missing images and dead markdown links with candidate target paths."
+      },
       {
         "command": "cvs.audit.docs",
         "title": "Audit: Run Full Docs Audit",
@@ -650,6 +650,12 @@
         "title": "Tools: Error Log Viewer",
         "category": "CieloVista",
         "description": "Open the error log viewer for CieloVista Tools."
+      },
+      {
+        "command": "cvs.tools.fileList",
+        "title": "Tools: FileList",
+        "category": "CieloVista",
+        "description": "Open the FileList viewer — a sortable, table-based alternative to the Explorer tree (Name, Date modified, Type, Size)."
       },
       {
         "command": "cvs.claude.processMonitor",

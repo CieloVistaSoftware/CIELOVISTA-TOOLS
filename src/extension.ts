@@ -55,6 +55,7 @@ import { initMcpServerPath, startMcpServer }                                    
 import { runLicenseSync     } from './features/license-sync';
 import { runCodebaseAudit   } from './features/codebase-auditor';
 import { openErrorLogViewer }      from './features/error-log-viewer';
+import { activate as activateFileListViewer, deactivate as deactivateFileListViewer } from './features/file-list-viewer';
 
 
 // Force inclusion of 'diff' in VSIX bundle
@@ -117,6 +118,8 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('readmeCompliance',        'README Compliance',             readmeCompliance,        context);
     activateIfEnabled('readmeGenerator',         'README Generator',              readmeGenerator,         context);
     activateIfEnabled('docsBrokenRefs',          'Docs Broken References Scanner',docsBrokenRefs,          context);
+    
+    activateIfEnabled('fileListViewer',         'FileList Viewer',               activateFileListViewer,  context);
     activateIfEnabled('marketplaceCompliance',   'Marketplace Compliance',        marketplaceCompliance,   context);
     activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
     activateIfEnabled('docHeaderScan',           'Doc Header Scan',               docHeaderScan,           context);
@@ -136,6 +139,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('mcpViewer',               'MCP Endpoint Viewer',           mcpViewerActivate,       context);
     activateIfEnabled('explorerCopyPathToChat',  'Explorer: Copy Path to Copilot Chat', explorerCopyPathToChatActivate, context);
     activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate, context);
+    activateIfEnabled('fileListViewer',          'FileList Viewer',               activateFileListViewer,  context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
@@ -185,5 +189,6 @@ export function deactivate(): void {
     deactivateDocHeader();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
-    disposeChannel();
+    disposeChannel();
+    deactivateFileListViewer();
 }
