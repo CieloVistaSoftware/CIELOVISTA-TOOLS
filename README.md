@@ -10,6 +10,7 @@ version: 1.0.0
 author: CieloVista Software
 status: active
 tags: [readme, cielovista, tools]
+permalink: /
 ---
 
 # CieloVista Tools
