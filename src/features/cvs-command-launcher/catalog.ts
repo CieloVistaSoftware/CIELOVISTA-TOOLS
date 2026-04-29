@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
+// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
 import type { CmdEntry } from './types';
@@ -117,6 +117,21 @@ export const CATALOG: CmdEntry[] = [
         'Scope: Global - Works from any workspace - reads the CieloVista registry',
         'Group: Other Tools',
         'Dewey: 700.003'
+    ].join('\n') },
+
+    { id: 'cvs.tools.regressionLog', title: 'Tools: Regression Log Viewer',         description: 'Open the regression log viewer - review regressions, file each as a GitHub issue, mark fixed with release version.', tags: ['regression', 'log', 'viewer', 'tests', 'qa', 'issue'],  group: 'Other Tools', groupIcon: '🧰', dewey: '700.004', scope: 'global',     location: 'features/regression-log-viewer.ts', runTooltip: [
+        'What happens when you run this:',
+        '- Opens the Regression Log Viewer webview panel.',
+        '- Reads data/regressions.json and renders each entry with severity and status badges.',
+        '- Per entry: File as Issue (creates a GitHub issue), Mark Fixed (prompts for release version), Open Markdown (opens docs/REGRESSION-LOG.md).',
+        '',
+        'Output behavior:',
+        '- Webview panel opens; no background job runner output.',
+        '- File-as-Issue success and Mark-Fixed prompts surface as toasts.',
+        '',
+        'Scope: Global - works from any workspace, reads the local repo data file.',
+        'Group: Other Tools',
+        'Dewey: 700.004'
     ].join('\n') },
     { id: 'cvs.tools.fileList',     title: 'Tools: FileList',                    description: 'Sortable alternative to the Explorer tree — Name, Date modified, Type, Size columns.', tags: ['file', 'list', 'browse', 'explorer', 'sort', 'size', 'date'],    group: 'Other Tools', groupIcon: '📁', dewey: '700.020', scope: 'global', action: 'read', location: 'features/file-list-viewer.ts' },
     { id: 'cvs.imageReader.open',   title: 'Image Reader: Open Panel',            description: 'Open the image reader panel to browse and view project images.',         tags: ['image', 'reader', 'browse', 'viewer', 'assets'],          group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.004', scope: 'workspace', location: 'features/image-reader.ts' },

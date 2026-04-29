@@ -654,6 +654,12 @@
         "description": "Open the error log viewer for CieloVista Tools."
       },
       {
+        "command": "cvs.tools.regressionLog",
+        "title": "Tools: Regression Log Viewer",
+        "category": "CieloVista",
+        "description": "Open the regression log viewer - review regressions, file as issues, mark fixed with release version."
+      },
+      {
         "command": "cvs.tools.fileList",
         "title": "Tools: FileList",
         "category": "CieloVista",
