@@ -394,6 +394,20 @@ function runMcpProcess(): void {
             terminalWriteLine(`[CVT MCP] Crash diagnostics written: ${diagPath}`);
         }
 
+        // Issues #59 / #63 / #64 / #60 — auto-filed APP_ERROR cluster.
+        // Error logging was firing on every MCP shutdown, including SIGTERM
+        // (sent by VS Code on window reload or extension deactivate) and
+        // exit code 0 (clean self-shutdown). Neither is a bug. The
+        // stopRequested guard above only catches our own stopMcpServer()
+        // path; OS-driven signals arrive without it set. Filter both out
+        // before the crash-dump + logError + retry path.
+        const isExpectedTermSignal = signal === 'SIGTERM' || signal === 'SIGINT';
+        const isCleanExit          = !signal && code === 0;
+        if (isExpectedTermSignal || isCleanExit) {
+            log(FEATURE, `MCP ${reason} — expected lifecycle event, not retrying`);
+            return;
+        }
+
         logError(`MCP process exited unexpectedly: ${reason}`, '', FEATURE);
         scheduleRetry(reason);
     });
