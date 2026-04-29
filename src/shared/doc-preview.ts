@@ -144,7 +144,7 @@ let _pendingScrollY = 0;
     safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'open',           path: '${jsPath}' }));
     safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
     safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
-    safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-explorer',path: '${jsPath}' }));
+    safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
     const bc = document.getElementById('breadcrumb');
     if (bc) {
         bc.addEventListener('click', e => {
@@ -334,16 +334,13 @@ export function openDocPreview(
             case 'open-terminal':
                 if (msg.dir) { vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(); }
                 break;
-            case 'reveal-explorer': {
-                if (!msg.path) { break; }
-                const revUri = vscode.Uri.file(msg.path);
-                const inWorkspace = vscode.workspace.workspaceFolders?.some(
-                    wf => (msg.path as string).toLowerCase().startsWith(wf.uri.fsPath.toLowerCase())
-                );
-                if (inWorkspace) {
-                    await vscode.commands.executeCommand('revealInExplorer', revUri);
-                } else {
-                    await vscode.commands.executeCommand('revealFileInOS', revUri);
+            case 'reveal-folder-os': {
+                if (!msg.dir) { break; }
+                const dirUri = vscode.Uri.file(msg.dir as string);
+                try {
+                    await vscode.commands.executeCommand('revealFileInOS', dirUri);
+                } catch {
+                    await vscode.env.openExternal(dirUri);
                 }
                 break;
             }
