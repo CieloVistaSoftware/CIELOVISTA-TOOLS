@@ -17,6 +17,8 @@
 
 import * as vscode from 'vscode';
 import * as https  from 'https';
+import { execFile } from 'child_process';
+import * as fs from 'fs';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
@@ -40,6 +42,34 @@ interface GHIssue {
 }
 
 let activePanel: vscode.WebviewPanel | undefined;
+let activeRefresh: (() => Promise<void>) | undefined;
+
+function formatIssuesForClipboard(issues: GHIssue[]): string {
+    return issues.map((issue) => {
+        const labels = issue.labels.map((label) => label.name).filter(Boolean).join(', ');
+        const assignees = issue.assignees.map((assignee) => '@' + assignee.login).filter(Boolean).join(', ');
+        const parts = [
+            `#${issue.number} ${issue.title}`,
+            `URL: ${issue.html_url}`,
+            `State: ${issue.state}`,
+            `Author: @${issue.user.login}`,
+            `Updated: ${issue.updated_at}`,
+        ];
+        if (labels) {
+            parts.push(`Labels: ${labels}`);
+        }
+        if (assignees) {
+            parts.push(`Assignees: ${assignees}`);
+        }
+        if (issue.comments > 0) {
+            parts.push(`Comments: ${issue.comments}`);
+        }
+        if (issue.body && issue.body.trim()) {
+            parts.push(`Body: ${issue.body.trim()}`);
+        }
+        return parts.join('\n');
+    }).join('\n\n---\n\n');
+}
 
 /**
  * Show the issues panel. Reuses the existing panel if already open.
@@ -50,6 +80,9 @@ let activePanel: vscode.WebviewPanel | undefined;
 export function showGithubIssues(): void {
     if (activePanel) {
         activePanel.reveal();
+        if (activeRefresh) {
+            void activeRefresh();
+        }
         return;
     }
 
@@ -60,9 +93,15 @@ export function showGithubIssues(): void {
         { enableScripts: true }
     );
     activePanel = panel;
-    panel.onDidDispose(() => { activePanel = undefined; });
+    panel.onDidDispose(() => {
+        activePanel = undefined;
+        activeRefresh = undefined;
+    });
+
+    let latestIssues: GHIssue[] = [];
 
     const setHtml = (loading: boolean, issues: GHIssue[] | null, error: string | null): void => {
+        latestIssues = Array.isArray(issues) ? issues : [];
         panel.webview.html = buildHtml(loading, issues, error);
     };
 
@@ -76,6 +115,7 @@ export function showGithubIssues(): void {
             setHtml(false, null, msg);
         }
     };
+    activeRefresh = refresh;
 
     panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string }) => {
         if (!msg?.type) { return; }
@@ -83,6 +123,8 @@ export function showGithubIssues(): void {
             void refresh();
         } else if (msg.type === 'open' && msg.url) {
             void vscode.env.openExternal(vscode.Uri.parse(String(msg.url)));
+        } else if (msg.type === 'copyAll' && latestIssues.length > 0) {
+            void vscode.env.clipboard.writeText(formatIssuesForClipboard(latestIssues));
         }
     });
 
@@ -91,9 +133,129 @@ export function showGithubIssues(): void {
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
 
-function fetchIssues(): Promise<GHIssue[]> {
+async function fetchIssues(): Promise<GHIssue[]> {
+    const errors: string[] = [];
+
+    try {
+        const viaGh = await fetchIssuesViaGh();
+        if (viaGh.length > 0) {
+            return viaGh;
+        }
+    } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+    }
+
+    try {
+        const rest = await fetchIssuesViaRest();
+        if (rest.length > 0) {
+            return rest;
+        }
+        return [];
+    } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+    }
+
+    throw new Error(errors.join(' | '));
+}
+
+function fetchIssuesViaRest(): Promise<GHIssue[]> {
+    // GitHub /issues returns both issues and pull requests. In active repos,
+    // page 1 can be dominated by PRs and would look like "no issues" after
+    // filtering. Scan a few pages to find real issues before giving up.
+    return (async () => {
+        const perPage = 50;
+        const maxPages = 5;
+        const byNumber = new Map<number, GHIssue>();
+
+        for (let page = 1; page <= maxPages; page++) {
+            const raw = await fetchIssuesPage(page, perPage);
+            const issuesOnly = raw.filter((i) => !i.pull_request);
+            for (const issue of issuesOnly) {
+                byNumber.set(issue.number, issue);
+            }
+
+            if (byNumber.size >= perPage) { break; }
+        }
+
+        return [...byNumber.values()]
+            .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+            .slice(0, perPage);
+    })();
+}
+
+interface GhIssueRaw {
+    number: number;
+    title: string;
+    url: string;
+    state: string;
+    createdAt: string;
+    updatedAt: string;
+    author?: { login?: string };
+    labels?: Array<{ name?: string; color?: string }>;
+    assignees?: Array<{ login?: string }>;
+    body?: string | null;
+    comments?: number;
+}
+
+function fetchIssuesViaGh(): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
-        const path = `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=open&per_page=50&sort=updated`;
+        const ghCandidates = [
+            'gh',
+            'C:\\Program Files\\GitHub CLI\\gh.exe',
+            'C:\\Program Files (x86)\\GitHub CLI\\gh.exe',
+        ];
+        const ghPath = ghCandidates.find((candidate) => candidate === 'gh' || fs.existsSync(candidate));
+        if (!ghPath) {
+            reject(new Error('GitHub CLI not found'));
+            return;
+        }
+
+        const args = [
+            'issue', 'list',
+            '-R', `${REPO_OWNER}/${REPO_NAME}`,
+            '--state', 'open',
+            '--limit', '50',
+            '--json', 'number,title,url,state,createdAt,updatedAt,author,labels,assignees,body,comments',
+        ];
+
+        execFile(ghPath, args, { windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+            if (err) {
+                reject(new Error((stderr || err.message || 'gh issue list failed').trim()));
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(stdout) as GhIssueRaw[];
+                if (!Array.isArray(parsed)) {
+                    resolve([]);
+                    return;
+                }
+
+                const mapped: GHIssue[] = parsed.map((i) => ({
+                    number: i.number,
+                    title: i.title,
+                    html_url: i.url,
+                    state: i.state,
+                    created_at: i.createdAt,
+                    updated_at: i.updatedAt,
+                    user: { login: i.author?.login || 'unknown' },
+                    labels: (i.labels || []).map((l) => ({ name: l.name || '', color: l.color || '888888' })),
+                    assignees: (i.assignees || []).map((a) => ({ login: a.login || '' })).filter((a) => a.login),
+                    body: i.body || null,
+                    comments: typeof i.comments === 'number' ? i.comments : 0,
+                }));
+
+                resolve(mapped);
+            } catch {
+                reject(new Error('Failed to parse gh issue list output'));
+            }
+        });
+    });
+}
+
+function fetchIssuesPage(page: number, perPage: number): Promise<GHIssue[]> {
+    return new Promise((resolve, reject) => {
+        const path = `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=open&per_page=${perPage}&sort=updated&page=${page}`;
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path,
@@ -118,8 +280,7 @@ function fetchIssues(): Promise<GHIssue[]> {
                 }
                 try {
                     const parsed = JSON.parse(body) as GHIssue[];
-                    // The /issues endpoint includes pull requests; strip them.
-                    resolve(parsed.filter((i) => !i.pull_request));
+                    resolve(Array.isArray(parsed) ? parsed : []);
                 } catch {
                     reject(new Error('Failed to parse GitHub response'));
                 }
@@ -168,23 +329,29 @@ function contrastText(hex: string): string {
 function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null): string {
     const css = `
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);min-height:100vh}
+html,body{width:100% !important;max-width:none !important}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);min-height:100vh;width:100% !important;max-width:none !important;display:block}
 #hd{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);position:sticky;top:0;z-index:10;gap:14px;flex-wrap:wrap}
 #hd-text h1{font-size:1.05em;font-weight:700}
 #hd-text .subtitle{font-size:11px;color:var(--vscode-descriptionForeground);margin-top:2px;font-family:var(--vscode-editor-font-family,monospace)}
-#refresh{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
-#refresh:hover{background:var(--vscode-button-secondaryHoverBackground)}
-#body{padding:14px 20px;max-width:900px}
+.repo-link{display:inline-block;padding:2px 0;color:var(--vscode-textLink-foreground);cursor:pointer;font:inherit;text-align:left;text-decoration:underline}
+.repo-link:hover{opacity:.9}
+.repo-link:focus{outline:1px solid var(--vscode-focusBorder);outline-offset:2px;border-radius:2px}
+#hd-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.action-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
+.action-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.action-btn:disabled{opacity:.5;cursor:default}
+#body{padding:14px 20px;width:100% !important;max-width:none !important;display:flex;flex-direction:column;align-items:stretch}
 .loading{padding:24px;text-align:center;color:var(--vscode-descriptionForeground)}
 .error{padding:14px 16px;border:1px solid #f85149;border-radius:6px;background:rgba(248,81,73,.08);color:#f85149;margin-bottom:14px;line-height:1.5}
 .empty{padding:32px;text-align:center;color:var(--vscode-descriptionForeground);font-size:14px}
-.summary{display:flex;gap:14px;margin-bottom:10px;padding:8px 12px;background:var(--vscode-textCodeBlock-background);border-radius:4px;font-size:11px;color:var(--vscode-descriptionForeground);align-items:center;flex-wrap:wrap}
-.controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.summary{display:flex;gap:14px;margin-bottom:10px;padding:8px 12px;background:var(--vscode-textCodeBlock-background);border-radius:4px;font-size:11px;color:var(--vscode-descriptionForeground);align-items:center;flex-wrap:wrap;width:100%;max-width:none}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;width:100%;max-width:none}
 #search{flex:1;min-width:240px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 10px;font-size:12px;font-family:inherit}
 #search:focus{outline:1px solid var(--vscode-focusBorder)}
 #clear{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
 #clear:hover{background:var(--vscode-button-secondaryHoverBackground)}
-.table-wrap{border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:auto;background:var(--vscode-textCodeBlock-background);max-height:calc(100vh - 210px)}
+.table-wrap{border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:auto;background:var(--vscode-textCodeBlock-background);max-height:calc(100vh - 210px);width:100%;max-width:none}
 table{width:100%;border-collapse:collapse;min-width:1240px}
 thead th{position:sticky;top:0;background:var(--vscode-sideBar-background);z-index:2;border-bottom:1px solid var(--vscode-panel-border);text-align:left;padding:7px 8px;white-space:nowrap}
 th button{background:transparent;border:none;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:5px}
@@ -201,6 +368,8 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .priority{background:var(--vscode-dropdown-background, var(--vscode-input-background));color:var(--vscode-dropdown-foreground, var(--vscode-input-foreground));border:1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));border-radius:4px;padding:2px 4px;font-size:11px}
 .state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45)}
 `;
+
+    const copyDisabled = loading || !!error || !issues || issues.length === 0 ? ' disabled' : '';
 
     let bodyHtml: string;
     if (loading) {
@@ -262,7 +431,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 
     const js = `
 (function(){
-  var vsc = acquireVsCodeApi();
+    var vsc = acquireVsCodeApi();
     var STORAGE_KEY = 'cvt.issuePriorities.v1';
     var sortState = { key: 'priority', dir: 'asc' };
 
@@ -353,10 +522,18 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (countTotal) { countTotal.textContent = String(total); }
     }
 
-  var refresh = document.getElementById('refresh');
+    var refresh = document.getElementById('refresh');
   if (refresh) {
     refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
   }
+        var copyAll = document.getElementById('copy-all');
+        if (copyAll) {
+                copyAll.addEventListener('click', function(){
+                        if (!copyAll.disabled) {
+                                vsc.postMessage({ type: 'copyAll' });
+                        }
+                });
+        }
     var search = document.getElementById('search');
     if (search) {
         search.addEventListener('input', applyFilter);
@@ -410,6 +587,14 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
       if (url) { vsc.postMessage({ type: 'open', url: url }); }
     });
   });
+        var repo = document.getElementById('repo-link');
+        if (repo) {
+                repo.addEventListener('click', function(e){
+                        e.preventDefault();
+                        var href = repo.getAttribute('href') || '';
+                        if (href) { vsc.postMessage({ type: 'open', url: href }); }
+                });
+        }
     applySort();
     applyFilter();
 })();
@@ -423,11 +608,20 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 <div id="hd">
   <div id="hd-text">
         <h1>\u{1F4CB} Issue Viewer</h1>
-    <div class="subtitle">github.com/${REPO_OWNER}/${REPO_NAME}</div>
+        <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${REPO_OWNER}/${REPO_NAME}" class="repo-link" title="Open repository on GitHub">github.com/${REPO_OWNER}/${REPO_NAME}</a></div>
   </div>
-  <button id="refresh" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
+    <div id="hd-actions">
+        <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
+        <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
+    </div>
 </div>
 <div id="body">${bodyHtml}</div>
 <script>${js}</script>
 </body></html>`;
 }
+
+/** @internal — exported for unit/integration test assertions only */
+export const _test = {
+    buildHtml,
+        formatIssuesForClipboard,
+};
