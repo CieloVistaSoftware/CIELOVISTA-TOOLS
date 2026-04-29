@@ -10,6 +10,7 @@ import { openHelpPanel, _helpPanel } from './help';
 import { startMcpServer, stopMcpServer, getMcpServerStatus, onMcpServerStatusChange } from '../mcp-server-status';
 import { initHistory, recordRun, getHistory } from './command-history';
 import { initRecentProjects, touchCurrentProject, getRecentProjects } from './recent-projects';
+import { sendToCopilotChat } from '../terminal-copy-output';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -38,6 +39,8 @@ function startInterception(): void {
     _origChannelAppend = orig;
     (ch as any).appendLine = (line: string) => {
         orig(line);
+        // Don't forward background-health-runner noise into command result panels
+        if (line.includes('[bg-health-runner]')) { return; }
         _activeStreams.forEach(fn => fn(line));
     };
     _channelIntercepted = true;
@@ -111,7 +114,6 @@ function copyText(text) {
 document.getElementById('btn-copy').addEventListener('click', function(){ copyText(getOutputText()); });
 document.getElementById('btn-chat').addEventListener('click', function(){
   var text = '**' + ${JSON.stringify(title)} + '**\\n\\n\`\`\`\\n' + getOutputText() + '\\n\`\`\`';
-  copyText(text);
   vsc.postMessage({ command: 'copy-to-chat', text: text });
 });
 window.addEventListener('message', function(ev){
@@ -190,9 +192,11 @@ async function _executeWithOutput(
             if (_panel) { _panel.webview.postMessage({ type: 'history-update', history: getHistory() }); }
         } catch (err) {
             const elapsed = Date.now() - startMs;
+            const msg = err instanceof Error ? (err.message || String(err)) : String(err);
             logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             recordRun({ id: commandId, title, ok: false, elapsed });
             if (notifyPanel) {
+                notifyPanel.webview.postMessage({ type: 'error', title, message: msg });
                 notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'error' });
                 notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             }
@@ -221,9 +225,14 @@ async function _executeWithOutput(
         return p;
     })();
 
-    rp.webview.onDidReceiveMessage(msg => {
+    rp.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'copy-to-chat' && msg.text) {
-            vscode.env.clipboard.writeText(msg.text);
+            const sentDirectly = await sendToCopilotChat(msg.text);
+            if (sentDirectly) {
+                vscode.window.showInformationMessage('Output sent to Copilot Chat.');
+            } else {
+                vscode.window.showInformationMessage('Could not send directly to chat. Content is on clipboard for paste.');
+            }
         }
     });
 
@@ -323,11 +332,21 @@ export async function runWithOutput(commandId: string): Promise<void> {
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
+/**
+ * Builds a Set of every command ID currently registered with VS Code.
+ * Used by the launcher (issue #65) to filter the catalog so unregistered
+ * commands never get rendered as clickable cards. Mirrors the same filter
+ * the home page applies for its quick-launch buttons.
+ */
+async function getRegisteredCommandSet(): Promise<Set<string>> {
+    return new Set(await vscode.commands.getCommands(false));
+}
+
 async function showLauncherPanel(): Promise<void> {
     const wsPath  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     const wsName  = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
     touchCurrentProject();
-    const html = buildLauncherHtml(loadLastReport(), wsPath, getHistory(), getRecentProjects());
+    const html = buildLauncherHtml(loadLastReport(), wsPath, getHistory(), getRecentProjects(), await getRegisteredCommandSet());
     if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.One, true); return; }
     _panel = vscode.window.createWebviewPanel(
         'cvsLauncher', `\u26a1 ${wsName}`, vscode.ViewColumn.One,
@@ -338,10 +357,10 @@ async function showLauncherPanel(): Promise<void> {
     attachMessageHandler(_panel);
 }
 
-function refreshLauncherPanel(): void {
+async function refreshLauncherPanel(): Promise<void> {
     if (!_panel) { return; }
     const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath);
+    _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath, [], [], await getRegisteredCommandSet());
 }
 
 // ─── Activate / Deactivate ────────────────────────────────────────────────────
@@ -376,7 +395,7 @@ export function activate(context: vscode.ExtensionContext): void {
             const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
             const wsName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
             _panel.title = `\u26a1 ${wsName}`;
-            _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath);
+            _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath, [], [], await getRegisteredCommandSet());
             _panel.onDidDispose(() => { _panel = undefined; });
             attachMessageHandler(_panel);
             log(FEATURE, 'Panel restored after reload');

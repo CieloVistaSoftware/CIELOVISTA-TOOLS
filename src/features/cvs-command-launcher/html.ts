@@ -4,7 +4,7 @@
 import type { DailyAuditReport, AuditStatus } from '../../shared/audit-schema';
 import type { HistoryEntry } from './command-history';
 import type { RecentProject } from './recent-projects';
-import { CATALOG, allGroups, allTags, esc } from './catalog';
+import { CATALOG, esc } from './catalog';
 import type { CmdEntry } from './types';
 
 function statusDotHtml(status: AuditStatus | undefined, checkId: string | undefined, summary: string): string {
@@ -124,7 +124,7 @@ export function buildLauncherHtml(
     report: DailyAuditReport | null,
     workspacePath?: string,
     history: HistoryEntry[] = [],
-    recents: RecentProject[] = []
+    recents: RecentProject[] = [], registeredCommands?: Set<string>
 ): string {
     const auditMap = new Map<string, { status: string; summary: string }>();
     if (report) { for (const c of report.checks) { auditMap.set(c.checkId, { status: c.status, summary: c.summary }); } }
@@ -137,8 +137,24 @@ export function buildLauncherHtml(
   <button data-action="run" data-id="cvs.audit.runDaily">🔍 Run Initial Audit</button>
 </div>`;
 
+    // Filter the catalog to only commands that are actually registered at runtime.
+    // Issue #65 — without this filter, clicking a stale catalog ID surfaces a
+    // "command not found" error from VS Code. The home page already does the
+    // same filter; this brings the launcher to parity. When registeredCommands
+    // is undefined (e.g. legacy callers or deserialization racing the registry),
+    // we fall through to the full catalog rather than rendering nothing.
+    const isRegistered = (c: CmdEntry): boolean => registeredCommands ? registeredCommands.has(c.id) : false;
+    const registeredLookup: Record<string, true> | undefined = registeredCommands
+      ? Object.fromEntries(Array.from(registeredCommands, id => [id, true] as const))
+      : undefined;
+    const visibleCatalog = registeredCommands
+      ? CATALOG.filter(c => registeredLookup && registeredLookup[c.id])
+      : CATALOG;
+    const visibleGroups = [...new Set(visibleCatalog.map(c => c.group))];
+    const visibleTags   = [...new Set(visibleCatalog.flatMap(c => c.tags))].sort();
+
     const byGroup = new Map<string, CmdEntry[]>();
-    for (const cmd of CATALOG) {
+    for (const cmd of visibleCatalog) {
         if (!byGroup.has(cmd.group)) { byGroup.set(cmd.group, []); }
         byGroup.get(cmd.group)!.push(cmd);
     }
@@ -150,7 +166,7 @@ export function buildLauncherHtml(
 </section>`
     ).join('');
 
-    const testCmds = CATALOG.filter(cmd => cmd.tags.includes('test'));
+    const testCmds = visibleCatalog.filter(cmd => cmd.tags.includes('test'));
     if (testCmds.length > 0) {
         groupSections += `<section class="group-section" data-group="Tests">
   <h2 class="group-heading">Tests <span class="group-count">${testCmds.length}</span></h2>
@@ -158,20 +174,20 @@ export function buildLauncherHtml(
 </section>`;
     }
 
-    const groupBtns = allGroups().map(g => {
-        let icon = CATALOG.find(c => c.group === g)?.groupIcon ?? '';
+    const groupBtns = visibleGroups.map(g => {
+        let icon = visibleCatalog.find(c => c.group === g)?.groupIcon ?? '';
         if (g === 'Tests') { icon = '🧪'; }
         return `<button class="group-btn" data-group="${esc(g)}" title="Show ${esc(g)} commands only">${esc(g)}</button>`;
     }).join('');
 
-    const topicCheckboxes = allTags().map(t =>
+    const topicCheckboxes = visibleTags.map(t =>
         `<label class="dd-item"><input type="checkbox" class="topic-cb" value="${esc(t)}"><span>${esc(t)}</span></label>`
     ).join('');
 
     const locationBarHtml = buildLocationBar(workspacePath);
     const wsPathJs        = (workspacePath ?? '').replace(/\\/g, '\\\\');
-    const catalogJson = JSON.stringify(CATALOG);
-    const total       = CATALOG.length;
+    const catalogJson = JSON.stringify(visibleCatalog);
+    const total       = visibleCatalog.length;
     const historyJson = JSON.stringify(history);
     const recentsJson = JSON.stringify(recents.map(r => ({ name: r.name, fsPath: r.fsPath })));
 
