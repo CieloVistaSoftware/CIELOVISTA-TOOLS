@@ -188,19 +188,52 @@ test('REG-003', 'TypeScript compiles with zero errors', () => {
   assert(exitCode === 0, `TypeScript errors:\n${output.slice(0, 800)}`);
 });
 
-// REG-004: Every catalog ID appears somewhere in src/ (handles constants, loops, direct literals)
-test('REG-004', 'Every catalog command ID is referenced in src/ outside catalog.ts', () => {
+// REG-004: Every catalog command ID must be wired through an actual
+// registerCommand() call (direct literal or const reference) — not just
+// referenced as a string anywhere in src/. The previous loose check passed
+// on any substring match, so a bare comment containing the ID was enough
+// to satisfy it. Issue #65 surfaced 9 catalog IDs whose runtime behaviour
+// drifted from this rule. The tightened check walks src/ for every
+// registerCommand(...) invocation and resolves both literal-arg and
+// const-reference patterns to a registered-id set; the catalog must be a
+// subset of that set.
+test('REG-004', 'Every catalog command ID is wired through a registerCommand() call', () => {
   const catalogPath = path.join(SRC, 'features', 'cvs-command-launcher', 'catalog.ts');
   const catalogSrc  = fs.readFileSync(catalogPath, 'utf8');
   const catalogIds  = [...catalogSrc.matchAll(/id:\s*'([^']+)'/g)].map(m => m[1]);
-  const allSrc = walkTs(SRC)
-    .filter(f => !f.endsWith('catalog.ts'))
-    .map(f => fs.readFileSync(f, 'utf8'))
-    .join('\n');
-  const missing = catalogIds.filter(id => !allSrc.includes(id));
+
+  const registeredIds = new Set();
+  for (const file of walkTs(SRC)) {
+    if (file.endsWith('catalog.ts')) { continue; }
+    const src = fs.readFileSync(file, 'utf8');
+    // Pattern A: literal-arg form  registerCommand('cvs.foo.bar', fn)
+    for (const m of src.matchAll(/registerCommand\s*\(\s*['"]([^'"]+)['"]/g)) {
+      registeredIds.add(m[1]);
+    }
+    // Pattern B: const-reference form  const FOO_ID = 'cvs.foo'; ...registerCommand(FOO_ID, fn)
+    // We resolve the variable inside the same file — that's where const command IDs live.
+    for (const m of src.matchAll(/registerCommand\s*\(\s*([A-Za-z_$][\w$]*)\s*,/g)) {
+      const varName = m[1];
+      // Skip obvious non-identifiers — async/await/etc. won't ever be a const id.
+      if (['async', 'await', 'function', 'return'].includes(varName)) { continue; }
+      const declRe = new RegExp(`(?:const|let|var)\\s+${varName}\\b[^=;\\n]*=\\s*['"]([^'"]+)['"]`);
+      const decl = declRe.exec(src);
+      if (decl) { registeredIds.add(decl[1]); }
+    }
+    // Pattern C: helper-wrapper form  registerFixed(context, 'cvs.foo.bar', ...)
+    // Some features centralize command registration in wrappers that call
+    // vscode.commands.registerCommand internally.
+    for (const m of src.matchAll(/registerFixed\s*\(\s*[^,]+,\s*['"]([^'"]+)['"]/g)) {
+      registeredIds.add(m[1]);
+    }
+  }
+
+  const missing = catalogIds.filter(id => !registeredIds.has(id));
   assert(missing.length === 0,
-    `${missing.length} catalog ID(s) not referenced anywhere in src/:\n  ${missing.join('\n  ')}\n` +
-    `Add registerCommand() calls or remove from catalog.`);
+    `${missing.length} catalog ID(s) have NO matching registerCommand() call in src/:\n  ${missing.join('\n  ')}\n\n` +
+    `Each catalog entry must be backed by a vscode.commands.registerCommand(<id>, fn) call —\n` +
+    `either as a direct string literal or as a const reference declared in the same file.\n` +
+    `Either add the registration, or remove the entry from catalog.ts.`);
 });
 
 // REG-005: No duplicate command IDs in catalog
@@ -355,6 +388,103 @@ test('REG-014', 'Home Recent Runs shows immediate full-string hover tooltip', ()
   );
   assert(result.status === 0,
     `Home Recent Runs tooltip regression failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-015: Issue #67 — package.json must round-trip through JSON.parse after every rebuild.
+// Verifies (a) current package.json is valid, (b) #67-pattern corruption is detected, (c)
+// dropping an untracked feature file does not mutate package.json, and (d) the validator
+// script exits 0 — i.e. the rebuild gate that was just wired in is functional end-to-end.
+test('REG-015', 'package.json round-trips through JSON.parse and validator gate works', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-015-package-json-round-trip.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-015 package.json round-trip test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-016: Issue #66 — NPM Output webview blank when running scripts.
+// Verifies the source has (a) the immediate '[CVT] Launching:' echo after job-start,
+// (b) the 2-second safety-net flush in setupOutputPanel, (c) the '(no output)'
+// placeholder swap on done, (d) the listener-first pattern, and (e) the
+// webview-side output-ready retry. Static-source check; the webview itself is
+// not driven end-to-end here because that would require launching VS Code.
+test('REG-016', 'npm output webview shows launched command and never goes blank', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-016-npm-output-webview.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-016 npm output webview test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-017: Issue #65 — launcher must filter catalog by live registered
+// commands at render time. Static-source check that locks the runtime
+// filter into place: getRegisteredCommandSet() exists in index.ts, all
+// three call sites (showLauncherPanel, refreshLauncherPanel, deserializer)
+// pass it to buildLauncherHtml, the signature accepts it, the body
+// produces visibleCatalog, and every downstream consumer uses
+// visibleCatalog instead of raw CATALOG. REG-004 (just tightened) is the
+// complement that enforces the source-level rule that every catalog ID
+// has a matching registerCommand call. Together they keep the
+// dead-button class of bug from coming back.
+test('REG-017', 'launcher filters catalog against vscode.commands.getCommands()', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-017-launcher-filter.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-017 launcher filter test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-018: Issues #59 / #60 / #63 / #64 — auto-filed APP_ERROR
+// cluster (314 cumulative occurrences). Locks two source-level
+// fixes in place: (a) mcp-server-status.ts filters SIGTERM/SIGINT
+// and exit code 0 out of the logError + scheduleRetry path, so
+// window reloads and clean shutdowns don't generate APP_ERROR
+// noise, and (b) github-issue-filer.ts fileErrorAsIssue calls
+// findOpenAutoFiledIssue before postIssue and comments on a
+// match instead of opening a duplicate (this is what should have
+// prevented #60 from being filed when #64 already had the
+// identical title).
+test('REG-018', 'MCP lifecycle filter + auto-filer dedup are in source', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-018-mcp-lifecycle-and-dedup.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-018 lifecycle + dedup test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-019: Issue #69 — FileList sortable file browser.
+// Locks the FileList feature in source so a future refactor can't
+// silently remove the command, the home-page button, the unit
+// test, or the shared sort lib. Verifies cvs.tools.fileList is
+// registered in file-list-viewer.ts, the sort lib exposes the
+// expected exports + folders-first invariant, the unit test
+// still has real coverage and imports from out/, the home page
+// Quick Launch wires the button through OPEN_DIRECT, and the
+// launcher catalog has the entry.
+test('REG-019', 'FileList feature (#69) is fully wired in source', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-019-filelist-feature.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-019 FileList feature test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-020: Issue #2 — launcher read-action failures must be visible in UI.
+// Static-source guard: in the read-action catch path, index.ts must post an
+// explicit {type:'error'} message to the launcher webview so the red failure
+// banner/status appears immediately instead of failing silently.
+test('REG-020', 'launcher read-command failures post visible error message', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-020-launcher-read-error-visible.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-020 launcher read error visibility test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────

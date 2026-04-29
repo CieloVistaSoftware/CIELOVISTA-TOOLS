@@ -30,8 +30,9 @@
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
     "package": "vsce package",
-    "rebuild": "npm run compile && npm run test:mcp-packaging && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run copy:commandhelp && npm run package && npm run test:mcp-vsix && node install.js && node tests/install-verify.test.js",
+    "rebuild": "npm run compile && npm run test:mcp-packaging && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run copy:commandhelp && npm run package && npm run test:mcp-vsix && node install.js && node tests/install-verify.test.js && npm run validate:package-json",
     "copy:commandhelp": "node scripts/copy-commandhelp.js",
+    "validate:package-json": "node scripts/validate-package-json.js",
     "test:catalog": "node tests/catalog-integrity.test.js",
     "test:commands": "node tests/command-validation.test.js",
     "test:regression": "node scripts/run-regression-tests.js",
@@ -91,7 +92,8 @@
     "onStartupFinished",
     "onWebviewPanel:cvsLauncher",
     "onWebviewPanel:docCatalog",
-    "onWebviewPanel:readmeCompliance"
+    "onWebviewPanel:readmeCompliance",
+    "onWebviewPanel:npmOutput"
   ],
   "contributes": {
     "commands": [
