@@ -25,7 +25,7 @@ import { activate as dailyAudit,              deactivate as deactivateDailyAudit
 import { activate as docIntelligence,         deactivate as deactivateDocIntelligence  } from './features/doc-intelligence/index';
 // import { activate as docConsolidator,         deactivate as deactivateDocConsolidator  } from './features/doc-consolidator/index';
 import { activate as docCatalog,              deactivate as deactivateDocCatalog       } from './features/doc-catalog/index';
-// import { activate as readmeCompliance,        deactivate as deactivateReadmeCompliance } from './features/readme-compliance/index';
+import { activate as readmeCompliance,        deactivate as deactivateReadmeCompliance } from './features/readme-compliance/index';
 import { activate as readmeGenerator,         deactivate as deactivateReadmeGenerator  } from './features/readme-generator';
 import { activate as docsBrokenRefs,          deactivate as deactivateDocsBrokenRefs   } from './features/docs-broken-refs';
 import { activate as marketplaceCompliance,   deactivate as deactivateMarketplace      } from './features/marketplace-compliance/index';
@@ -115,7 +115,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('docIntelligence',         'Doc Intelligence',              docIntelligence,         context);
     // activateIfEnabled('docConsolidator',         'Doc Consolidator',              docConsolidator,         context);
     activateIfEnabled('docCatalog',              'Doc Catalog',                   docCatalog,              context);
-    // activateIfEnabled('readmeCompliance',        'README Compliance',             readmeCompliance,        context);
+    activateIfEnabled('readmeCompliance',        'README Compliance',             readmeCompliance,        context);
     activateIfEnabled('readmeGenerator',         'README Generator',              readmeGenerator,         context);
     activateIfEnabled('docsBrokenRefs',          'Docs Broken References Scanner',docsBrokenRefs,          context);
     
@@ -139,7 +139,6 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('mcpViewer',               'MCP Endpoint Viewer',           mcpViewerActivate,       context);
     activateIfEnabled('explorerCopyPathToChat',  'Explorer: Copy Path to Copilot Chat', explorerCopyPathToChatActivate, context);
     activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate, context);
-    activateIfEnabled('fileListViewer',          'FileList Viewer',               activateFileListViewer,  context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
@@ -178,7 +177,7 @@ export function deactivate(): void {
     deactivateDocIntelligence();
     // deactivateDocConsolidator();
     deactivateDocCatalog();
-    // deactivateReadmeCompliance();
+    deactivateReadmeCompliance();
     deactivateReadmeGenerator();
     deactivateDocsBrokenRefs();
     deactivateMarketplace();
@@ -189,6 +188,7 @@ export function deactivate(): void {
     // deactivateDocHeader();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
+    deactivateHomePage();
     disposeChannel();
 
     deactivateFileListViewer();
