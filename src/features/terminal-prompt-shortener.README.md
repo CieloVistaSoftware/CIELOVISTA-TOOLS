@@ -1,3 +1,17 @@
+---
+title: feature: terminal-prompt-shortener.ts
+description: Toggles the PowerShell terminal prompt between its full path form (PS C:\very\long\nested\path>) and a minimal single-character form (>). Useful wh…
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/features/terminal-prompt-shortener.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [terminal, prompt, shortener]
+---
+
 # feature: terminal-prompt-shortener.ts
 
 ## What it does

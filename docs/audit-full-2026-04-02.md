@@ -1,3 +1,17 @@
+---
+title: CieloVista Docs Audit Report
+description: - C:\Users\jwpmi\Downloads\CieloVistaStandards\copilot-rules.md (global, 1471 bytes) - C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\co…
+project: cielovista-tools
+category: 900 — Audit & Reports
+relativePath: docs/audit-full-2026-04-02.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [audit, full, 2026]
+---
+
 # CieloVista Docs Audit Report
 
 > **Date:** 4/1/2026, 11:15:13 PM

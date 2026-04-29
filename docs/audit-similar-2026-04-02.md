@@ -1,3 +1,17 @@
+---
+title: Similar Content Audit
+description: - A: C:\Users\jwpmi\Downloads\VSCode\projects\extensions\CoPilotRulesProvider\AllPriorSugesstions\suggestion6.md - B: C:\Users\jwpmi\Downloads\VSCo…
+project: cielovista-tools
+category: 900 — Audit & Reports
+relativePath: docs/audit-similar-2026-04-02.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [audit, similar, 2026]
+---
+
 # Similar Content Audit
 
 > **Date:** 4/1/2026, 11:21:44 PM

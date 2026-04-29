@@ -1,3 +1,17 @@
+---
+title: feature: shared/webview-utils.ts
+description: Shared helpers for building VS Code Webview panel HTML. Any feature that opens a Webview imports from here. No feature rolls its own HTML boilerpla…
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/shared/webview-utils.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [webview, utils, readme]
+---
+
 # feature: shared/webview-utils.ts
 
 ## Purpose

@@ -1,3 +1,17 @@
+---
+title: feature: doc-auditor.ts — Advanced Developer Guide
+description: The doc-auditor is a comprehensive, interactive tool for auditing documentation health across all CieloVista projects and the global standards fold…
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/features/doc-auditor.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [doc, auditor, readme]
+---
+
 # feature: doc-auditor.ts — Advanced Developer Guide
 
 ## Overview

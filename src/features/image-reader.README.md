@@ -1,3 +1,17 @@
+---
+title: Image Reader Feature
+description: This feature provides an image reader webview panel using HTML, CSS, and JS assets migrated from CodePilot-Wake-Monitor.
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/features/image-reader.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [image, reader, readme]
+---
+
 # Image Reader Feature
 
 ## Overview

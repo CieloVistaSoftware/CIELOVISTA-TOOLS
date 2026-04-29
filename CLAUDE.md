@@ -1,3 +1,17 @@
+---
+title: CLAUDE.md — cielovista-tools
+description: 1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…
+project: cielovista-tools
+category: 000 — Meta / Session / Status
+relativePath: CLAUDE.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [claude, claudemd, cielovistatools]
+---
+
 # CLAUDE.md — cielovista-tools
 
 ## Session Start (DO THIS FIRST)

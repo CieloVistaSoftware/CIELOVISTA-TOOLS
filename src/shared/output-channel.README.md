@@ -1,3 +1,17 @@
+---
+title: feature: shared/output-channel.ts
+description: Single shared OutputChannel for the entire CieloVista Tools extension. Every feature writes here. Nobody creates their own channel. Why one channel…
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/shared/output-channel.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [output, channel, readme]
+---
+
 # feature: shared/output-channel.ts
 
 ## Purpose

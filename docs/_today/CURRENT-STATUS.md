@@ -1,3 +1,17 @@
+---
+title: CURRENT-STATUS.md — cielovista-tools
+description: - Verified live after junction install: ✅ MCP Viewer status column + pills, ✅ Symbol Index (listsymbols / listcvtcommands), ✅ Send Path tooltip + c…
+project: cielovista-tools
+category: 000 — Meta / Session / Status
+relativePath: docs/_today/CURRENT-STATUS.md
+created: 2026-04-25
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [current, status, currentstatusmd]
+---
+
 # CURRENT-STATUS.md — cielovista-tools
 
 ---

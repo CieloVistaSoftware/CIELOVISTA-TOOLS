@@ -1,3 +1,17 @@
+---
+title: Test Coverage Audit
+description: Date: 2026-03-28 16:11:26 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)
+project: cielovista-tools
+category: 400 — Testing & Quality
+relativePath: docs/_today/test-coverage-audit-2026-03-28.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [test, coverage, audit]
+---
+
 # Test Coverage Audit
 
 **Date:** 2026-03-28 16:11:26

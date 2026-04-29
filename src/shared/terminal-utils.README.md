@@ -1,3 +1,17 @@
+---
+title: feature: shared/terminal-utils.ts
+description: Reusable terminal and file-navigation helpers shared across all features that involve terminals or opening files/folders. The rule is simple: if tw…
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/shared/terminal-utils.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [terminal, utils, readme]
+---
+
 # feature: shared/terminal-utils.ts
 
 ## Purpose

@@ -1,3 +1,17 @@
+---
+title: feature: shared/copilot-rules-utils.ts
+description: All business logic for reading, applying, and removing Copilot instruction rules. Three different extensions originally duplicated this logic (Rule…
+project: cielovista-tools
+category: 600 — Tools & Extensions
+relativePath: src/shared/copilot-rules-utils.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [copilot, rules, utils]
+---
+
 # feature: shared/copilot-rules-utils.ts
 
 ## Purpose

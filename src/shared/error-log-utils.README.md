@@ -1,3 +1,17 @@
+---
+title: feature: shared/error-log-utils.ts
+description: Persistent error tracking to a JSON file in the workspace. Errors are stored with a unique ID derived from their message. When the same error recur…
+project: cielovista-tools
+category: 700 — Project Docs
+relativePath: src/shared/error-log-utils.README.md
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+status: active
+tags: [error, log, utils]
+---
+
 # feature: shared/error-log-utils.ts
 
 ## Purpose
