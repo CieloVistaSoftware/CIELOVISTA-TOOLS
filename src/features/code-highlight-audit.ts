@@ -27,6 +27,7 @@ interface UntaggedBlock {
     project:     string;
     lineNumber:  number;   // 1-based line of the opening ```
     preview:     string;   // first line of code inside the block
+    fenceOpen:   string;   // opening fence marker (``` or ~~~, possibly longer)
 }
 
 // Known language hints from first-line content
@@ -34,6 +35,7 @@ const LANG_HINTS: Array<[RegExp, string]> = [
     [/^\s*<(!DOCTYPE|html|head|body|div|span|p|a |ul|ol|li|table|form|input|button|script|style|link|meta|nav|section|article|aside|header|footer)/i, 'html'],
     [/^\s*(import |export |const |let |var |function |class |interface |type |enum |async |await |=>)/, 'typescript'],
     [/^\s*(def |class |import |from |if __name__|print\(|@)/, 'python'],
+    [/^\s*(\$\s+(npm|pnpm|yarn|git|cd|mkdir|rm|cp|mv|cat|echo|curl|wget|chmod|chown)\b|#!\/bin\/(bash|sh)\b|npm\s|pnpm\s|yarn\s|git\s|cd\s)/, 'bash'],
     [/^\s*(\$|[A-Z][a-zA-Z-]+:|(Get|Set|New|Remove|Invoke|Start|Stop)-[A-Z])/, 'powershell'],
     [/^\s*(\{|\[|\"|true|false|null|\d)/, 'json'],
     [/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|WITH)\b/i, 'sql'],
@@ -60,17 +62,25 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
     let blockStartLine = 0;
     let blockLang = '';
     let blockPreview = '';
+    let blockFenceOpen = '```';
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const fenceMatch = line.match(/^```(.*)$/);
+        const fenceMatch = line.match(/^([`~]{3,})(.*)$/);
         if (fenceMatch) {
             if (!insideBlock) {
                 // Opening fence
                 insideBlock = true;
                 blockStartLine = i + 1;
-                blockLang = fenceMatch[1].trim();
+                blockFenceOpen = fenceMatch[1];
+                blockLang = fenceMatch[2].trim();
                 blockPreview = '';
             } else {
+                const closingFence = fenceMatch[1];
+                const sameFenceChar = closingFence[0] === blockFenceOpen[0];
+                const enoughFenceLen = closingFence.length >= blockFenceOpen.length;
+                if (!sameFenceChar || !enoughFenceLen) {
+                    continue;
+                }
                 // Closing fence
                 if (blockLang === '') {
                     // Only flag blocks missing a language tag
@@ -79,11 +89,13 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
                         project,
                         lineNumber: blockStartLine,
                         preview: blockPreview.trim().slice(0, 80),
+                        fenceOpen: blockFenceOpen,
                     });
                 }
                 insideBlock = false;
                 blockLang = '';
                 blockPreview = '';
+                blockFenceOpen = '```';
             }
         } else if (insideBlock && blockPreview === '') {
             // First line inside the code block
@@ -97,6 +109,7 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
             project,
             lineNumber: blockStartLine,
             preview: blockPreview.trim().slice(0, 80),
+            fenceOpen: blockFenceOpen,
         });
     }
     return results;
@@ -165,6 +178,9 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #stat{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
 .rescan-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:12px}
 .rescan-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.fix-all-btn{background:rgba(63,185,80,0.15);color:#3fb950;border:1px solid #3fb950;padding:4px 14px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600}
+.fix-all-btn:hover{background:rgba(63,185,80,0.3)}
+.fix-all-btn:disabled{opacity:0.45;cursor:not-allowed}
 #content{padding:12px 16px 40px}
 .summary{padding:8px 12px;background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;margin-bottom:12px;font-size:12px;line-height:1.7}
 .summary strong{font-weight:700}
@@ -218,6 +234,17 @@ document.addEventListener('click', function(e) {
   if (btn.dataset.action === 'rescan') {
     vscode.postMessage({ command: 'rescan' });
   }
+  if (btn.dataset.action === 'fix-all') {
+    btn.disabled = true;
+    btn.textContent = '\u23f3 Fixing\u2026';
+    vscode.postMessage({ command: 'fix-all' });
+  }
+});
+window.addEventListener('message', function(event) {
+  var m = event.data;
+  if (m.type === 'fix-all-done') {
+    vscode.postMessage({ command: 'rescan' });
+  }
 });
 })();`;
 
@@ -230,6 +257,7 @@ document.addEventListener('click', function(e) {
   <h1>&#127775; Code Highlight Audit</h1>
   <input id="search" type="text" placeholder="Filter by file, project, or preview\u2026" autocomplete="off">
   <span id="stat">${totalBlocks} untagged block${totalBlocks !== 1 ? 's' : ''} in ${totalFiles} file${totalFiles !== 1 ? 's' : ''} &mdash; ${scannedFiles} files scanned</span>
+  ${totalBlocks > 0 ? `<button id="fix-all-btn" class="fix-all-btn" data-action="fix-all">&#9889; Fix All (${totalBlocks})</button>` : ''}
   <button class="rescan-btn" data-action="rescan">&#8635; Rescan</button>
 </div>
 <div id="content">
@@ -298,6 +326,37 @@ function findMarkdownFiles(dir: string, depth = 0): string[] {
 }
 
 let _panel: vscode.WebviewPanel | undefined;
+let _lastBlocks: UntaggedBlock[] = [];
+
+async function fixAllBlocks(blocks: UntaggedBlock[]): Promise<{ fixed: number; skipped: number }> {
+    const byFile = new Map<string, UntaggedBlock[]>();
+    for (const b of blocks) {
+        if (!byFile.has(b.filePath)) { byFile.set(b.filePath, []); }
+        byFile.get(b.filePath)!.push(b);
+    }
+    let fixed = 0, skipped = 0;
+    for (const [fp, fBlocks] of byFile) {
+        try {
+            const content = fs.readFileSync(fp, 'utf8');
+            const lines = content.split('\n');
+            // Sort descending so replacements don't shift line positions
+            const sorted = [...fBlocks].sort((a, b) => b.lineNumber - a.lineNumber);
+            for (const block of sorted) {
+                const idx = block.lineNumber - 1;
+                if (idx < 0 || idx >= lines.length) { skipped++; continue; }
+                const openFencePattern = new RegExp('^' + block.fenceOpen.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + '\\s*$');
+                if (!lines[idx].match(openFencePattern)) { skipped++; continue; }
+                const lang = guessLanguage(block.preview) || 'text';
+                lines[idx] = block.fenceOpen + lang;
+                fixed++;
+            }
+            fs.writeFileSync(fp, lines.join('\n'), 'utf8');
+        } catch {
+            skipped += fBlocks.length;
+        }
+    }
+    return { fixed, skipped };
+}
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     context.subscriptions.push(
@@ -310,6 +369,7 @@ async function showPanel(): Promise<void> {
         { location: vscode.ProgressLocation.Notification, title: 'Scanning docs for untagged code blocks…', cancellable: false },
         async () => {
             const { blocks, scannedFiles } = await runAudit();
+            _lastBlocks = blocks;
             const html = buildHtml(blocks, scannedFiles);
 
             if (_panel) {
@@ -339,6 +399,16 @@ async function showPanel(): Promise<void> {
                 }
                 if (msg.command === 'rescan') {
                     await showPanel();
+                }
+                if (msg.command === 'fix-all') {
+                    try {
+                        const { fixed, skipped } = await fixAllBlocks(_lastBlocks);
+                        _panel?.webview.postMessage({ type: 'fix-all-done' });
+                        void vscode.window.showInformationMessage(`Fix All: ${fixed} block${fixed !== 1 ? 's' : ''} tagged${skipped > 0 ? `, ${skipped} skipped` : ''}.`);
+                        log(FEATURE, `Fix All: ${fixed} fixed, ${skipped} skipped`);
+                    } catch (e) {
+                        logError('Fix All failed', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+                    }
                 }
             });
 
