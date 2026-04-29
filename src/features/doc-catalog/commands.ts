@@ -24,6 +24,21 @@ let _cachedCards: CatalogCard[] | undefined;
 export function getCatalogPanel(): vscode.WebviewPanel | undefined { return _catalogPanel; }
 export function clearCachedCards(): void { _cachedCards = undefined; }
 
+function isCurrentWorkspacePath(folderPath: string): boolean {
+    const target = path.resolve(folderPath).toLowerCase();
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    return folders.some((wf) => path.resolve(wf.uri.fsPath).toLowerCase() === target);
+}
+
+async function openProjectFolderSmart(folderPath: string): Promise<void> {
+    const target = path.resolve(folderPath);
+    if (isCurrentWorkspacePath(target)) {
+        await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
+        return;
+    }
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), false);
+}
+
 function sendCatalogInit(
     panel: vscode.WebviewPanel,
     cards: CatalogCard[],
@@ -185,7 +200,7 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
     panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
             case 'openProjectFolder':
-                if (msg.data) { await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data), { forceNewWindow: true }); }
+                if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
             case 'open-npm-scripts':
                 await vscode.commands.executeCommand('cvs.npm.showAndRunScripts');
@@ -211,7 +226,7 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 break;
             }
             case 'openFolder':
-                if (msg.data) { await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data), { forceNewWindow: true }); }
+                if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
             case 'openClaude': {
                 const claudePath = path.join(msg.data, 'CLAUDE.md');
@@ -471,7 +486,7 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number): string {
             return `<a class="doc-link${pri}" href="#" data-path="${_escV(c.filePath)}" title="${_escV(c.filePath)}">${_escV(c.title)}</a>`;
         }).join('');
         const folderBtn = projectPath
-            ? `<button class="folder-btn" data-folder="${_escV(projectPath)}" title="Open folder">&#128194;</button>`
+            ? `<button class="folder-btn" data-folder="${_escV(projectPath)}" title="Open project in VS Code">&#128194;</button>`
             : '';
         return `<div class="proj-group" data-proj="${_escV(projName)}">
   <div class="proj-hd"><span class="dw">${_escV(deweyBase)}</span><span class="fn">${_escV(projName)}</span>${folderBtn}<span class="cnt">${sortedCards.length}</span></div>
@@ -773,7 +788,7 @@ export async function viewSpecificDoc(): Promise<void> {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('OK');
             if (folderPath) {
-                vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPath), { forceNewWindow: true });
+                void openProjectFolderSmart(folderPath);
             }
 
         } else {
