@@ -20,7 +20,9 @@ import * as fs     from 'fs';
 import * as net    from 'net';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
+import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { loadRegistry }  from '../shared/registry';
+import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
 
 function isPortOpen(port: number): Promise<boolean> {
@@ -52,6 +54,8 @@ export interface HealthBug {
     fixLabel?:   string;
     detectedAt:  string;
     fixed:       boolean;
+    githubIssueNumber?: number;
+    githubIssueUrl?:    string;
 }
 
 interface HealthState {
@@ -121,6 +125,59 @@ function esc(s: string): string {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+function parseEvidenceLocation(line: string): { filePath: string; line: number; column: number } | null {
+    const match = line.match(/^([A-Za-z]:[\\/].*?|\/.+?):(\d+)(?::(\d+))?$/);
+    if (!match) { return null; }
+
+    const filePath = match[1];
+    try {
+        if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+            return null;
+        }
+    } catch {
+        return null;
+    }
+
+    return {
+        filePath,
+        line: Number(match[2]),
+        column: Number(match[3] ?? '1'),
+    };
+}
+
+function resolveCommandEvidenceLocation(line: string): { filePath: string; line: number; column: number } | null {
+    const entry = CATALOG.find((item) => item.id === line);
+    if (!entry?.location) { return null; }
+
+    const sourcePath = path.resolve(__dirname, '..', '..', 'src', entry.location);
+    try {
+        if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+            return null;
+        }
+        const lines = fs.readFileSync(sourcePath, 'utf8').split('\n');
+        const foundIndex = lines.findIndex((text) => text.includes(line));
+        return {
+            filePath: sourcePath,
+            line: foundIndex >= 0 ? foundIndex + 1 : 1,
+            column: 1,
+        };
+    } catch {
+        return null;
+    }
+}
+
+function renderEvidenceHtml(evidence: string[]): string {
+    const rows = evidence.map((line) => {
+        const loc = parseEvidenceLocation(line) ?? resolveCommandEvidenceLocation(line);
+        if (loc) {
+            return `<div class="bug-evidence-line"><a class="bug-evidence-link" href="#" data-action="open-evidence" data-path="${esc(loc.filePath)}" data-line="${loc.line}" data-col="${loc.column}">${esc(line)}</a></div>`;
+        }
+        return `<div class="bug-evidence-line">${esc(line)}</div>`;
+    }).join('');
+
+    return `<details class="bug-evidence"><summary>What's wrong (${evidence.length})</summary><div class="bug-evidence-list">${rows}</div></details>`;
 }
 
 function defaultRecommendation(bug: HealthBug): string {
@@ -338,14 +395,11 @@ const CHECKS: Check[] = [
                         const full = path.join(dir, entry.name);
                         if (entry.isDirectory()) { scan(full, depth + 1); }
                         else if (entry.name.endsWith('.md')) {
-                            const lines = fs.readFileSync(full, 'utf8').split('\n');
-                            for (let idx = 0; idx < lines.length; idx++) {
-                                if (lines[idx].trim() === '```') {
-                                    untagged++;
-                                    if (offenders.length < 50) {
-                                        offenders.push(`${full}:${idx + 1}`);
-                                    }
-                                }
+                            const matches = scanFile(full, 'health-runner');
+                            untagged += matches.length;
+                            for (const m of matches) {
+                                if (offenders.length >= 50) { break; }
+                                offenders.push(`${full}:${m.lineNumber}`);
                             }
                         }
                     }
@@ -443,7 +497,7 @@ function buildFixBugsHtml(state: HealthState): string {
             : '';
                 const recommendation = defaultRecommendation(b);
                 const evidenceHtml = b.evidence && b.evidence.length > 0
-                        ? `<details class="bug-evidence"><summary>What\'s wrong (${b.evidence.length})</summary><pre>${esc(b.evidence.join('\n'))}</pre></details>`
+                        ? renderEvidenceHtml(b.evidence)
                         : '';
         return `<div class="bug-card" data-id="${b.id}">
   <div class="bug-header">
@@ -457,7 +511,9 @@ function buildFixBugsHtml(state: HealthState): string {
   <div class="bug-footer">
     <span class="bug-time">Detected: ${new Date(b.detectedAt).toLocaleString()}</span>
     ${fixBtn}
-        <button class="issue-btn" data-action="file-issue" data-id="${b.id}">File Issue</button>
+        ${b.githubIssueNumber
+            ? `<a class="issue-filed-badge" href="#" data-action="open-issue" data-url="${esc(b.githubIssueUrl ?? '')}" title="View on GitHub">#${b.githubIssueNumber} Filed</a>`
+            : `<button class="issue-btn" data-action="file-issue" data-id="${b.id}">Create Issue</button>`}
     <button class="dismiss-btn" data-action="dismiss" data-id="${b.id}">Dismiss</button>
   </div>
 </div>`;
@@ -494,7 +550,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .bug-recommendation{font-size:11px;line-height:1.5;padding:7px 8px;border-radius:4px;background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.22)}
 .bug-evidence{font-size:11px}
 .bug-evidence summary{cursor:pointer;color:var(--vscode-textLink-foreground);user-select:none}
-.bug-evidence pre{margin-top:6px;padding:8px;border-radius:4px;max-height:200px;overflow:auto;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);font-size:10px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.bug-evidence-list{margin-top:6px;padding:8px;border-radius:4px;max-height:200px;overflow:auto;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);font-size:10px;line-height:1.45}
+.bug-evidence-line{font-family:var(--vscode-editor-font-family,monospace);white-space:pre-wrap;word-break:break-word}
+.bug-evidence-line + .bug-evidence-line{margin-top:2px}
+.bug-evidence-link{color:var(--vscode-textLink-foreground);text-decoration:none}
+.bug-evidence-link:hover{text-decoration:underline}
 .bug-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bug-time{font-size:10px;color:var(--vscode-descriptionForeground);flex:1}
 .fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
@@ -503,6 +563,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .issue-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .dismiss-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px}
 .dismiss-btn:hover{border-color:var(--vscode-focusBorder)}
+.issue-filed-badge{display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:600;background:rgba(63,185,80,0.15);color:#3fb950;border:1px solid #3fb950;text-decoration:none;cursor:pointer}
+.issue-filed-badge:hover{background:rgba(63,185,80,0.25)}
 .empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground)}
 .spin{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -523,8 +585,16 @@ document.addEventListener('click', function(e) {
   }
     if (btn.dataset.action === 'file-issue') {
         vscode.postMessage({ command: 'file-issue', bugId: btn.dataset.id });
-        btn.textContent = 'Opening\u2026';
+        btn.textContent = 'Opening GitHub\u2026';
         btn.disabled = true;
+    }
+    if (btn.dataset.action === 'open-issue') {
+        e.preventDefault();
+        vscode.postMessage({ command: 'open-issue', url: btn.dataset.url });
+    }
+    if (btn.dataset.action === 'open-evidence') {
+        e.preventDefault();
+        vscode.postMessage({ command: 'open-evidence', path: btn.dataset.path, line: parseInt(btn.dataset.line || '1', 10), column: parseInt(btn.dataset.col || '1', 10) });
     }
   if (btn.dataset.action === 'dismiss') {
     vscode.postMessage({ command: 'dismiss', bugId: btn.dataset.id });
@@ -545,12 +615,22 @@ window.addEventListener('message', function(e) {
     var next = document.getElementById('next-check');
     if (next) next.textContent = '\\u23f3 Next: ' + (m.nextCheck || '');
   }
-    if (m.type === 'issue-opened') {
+    if (m.type === 'issue-filed' || m.type === 'issue-synced') {
         var btn = document.querySelector('.issue-btn[data-id="' + m.bugId + '"]');
-        if (btn) {
-            btn.textContent = 'File Issue';
-            btn.disabled = false;
+        if (btn && btn.parentNode) {
+            var badge = document.createElement('a');
+            badge.className = 'issue-filed-badge';
+            badge.href = '#';
+            badge.dataset.action = 'open-issue';
+            badge.dataset.url = m.url || '';
+            badge.title = 'View on GitHub';
+            badge.textContent = '#' + m.number + ' Filed';
+            btn.parentNode.replaceChild(badge, btn);
         }
+    }
+    if (m.type === 'issue-filed-error') {
+        var btn2 = document.querySelector('.issue-btn[data-id="' + m.bugId + '"]');
+        if (btn2) { btn2.textContent = 'Create Issue'; btn2.disabled = false; }
     }
 });
 })();`;
@@ -617,6 +697,32 @@ export async function showFixBugsPanel(): Promise<void> {
         _panel.onDidDispose(() => { _panel = undefined; });
     }
 
+    // Silently sync issue numbers from GitHub for any unlinked active bugs.
+    // This runs after the panel is shown so it doesn't block opening.
+    void (async () => {
+        const unlinked = _state.bugs.filter(b => !b.fixed && !b.githubIssueNumber);
+        if (unlinked.length === 0) { return; }
+        const map = await fetchAutoFiledIssueMap();
+        if (!map) { return; }
+        let changed = false;
+        for (const bug of unlinked) {
+            const issueTitle = `[${bug.category}] ${bug.title}`;
+            const match = map.get(issueTitle);
+            if (match) {
+                bug.githubIssueNumber = match.number;
+                bug.githubIssueUrl    = match.html_url;
+                changed = true;
+                _panel?.webview.postMessage({
+                    type:   'issue-synced',
+                    bugId:  bug.id,
+                    number: match.number,
+                    url:    match.html_url,
+                });
+            }
+        }
+        if (changed) { saveState(); }
+    })();
+
     _panel.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'fix' && msg.cmdId) {
             try {
@@ -634,9 +740,43 @@ export async function showFixBugsPanel(): Promise<void> {
         if (msg.command === 'file-issue') {
             const bug = _state.bugs.find(b => b.id === msg.bugId && !b.fixed);
             if (bug) {
-                await vscode.env.openExternal(vscode.Uri.parse(buildIssueUrl(bug)));
+                const result = await fileHealthBugAsIssue(bug);
+                if (result.ok && result.issueNumber && result.issueUrl) {
+                    bug.githubIssueNumber = result.issueNumber;
+                    bug.githubIssueUrl    = result.issueUrl;
+                    saveState();
+                    _panel?.webview.postMessage({
+                        type:   'issue-filed',
+                        bugId:  msg.bugId,
+                        number: result.issueNumber,
+                        url:    result.issueUrl,
+                    });
+                    void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
+                } else {
+                    _panel?.webview.postMessage({ type: 'issue-filed-error', bugId: msg.bugId });
+                    void vscode.window.showErrorMessage(`Couldn't file issue: ${result.error ?? 'unknown error'}`);
+                }
             }
-            _panel?.webview.postMessage({ type: 'issue-opened', bugId: msg.bugId });
+        }
+        if (msg.command === 'open-issue') {
+            if (msg.url) { void vscode.env.openExternal(vscode.Uri.parse(msg.url)); }
+        }
+        if (msg.command === 'open-evidence' && msg.path) {
+            try {
+                const doc = await vscode.workspace.openTextDocument(msg.path);
+                const line = Math.max(0, (msg.line ?? 1) - 1);
+                const column = Math.max(0, (msg.column ?? 1) - 1);
+                const pos = new vscode.Position(line, column);
+                const editor = await vscode.window.showTextDocument(doc, {
+                    viewColumn: vscode.ViewColumn.Beside,
+                    preview: true,
+                    preserveFocus: false,
+                });
+                editor.selection = new vscode.Selection(pos, pos);
+                editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+            } catch (e) {
+                logError('Failed to open evidence location', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+            }
         }
         if (msg.command === 'reload') {
             if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
