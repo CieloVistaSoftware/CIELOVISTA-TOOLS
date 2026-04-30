@@ -487,6 +487,17 @@ test('REG-020', 'launcher read-command failures post visible error message', () 
     `REG-020 launcher read error visibility test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-021: Home quick-launch Issue Viewer must stay wired to GitHub Issues.
+// Guards against accidentally routing the button back to local TODO preview.
+test('REG-021', 'Home Issue Viewer button opens GitHub Issues (not local TODO doc)', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/home-todo-opens-github-issues.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `Home Issue Viewer->GitHub Issues regression failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));
