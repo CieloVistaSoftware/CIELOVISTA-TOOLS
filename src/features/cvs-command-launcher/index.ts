@@ -20,9 +20,34 @@ const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
 
+function isCancellationError(err: unknown): boolean {
+    const text = err instanceof Error
+        ? `${err.name} ${err.message} ${err.stack ?? ''}`
+        : String(err ?? '');
+    return /\bCanceled\b|\bCancellation\b/i.test(text);
+}
+
+function isCommandNotFoundError(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err ?? '');
+    return /command .* not found/i.test(msg);
+}
+
 let _statusBar: vscode.StatusBarItem | undefined;
 let _panel:     vscode.WebviewPanel  | undefined;
 let _resultPanel: vscode.WebviewPanel | undefined; // single reused result panel
+
+function safePostToWebview(panel: vscode.WebviewPanel, payload: unknown): boolean {
+    try {
+        void panel.webview.postMessage(payload);
+        return true;
+    } catch (err) {
+        const text = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+        if (/Webview is disposed/i.test(text)) {
+            return false;
+        }
+        throw err;
+    }
+}
 
 // ─── Shared async channel interception ───────────────────────────────────────
 
@@ -193,11 +218,24 @@ async function _executeWithOutput(
         } catch (err) {
             const elapsed = Date.now() - startMs;
             const msg = err instanceof Error ? (err.message || String(err)) : String(err);
-            logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-            recordRun({ id: commandId, title, ok: false, elapsed });
+            const canceled = isCancellationError(err);
+            const notFound = isCommandNotFoundError(err);
+            if (canceled) {
+                log(FEATURE, `Canceled: ${commandId}`);
+                recordRun({ id: commandId, title, ok: true, elapsed });
+            } else if (notFound) {
+                log(FEATURE, `Command not found (feature may be disabled): ${commandId}`);
+                vscode.window.showInformationMessage(`"${title}" is not available — the feature may be disabled in settings (cielovistaTools.features).`);
+                recordRun({ id: commandId, title, ok: false, elapsed });
+            } else {
+                logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                recordRun({ id: commandId, title, ok: false, elapsed });
+            }
             if (notifyPanel) {
-                notifyPanel.webview.postMessage({ type: 'error', title, message: msg });
-                notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'error' });
+                if (!canceled && !notFound) {
+                    notifyPanel.webview.postMessage({ type: 'error', title, message: msg });
+                }
+                notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: (canceled || notFound) ? 'ok' : 'error' });
                 notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             }
             if (_panel) { _panel.webview.postMessage({ type: 'history-update', history: getHistory() }); }
@@ -242,13 +280,15 @@ async function _executeWithOutput(
 
     const stream: StreamFn = (line: string) => {
         for (const l of line.split(/\r?\n/)) {
-            if (l.trim()) { rp.webview.postMessage({ type: 'line', text: l }); }
+            if (l.trim() && !safePostToWebview(rp, { type: 'line', text: l })) {
+                return;
+            }
         }
     };
 
     const finish = (ok: boolean, elapsed: number, stack?: string) => {
         rp.title = ok ? `\u2705 ${title}` : `\u274c ${title}`;
-        rp.webview.postMessage({ type: 'done', ok, elapsed, stack });
+        safePostToWebview(rp, { type: 'done', ok, elapsed, stack });
         recordRun({ id: commandId, title, ok, elapsed });
         if (notifyPanel) {
             notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: ok ? 'ok' : 'error' });
@@ -291,8 +331,17 @@ async function _executeWithOutput(
     } catch (err) {
         const elapsed = Date.now() - startMs;
         const stack   = err instanceof Error ? err.stack ?? String(err) : String(err);
-        logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-        finish(false, elapsed, stack);
+        if (isCancellationError(err)) {
+            log(FEATURE, `Canceled: ${commandId}`);
+            finish(true, elapsed);
+        } else if (isCommandNotFoundError(err)) {
+            log(FEATURE, `Command not found (feature may be disabled): ${commandId}`);
+            vscode.window.showInformationMessage(`"${title}" is not available — the feature may be disabled in settings (cielovistaTools.features).`);
+            finish(false, elapsed);
+        } else {
+            logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            finish(false, elapsed, stack);
+        }
     } finally {
         _activeStreams.delete(runId);
         stopInterceptionIfIdle();
