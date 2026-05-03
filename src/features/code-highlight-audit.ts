@@ -382,35 +382,34 @@ async function showPanel(): Promise<void> {
                 );
                 _panel.webview.html = html;
                 _panel.onDidDispose(() => { _panel = undefined; });
+                _panel.webview.onDidReceiveMessage(async msg => {
+                    if (msg.command === 'open' && msg.path) {
+                        try {
+                            const doc  = await vscode.workspace.openTextDocument(msg.path);
+                            const ed   = await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                            const line = Math.max(0, (msg.line ?? 1) - 1);
+                            const pos  = new vscode.Position(line, 0);
+                            ed.selection = new vscode.Selection(pos, pos);
+                            ed.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+                        } catch (e) {
+                            logError('Failed to open file', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+                        }
+                    }
+                    if (msg.command === 'rescan') {
+                        await showPanel();
+                    }
+                    if (msg.command === 'fix-all') {
+                        try {
+                            const { fixed, skipped } = await fixAllBlocks(_lastBlocks);
+                            _panel?.webview.postMessage({ type: 'fix-all-done' });
+                            void vscode.window.showInformationMessage(`Fix All: ${fixed} block${fixed !== 1 ? 's' : ''} tagged${skipped > 0 ? `, ${skipped} skipped` : ''}.`);
+                            log(FEATURE, `Fix All: ${fixed} fixed, ${skipped} skipped`);
+                        } catch (e) {
+                            logError('Fix All failed', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+                        }
+                    }
+                });
             }
-
-            _panel.webview.onDidReceiveMessage(async msg => {
-                if (msg.command === 'open' && msg.path) {
-                    try {
-                        const doc  = await vscode.workspace.openTextDocument(msg.path);
-                        const ed   = await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-                        const line = Math.max(0, (msg.line ?? 1) - 1);
-                        const pos  = new vscode.Position(line, 0);
-                        ed.selection = new vscode.Selection(pos, pos);
-                        ed.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-                    } catch (e) {
-                        logError('Failed to open file', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-                    }
-                }
-                if (msg.command === 'rescan') {
-                    await showPanel();
-                }
-                if (msg.command === 'fix-all') {
-                    try {
-                        const { fixed, skipped } = await fixAllBlocks(_lastBlocks);
-                        _panel?.webview.postMessage({ type: 'fix-all-done' });
-                        void vscode.window.showInformationMessage(`Fix All: ${fixed} block${fixed !== 1 ? 's' : ''} tagged${skipped > 0 ? `, ${skipped} skipped` : ''}.`);
-                        log(FEATURE, `Fix All: ${fixed} fixed, ${skipped} skipped`);
-                    } catch (e) {
-                        logError('Fix All failed', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-                    }
-                }
-            });
 
             log(FEATURE, `Code highlight audit: ${blocks.length} untagged blocks in ${scannedFiles} files`);
         }
