@@ -367,6 +367,8 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .label{padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;line-height:1.45;border:1px solid rgba(0,0,0,.1)}
 .priority{background:var(--vscode-dropdown-background, var(--vscode-input-background));color:var(--vscode-dropdown-foreground, var(--vscode-input-foreground));border:1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));border-radius:4px;padding:2px 4px;font-size:11px}
 .state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45)}
+.proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
+#proj-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
 
     const copyDisabled = loading || !!error || !issues || issues.length === 0 ? ' disabled' : '';
@@ -379,14 +381,25 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     } else if (!issues || issues.length === 0) {
         bodyHtml = `<div class="empty">\u2728 No open issues.</div>`;
     } else {
+                // Collect unique project names for the filter dropdown
+                const allProjects = [...new Set(
+                    issues.flatMap((i) => i.labels
+                        .filter((l) => l.name.startsWith('project:'))
+                        .map((l) => l.name.slice('project:'.length))
+                    )
+                )].sort();
+
                 const summary = `<div class="summary"><span><strong id="countShown">${issues.length}</strong> / <strong id="countTotal">${issues.length}</strong> open ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sticky field headers + sortable columns</span><span>\u2022</span><span>priority 1 = highest</span></div>`;
-                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><button id="clear" type="button">Clear</button></div>`;
+                const projectOptions = allProjects.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
                 const rows = issues.map((iss) => {
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
                 return `<span class="label" style="background:#${esc(bg)};color:${fg}">${esc(l.name)}</span>`;
             }).join('');
+                        const projectLabel = iss.labels.find((l) => l.name.startsWith('project:'));
+                        const projectName  = projectLabel ? projectLabel.name.slice('project:'.length) : '';
                         const assigneesText = iss.assignees.map((a) => '@' + a.login).join(', ');
                         const labelsText = iss.labels.map((l) => l.name).join(' ');
                         const filterText = `${iss.number} ${iss.title} ${iss.body ?? ''} ${iss.user.login} ${labelsText} ${assigneesText}`.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -398,9 +411,11 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-comments="${iss.comments}"
     data-state="${esc(iss.state.toLowerCase())}"
     data-author="${esc(iss.user.login.toLowerCase())}"
+    data-project="${esc(projectName.toLowerCase())}"
     data-priority="3"
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
+    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="muted">-</span>`}</td>
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
@@ -416,6 +431,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
 <th><button type="button" data-sort="number">number <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="project">project <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="title">title <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="priority">priority <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="state">state <span class="sort-ind"></span></button></th>
@@ -461,12 +477,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 
     function rowSortValue(row, key){
         if (key === 'number')    { return Number(row.dataset.number || 0); }
+        if (key === 'project')   { return String(row.dataset.project || ''); }
         if (key === 'title')     { return String(row.dataset.title || ''); }
         if (key === 'priority')  { return Number(row.dataset.priority || 3); }
         if (key === 'state')     { return String(row.dataset.state || ''); }
         if (key === 'author')    { return String(row.dataset.author || ''); }
-        if (key === 'labels')    { var c = row.children[5]; return c ? c.textContent || '' : ''; }
-        if (key === 'assignees') { var a = row.children[6]; return a ? a.textContent || '' : ''; }
+        if (key === 'labels')    { var c = row.children[6]; return c ? c.textContent || '' : ''; }
+        if (key === 'assignees') { var a = row.children[7]; return a ? a.textContent || '' : ''; }
         if (key === 'comments')  { return Number(row.dataset.comments || 0); }
         if (key === 'created')   { return Number(row.dataset.created || 0); }
         if (key === 'updated')   { return Number(row.dataset.updated || 0); }
@@ -507,12 +524,17 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     function applyFilter(){
         var input = document.getElementById('search');
         var q = input ? String(input.value || '').trim().toLowerCase() : '';
+        var projSel = document.getElementById('proj-filter');
+        var projQ = projSel ? String(projSel.value || '').toLowerCase() : '';
         var total = 0;
         var shown = 0;
         document.querySelectorAll('.issue-row').forEach(function(row){
             total++;
             var txt = String(row.getAttribute('data-filter') || '');
-            var ok = !q || txt.indexOf(q) !== -1;
+            var proj = String(row.dataset.project || '');
+            var okText = !q || txt.indexOf(q) !== -1;
+            var okProj = !projQ || proj === projQ;
+            var ok = okText && okProj;
             row.style.display = ok ? '' : 'none';
             if (ok) { shown++; }
         });
@@ -542,9 +564,15 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     if (clear && search) {
         clear.addEventListener('click', function(){
             search.value = '';
+            var projSel = document.getElementById('proj-filter');
+            if (projSel) { projSel.value = ''; }
             applyFilter();
             search.focus();
         });
+    }
+    var projFilter = document.getElementById('proj-filter');
+    if (projFilter) {
+        projFilter.addEventListener('change', applyFilter);
     }
     document.querySelectorAll('th button[data-sort]').forEach(function(btn){
         btn.addEventListener('click', function(){
