@@ -29,22 +29,14 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
-import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../shared/registry';
+import { REGISTRY_PATH, loadRegistry, saveRegistry, ProjectRegistry, ProjectEntry } from '../shared/registry';
 import { showContentViewer } from '../shared/content-viewer';
 
 const FEATURE = 'docs-manager';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-// ProjectEntry and ProjectRegistry types are now imported from shared/registry
-
-
-// Registry helpers now imported from shared/registry
-
-function saveRegistry(registry: ProjectRegistry): void {
-    fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf8');
-    log(FEATURE, 'Project registry saved');
-}
+// ProjectEntry and ProjectRegistry types are imported from shared/registry
 
 // ─── Doc file discovery ───────────────────────────────────────────────────────
 

@@ -20,7 +20,7 @@ import { log, logError } from '../shared/output-channel';
 import { PROJECT_CARD_SHELL_HTML } from '../shared/project-card-shell';
 import { buildCardFromPackageDir  } from '../shared/project-card-builder';
 import type { ProjectCardData }     from '../shared/project-card-types';
-import { loadRegistry, REGISTRY_PATH } from '../shared/registry';
+import { loadRegistry, saveRegistry, REGISTRY_PATH } from '../shared/registry';
 import { sendToCopilotChat } from './terminal-copy-output';
 import { getMcpServerStatus, onMcpServerStatusChange, offMcpServerStatusChange } from './mcp-server-status';
 
@@ -39,10 +39,6 @@ const _running = new Map<string, cp.ChildProcess>();
 
 function normalizeFsPath(value: string): string {
     return path.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
-}
-
-function saveRegistry(data: { globalDocsPath: string; projects: Array<{ name: string; path: string; type: string; description: string }> }): void {
-    fs.writeFileSync(REGISTRY_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
 function postRegistryToPanel(): void {
