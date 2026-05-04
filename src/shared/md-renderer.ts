@@ -52,12 +52,18 @@ export function mdToHtml(input: string): string {
                 i++;
             }
             if (tableLines.length >= 2 && /^\|[\s\-:|]+\|$/.test(tableLines[1])) {
-                const headerCells = tableLines[0].split('|').slice(1,-1).map(c =>
-                    `<th>${inlineMarkdown(esc(c.trim()))}</th>`
+                const alignments = tableLines[1].split('|').slice(1,-1).map(c => {
+                    const t = c.trim();
+                    if (/^:-+:$/.test(t)) { return ' style="text-align:center"'; }
+                    if (/^-+:$/.test(t))  { return ' style="text-align:right"'; }
+                    return '';
+                });
+                const headerCells = tableLines[0].split('|').slice(1,-1).map((c, ci) =>
+                    `<th${alignments[ci] ?? ''}>${inlineMarkdown(esc(c.trim()))}</th>`
                 ).join('');
                 const bodyRows = tableLines.slice(2).map(row => {
-                    const cells = row.split('|').slice(1,-1).map(c =>
-                        `<td>${inlineMarkdown(esc(c.trim()))}</td>`
+                    const cells = row.split('|').slice(1,-1).map((c, ci) =>
+                        `<td${alignments[ci] ?? ''}>${inlineMarkdown(esc(c.trim()))}</td>`
                     ).join('');
                     return `<tr>${cells}</tr>`;
                 }).join('');

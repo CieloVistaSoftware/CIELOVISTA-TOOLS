@@ -498,6 +498,18 @@ test('REG-021', 'Home Issue Viewer button opens GitHub Issues (not local TODO do
     `Home Issue Viewer->GitHub Issues regression failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-022: Issue #12 — md-renderer pipe-syntax table rendering.
+// Guards that GFM tables produce <table>/<thead>/<tbody> and that column
+// alignment markers (:---, :---:, ---:) are applied as inline styles.
+test('REG-022', 'md-renderer table rendering produces proper <table> HTML', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-022-md-renderer-tables.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-022 md-renderer table test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));
