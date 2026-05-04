@@ -51,9 +51,16 @@ export function buildCatalogInitPayload(
     const sortedCategories = [...byCategory.entries()]
         .sort((a, b) => (a[1][0]?.categoryNum ?? 0) - (b[1][0]?.categoryNum ?? 0));
 
+    // Extract shared prefix (text before first :, -, or . separator)
+    function docPrefix(title: string): string {
+        const m = title.match(/^([A-Za-z0-9_]+)[:\-\.]/);
+        return m ? m[1].toLowerCase() : '';
+    }
+
     const categorySections = sortedCategories.map(([catLabel, catCards]) => {
         const seqWithinCat = new Map<string, number>();
-        const cardHtml = catCards.map(card => {
+
+        function buildCardHtml(card: CatalogCard): string {
             const relPath  = path.relative(card.projectPath, card.filePath).replace(/\\/g, '/');
             const relDir   = path.relative(card.projectPath, path.dirname(card.filePath));
             const firstSeg = relDir.split(/[/\\]/)[0];
@@ -65,7 +72,6 @@ export function buildCatalogInitPayload(
             seqWithinCat.set(catLabel, seq);
             const deweyNum = `${card.categoryNum.toString().padStart(3,'0')}.${seq.toString().padStart(3,'0')}`;
 
-            // Build tooltip: Where, When, Why, How + Dewey
             const tooltipText = [
                 `Where: ${card.projectName} — ${relPath}`,
                 `When: Reference while working on ${card.projectName}`,
@@ -113,7 +119,50 @@ export function buildCatalogInitPayload(
     </div>
   </div>
 </article>`;
-        }).join('');
+        }
+
+        // Group cards by project, then sub-group by shared title prefix within each project
+        const byProject = new Map<string, CatalogCard[]>();
+        for (const card of catCards) {
+            if (!byProject.has(card.projectName)) { byProject.set(card.projectName, []); }
+            byProject.get(card.projectName)!.push(card);
+        }
+
+        let cardHtml = '';
+        for (const [, projCards] of byProject) {
+            // Count how many cards share each prefix within this project
+            const prefixCounts = new Map<string, number>();
+            for (const card of projCards) {
+                const p = docPrefix(card.title);
+                if (p) prefixCounts.set(p, (prefixCounts.get(p) ?? 0) + 1);
+            }
+            const sharedPrefixes = new Set([...prefixCounts.entries()]
+                .filter(([, n]) => n >= 2)
+                .map(([p]) => p));
+
+            if (sharedPrefixes.size === 0) {
+                // No grouping — render flat
+                cardHtml += projCards.map(buildCardHtml).join('');
+            } else {
+                // Emit grouped sections first, then ungrouped cards
+                const grouped   = new Map<string, CatalogCard[]>();
+                const ungrouped: CatalogCard[] = [];
+                for (const card of projCards) {
+                    const p = docPrefix(card.title);
+                    if (p && sharedPrefixes.has(p)) {
+                        if (!grouped.has(p)) { grouped.set(p, []); }
+                        grouped.get(p)!.push(card);
+                    } else {
+                        ungrouped.push(card);
+                    }
+                }
+                for (const [prefix, grpCards] of grouped) {
+                    cardHtml += `<h3 class="doc-group-hd">${esc(prefix)}</h3>`;
+                    cardHtml += grpCards.map(buildCardHtml).join('');
+                }
+                cardHtml += ungrouped.map(buildCardHtml).join('');
+            }
+        }
 
         const baseLabel = (catCards[0]?.categoryNum ?? 0).toString().padStart(3,'0');
         return `<section class="cat-section" data-category="${esc(catLabel)}">
