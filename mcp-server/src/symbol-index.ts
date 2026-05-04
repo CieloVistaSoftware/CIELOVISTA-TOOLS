@@ -429,22 +429,35 @@ function cacheIsFresh(registry: ProjectRegistry): boolean {
 
 /**
  * Build or return the cached symbol index for every registered project.
+ * Pass a `status` to scan only projects with that lifecycle status.
+ * Omit or pass `'product'` to scan only shipped/product projects (the default).
+ * Pass `'all'` to scan every project regardless of status.
  * Call `invalidateSymbolIndex()` after a build if immediate freshness matters.
  */
-export function getSymbolIndex(): SymbolEntry[] {
+export function getSymbolIndex(status?: 'product' | 'workbench' | 'generated' | 'archived' | 'all'): SymbolEntry[] {
   const registry = loadRegistry();
-  if (cacheIsFresh(registry)) {
+  // Determine which projects to scan based on status filter.
+  // Default (omitted or 'product'): only product projects.
+  const resolvedStatus = status ?? 'product';
+  const projects = resolvedStatus === 'all'
+    ? registry.projects
+    : registry.projects.filter(p => (p.status ?? 'product') === resolvedStatus);
+  // Use cache only when scanning all projects (status=all or no filter producing same set).
+  if (resolvedStatus === 'all' && cacheIsFresh(registry)) {
     return _cache!.symbols;
   }
   const symbols: SymbolEntry[] = [];
-  for (const p of registry.projects) {
+  for (const p of projects) {
     symbols.push(...scanProject(p));
   }
-  _cache = {
-    builtAt: Date.now(),
-    symbols,
-    folderMtimes: currentFolderMtimes(registry),
-  };
+  // Only prime the cache for the full 'all' scan to avoid stale partial caches.
+  if (resolvedStatus === 'all') {
+    _cache = {
+      builtAt: Date.now(),
+      symbols,
+      folderMtimes: currentFolderMtimes(registry),
+    };
+  }
   return symbols;
 }
 
@@ -461,6 +474,8 @@ export interface SymbolFilter {
   role?: SymbolRole;
   exportedOnly?: boolean;
   limit?: number;
+  /** Filter by project lifecycle status. Defaults to 'product' when omitted. Pass 'all' to include every status. */
+  status?: 'product' | 'workbench' | 'generated' | 'archived' | 'all';
 }
 
 export function filterSymbols(all: SymbolEntry[], f: SymbolFilter): SymbolEntry[] {

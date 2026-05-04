@@ -490,13 +490,14 @@ export function registerTools(server: McpServer): void {
     ListSymbolsToolSchema.shape,
     async (args) => {
       try {
-        const all = getSymbolIndex();
+        const all = getSymbolIndex(args.status ?? 'product');
         const filtered = filterSymbols(all, { ...args, limit: args.limit ?? 200 });
         const payload = {
           query: args.query ?? "",
           kind: args.kind ?? "(any)",
           projectName: args.projectName ?? "(all)",
           role: args.role ?? "(any)",
+          status: args.status ?? "product",
           totalIndexed: all.length,
           matchCount: filtered.length,
           truncated: filtered.length >= (args.limit ?? 200),
@@ -518,12 +519,13 @@ export function registerTools(server: McpServer): void {
     "find_symbol",
     "Resolves a symbol by exact name, with prefix fallback. Returns the best matches across every registered project with file path, line number, signature, and JSDoc. Equivalent to 'Go to Definition' in an IDE — use when you have a function or class name and need to know where it lives.",
     FindSymbolToolSchema.shape,
-    async ({ name, limit }) => {
+    async ({ name, status, limit }) => {
       try {
-        const all = getSymbolIndex();
+        const all = getSymbolIndex(status ?? 'product');
         const matches = findSymbolByName(all, name, limit ?? 10);
         const payload = {
           name,
+          status: status ?? "product",
           totalIndexed: all.length,
           matchCount: matches.length,
           matches,

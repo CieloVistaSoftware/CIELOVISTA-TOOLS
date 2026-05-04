@@ -102,12 +102,14 @@ export const ListSymbolsToolSchema = z.object({
   kind: SymbolKindEnum.optional().describe("Restrict to one kind, e.g. 'function' or 'class'."),
   projectName: z.string().optional().describe("Limit to one registered project by exact name."),
   role: SymbolRoleEnum.optional().describe("Limit by file role: src, script, test, or declaration (.d.ts)."),
+  status: ProjectStatusEnum.optional().describe("Filter by project lifecycle status: product (default), workbench, generated, archived. Omit to include only 'product' projects."),
   exportedOnly: z.boolean().optional().describe("If true, skip internal/non-exported symbols."),
   limit: z.number().int().positive().optional().describe("Cap result count (default 200)."),
 });
 
 export const FindSymbolToolSchema = z.object({
   name: z.string().describe("Exact symbol name to resolve. Falls back to prefix match if no exact hit."),
+  status: ProjectStatusEnum.optional().describe("Filter by project lifecycle status: product (default), workbench, generated, archived. Omit to include only 'product' projects."),
   limit: z.number().int().positive().optional().describe("Max matches to return (default 10)."),
 });
 
