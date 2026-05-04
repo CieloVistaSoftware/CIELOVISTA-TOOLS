@@ -1,6 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-// FILE REMOVED BY REQUEST
 /**
  * python-runner.ts
  * Right-click any .py file in the Explorer and run it in the terminal.

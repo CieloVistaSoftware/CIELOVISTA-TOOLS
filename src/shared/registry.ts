@@ -3,7 +3,6 @@
 //
 // Exports the canonical REGISTRY_PATH and loadRegistry() utility for all features.
 // Ensures single source of truth for project registry location and loading logic.
-// FILE REMOVED BY REQUEST
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 

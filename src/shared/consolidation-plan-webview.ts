@@ -123,4 +123,3 @@ async function getSimpleDiff(a: string, b: string): Promise<string> {
   }
   return diff;
 }
-// FILE REMOVED BY REQUEST

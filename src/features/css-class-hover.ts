@@ -1,6 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-// FILE REMOVED BY REQUEST
 /**
  * css-class-hover.ts
  * Hover over a CSS class name in HTML/JSX/TSX and see the class definition

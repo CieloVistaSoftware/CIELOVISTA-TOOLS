@@ -14,7 +14,6 @@
  *  - cvs.audit.testCoverage.refresh — Re-run the audit
  *  - cvs.audit.testCoverage.export — Export report as markdown
  */
-// FILE REMOVED BY REQUEST
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';

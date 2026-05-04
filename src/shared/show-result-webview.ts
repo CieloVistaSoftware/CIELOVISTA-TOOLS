@@ -42,4 +42,3 @@ export function showResultWebview(title: string, action: string, durationMs: num
     </html>
   `;
 }
-// FILE REMOVED BY REQUEST

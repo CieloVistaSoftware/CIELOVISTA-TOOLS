@@ -60,4 +60,3 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
-// FILE REMOVED BY REQUEST

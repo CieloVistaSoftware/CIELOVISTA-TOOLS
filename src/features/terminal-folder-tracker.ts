@@ -1,6 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-// FILE REMOVED BY REQUEST
 /**
  * terminal-folder-tracker.ts
  * Monitors terminal sendText calls for `cd` commands and persists the

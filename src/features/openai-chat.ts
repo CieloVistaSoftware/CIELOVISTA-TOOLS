@@ -1,6 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-// FILE REMOVED BY REQUEST
 /**
  * openai-chat.ts
  * Adds OpenAI-powered commands directly into VS Code:

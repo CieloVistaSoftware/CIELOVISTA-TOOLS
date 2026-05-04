@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
+// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
 
@@ -361,4 +361,3 @@ export function disposeDocPreview(): void {
     _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
     _history = [];
 }
-// FILE REMOVED BY REQUEST

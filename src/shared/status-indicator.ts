@@ -31,4 +31,3 @@ export const STATUS_INDICATOR_CSS = `
  .status-dot.stopped { background:#e5a000; box-shadow:0 0 6px #e5a000; }
  .status-dot.error { background:#f85149; box-shadow:0 0 6px #f85149; }
 `;
-// FILE REMOVED BY REQUEST

@@ -58,4 +58,3 @@ function getLauncherHtml(lastState: string) {
 }
 
 export function deactivate() {}
-// FILE REMOVED BY REQUEST
