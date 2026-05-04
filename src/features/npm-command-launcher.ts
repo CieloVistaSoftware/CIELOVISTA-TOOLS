@@ -229,6 +229,9 @@ window.addEventListener('message',function(ev){
       else if(m.code===0){rc.textContent='✓ Exit 0';rc.className='job-rc ok';}
       else{rc.textContent='✗ Exit '+m.code;rc.className='job-rc fail';}
     }
+    // Swap '(no output yet)' placeholder to final '(no output)' if job produced nothing
+    var outEl2=document.getElementById('out-'+m.jobKey);
+    if(outEl2&&outEl2.classList.contains('empty')){outEl2.dataset.noOutput='(no output)';}
     // Reveal the Copy to Chat button
     var job2=document.getElementById('job-'+m.jobKey);
     if(job2){var cb=job2.querySelector('.btn-chat');if(cb){cb.classList.add('show');}}
@@ -267,22 +270,23 @@ function flushOutputQueue(): void {
     _outputQueue = [];
 }
 
-function ensureOutputPanel(): void {
+function setupOutputPanel(): void {
     if (_outputPanel) { _outputPanel.reveal(vscode.ViewColumn.Beside, true); return; }
     _outputReady = false;
     _outputQueue = [];
-    _outputPanel = vscode.window.createWebviewPanel(
+    const panel = vscode.window.createWebviewPanel(
         'npmOutput', '\u25b6 NPM Output',
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true }
     );
-    _outputPanel.onDidDispose(() => {
+    _outputPanel = panel;
+    panel.onDidDispose(() => {
         _outputPanel = undefined;
         _outputReady = false;
         _outputQueue = [];
     });
     // Register handler BEFORE setting HTML so output-ready is never missed
-    _outputPanel.webview.onDidReceiveMessage(async msg => {
+    panel.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'output-ready') {
             _outputReady = true;
             flushOutputQueue();
@@ -307,8 +311,11 @@ function ensureOutputPanel(): void {
             }
         }
     });
+    // Safety-net: if output-ready handshake never arrives (retainContextWhenHidden race),
+    // force-flush after 2s so queued messages are not lost.
+    setTimeout(() => { if (!_outputReady) { _outputReady = true; flushOutputQueue(); } }, 2000);
     // Set HTML after handler is registered so output-ready is never missed
-    _outputPanel.webview.html = buildOutputShellHtml();
+    panel.webview.html = buildOutputShellHtml();
 }
 
 // ─── Collect scripts ──────────────────────────────────────────────────────────
@@ -453,12 +460,13 @@ async function openPanel(): Promise<void> {
             case 'run': {
                 const { id, script, dir, folder } = msg as { id:string; script:string; dir:string; folder:string };
                 const jobKey = `${id}::${script}`;
-                ensureOutputPanel();
+                setupOutputPanel();
 
                 const sendOut  = (type: string, payload: object) => postToOutput({ jobKey, type, ...payload });
                 const sendCard = (type: string, payload: object) => _panel?.webview.postMessage({ type, id, script, ...payload });
 
                 sendOut('job-start', { script, folder, time: new Date().toLocaleTimeString() });
+                sendOut('output',    { text: `[CVT] Launching: npm run ${script}\n` });
                 sendCard('status', { state: 'running' });
 
                 const proc = cp.spawn('npm', ['run', script], { cwd: dir, shell: true, env: { ...process.env } });

@@ -134,6 +134,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
         'cvs.catalog.view',
         'cvs.tools.home',
         'cvs.mcp.viewer.open',
+        'cvs.tools.fileList',
         'workbench.action.reloadWindow',
       ];
       if (OPEN_DIRECT.includes(msg.command)) {
@@ -232,6 +233,7 @@ function buildDashboardHtml(
       { icon: '\uD83D\uDCE4', label: 'Last Cmd to Chat', desc: 'Send the latest terminal command to Copilot Chat', cmd: 'cvs.terminal.pasteLastCommandToChat', primary: false },
         { icon: '\uD83D\uDD0D', label: 'Run Audit',       desc: 'Daily health check',              cmd: 'cvs.audit.runDaily',          primary: false },
       { icon: '\uD83D\uDD0C', label: 'MCP Viewer',      desc: 'Live viewer for the 4 catalog MCP endpoints', cmd: 'cvs.mcp.viewer.open', primary: false },
+      { icon: '\uD83D\uDCC2', label: 'File List',       desc: 'Sortable file browser with name, date, size',  cmd: 'cvs.tools.fileList',  primary: false },
     ];
 
     const quickHtml = quickLaunch
