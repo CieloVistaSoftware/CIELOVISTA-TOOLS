@@ -1,6 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-// FILE REMOVED BY REQUEST
 /**
  * copilot-rules-enforcer.ts
  * Injects custom Copilot instruction rules into the workspace or user settings

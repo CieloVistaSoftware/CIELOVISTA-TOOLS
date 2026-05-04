@@ -1,6 +1,5 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
-// FILE REMOVED BY REQUEST
 /**
  * claude-process-monitor.ts
  *

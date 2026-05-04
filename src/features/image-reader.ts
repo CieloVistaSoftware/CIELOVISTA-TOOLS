@@ -78,4 +78,3 @@ function getWebviewContent(context: vscode.ExtensionContext, webview: vscode.Web
     // TODO: Replace above with actual HTML file content and asset injection
     return html;
 }
-// FILE REMOVED BY REQUEST

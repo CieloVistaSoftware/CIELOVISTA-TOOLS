@@ -16,7 +16,6 @@ export function getNonce(): string {
     }
     return result;
 }
-// FILE REMOVED BY REQUEST
 
 /**
  * webview-utils.ts
