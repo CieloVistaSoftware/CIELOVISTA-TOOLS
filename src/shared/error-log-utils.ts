@@ -47,12 +47,14 @@ export interface ErrorEntry {
 
 // ─── File path helper ─────────────────────────────────────────────────────────
 
-function getLogFilePath(): string | undefined {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders?.length) { return undefined; }
-    const logsDir = path.join(folders[0].uri.fsPath, '.vscode', 'logs');
-    if (!fs.existsSync(logsDir)) { fs.mkdirSync(logsDir, { recursive: true }); }
-    return path.join(logsDir, 'cielovista-errors.json');
+// Fixed path inside the extension's own data/ directory — workspace-independent
+// so errors logged in any open project are always visible in the viewer.
+const LOG_FILE_PATH = path.join(__dirname, '..', '..', 'data', 'cielovista-errors.json');
+
+function getLogFilePath(): string {
+    const dir = path.dirname(LOG_FILE_PATH);
+    if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
+    return LOG_FILE_PATH;
 }
 
 function readLog(logFile: string): ErrorEntry[] {

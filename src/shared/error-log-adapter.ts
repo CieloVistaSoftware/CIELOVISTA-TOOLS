@@ -23,7 +23,6 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
-import * as vscode from 'vscode';
 import { getErrors as getLegacyErrors, getLogPath as getLegacyLogPath, clearErrors as clearLegacyErrors, ensureLogFile as ensureLegacyLogFile } from './error-log';
 import type { ErrorEntry as LegacyErrorEntry, ErrorType } from './error-log';
 import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
@@ -31,12 +30,13 @@ import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
 // Re-export the legacy shape so the viewer's existing HTML keeps working.
 export type { ErrorEntry } from './error-log';
 
+// Fixed path — must match the constant in error-log-utils.ts.
+const UTILS_LOG_PATH = path.join(__dirname, '..', '..', 'data', 'cielovista-errors.json');
+
 // ─── Read the utils-style log file ────────────────────────────────────────────
 
 function readUtilsLog(): UtilsErrorEntry[] {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders?.length) { return []; }
-    const logFile = path.join(folders[0].uri.fsPath, '.vscode', 'logs', 'cielovista-errors.json');
+    const logFile = UTILS_LOG_PATH;
     if (!fs.existsSync(logFile)) { return []; }
     try {
         const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8'));
@@ -124,13 +124,7 @@ export function getErrors(): LegacyErrorEntry[] {
 export function getLogPath(): string {
     const utilsCount  = readUtilsLog().length;
     const legacyCount = getLegacyErrors().length;
-    if (utilsCount > 0 && legacyCount === 0) {
-        const folders = vscode.workspace.workspaceFolders;
-        if (folders?.length) {
-            return path.join(folders[0].uri.fsPath, '.vscode', 'logs', 'cielovista-errors.json');
-        }
-    }
-    return getLegacyLogPath();
+    return (utilsCount > 0 && legacyCount === 0) ? UTILS_LOG_PATH : getLegacyLogPath();
 }
 
 /**
@@ -140,13 +134,9 @@ export function getLogPath(): string {
  */
 export async function clearErrors(): Promise<void> {
     await clearLegacyErrors();
-    const folders = vscode.workspace.workspaceFolders;
-    if (folders?.length) {
-        const utilsLog = path.join(folders[0].uri.fsPath, '.vscode', 'logs', 'cielovista-errors.json');
-        if (fs.existsSync(utilsLog)) {
-            try { fs.writeFileSync(utilsLog, '[]', 'utf8'); }
-            catch { /* best-effort; not fatal */ }
-        }
+    if (fs.existsSync(UTILS_LOG_PATH)) {
+        try { fs.writeFileSync(UTILS_LOG_PATH, '[]', 'utf8'); }
+        catch { /* best-effort; not fatal */ }
     }
 }
 
@@ -166,23 +156,19 @@ export function ensureLogFile(): void { ensureLegacyLogFile(); }
 export function patchEntry(id: string | number, issueNumber: number, issueUrl: string): void {
     const numericId = typeof id === 'string' ? Number(id) : id;
 
-    // ── utils log (cielovista-errors.json) ──────────────────────────────────
-    const folders = vscode.workspace.workspaceFolders;
-    if (folders?.length) {
-        const utilsPath = path.join(folders[0].uri.fsPath, '.vscode', 'logs', 'cielovista-errors.json');
-        if (fs.existsSync(utilsPath)) {
-            try {
-                const entries: UtilsErrorEntry[] = JSON.parse(fs.readFileSync(utilsPath, 'utf8'));
-                const idx = entries.findIndex(
-                    u => (Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0) === numericId
-                );
-                if (idx !== -1) {
-                    entries[idx].githubIssueNumber = issueNumber;
-                    entries[idx].githubIssueUrl    = issueUrl;
-                    fs.writeFileSync(utilsPath, JSON.stringify(entries, null, 2), 'utf8');
-                }
-            } catch { /* best-effort */ }
-        }
+    // ── utils log (data/cielovista-errors.json) ─────────────────────────────
+    if (fs.existsSync(UTILS_LOG_PATH)) {
+        try {
+            const entries: UtilsErrorEntry[] = JSON.parse(fs.readFileSync(UTILS_LOG_PATH, 'utf8'));
+            const idx = entries.findIndex(
+                u => (Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0) === numericId
+            );
+            if (idx !== -1) {
+                entries[idx].githubIssueNumber = issueNumber;
+                entries[idx].githubIssueUrl    = issueUrl;
+                fs.writeFileSync(UTILS_LOG_PATH, JSON.stringify(entries, null, 2), 'utf8');
+            }
+        } catch { /* best-effort */ }
     }
 
     // ── legacy log (data/tools-errors.json) ─────────────────────────────────
