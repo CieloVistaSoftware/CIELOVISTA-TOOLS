@@ -229,9 +229,9 @@ window.addEventListener('message',function(ev){
       else if(m.code===0){rc.textContent='✓ Exit 0';rc.className='job-rc ok';}
       else{rc.textContent='✗ Exit '+m.code;rc.className='job-rc fail';}
     }
-    // Swap '(no output yet)' placeholder to final '(no output)' if job produced nothing
-    var outEl2=document.getElementById('out-'+m.jobKey);
-    if(outEl2&&outEl2.classList.contains('empty')){outEl2.dataset.noOutput='(no output)';}
+    // If the job produced no output, swap placeholder to final '(no output)'
+    var outDone=document.getElementById('out-'+m.jobKey);
+    if(outDone&&outDone.classList.contains('empty')){outDone.classList.remove('empty');outDone.textContent='(no output)';}
     // Reveal the Copy to Chat button
     var job2=document.getElementById('job-'+m.jobKey);
     if(job2){var cb=job2.querySelector('.btn-chat');if(cb){cb.classList.add('show');}}
@@ -285,6 +285,8 @@ function setupOutputPanel(): void {
         _outputReady = false;
         _outputQueue = [];
     });
+    // Safety-net: if output-ready handshake hasn't arrived in 2s, force-flush the queue
+    setTimeout(function() { _outputReady = true; flushOutputQueue(); }, 2000);
     // Register handler BEFORE setting HTML so output-ready is never missed
     panel.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'output-ready') {
@@ -466,7 +468,7 @@ async function openPanel(): Promise<void> {
                 const sendCard = (type: string, payload: object) => _panel?.webview.postMessage({ type, id, script, ...payload });
 
                 sendOut('job-start', { script, folder, time: new Date().toLocaleTimeString() });
-                sendOut('output',    { text: `[CVT] Launching: npm run ${script}\n` });
+                sendOut('output', { text: `[CVT] Launching: npm run ${script}\n` });
                 sendCard('status', { state: 'running' });
 
                 const proc = cp.spawn('npm', ['run', script], { cwd: dir, shell: true, env: { ...process.env } });
