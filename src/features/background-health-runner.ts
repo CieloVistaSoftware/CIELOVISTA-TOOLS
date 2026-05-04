@@ -460,6 +460,9 @@ async function runNextCheck(): Promise<void> {
         log(FEATURE, `Check: ${check.name}`);
         await check.run();
     } catch (e) {
+        // VS Code cancels in-flight promises on extension host shutdown — not a real error.
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg === 'Canceled' || msg.startsWith('Canceled:')) { return; }
         logError(`Check failed: ${check.id}`, e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
     }
 
