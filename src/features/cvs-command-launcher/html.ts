@@ -124,7 +124,9 @@ export function buildLauncherHtml(
     report: DailyAuditReport | null,
     workspacePath?: string,
     history: HistoryEntry[] = [],
-    recents: RecentProject[] = [], registeredCommands?: Set<string>
+    recents: RecentProject[] = [],
+    registeredCommands?: Set<string>,
+    cvtPaths?: Set<string>
 ): string {
     const auditMap = new Map<string, { status: string; summary: string }>();
     if (report) { for (const c of report.checks) { auditMap.set(c.checkId, { status: c.status, summary: c.summary }); } }
@@ -189,7 +191,11 @@ export function buildLauncherHtml(
     const catalogJson = JSON.stringify(visibleCatalog);
     const total       = visibleCatalog.length;
     const historyJson = JSON.stringify(history);
-    const recentsJson = JSON.stringify(recents.map(r => ({ name: r.name, fsPath: r.fsPath })));
+    const recentsJson = JSON.stringify(recents.map(r => ({
+        name:  r.name,
+        fsPath: r.fsPath,
+        isCvt: cvtPaths ? cvtPaths.has(r.fsPath.toLowerCase().replace(/\\/g, '/')) : false,
+    })));
 
     const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
@@ -329,8 +335,12 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #recent-wrap{position:relative;display:inline-block;flex-shrink:0}
 #btn-recent{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px}
 #btn-recent:hover{background:var(--vscode-button-secondaryHoverBackground)}
-#recent-dd{display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-panel-border);border-radius:4px;min-width:240px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+#recent-dd{display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:200;background:var(--vscode-dropdown-background);border:1px solid var(--vscode-panel-border);border-radius:4px;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
 #recent-dd.open{display:block}
+#recent-filter-bar{display:flex;gap:4px;padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border)}
+.recent-filter-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit}
+.recent-filter-btn:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground)}
+.recent-filter-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-background)}
 .recent-item{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--vscode-panel-border)}
 .recent-item:last-child{border-bottom:none}
 .recent-item:hover{background:var(--vscode-list-hoverBackground)}
@@ -655,19 +665,40 @@ renderHistory(_history);
 // ── Recent projects ──
 var _recents = ${recentsJson};
 var _recentOpen = false;
+var _recentFilter = 'all'; // 'all' | 'cvt' | 'other'
 var btnRecent = document.getElementById('btn-recent');
 var recentDd  = document.getElementById('recent-dd');
+var hasCvt    = _recents.some(function(r) { return r.isCvt; });
+
+function renderRecents() {
+  var filtered = _recentFilter === 'cvt'   ? _recents.filter(function(r) { return r.isCvt; })
+               : _recentFilter === 'other' ? _recents.filter(function(r) { return !r.isCvt; })
+               : _recents;
+  var itemsHtml = filtered.map(function(r) {
+    var cvtBadge = r.isCvt ? '<span style="font-size:9px;font-weight:700;color:var(--vscode-focusBorder);margin-left:4px">CVT</span>' : '';
+    return '<div class="recent-item" data-path="' + r.fsPath.replace(/"/g,'&quot;') + '">'
+      + '<div><div class="recent-name">' + r.name.replace(/&/g,'&amp;') + cvtBadge + '</div>'
+      + '<div class="recent-path">' + r.fsPath.replace(/&/g,'&amp;') + '</div></div></div>';
+  }).join('') || '<div style="padding:8px 12px;font-size:11px;color:var(--vscode-descriptionForeground)">No projects match.</div>';
+  var filterBar = hasCvt
+    ? '<div id="recent-filter-bar">'
+      + '<button class="recent-filter-btn' + (_recentFilter==='all'  ?' active':'') + '" data-rf="all">All</button>'
+      + '<button class="recent-filter-btn' + (_recentFilter==='cvt'  ?' active':'') + '" data-rf="cvt">+CVT</button>'
+      + '<button class="recent-filter-btn' + (_recentFilter==='other'?' active':'') + '" data-rf="other">-CVT</button>'
+      + '</div>'
+    : '';
+  recentDd.innerHTML = filterBar + itemsHtml;
+}
+
 if (btnRecent && recentDd) {
   if (_recents.length === 0) { btnRecent.style.display = 'none'; }
   else {
-    recentDd.innerHTML = _recents.map(function(r) {
-      return '<div class="recent-item" data-path="' + r.fsPath.replace(/"/g,'&quot;') + '">'
-        + '<div><div class="recent-name">' + r.name.replace(/&/g,'&amp;') + '</div>'
-        + '<div class="recent-path">' + r.fsPath.replace(/&/g,'&amp;') + '</div></div></div>';
-    }).join('');
+    renderRecents();
     recentDd.addEventListener('click', function(e) {
+      var rfBtn = e.target.closest('[data-rf]');
+      if (rfBtn) { _recentFilter = rfBtn.dataset.rf; renderRecents(); return; }
       var item = e.target.closest('.recent-item');
-      if (!item) return;
+      if (!item) { return; }
       recentDd.className = '';
       _recentOpen = false;
       vscode.postMessage({ command: 'open-recent', path: item.dataset.path });

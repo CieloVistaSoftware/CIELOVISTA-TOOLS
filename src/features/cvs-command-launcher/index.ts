@@ -11,6 +11,7 @@ import { startMcpServer, stopMcpServer, getMcpServerStatus, onMcpServerStatusCha
 import { initHistory, recordRun, getHistory } from './command-history';
 import { initRecentProjects, touchCurrentProject, getRecentProjects } from './recent-projects';
 import { sendToCopilotChat } from '../terminal-copy-output';
+import { loadRegistry } from '../../shared/registry';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -395,7 +396,8 @@ async function showLauncherPanel(): Promise<void> {
     const wsPath  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     const wsName  = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
     touchCurrentProject();
-    const html = buildLauncherHtml(loadLastReport(), wsPath, getHistory(), getRecentProjects(), await getRegisteredCommandSet());
+    const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
+    const html = buildLauncherHtml(loadLastReport(), wsPath, getHistory(), getRecentProjects(), await getRegisteredCommandSet(), cvtPaths);
     if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.One, true); return; }
     _panel = vscode.window.createWebviewPanel(
         'cvsLauncher', `\u26a1 ${wsName}`, vscode.ViewColumn.One,
