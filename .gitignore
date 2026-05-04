@@ -12,4 +12,14 @@ Downloads/
 # VS Code test runner state — runtime artifacts, never committed
 .vscode-test/
 test-results/
-**/.vscode/logs/ 
+**/.vscode/logs/
+
+# Scratch / session temp files — never committed
+_*.log
+_*.txt
+_*.md
+_*.js
+_*.csv
+_*.tmp
+.scripts/
+.claude/worktrees/
