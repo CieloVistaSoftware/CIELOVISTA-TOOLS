@@ -537,6 +537,7 @@ function clearStatus() {
  * Usage: showStrip('label', 'cmd text')  /  hideStrip()
  */
 // ─── Backward-compatible aliases (for existing callers) ─────────────────────
+export { mdToHtml };
 export const escapeHtml = esc;
 export function buildWebviewPage(opts: { title: string; bodyHtml: string; extraStyles?: string; scripts?: string }): string {
     return cvsPage({ title: opts.title, body: opts.bodyHtml, extraCss: opts.extraStyles, script: opts.scripts });

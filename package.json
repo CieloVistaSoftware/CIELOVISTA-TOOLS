@@ -690,10 +690,26 @@
         "description": "Right-click a file in Explorer and add its absolute path to Copilot Chat input."
       },
       {
+        "command": "cvs.editor.copyJsonToCopilotChat",
+        "title": "Editor: Copy JSON to Copilot Chat",
+        "category": "CieloVista Editor",
+        "description": "Right-click while editing a .json file to send that file's JSON content to Copilot Chat input."
+      },
+      {
         "command": "cvs.registry.promote",
         "title": "Registry: Promote Folder to Product",
         "category": "CieloVista Registry",
         "description": "Register a folder as a CieloVista product. Scaffolds CLAUDE.md and README.md if missing, appends an entry to project-registry.json with status=product."
+      },
+      {
+        "command": "cvs.corequisites.check",
+        "title": "Check Corequisite Extensions",
+        "category": "CieloVista Marketplace"
+      },
+      {
+        "command": "cvs.corequisites.install",
+        "title": "Install Missing Corequisite Extensions",
+        "category": "CieloVista Marketplace"
       }
     ],
     "menus": {
@@ -721,6 +737,13 @@
         {
           "command": "cvs.registry.promote",
           "when": "explorerResourceIsFolder",
+          "group": "navigation@88"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "cvs.editor.copyJsonToCopilotChat",
+          "when": "resourceScheme == file && resourceExtname == .json",
           "group": "navigation@88"
         }
       ],
@@ -881,6 +904,11 @@
           "default": true,
           "description": "Enable the Explorer Copy Path to Copilot Chat feature."
         },
+        "cielovistaTools.features.jsonCopyToChat": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Editor: Copy JSON to Copilot Chat feature."
+        },
         "cielovistaTools.features.mcpViewer": {
           "type": "boolean",
           "default": true,
@@ -892,6 +920,13 @@
           "description": "Enable the Registry Promote feature — right-click a folder to register it as a CieloVista product."
         }
       }
+    }
+  },
+  "cieloRequires": {
+    "cielovistasoftware.vscode-claude": {
+      "minVersion": "1.0.0",
+      "displayName": "Claude Chat",
+      "vsixPath": "C:\\dev\\vscode-claude\\vscode-claude-1.0.0.vsix"
     }
   }
 }

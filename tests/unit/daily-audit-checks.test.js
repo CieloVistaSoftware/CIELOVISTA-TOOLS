@@ -191,7 +191,7 @@ test('project folder missing → issue reported', () => {
 });
 
 test('no tests/ folder → issue reported', () => {
-    const proj = makeProject('tc-notests');
+    const proj = makeProject('tc-notests', { type: 'vscode-extension' });
     fs.writeFileSync(path.join(proj.path, 'package.json'),
         JSON.stringify({ name: 'tc-notests', scripts: { test: 'playwright test' }, devDependencies: { '@playwright/test': '^1' } }), 'utf8');
     fs.writeFileSync(path.join(proj.path, 'playwright.config.ts'), 'export default {};', 'utf8');
@@ -201,7 +201,7 @@ test('no tests/ folder → issue reported', () => {
 });
 
 test('complete playwright setup → no issues', () => {
-    const proj = makeProject('tc-complete');
+    const proj = makeProject('tc-complete', { type: 'vscode-extension' });
     const testsDir = path.join(proj.path, 'tests');
     fs.mkdirSync(testsDir, { recursive: true });
     fs.writeFileSync(path.join(testsDir, 'app.spec.ts'),
@@ -219,7 +219,7 @@ test('complete playwright setup → no issues', () => {
 });
 
 test('wrong test runner → issue mentions playwright', () => {
-    const proj = makeProject('tc-jest');
+    const proj = makeProject('tc-jest', { type: 'vscode-extension' });
     fs.mkdirSync(path.join(proj.path, 'tests'), { recursive: true });
     fs.writeFileSync(path.join(proj.path, 'package.json'),
         JSON.stringify({ name: 'tc-jest', scripts: { test: 'jest' }, devDependencies: {} }), 'utf8');
@@ -240,7 +240,7 @@ test('dotnet-only project (no package.json) → only tests/ check applies', () =
 });
 
 test('spec file with only placeholder → issue reported', () => {
-    const proj = makeProject('tc-placeholder');
+    const proj = makeProject('tc-placeholder', { type: 'vscode-extension' });
     const testsDir = path.join(proj.path, 'tests');
     fs.mkdirSync(testsDir, { recursive: true });
     fs.writeFileSync(path.join(testsDir, 'placeholder.spec.ts'),
@@ -260,7 +260,7 @@ test('spec file with only placeholder → issue reported', () => {
 console.log('\n-- runTestCoverageCheck() --');
 
 test('all passing → green', () => {
-    const proj = makeProject('rtc-green');
+    const proj = makeProject('rtc-green', { type: 'vscode-extension' });
     const testsDir = path.join(proj.path, 'tests');
     fs.mkdirSync(testsDir, { recursive: true });
     fs.writeFileSync(path.join(testsDir, 'a.spec.ts'),
@@ -274,15 +274,15 @@ test('all passing → green', () => {
 });
 
 test('1–2 failing → yellow', () => {
-    const fail1 = makeProject('rtc-f1');
-    const fail2 = makeProject('rtc-f2');
+    const fail1 = makeProject('rtc-f1', { type: 'vscode-extension' });
+    const fail2 = makeProject('rtc-f2', { type: 'vscode-extension' });
     const result = runTestCoverageCheck([fail1, fail2]);
     eq(result.status, 'yellow');
     eq(result.affectedProjects.length, 2);
 });
 
 test('3+ failing → red', () => {
-    const fails = ['rtc-a','rtc-b','rtc-c'].map(n => makeProject(n));
+    const fails = ['rtc-a','rtc-b','rtc-c'].map(n => makeProject(n, { type: 'vscode-extension' }));
     const result = runTestCoverageCheck(fails);
     eq(result.status, 'red');
 });

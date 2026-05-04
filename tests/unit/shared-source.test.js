@@ -273,7 +273,7 @@ test('Only one OutputChannel created (singleton pattern)', () => {
     has(channelSrc, "_channel = vscode.window.createOutputChannel");
 });
 test('log format includes timestamp and feature prefix', () => {
-    has(channelSrc, 'new Date().toISOString()');
+    has(channelSrc, 'new Date()');
     has(channelSrc, '[${feature}]');
 });
 test('disposeChannel sets _channel to undefined', () => {

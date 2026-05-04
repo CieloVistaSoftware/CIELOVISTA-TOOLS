@@ -7,5 +7,11 @@
     "package.json::rebuild": "Compile, package, and install extension locally",
     "package.json::start": "Start local extension rebuild workflow",
     "package.json::vscode:prepublish": "Prepublish hook to compile before packaging"
+  },
+  "chat.tools.terminal.autoApprove": {
+    "/^node --check core/events\\.js$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
   }
 }

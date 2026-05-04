@@ -17,24 +17,84 @@ permalink: /
 
 **One VS Code extension. One install. All CieloVistaSoftware developer tools in one place.**
 
-CieloVista Tools is the developer toolchain for the entire CieloVista Software ecosystem. It combines a VS Code extension with an MCP (Model Context Protocol) server that gives AI assistants runtime access to every registered project. The extension consolidates daily developer commands into a single install. The MCP server reads `CieloVistaStandards/project-registry.json` to discover all projects, enabling cross-project symbol search, doc catalog, command listing, and reusable-code discovery without manual configuration.
+CieloVista Tools is the developer toolchain for the entire CieloVista Software ecosystem. It combines a VS Code extension with an MCP (Model Context Protocol) server that gives AI assistants runtime access to every registered project. The extension consolidates daily developer commands into a single install.
+
+Its primary mission is to act as a router across one or more complex project folders, not just a bag of isolated commands. It reads `CieloVistaStandards/project-registry.json`, treats those registered paths as a single working ecosystem, and routes commands, docs, scans, quick-picks, audits, and AI-facing tools to the right project at the right time. In practice that means you can point CieloVista Tools at one large product folder or several related project roots and use one extension to navigate, inspect, launch, audit, and automate the whole set without manually reconfiguring each workspace.
+
+That routing model is what ties the product together:
+
+- The extension routes developer actions from VS Code into the correct local project, terminal, file, or webview.
+- The MCP server routes AI and automation requests across every registry-listed codebase.
+- The doc and catalog features route you to the right documentation, symbols, commands, and project metadata without needing to remember where each item lives on disk.
 
 ---
 
 ## What's included
 
-| Feature | What it does | Commands |
+### Cross-project routing and launch surfaces
+
+These features are the core of the extension. They turn multiple registered folders into one routable tool surface inside VS Code.
+
+| Feature | What it includes | Commands |
 |---|---|---|
-| Copilot Rules Enforcer | Injects your custom rules into Copilot on every workspace open | `cvs.copilotRules.enable / disable / reload / view` |
-| Copilot Open Suggested File | Opens a file path that Copilot mentioned in its response | `cvs.copilot.openSuggestedFile` |
-| Terminal Copy Output | Copies terminal output since last command — clipboard, markdown, or Copilot chat | `Ctrl+Shift+C` in terminal |
-| Terminal Set Folder | Right-click a folder in Explorer to immediately cd the terminal there | Explorer context menu |
-| Terminal Folder Tracker | Tracks last `cd` directory, lets you jump back to it after restart | `cvs.terminal.jumpToLastFolder` |
-| Terminal Prompt Shortener | Toggles PowerShell prompt between full path and single `>` | `cvs.terminal.togglePromptLength` |
-| CSS Class Hover | Hover over a CSS class name to see its definition inline | Automatic on hover |
-| Python Runner | Right-click any `.py` file to run it in the terminal | Explorer context menu |
-| HTML Template Downloader | Download HTML starter templates from CieloVistaSoftware GitHub | `cvs.htmlTemplates.download` |
-| OpenAI Chat | Explain, refactor, generate docstrings, or open a full chat panel | `Ctrl+I`, `Ctrl+Alt+D` |
+| Home Dashboard | Central entry surface for the extension. Aggregates command launchers, recent projects, feature cards, and status-style navigation into one place instead of forcing you to remember individual commands. | `cvs.tools.home` |
+| Project Launcher | Launches known projects using fixed commands and dynamic discovery from project metadata and `package.json` scripts. Intended for jumping into common build, start, rebuild, tray, and stop actions without opening each repo manually first. | `cvs.launch.*`, `cvs.launch.pick` |
+| CVS Command Launcher | Unified launcher for CieloVista commands with history, recent-project awareness, catalog metadata, and quick-run paths. | `cvs.commands.showAll`, `cvs.commands.quickRun` |
+| NPM Command Launcher | Scans and presents npm scripts as routable actions instead of forcing manual terminal navigation. Useful when several related projects live under one ecosystem and each has its own script surface. | `cvs.npm.showAndRunScripts`, `cvs.npm.addScriptDescription` |
+| Project Home Opener | Opens the configured home project quickly so the "main" working repo is always one command away. | `cvs.project.openHome` |
+| Open Folder as Root | Promotes an Explorer folder into the active root workspace, which is useful when the extension helps you discover the right project and you then want to pivot the editor directly into it. | Explorer context menu |
+| Registry Promote | Adds a folder into the broader routed ecosystem so it can participate in cataloging, launch flows, and other registry-driven tooling. | Registry promote commands |
+
+### Documentation and codebase intelligence
+
+This part of the extension treats documentation and project metadata as first-class navigable assets across the whole registered environment.
+
+| Feature | What it includes | Commands |
+|---|---|---|
+| Doc Catalog | Builds a browsable catalog across registered projects so docs are discoverable by content and project context rather than buried in folder trees. | Doc catalog commands and webview |
+| Docs Manager | Provides document-oriented project tooling from inside the extension rather than requiring a separate doc workflow. | Docs manager commands |
+| Doc Intelligence | Cross-project doc analysis and higher-level documentation utilities for understanding what exists, what is missing, and how docs connect. | Doc intelligence commands |
+| README Compliance | Checks README quality and consistency so project entry docs follow the expected standard across the ecosystem. | README compliance commands |
+| README Generator | Scans registry-listed projects for missing READMEs and generates project-specific drafts from local context such as `CLAUDE.md`, `package.json`, `.csproj`, and top-level structure. | `cvs.readme.generate.*` |
+| Docs Broken References Scanner | Finds broken internal documentation references so large doc collections stay navigable as projects evolve. | Docs broken refs commands |
+| Doc Header Scan | Scans document front matter and headers to enforce structure and improve catalog quality. | Doc header scan commands |
+| File List Viewer | Exposes project file listings in a more navigable form when you need to inspect content at the repo level. | File list viewer commands |
+
+### Terminal, file, and day-to-day developer helpers
+
+These are the thin, fast commands used constantly while moving between projects.
+
+| Feature | What it includes | Commands |
+|---|---|---|
+| Terminal Copy Output | Captures the most recent terminal output, cleans it up, and routes it to the clipboard or Copilot Chat. Useful for error triage, bug reports, and fast prompt building. | `cvs.terminal.copyOutputClipboard`, `cvs.terminal.pasteOutputToChat`, `cvs.terminal.pasteLastCommandToChat` |
+| Terminal Set Folder | Right-click a folder to route the active terminal directly into that directory. | Explorer context menu |
+| Terminal Folder Tracker | Remembers the last folder you changed into and lets you recover it after restart. | `cvs.terminal.jumpToLastFolder` |
+| Terminal Prompt Shortener | Switches between a verbose PowerShell prompt and a compact prompt when you want more room for command output. | `cvs.terminal.togglePromptLength` |
+| Python Runner | Runs Python files directly from Explorer or the active editor using the configured interpreter. | `cvs.python.runFile` |
+| Explorer Copy Path to Chat | Takes a file or folder path from Explorer and pushes it into Copilot Chat, which is especially useful when AI needs exact local context. | Explorer context menu |
+| Copilot Open Suggested File | Opens a file path Copilot mentioned, reducing friction between AI suggestions and the actual editor surface. | `cvs.copilot.openSuggestedFile` |
+| CSS Class Hover | Shows CSS definitions inline at the point of use for quicker frontend inspection. | Automatic on hover |
+| HTML Template Downloader | Pulls starter templates into the local workflow without switching out to the browser or GitHub manually. | `cvs.htmlTemplates.download` |
+| Image Reader | Adds image-oriented helper workflows inside the extension for assets and screenshot-driven work. | Image reader commands |
+
+### AI, auditing, and operational tooling
+
+These features make the extension useful as an orchestration layer for AI-assisted development and quality checks across many repos.
+
+| Feature | What it includes | Commands |
+|---|---|---|
+| Copilot Rules Enforcer | Injects and manages custom Copilot rules at workspace open so AI assistance follows the local development contract. | `cvs.copilotRules.enable`, `cvs.copilotRules.disable`, `cvs.copilotRules.reload`, `cvs.copilotRules.view` |
+| OpenAI Chat | Adds AI actions such as explain, refactor, and docstring support directly in-editor. | `Ctrl+I`, `Ctrl+Alt+D` |
+| MCP Server Status and Viewer | Starts, monitors, and exposes MCP-backed tools so AI clients can browse commands, docs, symbols, projects, and other registry-backed data through one consistent surface. | MCP status and viewer commands |
+| MCP Build | Builds the MCP server from inside the extension and reports results back into VS Code. | `cvs.mcp.build`, `cvs.mcp.build.stop` |
+| MCP Server Scaffolder | Generates MCP server scaffolding so new MCP-capable workflows can be added without rebuilding the same boilerplate each time. | MCP scaffolder commands |
+| Test Coverage Auditor | Audits test coverage, missing tiers, and recommendations using the repo's coverage scripts and presents the results in a webview. | `cvs.audit.testCoverage*` |
+| Daily Audit and Codebase Audits | Runs recurring quality checks so the routed project set stays maintainable over time instead of drifting silently. | Audit commands |
+| Marketplace, License, Error, and Health utilities | Includes supporting operational tools such as license sync, error-log viewing, JS error auditing, background health checks, and marketplace compliance checks. | Various `cvs.*` maintenance commands |
+
+### What this means in practice
+
+If you have one large root folder with many related projects, or two major product folders that you move between all day, CieloVista Tools is designed to sit above them as the router and control plane. Instead of switching mental models every time you move from docs to scripts to symbols to audits to AI tools, the extension keeps those actions centralized and registry-driven.
 
 ---
 

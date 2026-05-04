@@ -21,7 +21,7 @@ const fs     = require('fs');
 const os     = require('os');
 const Module = require('module');
 
-// ── Temp workspace ────────────────────────────────────────────────────────────
+// ── Temp workspace (kept for vscode mock but log now uses fixed path) ─────────
 const TMP_WS = path.join(os.tmpdir(), `cvt-elutils-${Date.now()}`);
 fs.mkdirSync(TMP_WS, { recursive: true });
 
@@ -70,8 +70,13 @@ function test(name, fn) {
 function eq(a, b, msg)  { assert.strictEqual(a, b, msg); }
 function ok(v, msg)     { assert.ok(v, msg); }
 
-// Helper: wipe the log file between tests
-const LOG_FILE = path.join(TMP_WS, '.vscode', 'logs', 'cielovista-errors.json');
+// Helper: wipe the log file between tests.
+// error-log-utils now uses a fixed extension-directory path (not workspace-dependent).
+// The compiled out/shared/error-log-utils.js resolves __dirname to <project>/out/shared,
+// so the log lands at <project>/data/cielovista-errors.json.
+const LOG_FILE = path.join(__dirname, '../../data/cielovista-errors.json');
+let _savedLog = null;
+if (fs.existsSync(LOG_FILE)) { _savedLog = fs.readFileSync(LOG_FILE, 'utf8'); }
 function clearLog() {
     if (fs.existsSync(LOG_FILE)) { fs.unlinkSync(LOG_FILE); }
 }
@@ -106,7 +111,7 @@ console.log('\n-- logError() --');
 
 test('logError: creates new entry for new error', () => {
     clearLog();
-    elu.logError(new Error('alpha error'), 'testCtx');
+    elu.logError('alpha error', 'Error: alpha error', 'testCtx');
     const entries = elu.getAllErrors();
     eq(entries.length, 1);
     eq(entries[0].message, 'alpha error');
@@ -116,7 +121,7 @@ test('logError: creates new entry for new error', () => {
 
 test('logError: entry has correct shape', () => {
     clearLog();
-    elu.logError(new Error('shape test'), 'ctx');
+    elu.logError('shape test', 'Error: shape test', 'ctx');
     const e = elu.getAllErrors()[0];
     ok(e.id && e.id.startsWith('err_'), 'id must start with err_');
     ok(e.timestamp, 'Must have timestamp');
@@ -127,10 +132,9 @@ test('logError: entry has correct shape', () => {
 
 test('logError: increments count for same error', () => {
     clearLog();
-    const err = new Error('recurring error');
-    elu.logError(err, 'ctx');
-    elu.logError(err, 'ctx');
-    elu.logError(err, 'ctx');
+    elu.logError('recurring error', 'Error: recurring error', 'ctx');
+    elu.logError('recurring error', 'Error: recurring error', 'ctx');
+    elu.logError('recurring error', 'Error: recurring error', 'ctx');
     const entries = elu.getAllErrors();
     eq(entries.length, 1, 'Must deduplicate same error');
     eq(entries[0].count, 3, 'count must be 3');
@@ -138,22 +142,21 @@ test('logError: increments count for same error', () => {
 
 test('logError: returns undefined for new error (no known solution)', () => {
     clearLog();
-    const result = elu.logError(new Error('new error'), 'ctx');
+    const result = elu.logError('new error', 'Error: new error', 'ctx');
     eq(result, undefined, 'Must return undefined when no solution exists');
 });
 
 test('logError: returns solution string if previously solved', () => {
     clearLog();
-    const err = new Error('known issue');
-    elu.logError(err, 'ctx');
+    elu.logError('known issue', 'Error: known issue', 'ctx');
     elu.markErrorSolved('known issue', 'Restart the extension host');
-    const result = elu.logError(err, 'ctx');
+    const result = elu.logError('known issue', 'Error: known issue', 'ctx');
     eq(result, 'Restart the extension host', 'Must return solution string for known error');
 });
 
 test('logError: handles string errors (not just Error objects)', () => {
     clearLog();
-    elu.logError('plain string error', 'ctx');
+    elu.logError('plain string error', '', 'ctx');
     const entries = elu.getAllErrors();
     eq(entries.length, 1);
     eq(entries[0].message, 'plain string error');
@@ -161,22 +164,19 @@ test('logError: handles string errors (not just Error objects)', () => {
 
 test('logError: updates lastOccurred on repeat', () => {
     clearLog();
-    const err = new Error('timing test');
-    elu.logError(err, 'ctx');
+    elu.logError('timing test', 'Error: timing test', 'ctx');
     const first = elu.getAllErrors()[0].lastOccurred;
-    // Small delay to ensure timestamp differs
     const before = new Date(first);
-    elu.logError(err, 'ctx');
+    elu.logError('timing test', 'Error: timing test', 'ctx');
     const second = elu.getAllErrors()[0].lastOccurred;
     ok(new Date(second) >= before, 'lastOccurred must update on repeat');
 });
 
 test('logError: stores stack trace on first occurrence', () => {
     clearLog();
-    const err = new Error('stack test');
-    elu.logError(err, 'ctx');
+    elu.logError('stack test', 'Error: stack test\n  at testFn (test.js:1:1)', 'ctx');
     const entry = elu.getAllErrors()[0];
-    ok(entry.stack && entry.stack.includes('Error:'), 'Stack trace must be stored');
+    ok(entry.stacktrace && entry.stacktrace.includes('Error:'), 'Stack trace must be stored');
 });
 
 // ── markErrorSolved() ─────────────────────────────────────────────────────────
@@ -184,21 +184,21 @@ console.log('\n-- markErrorSolved() --');
 
 test('markErrorSolved: returns true when errors matched', () => {
     clearLog();
-    elu.logError(new Error('cannot find module diff'), 'ctx');
+    elu.logError('cannot find module diff', '', 'ctx');
     const result = elu.markErrorSolved('cannot find module', 'Add diff to dependencies');
     eq(result, true, 'Must return true when at least one error matched');
 });
 
 test('markErrorSolved: returns false when no errors match', () => {
     clearLog();
-    elu.logError(new Error('unrelated error'), 'ctx');
+    elu.logError('unrelated error', '', 'ctx');
     const result = elu.markErrorSolved('nomatch', 'fix');
     eq(result, false, 'Must return false when nothing matched');
 });
 
 test('markErrorSolved: sets solved=true on matching entries', () => {
     clearLog();
-    elu.logError(new Error('port 52100 in use'), 'ctx');
+    elu.logError('port 52100 in use', '', 'ctx');
     elu.markErrorSolved('port 52100', 'Restart MCP server');
     const entry = elu.getAllErrors()[0];
     eq(entry.solved, true);
@@ -207,8 +207,8 @@ test('markErrorSolved: sets solved=true on matching entries', () => {
 
 test('markErrorSolved: only affects matching entries', () => {
     clearLog();
-    elu.logError(new Error('error A'), 'ctx');
-    elu.logError(new Error('error B'), 'ctx');
+    elu.logError('error A', '', 'ctx');
+    elu.logError('error B', '', 'ctx');
     elu.markErrorSolved('error A', 'fix A');
     const entries = elu.getAllErrors();
     eq(entries.find(e => e.message === 'error A').solved, true,  'error A must be solved');
@@ -217,7 +217,7 @@ test('markErrorSolved: only affects matching entries', () => {
 
 test('markErrorSolved: substring matching works', () => {
     clearLog();
-    elu.logError(new Error('Cannot read property "length" of undefined'), 'ctx');
+    elu.logError('Cannot read property "length" of undefined', '', 'ctx');
     elu.markErrorSolved('Cannot read property', 'Add null check');
     eq(elu.getAllErrors()[0].solved, true);
 });
@@ -234,8 +234,8 @@ test('getAllErrors: returns empty array when no log', () => {
 
 test('getAllErrors: returns all logged entries', () => {
     clearLog();
-    elu.logError(new Error('e1'), 'c1');
-    elu.logError(new Error('e2'), 'c2');
+    elu.logError('e1', '', 'c1');
+    elu.logError('e2', '', 'c2');
     eq(elu.getAllErrors().length, 2);
 });
 
@@ -254,8 +254,9 @@ test('getAllErrors returns [] when workspaceFolders is empty', () => {
     ok(true, 'No-workspace path handled gracefully');
 });
 
-// Cleanup
+// Cleanup: restore real log, remove temp workspace
 clearLog();
+if (_savedLog !== null) { fs.writeFileSync(LOG_FILE, _savedLog); }
 fs.rmSync(TMP_WS, { recursive: true, force: true });
 
 console.log('\n' + '\u2500'.repeat(50));

@@ -22,6 +22,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createRequire } from "node:module";
 import { loadRegistry, type ProjectRegistry, type ProjectEntry } from "./tools/catalog-helpers.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -505,6 +506,21 @@ export function findSymbolByName(all: SymbolEntry[], name: string, limit = 10): 
  * and Dewey number, exposing it lets callers answer "is there already a
  * command for this" without reading the file manually.
  */
+
+/**
+ * Five-question structured tooltip mirrored from
+ * `src/features/cvs-command-launcher/types.ts` (CmdTooltip). Mirrored rather
+ * than imported because the MCP server's `rootDir` is `./src` and cannot reach
+ * outside its tree; the runtime shape is identical. Issue #22.
+ */
+export interface CvtCommandTooltip {
+  what: string;
+  when: string;
+  where: string;
+  how: string;
+  why: string;
+}
+
 export interface CvtCommandEntry {
   id: string;
   title: string;
@@ -515,13 +531,93 @@ export interface CvtCommandEntry {
   scope: string;
   action?: string;
   location?: string;
+  /** Structured five-question tooltip — Issue #22. */
+  tooltip?: CvtCommandTooltip;
+  /** @deprecated Pre-#22 freeform tooltip string. Kept for back-compat. */
+  runTooltip?: string;
 }
 
+// `require` works inside ESM via createRequire — needed to dynamically load
+// the CommonJS-compiled catalog from the parent project's `out/` tree.
+const _require = createRequire(import.meta.url);
+
+/**
+ * Loads the CVT command catalog. Preferred path: dynamic-require the compiled
+ * `out/features/cvs-command-launcher/catalog.js` and round-trip every entry
+ * losslessly — including the structured `tooltip` field added in issue #22
+ * which the regex source parser silently dropped because it spans multiple
+ * lines. Falls back to the regex source parser if the compiled file is absent,
+ * which keeps fresh checkouts working before the first `npm run compile`.
+ */
 export function loadCvtCommands(): CvtCommandEntry[] {
   const registry = loadRegistry();
   const cvt = registry.projects.find((p) => p.name === "cielovista-tools");
   if (!cvt) { return []; }
-  const catalogPath = path.join(cvt.path, "src", "features", "cvs-command-launcher", "catalog.ts");
+
+  const compiledCatalog = path.join(
+    cvt.path, "out", "features", "cvs-command-launcher", "catalog.js"
+  );
+
+  if (fs.existsSync(compiledCatalog)) {
+    try {
+      // Bust the require cache so edits to catalog.ts are picked up after a
+      // recompile without restarting the MCP server.
+      const resolved = _require.resolve(compiledCatalog);
+      delete _require.cache[resolved];
+      const mod = _require(compiledCatalog) as { CATALOG?: unknown };
+      const catalog = Array.isArray(mod.CATALOG) ? mod.CATALOG : [];
+      return catalog
+        .map(normalizeCatalogEntry)
+        .filter((e): e is CvtCommandEntry => e !== undefined);
+    } catch {
+      // Fall through to the regex source parser on any require error.
+    }
+  }
+
+  return loadCvtCommandsFromSource(cvt.path);
+}
+
+function normalizeCatalogEntry(raw: unknown): CvtCommandEntry | undefined {
+  if (!raw || typeof raw !== "object") { return undefined; }
+  const c = raw as Record<string, unknown>;
+  const id = typeof c.id === "string" ? c.id : "";
+  if (!id) { return undefined; }
+
+  let tooltip: CvtCommandTooltip | undefined;
+  if (c.tooltip && typeof c.tooltip === "object") {
+    const tt = c.tooltip as Record<string, unknown>;
+    tooltip = {
+      what:  typeof tt.what  === "string" ? tt.what  : "",
+      when:  typeof tt.when  === "string" ? tt.when  : "",
+      where: typeof tt.where === "string" ? tt.where : "",
+      how:   typeof tt.how   === "string" ? tt.how   : "",
+      why:   typeof tt.why   === "string" ? tt.why   : "",
+    };
+  }
+
+  return {
+    id,
+    title:       typeof c.title       === "string" ? c.title       : "",
+    description: typeof c.description === "string" ? c.description : "",
+    tags:        Array.isArray(c.tags) ? c.tags.filter((t): t is string => typeof t === "string") : [],
+    group:       typeof c.group       === "string" ? c.group       : "",
+    dewey:       typeof c.dewey       === "string" ? c.dewey       : "",
+    scope:       typeof c.scope       === "string" ? c.scope       : "",
+    action:      typeof c.action      === "string" ? c.action      : undefined,
+    location:    typeof c.location    === "string" ? c.location    : undefined,
+    tooltip,
+    runTooltip:  typeof c.runTooltip  === "string" ? c.runTooltip  : undefined,
+  };
+}
+
+/**
+ * Fallback regex source parser. Used only when the compiled catalog is not
+ * present (fresh checkout, before `npm run compile`). Cannot extract
+ * multi-line fields like the structured `tooltip` object — that requires the
+ * compiled-import path above.
+ */
+function loadCvtCommandsFromSource(cvtPath: string): CvtCommandEntry[] {
+  const catalogPath = path.join(cvtPath, "src", "features", "cvs-command-launcher", "catalog.ts");
   if (!fs.existsSync(catalogPath)) { return []; }
   const content = fs.readFileSync(catalogPath, "utf8");
 

@@ -45,6 +45,55 @@ function isValidRegistryEntry(entry) {
         entry.identifier.id.length > 0;
 }
 
+function getDirSize(dir) {
+    let total = 0;
+    try {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) { total += getDirSize(full); }
+            else if (e.isFile()) { try { total += fs.statSync(full).size; } catch { /* skip */ } }
+        }
+    } catch { /* skip */ }
+    return total;
+}
+
+function registerInExtensionsJson() {
+    try {
+        if (!fs.existsSync(extensionsRegistryPath)) { return; }
+        const raw = fs.readFileSync(extensionsRegistryPath, 'utf8').replace(/^\uFEFF/, '');
+        let entries;
+        try { entries = JSON.parse(raw); } catch { entries = []; }
+        if (!Array.isArray(entries)) { entries = []; }
+
+        // Remove any stale entry for this extension
+        const filtered = entries.filter(e =>
+            !(e && e.identifier && typeof e.identifier.id === 'string' &&
+              e.identifier.id.toLowerCase() === extId.toLowerCase())
+        );
+
+        const size = fs.existsSync(installedRoot) ? getDirSize(installedRoot) : 0;
+        filtered.push({
+            identifier: { id: extId },
+            version: pkg.version,
+            location: {
+                $mid: 1,
+                path: installedRoot.replace(/\\/g, '/').replace(/^([A-Z]):/, (_, d) => `/${d.toLowerCase()}:`),
+                scheme: 'file',
+            },
+            relativeLocation: path.basename(installedRoot),
+            metadata: { installedTimestamp: Date.now(), size, targetPlatform: 'undefined' },
+        });
+        filtered.sort((a, b) => String(a.identifier.id).localeCompare(String(b.identifier.id)));
+
+        backupFile(extensionsRegistryPath);
+        fs.writeFileSync(extensionsRegistryPath, `${JSON.stringify(filtered, null, 2)}\n`, 'utf8');
+        console.log(`extensions.json updated: registered ${extId} v${pkg.version}`);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`Could not update extensions.json: ${message}`);
+    }
+}
+
 function repairExtensionsRegistry() {
     try {
         if (!fs.existsSync(extensionsRegistryPath)) {
@@ -321,6 +370,7 @@ if (!installed) {
     }
 
     if (verifyInstalledFiles()) {
+        registerInExtensionsJson();
         console.log(`Direct copy succeeded (${copied} files${skippedLocked ? `, ${skippedLocked} locked skipped` : ''}). Reload VS Code window.`);
         process.exit(0);
     }

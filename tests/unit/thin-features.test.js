@@ -246,7 +246,7 @@ if (tft?._test) {
 console.log('\n-- mcp-server-status --');
 
 if (mcp?._test) {
-    const { getMcpServerStatus, onMcpServerStatusChange, notifyStatus } = mcp._test;
+    const { getMcpServerStatus, onMcpServerStatusChange, notifyListeners: notifyStatus } = mcp._test;
 
     test('initial status is "down"', () => {
         eq(getMcpServerStatus(), 'down', 'Server must start in down state');
