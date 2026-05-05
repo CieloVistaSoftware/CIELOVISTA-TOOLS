@@ -378,6 +378,104 @@ function buildConsolidationPlan(group: ConsolidationGroup, keeper: ScannedDoc, d
     return actions;
 }
 
+// ─── Group picker webview ─────────────────────────────────────────────────────
+
+function buildGroupPickerHtml(groups: ConsolidationGroup[]): string {
+    function e(s: string) { return String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]??c)); }
+    const rows = groups.map((g, i) => {
+        const files = g.files.map(f =>
+            `<span style="font-size:10px;font-family:monospace;color:var(--vscode-descriptionForeground)">${e(f.projectName)}/${e(f.fileName)}</span>`
+        ).join('<br>');
+        const badge = g.reason === 'same-name'
+            ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground)">exact name</span>`
+            : `<span style="font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid #cca700;color:#cca700">${Math.round(g.similarity*100)}% similar</span>`;
+        return `<label class="group-card" data-idx="${i}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--vscode-panel-border);border-radius:4px;cursor:pointer;margin-bottom:6px;background:var(--vscode-textCodeBlock-background)">
+  <input type="checkbox" class="group-cb" data-idx="${i}" checked style="margin-top:2px;flex-shrink:0;cursor:pointer">
+  <div style="flex:1;min-width:0">
+    <div style="font-weight:700;font-size:0.92em;margin-bottom:4px">${e(g.label)}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">${badge}<span style="font-size:10px;color:var(--vscode-descriptionForeground)">${g.files.length} copies</span></div>
+    <div style="line-height:1.8">${files}</div>
+  </div>
+</label>`;
+    }).join('');
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px}
+h1{font-size:1.05em;font-weight:700;margin-bottom:4px}
+#subtitle{font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:14px}
+#toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.tb-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);border-radius:3px;padding:3px 10px;cursor:pointer;font-size:11px;font-family:inherit}
+.tb-btn:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground)}
+#sel-count{font-size:11px;color:var(--vscode-descriptionForeground);flex:1}
+#footer{position:sticky;bottom:0;background:var(--vscode-editor-background);padding:12px 0 0;border-top:1px solid var(--vscode-panel-border);margin-top:12px;display:flex;gap:8px;align-items:center}
+#btn-go{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:6px 20px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit}
+#btn-go:hover{background:var(--vscode-button-hoverBackground)}
+#btn-go:disabled{opacity:0.4;cursor:default}
+#btn-cancel{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:6px 14px;border-radius:3px;cursor:pointer;font-size:12px;font-family:inherit}
+#btn-cancel:hover{border-color:var(--vscode-focusBorder)}
+.group-card:hover{border-color:var(--vscode-focusBorder) !important}
+</style></head><body>
+<h1>Consolidation Opportunities</h1>
+<div id="subtitle">Found ${groups.length} groups — select which to consolidate, then click Consolidate.</div>
+<div id="toolbar">
+  <button class="tb-btn" id="btn-all">Select all</button>
+  <button class="tb-btn" id="btn-none">Clear</button>
+  <span id="sel-count">${groups.length} selected</span>
+</div>
+<div id="list">${rows}</div>
+<div id="footer">
+  <button id="btn-go">Consolidate Selected (<span id="go-cnt">${groups.length}</span>)</button>
+  <button id="btn-cancel">Cancel</button>
+</div>
+<script>(function(){
+'use strict';
+var vscode = acquireVsCodeApi();
+var TOTAL = ${groups.length};
+function cbs() { return Array.from(document.querySelectorAll('.group-cb')); }
+function selCount() { return cbs().filter(function(c){return c.checked;}).length; }
+function update() {
+  var n = selCount();
+  document.getElementById('sel-count').textContent = n + ' of ' + TOTAL + ' selected';
+  document.getElementById('go-cnt').textContent = n;
+  document.getElementById('btn-go').disabled = (n === 0);
+}
+document.getElementById('btn-all').addEventListener('click', function() { cbs().forEach(function(c){c.checked=true;}); update(); });
+document.getElementById('btn-none').addEventListener('click', function() { cbs().forEach(function(c){c.checked=false;}); update(); });
+document.querySelectorAll('.group-cb').forEach(function(cb) { cb.addEventListener('change', update); });
+document.getElementById('btn-go').addEventListener('click', function() {
+  var sel = cbs().filter(function(c){return c.checked;}).map(function(c){return parseInt(c.dataset.idx,10);});
+  vscode.postMessage({ command: 'select-groups', indices: sel });
+});
+document.getElementById('btn-cancel').addEventListener('click', function() {
+  vscode.postMessage({ command: 'cancel' });
+});
+})();</script></body></html>`;
+}
+
+/** Show a webview to pick consolidation groups. Returns selected groups or null if cancelled. */
+async function pickGroupsWebview(groups: ConsolidationGroup[]): Promise<ConsolidationGroup[] | null> {
+    return new Promise(resolve => {
+        const panel = vscode.window.createWebviewPanel(
+            'consolidationGroupPicker', '📁 Doc Consolidation',
+            vscode.ViewColumn.One,
+            { enableScripts: true }
+        );
+        panel.webview.html = buildGroupPickerHtml(groups);
+        panel.webview.onDidReceiveMessage(msg => {
+            panel.dispose();
+            if (msg.command === 'select-groups' && Array.isArray(msg.indices) && msg.indices.length > 0) {
+                resolve((msg.indices as number[]).map(i => groups[i]));
+            } else {
+                resolve(null);
+            }
+        });
+        panel.onDidDispose(() => resolve(null));
+    });
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 /** Full wizard — scans everything, shows all groups, user picks which to consolidate. */
@@ -418,29 +516,14 @@ async function runConsolidation(): Promise<void> {
         `Found <b>${groups.length}</b> consolidation opportunities across <b>${allDocs.length}</b> docs.`
     );
 
-    // Show all groups as a quick-pick — user picks which ones to act on
-    const groupItems = groups.map(g => ({
-        label: `$(${g.reason === 'same-name' ? 'copy' : 'git-compare'}) ${g.label}`,
-        description: `${g.files.length} copies  ·  ${g.reason === 'same-name' ? 'exact filename' : Math.round(g.similarity * 100) + '% similar'}`,
-        detail: g.files.map(f => `${f.projectName}/${f.fileName}`).join('  |  '),
-        group: g,
-        picked: true,
-    }));
-
-    const selected = await vscode.window.showQuickPick(groupItems, {
-        canPickMany: true,
-        placeHolder: `${groups.length} groups to consolidate — uncheck any you want to skip`,
-        title: 'CieloVista Doc Consolidation',
-        matchOnDescription: true,
-    });
-
-    if (!selected?.length) { return; }
+    const selectedGroups = await pickGroupsWebview(groups);
+    if (!selectedGroups?.length) { return; }
 
     let consolidated = 0;
     let skipped = 0;
 
-    for (const item of selected) {
-        const ok = await consolidateGroup(item.group, registry);
+    for (const group of selectedGroups) {
+        const ok = await consolidateGroup(group, registry);
         if (ok) { consolidated++; } else { skipped++; }
     }
 

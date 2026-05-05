@@ -670,15 +670,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.headers.fixAll',       fixAll),
-        vscode.commands.registerCommand('cvs.headers.fixOne',       async () => {
-            const registry = loadRegistry();
-            if (!registry) { return; }
-            const items = registry.projects
-                .filter(p => fs.existsSync(p.path))
-                .map(p => ({ label: `$(file-directory) ${p.name}`, description: p.type, name: p.name }));
-            items.unshift({ label: '$(globe) global', description: 'CieloVistaStandards', name: 'global' });
-            const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Pick a project to fix headers' });
-            if (picked) { await fixProject(picked.name); }
+        vscode.commands.registerCommand('cvs.headers.fixOne', () => {
+            // Open the scan panel webview — it shows per-project Fix buttons,
+            // which is a richer experience than a plain quick-pick project list.
+            void vscode.commands.executeCommand('cvs.headers.scan');
         }),
         vscode.commands.registerCommand('cvs.headers.fixFile',      fixActiveFile),
         vscode.commands.registerCommand('cvs.headers.viewStandard', () => {
