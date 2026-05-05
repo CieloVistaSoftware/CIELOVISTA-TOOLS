@@ -41,12 +41,17 @@ test('html.ts exposes buildCatalogInitPayload', () => {
 });
 
 test('commands.ts sends init payload after setting webview HTML', () => {
+    // openCatalog uses a pending-init pattern: stores data to _pendingInit* vars,
+    // then sendCatalogInit is called from the shell-ready message handler.
     includes(commandsSrc, "command: 'init'", 'Doc Catalog must post init payload to the shell');
-    includes(commandsSrc, 'sendCatalogInit(_catalogPanel, cards, projectInfos, registry?.projects ?? []);', 'openCatalog must send init payload');
+    includes(commandsSrc, '_pendingInitCards', 'openCatalog must store cards in _pendingInitCards for deferred init');
+    includes(commandsSrc, 'sendCatalogInit(panel, _pendingInitCards, _pendingInitProjectInfos, _pendingInitRegistryEntries);', 'message handler must call sendCatalogInit with pending init data');
 });
 
 test('deserializeCatalogPanel also resends init payload', () => {
-    includes(commandsSrc, 'sendCatalogInit(_catalogPanel!, cards, projectInfos, registry?.projects ?? []);', 'restored panel must resend init payload');
+    // deserializeCatalogPanel uses the same pending-init pattern as openCatalog.
+    includes(commandsSrc, '_pendingInitCards           = cards', 'deserializeCatalogPanel must store cards for deferred init');
+    includes(commandsSrc, '_pendingInitRegistryEntries = registry?.projects ?? []', 'deserializeCatalogPanel must store registry for deferred init');
 });
 
 test('catalog shell listens for init message', () => {

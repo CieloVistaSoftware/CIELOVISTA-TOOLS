@@ -722,12 +722,14 @@
       {
         "command": "cvs.corequisites.check",
         "title": "Check Corequisite Extensions",
-        "category": "CieloVista Marketplace"
+        "category": "CieloVista Marketplace",
+        "description": "Check that all corequisite VS Code extensions are installed"
       },
       {
         "command": "cvs.corequisites.install",
         "title": "Install Missing Corequisite Extensions",
-        "category": "CieloVista Marketplace"
+        "category": "CieloVista Marketplace",
+        "description": "Install any missing corequisite VS Code extensions"
       }
     ],
     "menus": {

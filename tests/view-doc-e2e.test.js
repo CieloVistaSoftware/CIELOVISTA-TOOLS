@@ -1,330 +1,216 @@
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
 'use strict';
 /**
  * tests/view-doc-e2e.test.js
  *
- * Reproduces the two reported bugs:
- *   BUG-1: Search bar does nothing
- *   BUG-2: Clicking a doc does nothing
- *
- * Tests extract JS from the INSTALLED extension (not source) so they
- * test exactly what is running in VS Code right now.
+ * End-to-end tests for View-a-Doc webview JS behavior.
+ * Updated for browser-server architecture (buildViewDocBrowserHtml).
+ * Tests SOURCE directly — no need for installed extension.
  *
  * Run: node tests/view-doc-e2e.test.js
  */
 
-'use strict';
-const assert = require('assert');
-const fs     = require('fs');
-const path   = require('path');
+const assert  = require('assert');
+const fs      = require('fs');
+const path    = require('path');
 const { JSDOM } = require('jsdom');
 
-// ── Read from INSTALLED extension, not source ─────────────────────────────
-const INSTALLED_CMDS = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
-    '.vscode-insiders', 'extensions',
-    'cielovistasoftware.cielovista-tools-1.0.0',
-    'out', 'features', 'doc-catalog', 'commands.js'
-);
-
-const SOURCE_CMDS = path.join(
-    __dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts'
-);
-
-console.log('\nChecking installed extension...');
-if (!fs.existsSync(INSTALLED_CMDS)) {
-    console.error('INSTALLED commands.js NOT FOUND at:', INSTALLED_CMDS);
-    console.error('Run npm run rebuild first.');
+const SOURCE = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts');
+if (!fs.existsSync(SOURCE)) {
+    console.error('Source commands.ts not found at:', SOURCE);
     process.exit(1);
 }
-console.log('Installed file found:', INSTALLED_CMDS);
+const src = fs.readFileSync(SOURCE, 'utf8');
+console.log('\nSource found:', SOURCE);
+console.log('Source size:', src.length, 'chars');
 
-// ── Extract JS template from installed compiled output ────────────────────
-// The compiled JS contains buildViewDocHtml as a function.
-// We need to extract the JS template string it embeds in the webview.
-const compiled = fs.readFileSync(INSTALLED_CMDS, 'utf8');
-console.log('Compiled size:', compiled.length, 'chars');
-
-// Also check source for comparison
-const src = fs.readFileSync(SOURCE_CMDS, 'utf8');
-
-// ── Extract JS template from SOURCE (what we edited) ─────────────────────
-function extractJsTemplate(text, isCompiled) {
-    // In compiled JS, the template literal becomes a regular string concatenation
-    // Look for the acquireVsCodeApi pattern
-    if (isCompiled) {
-        // Find the webview script - it's embedded as a string in the compiled output
-        // Look for the pattern where the JS starts
-        const marker = 'acquireVsCodeApi';
-        const idx = text.indexOf(marker);
-        if (idx === -1) { return null; }
-        // Get surrounding context - walk back to find the string start
-        return text.slice(Math.max(0, idx - 200), idx + 5000);
-    } else {
-        // TypeScript source - extract from template literal
-        const fnStart = text.indexOf('function buildViewDocHtml(');
-        if (fnStart === -1) { return null; }
-        const scope  = text.slice(fnStart);
-        const jsMark = 'const JS = `\n';
-        const jsIdx  = scope.indexOf(jsMark);
-        if (jsIdx === -1) { return null; }
-        let i = jsIdx + jsMark.length;
-        let jsTemplate = '';
-        while (i < scope.length) {
-            if (scope[i] === '`') break;
-            if (scope[i] === '\\' && scope[i + 1] === '`') { jsTemplate += '`'; i += 2; continue; }
-            jsTemplate += scope[i++];
-        }
-        return jsTemplate;
-    }
+function extractBrowserScript(text, port, totalDocs) {
+    const fnStart = text.indexOf('function buildViewDocBrowserHtml(');
+    if (fnStart === -1) { return null; }
+    const scope  = text.slice(fnStart);
+    const sStart = scope.indexOf('<script>');
+    const sEnd   = scope.indexOf('</script>');
+    if (sStart === -1 || sEnd === -1) { return null; }
+    return scope.slice(sStart + '<script>'.length, sEnd)
+        .replace(/\$\{port\}/g, String(port))
+        .replace(/\$\{totalDocs\}/g, String(totalDocs));
 }
 
-const sourceJsTemplate = extractJsTemplate(src, false);
+const TEST_PORT = 9999;
+const TEST_DOCS = 6;
+const scriptContent = extractBrowserScript(src, TEST_PORT, TEST_DOCS);
+if (scriptContent) {
+    console.log('Script extracted: ' + scriptContent.length + ' chars\n');
+} else {
+    console.error('Failed to extract script from buildViewDocBrowserHtml');
+}
 
-// ── Build DOM from source JS template ────────────────────────────────────
-function makeDom(jsTemplate) {
-    const messages = [];
-    const state    = { val: null };
+function makeDom(extraLinks) {
+    const links = extraLinks || [
+        { proj: 'global', dw: '000', folder: 'C:\\standards', path: 'C:\\standards\\README.md', label: 'README Global' },
+        { proj: 'global', dw: '000', folder: 'C:\\standards', path: 'C:\\standards\\COPILOT.md', label: 'CieloVista Copilot Rules' },
+        { proj: 'global', dw: '000', folder: 'C:\\standards', path: 'C:\\standards\\GIT.md', label: 'Git Workflow Standards' },
+        { proj: 'wb-core', dw: '100', folder: 'C:\\wb-core', path: 'C:\\wb-core\\NOTES.md', label: 'Project Notes wb-core' },
+        { proj: 'wb-core', dw: '100', folder: 'C:\\wb-core', path: 'C:\\wb-core\\ARCH.md', label: 'Architecture wb-core' },
+        { proj: 'cielovista-tools', dw: '200', folder: 'C:\\cvtools', path: 'C:\\cvtools\\README.md', label: 'CieloVista Tools README' },
+    ];
 
-    const rendered = (jsTemplate || '')
-        .replace(/\$\{totalDocs\}/g, '4')
-        .replace(/\$\{totalProjects\}/g, '2');
+    const byProj = {};
+    for (const l of links) {
+        if (!byProj[l.proj]) { byProj[l.proj] = []; }
+        byProj[l.proj].push(l);
+    }
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
-<div id="toolbar">
+    const projGroups = Object.entries(byProj).map(([proj, items]) => `
+    <div class="proj-group" data-proj="${proj}">
+      <div class="proj-hd"><span class="dw">${items[0].dw}</span><span class="fn">${proj}</span>
+        <button class="folder-btn" data-folder="${items[0].folder}"></button>
+        <span class="cnt">${items.length}</span>
+      </div>
+      <div class="proj-links">
+        ${items.map(i => `<a class="doc-link" href="#" data-path="${i.path}">${i.label}</a>`).join('\n        ')}
+      </div>
+    </div>`).join('\n');
+
+    const html = `<!DOCTYPE html><html><head></head><body>
+<div id="topbar">
+  <h1>View a Doc</h1>
   <input id="search" type="text" autocomplete="off">
-  <span id="stat">4 docs across 2 projects</span>
+  <select id="proj-filter"><option value="">All Projects</option>
+    ${Object.keys(byProj).map(p => `<option value="${p}">${p}</option>`).join('\n    ')}
+  </select>
+  <span id="stat">${TEST_DOCS} docs</span>
 </div>
-<div id="content">
-  <table>
-    <thead><tr><th>Folder</th><th>Documents</th></tr></thead>
-    <tbody>
-      <tr>
-        <td class="folder-cell"><span class="folder-name">global</span></td>
-        <td class="links-cell">
-          <a class="doc-link doc-link-priority" href="#" data-path="C:\\standards\\README.md">ReadMe Global</a>
-          <a class="doc-link doc-link-priority" href="#" data-path="C:\\standards\\CLAUDE.md">Claude Config</a>
-        </td>
-      </tr>
-      <tr>
-        <td class="folder-cell"><span class="folder-name">wb-core</span></td>
-        <td class="links-cell">
-          <a class="doc-link" href="#" data-path="C:\\wb-core\\aside.md">aside Element</a>
-          <a class="doc-link" href="#" data-path="C:\\wb-core\\NOTES.md">Project Notes</a>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-  <div id="empty">No docs match.</div>
+<div id="split">
+  <div id="index">
+    ${projGroups}
+    <div id="idx-empty">No matches</div>
+  </div>
+  <div id="resize-handle"></div>
+  <div id="viewer">
+    <div id="viewer-bar">
+      <span id="viewer-path">Select a document</span>
+      <button id="btn-copy-path" style="display:none">Copy Path</button>
+    </div>
+    <div id="welcome">Welcome</div>
+    <iframe id="doc-frame" style="display:none"></iframe>
+  </div>
 </div>
-<div id="copy-toast"></div>
-<script>${rendered}</script>
+<div id="toast"></div>
+<script>${scriptContent || ''}</script>
 </body></html>`;
 
+    const fetchCalls = [];
     const dom = new JSDOM(html, {
         runScripts: 'dangerously',
         pretendToBeVisual: true,
         beforeParse(win) {
-            win.acquireVsCodeApi = () => ({
-                postMessage: msg  => messages.push(msg),
-                getState:    ()   => state.val,
-                setState:    (s)  => { state.val = s; },
-            });
-            win.requestAnimationFrame = fn => setTimeout(fn, 0);
+            win.fetch = (url) => { fetchCalls.push(url); return Promise.resolve({ ok: true, text: () => Promise.resolve('OK') }); };
+            try { Object.defineProperty(win, 'localStorage', { value: { getItem: () => null, setItem: () => {} }, configurable: true }); } catch(e) {}
         },
     });
-
-    return { dom, messages, doc: dom.window.document, win: dom.window };
+    return { dom, doc: dom.window.document, win: dom.window, fetchCalls };
 }
 
-function linkByPath(doc, p) {
-    return [...doc.querySelectorAll('.doc-link')].find(l => l.dataset.path === p) || null;
-}
-
-// ── Test runner ───────────────────────────────────────────────────────────
 let passed = 0, failed = 0;
 const results = [];
-
 function test(name, fn) {
-    try { fn(); passed++; results.push({ ok: true, name }); }
-    catch(e) { failed++; results.push({ ok: false, name, err: e.message }); }
+    try   { fn(); passed++; results.push({ ok: true,  name }); }
+    catch (e) { failed++; results.push({ ok: false, name, err: e.message }); }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SECTION 1: Static checks on installed compiled file
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('INSTALLED: compiled commands.js exists on disk', () => {
-    assert.ok(fs.existsSync(INSTALLED_CMDS), `Not found: ${INSTALLED_CMDS}`);
+// Static source checks
+test('buildViewDocBrowserHtml present in source', () => {
+    assert.ok(src.includes('function buildViewDocBrowserHtml('));
+});
+test('Script extraction succeeded', () => {
+    assert.ok(scriptContent && scriptContent.length > 200, 'script extraction failed');
+});
+test('Source CSS has #ffe066 yellow highlight', () => {
+    assert.ok(src.includes('ffe066'), '#ffe066 missing');
+});
+test('Source has index-searching class', () => {
+    assert.ok(src.includes('index-searching'), 'index-searching missing');
+});
+test('Source has .hi class for matches', () => {
+    assert.ok(src.includes("'hi'") || src.includes('"hi"') || src.includes('.hi'), '.hi class missing');
+});
+test('Source has doc?path= route for iframe', () => {
+    assert.ok(src.includes('doc?path=') || src.includes("'/doc'"), 'doc route missing');
+});
+test('Source has openfolder route', () => {
+    assert.ok(src.includes('openfolder'), 'openfolder route missing');
+});
+test('Source has viewSpecificDoc export', () => {
+    assert.ok(src.includes('viewSpecificDoc'), 'viewSpecificDoc not found');
 });
 
-test('INSTALLED: contains acquireVsCodeApi (webview JS present)', () => {
-    assert.ok(compiled.includes('acquireVsCodeApi'), 'acquireVsCodeApi missing from compiled output');
-});
-
-test('INSTALLED: contains searchEl.addEventListener (search wired up)', () => {
-    assert.ok(compiled.includes('searchEl.addEventListener'), 'Search listener missing from compiled output — BUG-1');
-});
-
-test('INSTALLED: contains try-catch error banner', () => {
-    assert.ok(compiled.includes('View a Doc init error'), 'Error banner missing from compiled output');
-});
-
-test('INSTALLED: contains File not found warning (existsSync fix)', () => {
-    assert.ok(compiled.includes('File not found'), 'File not found warning missing — BUG-2 not in compiled output');
-});
-
-test('INSTALLED: showWarningMessage present (existsSync fix)', () => {
-    assert.ok(compiled.includes('showWarningMessage'), 'showWarningMessage missing from compiled output — BUG-2');
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SECTION 2: DOM behavior tests (BUG-1 reproduction)
-// ═══════════════════════════════════════════════════════════════════════════
-
+// DOM behavior E2E
 let ctx;
-
-test('BUG-1 SETUP: DOM builds from source JS template', () => {
-    assert.ok(sourceJsTemplate, 'Could not extract JS template from source');
-    ctx = makeDom(sourceJsTemplate);
-    assert.ok(ctx.doc.querySelector('.doc-link'), 'doc-link elements must exist');
-    assert.ok(ctx.doc.getElementById('search'), 'search element must exist');
+test('DOM builds: 6 links present', () => {
+    ctx = makeDom();
+    assert.strictEqual(ctx.doc.querySelectorAll('.doc-link').length, 6, 'Expected 6 .doc-link elements');
 });
 
-test('BUG-1: Typing in search filters rows (non-matching rows get hidden class)', () => {
+// E2E: BUG-1 — Search bar
+test('E2E BUG-1: Search "readme" highlights matching links with .hi', () => {
     const { doc, win } = ctx;
     const search = doc.getElementById('search');
-    assert.ok(search, 'search input must exist');
-
+    assert.ok(search, '#search element must exist');
     search.value = 'readme';
     search.dispatchEvent(new win.Event('input', { bubbles: true }));
-
-    const rows = [...doc.querySelectorAll('tbody tr')];
-    assert.strictEqual(rows.length, 2, 'Should have 2 rows');
-
-    // wb-core row should be hidden — it has no "readme" content
-    const wbRow = rows[1];
-    assert.ok(
-        wbRow.classList.contains('hidden'),
-        `BUG-1 REPRODUCED: wb-core row NOT hidden after searching "readme". classList: "${wbRow.className}"`
-    );
+    const hi = doc.querySelectorAll('.doc-link.hi');
+    assert.ok(hi.length >= 1, `No .hi links after searching "readme". Available texts: ${[...doc.querySelectorAll('.doc-link')].map(l => l.textContent).join(', ')}`);
 });
-
-test('BUG-1: Matching link gets search-match class (yellow highlight)', () => {
-    const { doc } = ctx;
-    const link = linkByPath(doc, 'C:\\standards\\README.md');
-    assert.ok(link, 'README link must exist');
-    assert.ok(
-        link.classList.contains('search-match'),
-        `BUG-1 REPRODUCED: README link does NOT have search-match class. classList: "${link.className}"`
-    );
+test('E2E BUG-1: #index gets .index-searching on search', () => {
+    const idx = ctx.doc.getElementById('index');
+    assert.ok(idx.classList.contains('index-searching'), '#index missing .index-searching');
 });
-
-test('BUG-1: Table gets "searching" class while query active', () => {
-    const { doc } = ctx;
-    const table = doc.querySelector('table');
-    assert.ok(
-        table.classList.contains('searching'),
-        `BUG-1 REPRODUCED: table does NOT have searching class. classList: "${table.className}"`
-    );
+test('E2E BUG-1: Search "readme" only highlights README links', () => {
+    const wrong = [...ctx.doc.querySelectorAll('.doc-link')]
+        .filter(l => !l.textContent.toLowerCase().includes('readme') && l.classList.contains('hi'));
+    assert.strictEqual(wrong.length, 0, `Wrong links have .hi: ${wrong.map(l => l.textContent).join(', ')}`);
 });
-
-test('BUG-1: Clearing search removes hidden class from all rows', () => {
+test('E2E BUG-1: Clearing search removes .hi and .index-searching', () => {
     const { doc, win } = ctx;
     const search = doc.getElementById('search');
     search.value = '';
     search.dispatchEvent(new win.Event('input', { bubbles: true }));
-    const hidden = doc.querySelectorAll('tbody tr.hidden');
-    assert.strictEqual(
-        hidden.length, 0,
-        `BUG-1 REPRODUCED: ${hidden.length} rows still hidden after clearing search`
-    );
+    assert.strictEqual(doc.querySelectorAll('.doc-link.hi').length, 0, '.hi still present after clear');
+    assert.ok(!doc.getElementById('index').classList.contains('index-searching'), '.index-searching still present');
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SECTION 3: DOM behavior tests (BUG-2 reproduction)
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('BUG-2: Clicking a doc-link posts open message to extension host', () => {
-    const { doc, win, messages } = ctx;
-    messages.length = 0;
-
-    const link = linkByPath(doc, 'C:\\standards\\README.md');
-    assert.ok(link, 'README link must exist');
-
-    link.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
-
-    const openMsg = messages.find(m => m.command === 'open');
-    assert.ok(
-        openMsg,
-        `BUG-2 REPRODUCED: No open message posted after clicking doc link. Messages: ${JSON.stringify(messages)}`
-    );
-    assert.strictEqual(
-        openMsg.data,
-        'C:\\standards\\README.md',
-        `BUG-2: Wrong path in open message: ${openMsg?.data}`
-    );
+// E2E: BUG-2 — Clicking a doc
+test('E2E BUG-2: Clicking a doc-link sets frame.src', () => {
+    const { doc, win } = ctx;
+    const lnk = doc.querySelector('.doc-link[data-path]');
+    assert.ok(lnk, 'No .doc-link with data-path');
+    lnk.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const frame = doc.getElementById('doc-frame');
+    assert.ok(frame.src && frame.src !== 'about:blank' && frame.src.includes('doc'),
+        `frame.src not set correctly. Got: "${frame.src}"`);
+});
+test('E2E BUG-2: Folder button calls fetch with openfolder', () => {
+    const { doc, win, fetchCalls } = ctx;
+    fetchCalls.length = 0;
+    const btn = doc.querySelector('.folder-btn[data-folder]');
+    if (!btn) { console.log('  (no folder-btn found, skipping fetch test)'); return; }
+    btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.ok(fetchCalls.length >= 1, 'fetch not called after folder button click');
+    assert.ok(fetchCalls[0].includes('openfolder'), `fetch URL missing "openfolder". Got: "${fetchCalls[0]}"`);
 });
 
-test('BUG-2: Clicking second doc-link posts correct path', () => {
-    const { doc, win, messages } = ctx;
-    messages.length = 0;
-
-    const link = linkByPath(doc, 'C:\\wb-core\\NOTES.md');
-    assert.ok(link, 'Notes link must exist');
-    link.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
-
-    const openMsg = messages.find(m => m.command === 'open');
-    assert.ok(openMsg, `BUG-2 REPRODUCED: No open message for NOTES.md`);
-    assert.strictEqual(openMsg.data, 'C:\\wb-core\\NOTES.md');
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SECTION 4: Extension host handler checks (BUG-2 server side)
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('BUG-2 HOST: open handler in compiled JS does NOT silently swallow missing files', () => {
-    // The old bug: if (msg.command === 'open' && msg.data && fs.existsSync(msg.data))
-    // This silently does nothing if the file doesn't exist.
-    // The fix: show a warning message instead.
-    // Check the compiled output does NOT have the old silent pattern.
-    const silentPattern = `'open' && msg.data && fs.existsSync`;
-    const hasSilentBug  = compiled.includes(silentPattern) ||
-                          compiled.includes('"open"&&') ||
-                          compiled.includes("'open'&&msg.data&&e.existsSync");
-
-    // More reliable: check that File not found warning IS present
-    assert.ok(
-        compiled.includes('File not found'),
-        `BUG-2 HOST REPRODUCED: "File not found" warning missing from compiled output. The silent existsSync fix is not compiled in.`
-    );
-});
-
-test('BUG-2 HOST: viewSpecificDoc handler has showWarningMessage for missing file', () => {
-    // Verify the fix is in source
-    const handlerSection = src.slice(src.indexOf('viewSpecificDoc'));
-    assert.ok(
-        handlerSection.includes('showWarningMessage'),
-        `BUG-2 HOST: showWarningMessage not found in viewSpecificDoc source`
-    );
-    assert.ok(
-        handlerSection.includes('File not found'),
-        `BUG-2 HOST: "File not found" text not found in viewSpecificDoc source`
-    );
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OUTPUT
-// ═══════════════════════════════════════════════════════════════════════════
-
+// Output
 console.log('\n' + '='.repeat(60));
-console.log('View-a-Doc E2E Bug Reproduction Tests');
+console.log('View-a-Doc E2E Tests');
 console.log('='.repeat(60));
 for (const r of results) {
     const icon = r.ok ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
     console.log(`  ${icon}  ${r.name}`);
-    if (!r.ok) console.log(`         \x1b[31m→ ${r.err}\x1b[0m`);
+    if (!r.ok) console.log(`         \x1b[31m-> ${r.err}\x1b[0m`);
 }
 console.log('='.repeat(60));
 const failStr = failed > 0 ? `\x1b[31m${failed} failed\x1b[0m` : '0 failed';
 console.log(`${passed + failed} tests: \x1b[32m${passed} passed\x1b[0m, ${failStr}\n`);
-if (failed > 0) process.exit(1);
+if (failed > 0) { process.exit(1); }
+
