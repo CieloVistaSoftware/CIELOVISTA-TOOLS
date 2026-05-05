@@ -122,13 +122,10 @@ export function activate(context: vscode.ExtensionContext): void {
                     if (result.written) {
                         const checks = result.report.checks;
                         const runAt = result.report.generatedAt || new Date().toISOString();
-                        output += `=== Daily Audit Results ===\n`;
+                        // First line: Projects audited
+                        output += `Projects audited (${result.projectNames.length}): ${result.projectNames.join(', ')}\n`;
+                        output += `\n=== Daily Audit Results ===\n`;
                         output += `Run at: ${runAt}\n`;
-                        output += `Projects (${result.projectNames.length}): ${result.projectNames.join(', ')}\n`;
-                        output += `All projects:\n`;
-                        for (const projectName of result.projectNames) {
-                            output += `  - ${projectName}\n`;
-                        }
                         output += `Scanned ${checks.length} checks in ${result.report.durationMs}ms\n`;
                         output += `Summary: ${r.red} red, ${r.yellow} yellow, ${r.green} green, ${r.grey} grey\n`;
                         output += `\n---\n`;
@@ -161,8 +158,12 @@ export function activate(context: vscode.ExtensionContext): void {
                     // Show results in interactive webview — use a dedicated viewType so the
                     // launcher.refresh command (which also calls showInteractiveResultWebview)
                     // cannot overwrite this panel's content.
+                    const title = result.written 
+                        ? `Daily Audit Results — ${result.projectNames.length} project${result.projectNames.length === 1 ? '' : 's'}`
+                        : 'Daily Audit Results';
+                    
                     showInteractiveResultWebview({
-                        title: 'Daily Audit Results',
+                        title,
                         action: 'Run Daily Health Check',
                         output,
                         durationMs: result.report.durationMs,
