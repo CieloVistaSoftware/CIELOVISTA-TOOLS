@@ -1,3 +1,5 @@
+// Copyright (c) 2025 CieloVista Software. All rights reserved.
+// Unauthorized copying or distribution of this file is strictly prohibited.
 /**
  * npm-launcher-types.ts
  * Shared contract between extension host and webview.

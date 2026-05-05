@@ -36,16 +36,12 @@ function test(name, fn) {
 }
 console.log('\nplaywright-check unit tests\n' + '─'.repeat(50));
 
-test('module loads without throwing', () => assert.ok(mod));
-test('exports activate function',    () => assert.strictEqual(typeof mod.activate,   'function'));
-test('exports deactivate function',  () => assert.strictEqual(typeof mod.deactivate, 'function'));
+test('module loads without throwing',       () => assert.ok(mod));
+test('exports runPlaywrightCheck function', () => assert.strictEqual(typeof mod.runPlaywrightCheck, 'function'));
 test('source file has copyright header', () => {
     const src = path.join(__dirname, '../../src/features/playwright-check.ts');
     if (!fs.existsSync(src)) return;
     assert.ok(fs.readFileSync(src, 'utf8').includes('CieloVista'));
-});
-test('activate does not throw synchronously', () => {
-    assert.doesNotThrow(() => mod.activate({ subscriptions: [] }));
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

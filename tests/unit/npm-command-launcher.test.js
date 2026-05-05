@@ -17,9 +17,11 @@ const origLoad = Module._load;
 Module._load = function(req, parent, isMain) {
     if (req === 'vscode') {
         return {
-            commands:  { registerCommand(n, h) { registered.set(n, h); return { dispose() {} }; } },
-            window:    { showErrorMessage() {}, showInformationMessage() {}, showQuickPick: async () => undefined, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }), createTerminal: () => ({ sendText() {}, show() {}, dispose() {} }) },
-            workspace: { workspaceFolders: null, getConfiguration: () => ({ get: () => undefined }) },
+            commands:    { registerCommand(n, h) { registered.set(n, h); return { dispose() {} }; } },
+            window:               { showErrorMessage() {}, showInformationMessage() {}, showQuickPick: async () => undefined, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }), createWebviewPanel: () => ({ webview: { html: '', onDidReceiveMessage: () => ({ dispose() {} }), asWebviewUri: u => u }, onDidDispose: () => ({ dispose() {} }), reveal() {}, dispose() {} }), createStatusBarItem: () => ({ text: '', tooltip: '', command: '', show() {}, hide() {}, dispose() {} }), createTerminal: () => ({ sendText() {}, show() {}, dispose() {} }) },
+            workspace:            { workspaceFolders: null, getConfiguration: () => ({ get: () => undefined }) },
+            ViewColumn:           { One: 1, Two: 2, Beside: -2, Active: -1 },
+            StatusBarAlignment:   { Left: 1, Right: 2 },
         };
     }
     return origLoad.apply(this, arguments);
