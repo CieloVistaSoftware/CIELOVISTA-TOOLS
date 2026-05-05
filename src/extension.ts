@@ -23,13 +23,13 @@ import { activate as docsManager,             deactivate as deactivateDocsManage
 import { activate as docAuditor,              deactivate as deactivateDocAuditor       } from './features/doc-auditor/index';
 import { activate as dailyAudit,              deactivate as deactivateDailyAudit       } from './features/daily-audit/index';
 import { activate as docIntelligence,         deactivate as deactivateDocIntelligence  } from './features/doc-intelligence/index';
-// import { activate as docConsolidator,         deactivate as deactivateDocConsolidator  } from './features/doc-consolidator/index';
+import { activate as docConsolidator,         deactivate as deactivateDocConsolidator  } from './features/doc-consolidator/index';
 import { activate as docCatalog,              deactivate as deactivateDocCatalog       } from './features/doc-catalog/index';
 import { activate as readmeCompliance,        deactivate as deactivateReadmeCompliance } from './features/readme-compliance/index';
 import { activate as readmeGenerator,         deactivate as deactivateReadmeGenerator  } from './features/readme-generator';
 import { activate as docsBrokenRefs,          deactivate as deactivateDocsBrokenRefs   } from './features/docs-broken-refs';
 import { activate as marketplaceCompliance,   deactivate as deactivateMarketplace      } from './features/marketplace-compliance/index';
-// import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header/index';
+import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header/index';
 import { activate as docHeaderScan,           deactivate as deactivateDocHeaderScan    } from './features/doc-header-scan';
 import { activate as projectLauncher,         deactivate as deactivateProjectLauncher  } from './features/project-launcher';
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
@@ -114,7 +114,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('docAuditor',              'Doc Auditor',                   docAuditor,              context);
     activateIfEnabled('dailyAudit',              'Daily Audit',                   dailyAudit,              context);
     activateIfEnabled('docIntelligence',         'Doc Intelligence',              docIntelligence,         context);
-    // activateIfEnabled('docConsolidator',         'Doc Consolidator',              docConsolidator,         context);
+    activateIfEnabled('docConsolidator',         'Doc Consolidator',              docConsolidator,         context);
     activateIfEnabled('docCatalog',              'Doc Catalog',                   docCatalog,              context);
     activateIfEnabled('readmeCompliance',        'README Compliance',             readmeCompliance,        context);
     activateIfEnabled('readmeGenerator',         'README Generator',              readmeGenerator,         context);
@@ -122,7 +122,7 @@ export function activate(context: vscode.ExtensionContext): void {
     
     activateIfEnabled('fileListViewer',         'FileList Viewer',               activateFileListViewer,  context);
     activateIfEnabled('marketplaceCompliance',   'Marketplace Compliance',        marketplaceCompliance,   context);
-    // activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
+    activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
     activateIfEnabled('docHeaderScan',           'Doc Header Scan',               docHeaderScan,           context);
     activateIfEnabled('projectLauncher',         'Project Launcher',              projectLauncher,         context);
     activateIfEnabled('cvsCommandLauncher',      'CVS Command Launcher',          cvsCommandLauncher,      context);
@@ -177,7 +177,7 @@ export function deactivate(): void {
     deactivateDocAuditor();
     deactivateDailyAudit();
     deactivateDocIntelligence();
-    // deactivateDocConsolidator();
+    deactivateDocConsolidator();
     deactivateDocCatalog();
     deactivateReadmeCompliance();
     deactivateReadmeGenerator();
@@ -187,7 +187,7 @@ export function deactivate(): void {
     mcpViewerDeactivate();
     explorerCopyPathToChatDeactivate();
     registryPromoteDeactivate();
-    // deactivateDocHeader();
+    deactivateDocHeader();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
     deactivateHomePage();
