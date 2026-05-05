@@ -18,7 +18,7 @@ Module._load = function(req, parent, isMain) {
     if (req === 'vscode') {
         return {
             commands:  { registerCommand(n, h) { registered.set(n, h); return { dispose() {} }; } },
-            window:    { showErrorMessage() {}, showInformationMessage() {}, showWarningMessage() {}, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }) },
+            window:    { showErrorMessage() {}, showInformationMessage() {}, showWarningMessage() {}, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }), onDidChangeActiveTextEditor: () => ({ dispose() {} }) },
             workspace: { workspaceFolders: null, getConfiguration: () => ({ get: () => undefined }) },
         };
     }
