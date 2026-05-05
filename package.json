@@ -708,6 +708,18 @@
         "description": "Register a folder as a CieloVista product. Scaffolds CLAUDE.md and README.md if missing, appends an entry to project-registry.json with status=product."
       },
       {
+        "command": "cvs.registry.demote",
+        "title": "Registry: Demote Project to Workbench",
+        "category": "CieloVista Registry",
+        "description": "Change a project's status from product to workbench. Removes it from the active product list."
+      },
+      {
+        "command": "cvs.registry.archive",
+        "title": "Registry: Archive Project",
+        "category": "CieloVista Registry",
+        "description": "Mark a project as archived. Archived projects are hidden from active listings."
+      },
+      {
         "command": "cvs.corequisites.check",
         "title": "Check Corequisite Extensions",
         "category": "CieloVista Marketplace"

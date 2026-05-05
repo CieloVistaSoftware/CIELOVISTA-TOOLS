@@ -1,6 +1,6 @@
 # Test Coverage Audit
 
-**Date:** 2026-05-05 20:40:31
+**Date:** 2026-05-05 21:04:07
 **Project:** cielovista-tools
 **Strategy:** Tiered Testing (Tiers 1–5)
 
@@ -10,8 +10,8 @@
 
 | Metric | Count |
 |---|---|
-| Test Files | 111 |
-| Test Cases | 1424 |
+| Test Files | 112 |
+| Test Cases | 1429 |
 | Features Covered | 53/54 |
 
 ## 📋 Tier Breakdown
@@ -30,7 +30,7 @@
 
 **Description:** Isolated functions, business logic, edge cases
 
-**Files:** 96 | **Test Cases:** 1286
+**Files:** 97 | **Test Cases:** 1291
 
 | Test File | Test Cases | Bug Refs |
 |---|---|---|
@@ -68,6 +68,7 @@
 | `unit\cvs-command-launcher.test.js` | 8 | — |
 | `unit\cvt-registry.test.js` | 17 | — |
 | `unit\daily-audit-checks.test.js` | 40 | — |
+| `unit\daily-audit.test.js` | 8 | — |
 | `unit\doc-auditor-analyzer.test.js` | 33 | — |
 | `unit\doc-auditor-scanner.test.js` | 22 | — |
 | `unit\doc-consolidator.test.js` | 37 | — |
@@ -78,7 +79,7 @@
 | `unit\docs-broken-refs.test.js` | 8 | — |
 | `unit\docs-manager.test.js` | 8 | — |
 | `unit\error-log-utils.test.js` | 26 | — |
-| `unit\error-log-viewer.test.js` | 8 | — |
+| `unit\error-log-viewer.test.js` | 7 | — |
 | `unit\error-log.test.js` | 32 | — |
 | `unit\explorer-copy-path-to-chat.test.js` | 5 | — |
 | `unit\feature-toggle.test.js` | 34 | — |
@@ -105,7 +106,7 @@
 | `unit\npm-start-browser.test.js` | 30 | — |
 | `unit\open-folder-as-root.test.js` | 6 | — |
 | `unit\openai-chat.test.js` | 8 | — |
-| `unit\playwright-check.test.js` | 8 | — |
+| `unit\playwright-check.test.js` | 6 | — |
 | `unit\playwright-runner.test.js` | 8 | — |
 | `unit\project-home-opener.test.js` | 5 | — |
 | `unit\project-launcher.test.js` | 7 | — |
@@ -235,5 +236,5 @@
 
 ---
 
-**Generated:** 2026-05-05T01:40:31.756Z
+**Generated:** 2026-05-05T02:04:07.219Z
 **Command:** `node scripts/audit-test-coverage.js`

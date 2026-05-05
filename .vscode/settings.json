@@ -12,6 +12,7 @@
     "/^node --check core/events\\.js$/": {
       "approve": true,
       "matchCommandLine": true
-    }
+    },
+    "gh": true
   }
 }

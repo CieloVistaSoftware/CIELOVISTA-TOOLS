@@ -41,6 +41,30 @@ const PROJECT_TYPES: readonly string[] = [
 ];
 
 /**
+ * Returns a folder from the registry that the user selects.
+ * Used for demote/archive operations.
+ */
+async function pickFolderFromRegistry(action: 'demote' | 'archive'): Promise<{ folder: ProjectEntry; original: vscode.Uri } | undefined> {
+    const registry = loadRegistry();
+    if (!registry || registry.projects.length === 0) {
+        vscode.window.showWarningMessage('No projects in the registry');
+        return undefined;
+    }
+
+    const picks = registry.projects.map(p => ({
+        label: `$(folder) ${p.name}`,
+        detail: `${p.path} [${p.status}]`,
+        project: p,
+    }));
+
+    const pick = await vscode.window.showQuickPick(picks, {
+        placeHolder: `Select a project to ${action}`,
+    });
+
+    return pick ? { folder: pick.project, original: vscode.Uri.file(pick.project.path) } : undefined;
+}
+
+/**
  * Returns the folder the user wants to promote.
  * Priority: explicit Explorer context URI → active workspace folder → open dialog.
  */
@@ -213,6 +237,48 @@ export function promoteFolder(
     };
 }
 
+/** Change a project's status to 'workbench' (demote from product). */
+export function demoteFolder(name: string): { ok: boolean; message: string } {
+    const registry = loadRegistry();
+    if (!registry) {
+        return { ok: false, message: 'Could not load registry.' };
+    }
+
+    const entry = registry.projects.find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (!entry) {
+        return { ok: false, message: `Project "${name}" not found in registry.` };
+    }
+
+    if (entry.status === 'workbench') {
+        return { ok: true, message: `"${name}" is already status=workbench.` };
+    }
+
+    entry.status = 'workbench';
+    saveRegistry(registry);
+    return { ok: true, message: `Demoted "${name}" to status=workbench.` };
+}
+
+/** Change a project's status to 'archived' (archive). */
+export function archiveFolder(name: string): { ok: boolean; message: string } {
+    const registry = loadRegistry();
+    if (!registry) {
+        return { ok: false, message: 'Could not load registry.' };
+    }
+
+    const entry = registry.projects.find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (!entry) {
+        return { ok: false, message: `Project "${name}" not found in registry.` };
+    }
+
+    if (entry.status === 'archived') {
+        return { ok: true, message: `"${name}" is already status=archived.` };
+    }
+
+    entry.status = 'archived';
+    saveRegistry(registry);
+    return { ok: true, message: `Archived "${name}" — set status=archived.` };
+}
+
 /** Explorer-context-menu / command-palette handler. */
 async function promoteCommand(explicitUri?: vscode.Uri): Promise<void> {
     try {
@@ -265,6 +331,62 @@ async function promoteCommand(explicitUri?: vscode.Uri): Promise<void> {
     }
 }
 
+/** Demote a project from product to workbench. */
+async function demoteCommand(): Promise<void> {
+    try {
+        const pick = await pickFolderFromRegistry('demote');
+        if (!pick) { return; }
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Demote "${pick.folder.name}" to workbench? This project will be removed from the active product list.`,
+            { modal: true },
+            'Demote',
+            'Cancel'
+        );
+        if (confirm !== 'Demote') { return; }
+
+        const result = demoteFolder(pick.folder.name);
+        if (result.ok) {
+            log(FEATURE, result.message);
+            vscode.window.showInformationMessage(result.message);
+        } else {
+            vscode.window.showErrorMessage(`Demote failed: ${result.message}`);
+            log(FEATURE, result.message);
+        }
+    } catch (err) {
+        logError('demoteCommand failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        vscode.window.showErrorMessage(`Demote failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+}
+
+/** Archive a project. */
+async function archiveCommand(): Promise<void> {
+    try {
+        const pick = await pickFolderFromRegistry('archive');
+        if (!pick) { return; }
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Archive "${pick.folder.name}"? This project will be marked as archived.`,
+            { modal: true },
+            'Archive',
+            'Cancel'
+        );
+        if (confirm !== 'Archive') { return; }
+
+        const result = archiveFolder(pick.folder.name);
+        if (result.ok) {
+            log(FEATURE, result.message);
+            vscode.window.showInformationMessage(result.message);
+        } else {
+            vscode.window.showErrorMessage(`Archive failed: ${result.message}`);
+            log(FEATURE, result.message);
+        }
+    } catch (err) {
+        logError('archiveCommand failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        vscode.window.showErrorMessage(`Archive failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+}
+
 /* ── Feature activation ───────────────────────────────────────────────────── */
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -272,6 +394,12 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.registry.promote', (uri?: vscode.Uri) => {
             void promoteCommand(uri);
+        }),
+        vscode.commands.registerCommand('cvs.registry.demote', () => {
+            void demoteCommand();
+        }),
+        vscode.commands.registerCommand('cvs.registry.archive', () => {
+            void archiveCommand();
         }),
     );
 }
