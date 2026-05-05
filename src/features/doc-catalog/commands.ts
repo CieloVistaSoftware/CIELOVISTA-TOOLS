@@ -405,7 +405,8 @@ function _escV(s: string): string {
 
 function rewriteDocLinks(html: string, filePath: string, port: number, backQ = ''): string {
     const dir = path.dirname(filePath);
-    return html.replace(/href="([^"]*)"/g, (match, href) => {
+    // Rewrite href= for navigation links
+    let out = html.replace(/href="([^"]*)"/g, (match, href) => {
         if (!href || href.startsWith('#') || /^(https?|vscode|mailto|data|ftp):/i.test(href)) {
             return match;
         }
@@ -413,6 +414,14 @@ function rewriteDocLinks(html: string, filePath: string, port: number, backQ = '
         const qParam   = backQ ? `&q=${encodeURIComponent(backQ)}` : '';
         return `href="http://127.0.0.1:${port}/doc?path=${encodeURIComponent(resolved)}${qParam}"`;
     });
+    // Rewrite src= for images — serve them via /asset so relative paths resolve
+    out = out.replace(/src="([^"]*)"/g, (match, src) => {
+        if (!src || /^(https?|data|ftp):/i.test(src)) { return match; }
+        const resolved = path.resolve(dir, src);
+        if (!fs.existsSync(resolved)) { return match; }
+        return `src="http://127.0.0.1:${port}/asset?path=${encodeURIComponent(resolved)}"`;
+    });
+    return out;
 }
 
 function buildDocPageHtml(filePath: string, rendered: string, port: number, backQ = ''): string {
@@ -429,32 +438,32 @@ function buildDocPageHtml(filePath: string, rendered: string, port: number, back
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column;min-height:100vh}
+body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:14px;color:#5ab4e8;background:#1e1e1e;display:flex;flex-direction:column;min-height:100vh}
 #bar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0}
-#back{background:#2d2d2d;color:#9cdcfe;border:1px solid #555;border-radius:3px;padding:4px 12px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap}
+#back{background:#2d2d2d;color:#5ab4e8;border:1px solid #555;border-radius:3px;padding:4px 12px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap;text-transform:capitalize}
 #back:hover{background:#3c3c3c;border-color:#0078d4}
-#copy-path{background:#2d2d2d;color:#858585;border:1px solid #555;border-radius:3px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap}
-#copy-path:hover{background:#3c3c3c;border-color:#0078d4;color:#d4d4d4}
+#copy-path{background:#2d2d2d;color:#3a8fc1;border:1px solid #555;border-radius:3px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap;text-transform:capitalize}
+#copy-path:hover{background:#3c3c3c;border-color:#0078d4;color:#5ab4e8}
 #copy-path.copied{color:#3fb950;border-color:#3fb950;background:#2d2d2d}
-#path{font-family:monospace;font-size:10px;color:#858585;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.seg{color:#858585}.sep{color:#555;margin:0 2px}.cur{color:#d4d4d4;font-weight:700}
+#path{font-family:monospace;font-size:10px;color:#3a8fc1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.seg{color:#3a8fc1}.sep{color:#2a6fa0;margin:0 2px}.cur{color:#5ab4e8;font-weight:700}
 #content{flex:1;padding:24px 40px 64px;max-width:900px;width:100%;margin:0 auto}
-h1,h2,h3,h4{margin:1.1em 0 .45em;line-height:1.3;font-weight:700}
-h1{font-size:1.8em;border-bottom:2px solid #0078d4;padding-bottom:8px}
-h2{font-size:1.3em;border-bottom:1px solid #404040;padding-bottom:4px}
-h3{font-size:1.1em}h4{font-size:.95em;color:#858585}
+h1,h2,h3,h4{margin:1.1em 0 .45em;line-height:1.3;font-weight:700;text-transform:capitalize}
+h1{font-size:1.8em;border-bottom:2px solid #0078d4;padding-bottom:8px;color:#7ec8f0}
+h2{font-size:1.3em;border-bottom:1px solid #404040;padding-bottom:4px;color:#6ab8e8}
+h3{font-size:1.1em;color:#5ab4e8}h4{font-size:.95em;color:#3a8fc1}
 p{margin:.55em 0;line-height:1.75}
 blockquote{border-left:4px solid #0078d4;padding:6px 14px;margin:10px 0;background:#252526;border-radius:0 4px 4px 0;font-style:italic}
 code{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.87em;background:#2d2d2d;padding:1px 6px;border-radius:3px;border:1px solid #404040;color:#ce9178}
 pre{background:#1f1f1f;border:1px solid #404040;border-radius:5px;padding:14px 16px;overflow-x:auto;margin:12px 0}
-pre code{background:none;padding:0;font-size:12px;line-height:1.6;border:none;color:#d4d4d4}
+pre code{background:none;padding:0;font-size:12px;line-height:1.6;border:none;color:#5ab4e8}
 li{margin:4px 0 4px 22px;line-height:1.65}ul,ol{margin:6px 0}
 table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
 td,th{border:1px solid #404040;padding:7px 12px;text-align:left}
-th{background:#252526;font-weight:700;font-size:12px}
+th{background:#252526;font-weight:700;font-size:12px;color:#5ab4e8;text-transform:capitalize}
 tr:nth-child(even) td{background:rgba(255,255,255,.03)}
 hr{border:none;border-top:1px solid #404040;margin:18px 0}
-a{color:#4ec9b0}a:hover{text-decoration:underline}
+a{color:#5ab4e8}a:hover{text-decoration:underline}
 strong{font-weight:700}em{font-style:italic}del{opacity:.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
 </style>
@@ -533,15 +542,15 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number): string {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column}
+body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#5ab4e8;background:#1e1e1e;display:flex;flex-direction:column}
 
 /* \u2500\u2500 Top bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 #topbar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0;height:40px}
-#topbar h1{font-size:.9em;font-weight:700;color:#d4d4d4;white-space:nowrap}
-#search{flex:1;padding:4px 8px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:12px;font-family:inherit;outline:none}
+#topbar h1{font-size:.9em;font-weight:700;color:#5ab4e8;white-space:nowrap;text-transform:capitalize}
+#search{flex:1;padding:4px 8px;background:#3c3c3c;color:#5ab4e8;border:1px solid #555;border-radius:3px;font-size:12px;font-family:inherit;outline:none}
 #search:focus{border-color:#0078d4}
-#stat{font-size:10px;color:#858585;white-space:nowrap}
-#proj-filter{padding:3px 6px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:11px;font-family:inherit;outline:none;cursor:pointer;max-width:140px}
+#stat{font-size:10px;color:#3a8fc1;white-space:nowrap}
+#proj-filter{padding:3px 6px;background:#3c3c3c;color:#5ab4e8;border:1px solid #555;border-radius:3px;font-size:11px;font-family:inherit;outline:none;cursor:pointer;max-width:140px}
 #proj-filter:focus{border-color:#0078d4}
 #proj-filter option{background:#252526}
 
@@ -553,14 +562,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 .proj-group{}
 .proj-hd{display:flex;align-items:center;gap:4px;padding:6px 8px 4px;background:#1e1e1e;border-bottom:1px solid #333;position:sticky;top:0;z-index:1}
 .dw{font-family:monospace;font-size:8px;font-weight:700;background:#0078d4;color:#fff;border-radius:2px;padding:1px 4px;flex-shrink:0}
-.fn{font-weight:700;font-size:10px;color:#9cdcfe;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fn{font-weight:700;font-size:10px;color:#5ab4e8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:capitalize}
 .folder-btn{background:none;border:none;cursor:pointer;font-size:11px;padding:0 2px;opacity:.6}
 .folder-btn:hover{opacity:1}
 .cnt{font-size:9px;background:#1b6ac9;color:#fff;border-radius:8px;padding:0 4px;flex-shrink:0}
 .proj-links{display:flex;flex-direction:column;padding:2px 0 6px}
-.doc-link{display:block;padding:3px 10px 3px 16px;color:#a0c4c4;text-decoration:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid transparent;transition:all .1s}
-.doc-link:hover{background:#2a2d2e;color:#9cdcfe;border-left-color:#0078d4}
-.doc-link.pri{color:#d4d4d4;font-weight:600}
+.doc-link{display:block;padding:3px 10px 3px 16px;color:#3a8fc1;text-decoration:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid transparent;transition:all .1s;text-transform:capitalize}
+.doc-link:hover{background:#2a2d2e;color:#5ab4e8;border-left-color:#0078d4}
+.doc-link.pri{color:#7ec8f0;font-weight:600}
 .doc-link.active{background:rgba(63,185,80,.12)!important;border-left-color:#3fb950!important;color:#3fb950!important;font-weight:700}
 .doc-link.hi{background:#ffe066!important;color:#1a1a00!important;font-weight:700}
 .index-searching .doc-link:not(.hi){display:none}
@@ -574,19 +583,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 /* \u2500\u2500 Doc viewer (88vw iframe) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 #viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
-#viewer-path{font-family:monospace;font-size:10px;color:#858585;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#btn-copy-path{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
-#btn-copy-path:hover{border-color:#0078d4;color:#d4d4d4}
+#viewer-path{font-family:monospace;font-size:10px;color:#3a8fc1;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#btn-copy-path{background:#2d2d2d;color:#3a8fc1;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap;text-transform:capitalize}
+#btn-copy-path:hover{border-color:#0078d4;color:#5ab4e8}
 #doc-frame{flex:1;border:none;background:#1e1e1e;}
-#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;gap:8px;}
+#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#3a8fc1;font-size:13px;gap:8px;text-transform:capitalize}
 #welcome svg{opacity:.25}
 
 /* \u2500\u2500 Empty state \u2500\u2500 */
-#idx-empty{padding:20px 10px;text-align:center;color:#555;font-size:11px;display:none}
+#idx-empty{padding:20px 10px;text-align:center;color:#3a8fc1;font-size:11px;display:none}
 #idx-empty.show{display:block}
 
 /* \u2500\u2500 Toast \u2500\u2500 */
-#toast{position:fixed;bottom:14px;right:14px;background:#2d333b;color:#cae8ff;border:1px solid #58a6ff;border-radius:4px;padding:5px 12px;font-size:11px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast{position:fixed;bottom:14px;right:14px;background:#2d333b;color:#5ab4e8;border:1px solid #58a6ff;border-radius:4px;padding:5px 12px;font-size:11px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 </style>
 </head>
@@ -812,6 +821,27 @@ export async function viewSpecificDoc(): Promise<void> {
             const rendered = rewriteDocLinks(mdToHtml(rawMd), filePath, port, backQ);
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(buildDocPageHtml(filePath, rendered, port, backQ));
+
+        } else if (url.pathname === '/asset') {
+            // Serve local image/svg/binary assets referenced by markdown docs
+            const assetPath = decodeURIComponent(url.searchParams.get('path') || '');
+            if (!assetPath || !fs.existsSync(assetPath)) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Asset not found'); return;
+            }
+            const ext = path.extname(assetPath).toLowerCase();
+            const mimeMap: Record<string, string> = {
+                '.png':  'image/png',
+                '.jpg':  'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif':  'image/gif',
+                '.svg':  'image/svg+xml',
+                '.webp': 'image/webp',
+                '.ico':  'image/x-icon',
+                '.bmp':  'image/bmp',
+            };
+            const mime = mimeMap[ext] ?? 'application/octet-stream';
+            res.writeHead(200, { 'Content-Type': mime });
+            res.end(fs.readFileSync(assetPath));
 
         } else if (url.pathname === '/openfolder') {
             const folderPath = decodeURIComponent(url.searchParams.get('path') || '');
