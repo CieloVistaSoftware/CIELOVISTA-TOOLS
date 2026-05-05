@@ -19,7 +19,8 @@ export function scanForCards(
     projectName:     string,
     projectRootPath: string,
     projectDeweyNum: number,   // e.g. 300 for DiskCleanUp
-    maxDepth = 3
+    maxDepth = 3,
+    archivedPaths: Set<string> = new Set()
 ): CatalogCard[] {
     const cards: CatalogCard[] = [];
 
@@ -35,6 +36,7 @@ export function scanForCards(
             if (entry.isDirectory()) {
                 walk(fullPath, depth + 1);
             } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+                if (archivedPaths.has(fullPath)) { continue; }
                 try {
                     const content = fs.readFileSync(fullPath, 'utf8');
                     const stat    = fs.statSync(fullPath);

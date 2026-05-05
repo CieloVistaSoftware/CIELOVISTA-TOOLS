@@ -428,6 +428,12 @@
         "description": "Quick pick to view any documentation card in the catalog."
       },
       {
+        "command": "cvs.catalog.viewArchived",
+        "title": "Catalog: View Archived Docs",
+        "category": "CieloVista Catalog",
+        "description": "Browse archived documents and restore any to the catalog."
+      },
+      {
         "command": "cvs.readme.scan",
         "title": "README: Scan Compliance",
         "category": "CieloVista README",

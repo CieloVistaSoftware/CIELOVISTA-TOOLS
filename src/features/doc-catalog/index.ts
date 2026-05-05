@@ -16,7 +16,7 @@
  */
 import * as vscode from 'vscode';
 import { log } from '../../shared/output-channel';
-import { openCatalog, viewSpecificDoc, clearCachedCards, rebuildCatalog, deserializeCatalogPanel, disposeViewServer } from './commands';
+import { openCatalog, viewSpecificDoc, clearCachedCards, rebuildCatalog, deserializeCatalogPanel, disposeViewServer, viewArchivedCatalog } from './commands';
 
 const FEATURE = 'doc-catalog';
 
@@ -30,9 +30,10 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.catalog.open',    () => openCatalog(false)),
-        vscode.commands.registerCommand('cvs.catalog.rebuild', rebuildCatalog),
-        vscode.commands.registerCommand('cvs.catalog.view',    viewSpecificDoc),
+        vscode.commands.registerCommand('cvs.catalog.open',           () => openCatalog(false)),
+        vscode.commands.registerCommand('cvs.catalog.rebuild',        rebuildCatalog),
+        vscode.commands.registerCommand('cvs.catalog.view',           viewSpecificDoc),
+        vscode.commands.registerCommand('cvs.catalog.viewArchived',   viewArchivedCatalog),
     );
 }
 

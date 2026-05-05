@@ -115,6 +115,7 @@ export function buildCatalogInitPayload(
       <button class="btn-view" data-action="open-preview" data-path="${esc(card.filePath)}">&#128196; View</button>
       <button class="btn-open" data-action="open"         data-path="${esc(card.filePath)}">&#9998; Edit</button>
       <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
+      <button class="btn-archive" data-action="archive-doc" data-path="${esc(card.filePath)}" data-title="${esc(card.title)}" data-project="${esc(card.projectName)}" title="Hide this doc from the catalog (archive). Restore via View Archived.">&#128190; Archive</button>
       ${demoBtn}
     </div>
   </div>
