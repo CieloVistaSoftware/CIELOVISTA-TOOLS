@@ -6,7 +6,8 @@
       "Bash(node -e \"const p=require\\('./package.json'\\); const cmds=p.contributes.commands.filter\\(c=>c.command.toLowerCase\\(\\).includes\\('home'\\)||c.title.toLowerCase\\(\\).includes\\('home'\\)\\); console.log\\(JSON.stringify\\(cmds,null,2\\)\\)\")",
       "Bash(gh issue *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(.\\\\node_modules\\\\.bin\\\\tsc -p tsconfig.json --noEmit)"
     ]
   }
 }
