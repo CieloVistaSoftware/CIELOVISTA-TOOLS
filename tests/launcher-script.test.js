@@ -37,7 +37,7 @@ if (!fs.existsSync(HTML_TS)) {
     process.exit(1);
 }
 
-const src = fs.readFileSync(HTML_TS, 'utf8');
+const src = fs.readFileSync(HTML_TS, 'utf8').replace(/\r\n/g, '\n');
 
 // Extract the JS template literal (the `const JS = \`...\`` block)
 const jsStart = src.indexOf('const JS = `');

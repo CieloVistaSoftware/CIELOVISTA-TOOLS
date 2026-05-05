@@ -42,7 +42,7 @@ async function openProjectFolderSmart(folderPath: string): Promise<void> {
         await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
         return;
     }
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), false);
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), true);
 }
 
 function sendCatalogInit(
@@ -324,6 +324,24 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await openCatalog(true);
                 break;
             }
+            case 'archive-doc-confirm': {
+                const filePath   = msg.data as string;
+                const docTitle   = msg.title as string;
+                const projName   = msg.project as string;
+                if (!filePath) { break; }
+                const label = docTitle || filePath;
+                const choice = await vscode.window.showWarningMessage(
+                    `Archive "${label}"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived.`,
+                    { modal: true },
+                    'Archive'
+                );
+                if (choice !== 'Archive') { break; }
+                archiveDoc(filePath, docTitle, projName);
+                clearCachedCards();
+                log(FEATURE, `Archived: ${filePath}`);
+                void panel.webview.postMessage({ command: 'remove-card', filePath });
+                break;
+            }
             case 'archive-doc': {
                 const filePath   = msg.data as string;
                 const docTitle   = msg.title as string;
@@ -332,7 +350,6 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 archiveDoc(filePath, docTitle, projName);
                 clearCachedCards();
                 log(FEATURE, `Archived: ${filePath}`);
-                // Remove card from webview without full reload
                 void panel.webview.postMessage({ command: 'remove-card', filePath });
                 break;
             }

@@ -386,10 +386,10 @@ document.addEventListener('click', function(e) {
     else if (a === 'create-tests')        { vscode.postMessage({ command: 'create-tests',        data: btn.dataset.projPath, projName: btn.dataset.projName }); }
     else if (a === 'archive-doc') {
         var card = btn.closest('.card');
-        if (card && confirm('Archive "' + (btn.dataset.title || btn.dataset.path) + '"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived.')) {
+        if (card) {
             var archPath = _getCardPath(card);
             if (archPath) { _selectedPaths.delete(archPath); }
-            vscode.postMessage({ command: 'archive-doc', data: btn.dataset.path, title: btn.dataset.title, project: btn.dataset.project });
+            vscode.postMessage({ command: 'archive-doc-confirm', data: btn.dataset.path, title: btn.dataset.title, project: btn.dataset.project });
         }
     }
 });
