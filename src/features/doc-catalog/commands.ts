@@ -14,12 +14,18 @@ import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
+import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
 
 let _catalogPanel: vscode.WebviewPanel | undefined;
 let _cachedCards: CatalogCard[] | undefined;
+
+type RegistryEntry = { name: string; path: string; type: string; description: string };
+let _pendingInitCards: CatalogCard[] = [];
+let _pendingInitProjectInfos: ReturnType<typeof loadProjectInfo>[] = [];
+let _pendingInitRegistryEntries: RegistryEntry[] = [];
 
 export function getCatalogPanel(): vscode.WebviewPanel | undefined { return _catalogPanel; }
 export function clearCachedCards(): void { _cachedCards = undefined; }
@@ -46,9 +52,7 @@ function sendCatalogInit(
     registryEntries: Array<{ name: string; path: string; type: string; description: string }>
 ): void {
     const payload = buildCatalogInitPayload(cards, projectInfos, new Date().toLocaleString(), registryEntries);
-    setTimeout(() => {
-        void panel.webview.postMessage({ command: 'init', ...payload });
-    }, 25);
+    void panel.webview.postMessage({ command: 'init', ...payload });
 }
 
 export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] | undefined> {
@@ -60,15 +64,16 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
         { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog\u2026', cancellable: false },
         async (progress) => {
             const deweyMap = buildProjectDeweyMap(registry.projects.map(p => p.name));
+            const archivedPaths = loadArchivedPaths();
             const cards: CatalogCard[] = scanForCards(
                 registry.globalDocsPath, 'global', registry.globalDocsPath,
-                lookupDewey(deweyMap, 'global').num
+                lookupDewey(deweyMap, 'global').num, 3, archivedPaths
             );
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}\u2026` });
                 if (fs.existsSync(project.path)) {
                     const dewey = lookupDewey(deweyMap, project.name);
-                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num));
+                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num, 3, archivedPaths));
                 }
             }
             cards.sort((a, b) => {
@@ -199,6 +204,9 @@ export async function rebuildCatalog(): Promise<void> {
 function attachMessageHandler(panel: vscode.WebviewPanel): void {
     panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
+            case 'ready':
+                sendCatalogInit(panel, _pendingInitCards, _pendingInitProjectInfos, _pendingInitRegistryEntries);
+                break;
             case 'openProjectFolder':
                 if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
@@ -316,6 +324,26 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await openCatalog(true);
                 break;
             }
+            case 'archive-doc': {
+                const filePath   = msg.data as string;
+                const docTitle   = msg.title as string;
+                const projName   = msg.project as string;
+                if (!filePath) { break; }
+                archiveDoc(filePath, docTitle, projName);
+                clearCachedCards();
+                log(FEATURE, `Archived: ${filePath}`);
+                // Remove card from webview without full reload
+                void panel.webview.postMessage({ command: 'remove-card', filePath });
+                break;
+            }
+            case 'copy-paths': {
+                const paths = msg.paths as string[];
+                if (!paths?.length) { break; }
+                await vscode.env.clipboard.writeText(paths.join('\n'));
+                vscode.window.showInformationMessage(`Copied ${paths.length} path${paths.length === 1 ? '' : 's'} to clipboard.`);
+                log(FEATURE, `Clipboard: copied ${paths.length} path(s)`);
+                break;
+            }
         }
     });
 }
@@ -327,6 +355,9 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
     const cards = await buildCatalog(forceRebuild);
     if (!cards?.length) { vscode.window.showWarningMessage('No docs found to catalog.'); return; }
     const html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
+    _pendingInitCards           = cards;
+    _pendingInitProjectInfos    = projectInfos;
+    _pendingInitRegistryEntries = registry?.projects ?? [];
     const hadPanel = Boolean(_catalogPanel);
     if (_catalogPanel) {
         _catalogPanel.webview.html = html;
@@ -338,7 +369,6 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
         _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
         attachMessageHandler(_catalogPanel);
     }
-    sendCatalogInit(_catalogPanel, cards, projectInfos, registry?.projects ?? []);
     if (hadPanel) {
         log(FEATURE, 'Catalog revealed');
     } else {
@@ -819,10 +849,100 @@ export function deserializeCatalogPanel(panel: vscode.WebviewPanel): void {
         if (!cards?.length) { return; }
         const registry     = loadRegistry();
         const projectInfos = registry ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo) : [];
+        _pendingInitCards           = cards;
+        _pendingInitProjectInfos    = projectInfos;
+        _pendingInitRegistryEntries = registry?.projects ?? [];
         _catalogPanel!.webview.html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
-        sendCatalogInit(_catalogPanel!, cards, projectInfos, registry?.projects ?? []);
     });
     _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
     attachMessageHandler(_catalogPanel);
     log(FEATURE, 'Doc Catalog panel restored after reload');
+}
+
+// ---------------------------------------------------------------------------
+// viewArchivedCatalog — shows a simple webview listing archived docs.
+// Each row has a Restore button that removes the entry and refreshes.
+// ---------------------------------------------------------------------------
+
+let _archivedPanel: vscode.WebviewPanel | undefined;
+
+function buildArchivedHtml(): string {
+    const nonce   = getNonce();
+    const entries = loadArchiveEntries();
+    const rows = entries.length === 0
+        ? '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--vscode-descriptionForeground)">No archived documents</td></tr>'
+        : entries.map(e => `<tr>
+            <td class="ac-proj">${_rbEsc(e.projectName)}</td>
+            <td class="ac-title">${_rbEsc(e.title)}</td>
+            <td class="ac-path" title="${_rbEsc(e.filePath)}">${_rbEsc(path.basename(e.filePath))}</td>
+            <td class="ac-date">${_rbEsc(e.archivedAt)}</td>
+            <td><button class="btn-restore" data-path="${_rbEsc(e.filePath)}">&#8629; Restore</button></td>
+          </tr>`).join('');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:20px 24px}
+h2{font-size:1.1em;font-weight:700;margin-bottom:4px}
+.sub{font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:18px}
+.tbl-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto;max-height:520px}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:var(--vscode-textCodeBlock-background);padding:6px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border)}
+tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{border-bottom:none}tbody tr:hover{background:var(--vscode-list-hoverBackground)}
+.ac-proj{padding:5px 10px;font-size:10px;font-weight:700;color:var(--vscode-textLink-foreground);text-transform:uppercase;white-space:nowrap}
+.ac-title{padding:5px 10px;font-weight:500}
+.ac-path{padding:5px 10px;font-family:monospace;font-size:10px;color:var(--vscode-descriptionForeground)}
+.ac-date{padding:5px 10px;font-size:10px;color:var(--vscode-descriptionForeground);white-space:nowrap}
+td:last-child{padding:4px 10px}
+.btn-restore{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px}
+.btn-restore:hover{background:var(--vscode-button-secondaryHoverBackground)}
+</style></head><body>
+<h2>&#128190; Archived Documents</h2>
+<div class="sub">Archived docs are excluded from the Doc Catalog. Restore to make them visible again.</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Project</th><th>Title</th><th>File</th><th>Archived</th><th></th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></div>
+<script nonce="${nonce}">(function(){
+var vs = acquireVsCodeApi();
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.btn-restore');
+    if (!btn) { return; }
+    vs.postMessage({ command: 'restore-doc', data: btn.dataset.path });
+    btn.closest('tr').remove();
+    var tbody = document.querySelector('tbody');
+    if (!tbody.querySelector('tr')) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--vscode-descriptionForeground)">No archived documents</td></tr>';
+    }
+});
+})();</script></body></html>`;
+}
+
+export function viewArchivedCatalog(): void {
+    const html  = buildArchivedHtml();
+    const title = '\u{1F4BE} Archived Docs';
+    if (_archivedPanel) {
+        _archivedPanel.webview.html = html;
+        _archivedPanel.reveal(vscode.ViewColumn.Beside, true);
+    } else {
+        _archivedPanel = vscode.window.createWebviewPanel(
+            'catalogArchived', title,
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+            { enableScripts: true, retainContextWhenHidden: false }
+        );
+        _archivedPanel.webview.html = html;
+        _archivedPanel.onDidDispose(() => { _archivedPanel = undefined; });
+    }
+    _archivedPanel.webview.onDidReceiveMessage(async msg => {
+        if (msg.command === 'restore-doc' && msg.data) {
+            restoreDoc(msg.data as string);
+            clearCachedCards();
+            log(FEATURE, `Restored: ${msg.data as string}`);
+            // Refresh the archived panel HTML after restore
+            if (_archivedPanel) { _archivedPanel.webview.html = buildArchivedHtml(); }
+            // If catalog is open, prompt refresh
+            if (_catalogPanel) { await openCatalog(true); }
+        }
+    });
+    log(FEATURE, `Archived docs panel opened (${loadArchiveEntries().length} entries)`);
 }

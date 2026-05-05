@@ -47,7 +47,12 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .btn-open:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-demo{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(99,102,241,0.18);color:#818cf8;border:1px solid rgba(99,102,241,0.35)}
 .btn-demo:hover{background:rgba(99,102,241,0.35);color:#fff}
+.btn-archive{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;background:rgba(220,80,80,0.1);color:var(--vscode-errorForeground,#f85149);border:1px solid rgba(220,80,80,0.25)}
+.btn-archive:hover{background:rgba(220,80,80,0.22)}
 mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
+.card.selected{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px;background:var(--vscode-list-activeSelectionBackground,rgba(0,120,215,0.12))}
+#clipboard-toast{position:fixed;bottom:18px;right:18px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:7px 14px;font-size:12px;color:var(--vscode-editor-foreground);box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:999}
+#clipboard-toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -61,15 +66,142 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
   <span id="stat-bar"></span>
 </div>
 <div id="catalog"></div>
+<div id="clipboard-toast"></div>
 
 <script>
 'use strict';
 (function() {
 
 var vscode = acquireVsCodeApi();
+var _hasData = false;
+
+// ── Messages from extension host — registered first so init never races ───────
+window.addEventListener('message', function(ev) {
+    var msg = ev.data;
+    if (!msg) { return; }
+    if (msg.command === 'remove-card') {
+        var fp = msg.filePath;
+        if (!fp) { return; }
+        var toRemove = null;
+        document.querySelectorAll('.card').forEach(function(c) {
+            var archBtn = c.querySelector('[data-action="archive-doc"]');
+            if (archBtn && archBtn.dataset.path === fp) { toRemove = c; }
+        });
+        if (toRemove) {
+            toRemove.remove();
+            // Hide empty cat-sections
+            document.querySelectorAll('.cat-section').forEach(function(s) {
+                if (!s.querySelector('.card:not(.hidden)')) { s.classList.add('hidden'); }
+            });
+            _totalCards = Math.max(0, _totalCards - 1);
+            document.getElementById('stat-bar').textContent =
+                _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
+        }
+        return;
+    }
+    if (msg.command === 'init') {
+        _hasData = true;
+        document.getElementById('catalog').innerHTML = msg.html;
+        _totalCards    = msg.totalCards    || 0;
+        _totalCats     = msg.totalCats     || 0;
+        _totalProjects = msg.totalProjects || 0;
+        document.getElementById('stat-bar').textContent =
+            _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
+        buildSectionMap();
+        populateProjectDropdown();
+        // Restore sticky project filter from localStorage
+        var savedProj = localStorage.getItem('catalog-proj-filter') || '';
+        var projSel = document.getElementById('proj-filter');
+        if (savedProj && projSel) {
+            projSel.value = savedProj;
+            updateSectionDropdown();
+            applyFilters();
+        }
+        return;
+    }
+    if (msg.type === 'highlight' && msg.filePath) {
+        document.querySelectorAll('.card').forEach(function(c) {
+            c.classList.toggle('active-link', c.dataset && c.dataset.path === msg.filePath);
+        });
+    }
+});
+
+// Signal extension that the message listener is in place
+vscode.postMessage({ command: 'ready' });
+setTimeout(function() { if (!_hasData) { vscode.postMessage({ command: 'ready' }); } }, 1000);
+
 var _totalCards = 0, _totalCats = 0, _totalProjects = 0;
 var _projSections = {};
 var _pinnedCard = null;   // the last card the user interacted with
+
+// ── Selection state ───────────────────────────────────────────────────────────
+var _selectedPaths = new Set();
+
+function _getCardPath(card) {
+    var btn = card.querySelector('[data-action="open-preview"]');
+    return btn ? btn.dataset.path : null;
+}
+
+function _clearSelection() {
+    _selectedPaths.clear();
+    document.querySelectorAll('.card.selected').forEach(function(c) { c.classList.remove('selected'); });
+}
+
+function _selectCard(card, add) {
+    var p = _getCardPath(card);
+    if (!p) { return; }
+    if (add) {
+        if (_selectedPaths.has(p)) {
+            _selectedPaths.delete(p);
+            card.classList.remove('selected');
+        } else {
+            _selectedPaths.add(p);
+            card.classList.add('selected');
+        }
+    } else {
+        _clearSelection();
+        _selectedPaths.add(p);
+        card.classList.add('selected');
+    }
+}
+
+function _showToast(msg) {
+    var t = document.getElementById('clipboard-toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2000);
+}
+
+function _copySelectedPaths() {
+    var paths = Array.from(_selectedPaths);
+    if (!paths.length) { return; }
+    vscode.postMessage({ command: 'copy-paths', paths: paths });
+    _showToast('\u2713 Copied ' + paths.length + ' path' + (paths.length === 1 ? '' : 's'));
+}
+
+// ── Keyboard shortcuts (Ctrl+A, Ctrl+C, Escape) ───────────────────────────────
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        _clearSelection();
+        return;
+    }
+    if (e.ctrlKey && e.key === 'a') {
+        e.preventDefault();
+        _clearSelection();
+        document.querySelectorAll('.card:not(.hidden)').forEach(function(c) {
+            var p = _getCardPath(c);
+            if (p) { _selectedPaths.add(p); c.classList.add('selected'); }
+        });
+        _showToast('Selected ' + _selectedPaths.size + ' doc' + (_selectedPaths.size === 1 ? '' : 's'));
+        return;
+    }
+    if (e.ctrlKey && e.key === 'c') {
+        if (_selectedPaths.size > 0) {
+            e.preventDefault();
+            _copySelectedPaths();
+        }
+    }
+});
 
 function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -194,6 +326,7 @@ function resetFilters() {
     document.getElementById('proj-filter').value = '';
     document.getElementById('section-filter').value = '';
     localStorage.removeItem('catalog-proj-filter');
+    _clearSelection();
     updateSectionDropdown();
     document.querySelectorAll('.card').forEach(function(c) { c.classList.remove('hidden'); });
     document.querySelectorAll('.cat-section').forEach(function(s) { s.classList.remove('hidden'); });
@@ -226,6 +359,11 @@ document.addEventListener('click', function(e) {
             pinCard(ct.closest('.card'));
             vscode.postMessage({ command: 'preview', data: ct.dataset.path });
         }
+        // Click on card body (not a button) = select it
+        var card = e.target.closest('.card');
+        if (card && !e.target.closest('[data-action]') && !e.target.closest('.card-title')) {
+            _selectCard(card, e.ctrlKey || e.metaKey);
+        }
         return;
     }
 
@@ -246,36 +384,13 @@ document.addEventListener('click', function(e) {
     else if (a === 'open-claude')         { vscode.postMessage({ command: 'openClaude',          data: btn.dataset.projPath }); }
     else if (a === 'create-claude')       { vscode.postMessage({ command: 'createClaude',        data: btn.dataset.projPath }); }
     else if (a === 'create-tests')        { vscode.postMessage({ command: 'create-tests',        data: btn.dataset.projPath, projName: btn.dataset.projName }); }
-});
-
-// ── Messages from extension host ─────────────────────────────────────────────
-
-window.addEventListener('message', function(ev) {
-    var msg = ev.data;
-    if (!msg) { return; }
-    if (msg.command === 'init') {
-        document.getElementById('catalog').innerHTML = msg.html;
-        _totalCards    = msg.totalCards    || 0;
-        _totalCats     = msg.totalCats     || 0;
-        _totalProjects = msg.totalProjects || 0;
-        document.getElementById('stat-bar').textContent =
-            _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
-        buildSectionMap();
-        populateProjectDropdown();
-        // Restore sticky project filter from localStorage
-        var savedProj = localStorage.getItem('catalog-proj-filter') || '';
-        var projSel = document.getElementById('proj-filter');
-        if (savedProj && projSel) {
-            projSel.value = savedProj;
-            updateSectionDropdown();
-            applyFilters();
+    else if (a === 'archive-doc') {
+        var card = btn.closest('.card');
+        if (card && confirm('Archive "' + (btn.dataset.title || btn.dataset.path) + '"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived.')) {
+            var archPath = _getCardPath(card);
+            if (archPath) { _selectedPaths.delete(archPath); }
+            vscode.postMessage({ command: 'archive-doc', data: btn.dataset.path, title: btn.dataset.title, project: btn.dataset.project });
         }
-        return;
-    }
-    if (msg.type === 'highlight' && msg.filePath) {
-        document.querySelectorAll('.card').forEach(function(c) {
-            c.classList.toggle('active-link', c.dataset && c.dataset.path === msg.filePath);
-        });
     }
 });
 
