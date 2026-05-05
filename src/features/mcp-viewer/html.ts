@@ -204,6 +204,28 @@ function statusPill(s){
   return '<span class="c-status ' + esc(st) + '">' + esc(st) + '</span>';
 }
 
+function buildProjectTip(p){
+  var parts = ['Status: ' + (p.status || 'product'), 'Type: ' + (p.type || ''), 'Path: ' + (p.path || '')];
+  if (p.description) { parts.push(''); parts.push(p.description); }
+  return parts.join('\n');
+}
+
+function buildCmdTip(c){
+  var parts = [];
+  if (c.description) { parts.push('What:   ' + c.description); }
+  parts.push('Where:  ' + (c.scope || 'global') + ' › ' + (c.group || ''));
+  if (c.action)   { parts.push('How:    ' + c.action + ' action'); }
+  if (c.location) { parts.push('Source: ' + c.location); }
+  if (c.tags && c.tags.length) { parts.push('Tags:   ' + c.tags.join(', ')); }
+  return parts.join('\n');
+}
+
+function buildSymbolTip(s){
+  var parts = ['Kind:     ' + (s.kind || ''), 'Role:     ' + (s.role || ''), 'Exported: ' + (s.exported ? 'yes' : 'no'), 'File:     ' + (s.sourceFile || '') + ':' + (s.line || '')];
+  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\s*\/\*\*/, '').replace(/\*\/\s*$/, '').replace(/^\s*\*\s?/gm, '').trim()); }
+  return parts.join('\n');
+}
+
 function renderProjectsTable(data){
   var projects = (data && data.projects) || [];
   if (!projects.length) {
@@ -215,7 +237,7 @@ function renderProjectsTable(data){
     var descText  = p.description ? esc(p.description) : '(empty)';
     return '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
-      '<td class="c-name">' + esc(p.name) + '</td>' +
+      '<td class="c-name" title="' + esc(buildProjectTip(p)) + '">' + esc(p.name) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
       '<td>' + statusPill(p.status) + '</td>' +
       '<td><span class="c-type">' + esc(p.type) + '</span></td>' +
       '<td class="' + descClass + '">' + descText + '</td>' +
@@ -238,7 +260,7 @@ function renderFindProjectTable(data){
   var rows = matches.map(function(p, i){
     return '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
-      '<td class="c-name">' + esc(p.name) + '</td>' +
+      '<td class="c-name" title="' + esc(buildProjectTip(p)) + '">' + esc(p.name) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
       '<td>' + statusPill(p.status) + '</td>' +
       '<td><span class="c-type">' + esc(p.type) + '</span></td>' +
       '<td class="c-desc">' + esc(p.description || '') + '</td>' +
@@ -320,7 +342,7 @@ function renderSymbolsTable(data){
       var doc = s.docComment ? '<div style="color:#858585;font-size:10px;margin-top:4px;white-space:pre-wrap">' + esc(s.docComment.replace(/^\\s*\\/\\*\\*/, '').replace(/\\*\\/\\s*$/, '').replace(/^\\s*\\*\\s?/gm, '')) + '</div>' : '';
       var locShort = s.sourceFile.split(/[\\\\/]/).slice(-3).join('/') + ' : ' + s.line;
       html += '<tr>' +
-        '<td class="c-name">' + esc(s.name) + '</td>' +
+        '<td class="c-name" title="' + esc(buildSymbolTip(s)) + '">' + esc(s.name) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
         '<td><span class="c-type">' + esc(s.kind) + '</span></td>' +
         '<td><span class="c-type">' + esc(s.role) + '</span></td>' +
         '<td class="c-desc">' + (s.exported ? '<span style="color:#3fb950">yes</span>' : '<span style="color:#858585">no</span>') + '</td>' +
@@ -356,7 +378,7 @@ function renderCvtCommandsTable(data){
       var c = gs[j];
       html += '<tr>' +
         '<td class="c-idx">' + esc(c.dewey) + '</td>' +
-        '<td class="c-name">' + esc(c.id) + '</td>' +
+        '<td class="c-name" title="' + esc(buildCmdTip(c)) + '">' + esc(c.id) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
         '<td class="c-title">' + esc(c.title) + '</td>' +
         '<td><span class="c-type">' + esc(c.scope) + '</span></td>' +
         '<td class="c-desc">' + esc((c.tags || []).join(', ')) + '</td>' +
