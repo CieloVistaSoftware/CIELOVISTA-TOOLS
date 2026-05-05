@@ -42,7 +42,7 @@ async function openProjectFolderSmart(folderPath: string): Promise<void> {
         await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
         return;
     }
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), false);
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), true);
 }
 
 function sendCatalogInit(
@@ -324,6 +324,24 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await openCatalog(true);
                 break;
             }
+            case 'archive-doc-confirm': {
+                const filePath   = msg.data as string;
+                const docTitle   = msg.title as string;
+                const projName   = msg.project as string;
+                if (!filePath) { break; }
+                const label = docTitle || filePath;
+                const choice = await vscode.window.showWarningMessage(
+                    `Archive "${label}"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived.`,
+                    { modal: true },
+                    'Archive'
+                );
+                if (choice !== 'Archive') { break; }
+                archiveDoc(filePath, docTitle, projName);
+                clearCachedCards();
+                log(FEATURE, `Archived: ${filePath}`);
+                void panel.webview.postMessage({ command: 'remove-card', filePath });
+                break;
+            }
             case 'archive-doc': {
                 const filePath   = msg.data as string;
                 const docTitle   = msg.title as string;
@@ -332,7 +350,6 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 archiveDoc(filePath, docTitle, projName);
                 clearCachedCards();
                 log(FEATURE, `Archived: ${filePath}`);
-                // Remove card from webview without full reload
                 void panel.webview.postMessage({ command: 'remove-card', filePath });
                 break;
             }
@@ -584,8 +601,8 @@ body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#
 #viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
 #viewer-path{font-family:monospace;font-size:10px;color:#3a8fc1;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#btn-copy-path{background:#2d2d2d;color:#3a8fc1;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap;text-transform:capitalize}
-#btn-copy-path:hover{border-color:#0078d4;color:#5ab4e8}
+#btn-copy-path,#btn-open-vscode,#btn-set-cwd,#btn-explorer{background:#2d2d2d;color:#3a8fc1;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
+#btn-copy-path:hover,#btn-open-vscode:hover,#btn-set-cwd:hover,#btn-explorer:hover{border-color:#0078d4;color:#5ab4e8}
 #doc-frame{flex:1;border:none;background:#1e1e1e;}
 #welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#3a8fc1;font-size:13px;gap:8px;text-transform:capitalize}
 #welcome svg{opacity:.25}
@@ -622,7 +639,10 @@ body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#
   <div id="viewer">
     <div id="viewer-bar">
       <span id="viewer-path">Select a document from the index</span>
-      <button id="btn-copy-path" style="display:none" title="Copy file path">&#128203; Copy Path</button>
+      <button id="btn-open-vscode" style="display:none" title="Open folder in VS Code">&#128193; VS Code</button>
+      <button id="btn-set-cwd"     style="display:none" title="Set terminal CWD to this folder">&#128196; Set CWD</button>
+      <button id="btn-explorer"    style="display:none" title="Reveal file in Explorer">&#128269; Explorer</button>
+      <button id="btn-copy-path"   style="display:none" title="Copy file path">&#128203; Copy Path</button>
     </div>
     <div id="welcome">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#888" stroke-width="2"/><line x1="11" y1="12" x2="29" y2="12" stroke="#888" stroke-width="1.5"/><line x1="11" y1="17" x2="29" y2="17" stroke="#888" stroke-width="1.5"/><line x1="11" y1="22" x2="22" y2="22" stroke="#888" stroke-width="1.5"/></svg>
@@ -644,8 +664,11 @@ var idxEl     = document.getElementById('index');
 var idxEmpty  = document.getElementById('idx-empty');
 var frame     = document.getElementById('doc-frame');
 var welcome   = document.getElementById('welcome');
-var viewerPath= document.getElementById('viewer-path');
-var btnCopy   = document.getElementById('btn-copy-path');
+var viewerPath  = document.getElementById('viewer-path');
+var btnCopy     = document.getElementById('btn-copy-path');
+var btnVSCode   = document.getElementById('btn-open-vscode');
+var btnCwd      = document.getElementById('btn-set-cwd');
+var btnExplorer = document.getElementById('btn-explorer');
 var TOTAL     = ${totalDocs};
 var _currentPath = '';
 
@@ -698,6 +721,9 @@ function openDoc(docPath, linkEl) {
   // Update viewer bar
   viewerPath.textContent = docPath;
   btnCopy.style.display = '';
+  if (btnVSCode) { btnVSCode.style.display = ''; }
+  if (btnCwd)    { btnCwd.style.display = ''; }
+  if (btnExplorer) { btnExplorer.style.display = ''; }
 
   // Load in iframe
   var docUrl = BASE + '/doc?path=' + encodeURIComponent(docPath);
@@ -723,6 +749,21 @@ document.addEventListener('click', function(e) {
 });
 
 // \u2500\u2500 Copy path \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+if (btnVSCode) { btnVSCode.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/open-in-vscode?path=' + encodeURIComponent(_currentPath)).catch(function(){});
+  toast('Opening folder in VS Code\u2026');
+}); }
+if (btnCwd) { btnCwd.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/set-cwd?path=' + encodeURIComponent(_currentPath)).catch(function(){});
+  toast('Setting terminal CWD\u2026');
+}); }
+if (btnExplorer) { btnExplorer.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/reveal?path=' + encodeURIComponent(_currentPath)).catch(function(){});
+  toast('Revealing in Explorer\u2026');
+}); }
 btnCopy.addEventListener('click', function() {
   if (!_currentPath) { return; }
   navigator.clipboard.writeText(_currentPath).then(function() {
@@ -849,6 +890,33 @@ export async function viewSpecificDoc(): Promise<void> {
             res.end('OK');
             if (folderPath) {
                 void openProjectFolderSmart(folderPath);
+            }
+
+        } else if (url.pathname === '/open-in-vscode') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (filePath) {
+                void openProjectFolderSmart(path.dirname(filePath));
+            }
+
+        } else if (url.pathname === '/set-cwd') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (filePath) {
+                const folder = path.dirname(filePath);
+                const term = vscode.window.terminals[0] ?? vscode.window.createTerminal({ name: 'CieloVista', cwd: folder });
+                term.sendText(`cd "${folder}"`);
+                term.show();
+            }
+
+        } else if (url.pathname === '/reveal') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (filePath && fs.existsSync(filePath)) {
+                void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(filePath));
             }
 
         } else {
