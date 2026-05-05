@@ -18,9 +18,10 @@ Module._load = function(req, parent, isMain) {
     if (req === 'vscode') {
         return {
             commands:  { registerCommand(n, h) { registered.set(n, h); return { dispose() {} }; } },
-            window:    { showErrorMessage() {}, showInformationMessage() {}, showWarningMessage() {}, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }) },
-            workspace: { workspaceFolders: null, getConfiguration: () => ({ get: () => undefined }), onDidSaveTextDocument: () => ({ dispose() {} }) },
-            languages: { createDiagnosticCollection: () => ({ set() {}, clear() {}, dispose() {} }) },
+            window:              { showErrorMessage() {}, showInformationMessage() {}, showWarningMessage() {}, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }), createStatusBarItem: () => ({ text: '', tooltip: '', command: '', show() {}, hide() {}, dispose() {} }) },
+            workspace:           { workspaceFolders: null, getConfiguration: () => ({ get: () => undefined }), onDidSaveTextDocument: () => ({ dispose() {} }) },
+            languages:           { createDiagnosticCollection: () => ({ set() {}, clear() {}, dispose() {} }) },
+            StatusBarAlignment:  { Left: 1, Right: 2 },
         };
     }
     return origLoad.apply(this, arguments);
