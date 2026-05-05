@@ -30,7 +30,7 @@ const ICON_PLAY = `<svg width="11" height="11" viewBox="0 0 11 11" fill="current
 const ICON_READ = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1.5" width="9" height="8" rx="1"/><line x1="3" y1="4" x2="8" y2="4"/><line x1="3" y1="6" x2="8" y2="6"/><line x1="3" y1="8" x2="6" y2="8"/></svg>`;
 const ICON_F1   = `<span style="font-family:var(--vscode-editor-font-family,monospace);font-size:9px;font-weight:700;letter-spacing:-0.5px">F1</span>`;
 
-function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summary: string }>, group: string): string {
+function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summary: string }>, group: string, pinned = false): string {
     const tagBadges   = cmd.tags.map(t => `<span class="tag" data-tag="${esc(t)}">${esc(t)}</span>`).join('');
     const auditData   = cmd.auditCheckId ? auditMap.get(cmd.auditCheckId) : undefined;
     const status      = auditData?.status as AuditStatus | undefined;
@@ -85,6 +85,7 @@ function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summar
   <div class="cmd-footer">
     <div class="cmd-tags">${scopeBadge}${tagBadges}</div>
     <div class="cmd-actions">
+      <button class="pin-btn" data-action="toggle-pin" data-id="${esc(cmd.id)}" data-pinned="${pinned ? '1' : '0'}" title="${pinned ? 'Unpin this command' : 'Pin to top'}">${pinned ? '★' : '☆'}</button>
       <button class="f1-btn" data-action="show-f1" data-f1="${f1Data}" title="F1 — What, How, Where &amp; Why for this command">${ICON_F1}</button>
       ${cmd.helpDoc ? `<button class="help-btn" data-action="help" data-doc="${esc(cmd.helpDoc)}" title="Open detailed help document for ${esc(cmd.title)}">Help</button>` : ''}
       ${cmd.id === 'cvs.audit.runDaily' ? `<button class="run-btn read-btn" data-action="toggle-audit-output" title="Show/hide the Run Daily Health Check output window">📋 Log</button>` : ''}
@@ -126,7 +127,9 @@ export function buildLauncherHtml(
     history: HistoryEntry[] = [],
     recents: RecentProject[] = [],
     registeredCommands?: Set<string>,
-    cvtPaths?: Set<string>
+    cvtPaths?: Set<string>,
+    wsType?: string,
+    pinnedIds?: string[]
 ): string {
     const auditMap = new Map<string, { status: string; summary: string }>();
     if (report) { for (const c of report.checks) { auditMap.set(c.checkId, { status: c.status, summary: c.summary }); } }
@@ -155,16 +158,27 @@ export function buildLauncherHtml(
     const visibleGroups = [...new Set(visibleCatalog.map(c => c.group))];
     const visibleTags   = [...new Set(visibleCatalog.flatMap(c => c.tags))].sort();
 
+    const pinnedSet = new Set<string>(pinnedIds ?? []);
+    const resolvedWsType = wsType ?? 'generic';
+
     const byGroup = new Map<string, CmdEntry[]>();
     for (const cmd of visibleCatalog) {
         if (!byGroup.has(cmd.group)) { byGroup.set(cmd.group, []); }
         byGroup.get(cmd.group)!.push(cmd);
     }
 
+    const pinnedCmds = visibleCatalog.filter(c => pinnedSet.has(c.id));
+    const pinnedSection = pinnedCmds.length > 0
+        ? `<section class="group-section pinned-section" data-group="__pinned__">
+  <h2 class="group-heading" style="color:var(--vscode-focusBorder)">★ Pinned <span class="group-count">${pinnedCmds.length}</span></h2>
+  <div class="cmd-grid">${pinnedCmds.map(cmd => buildCard(cmd, auditMap, cmd.group, true)).join('')}</div>
+</section>`
+        : '';
+
     let groupSections = [...byGroup.entries()].map(([group, cmds]) =>
         `<section class="group-section" data-group="${esc(group)}">
   <h2 class="group-heading">${esc(group)} <span class="group-count">${cmds.length}</span></h2>
-  <div class="cmd-grid">${cmds.map(cmd => buildCard(cmd, auditMap, group)).join('')}</div>
+  <div class="cmd-grid">${cmds.map(cmd => buildCard(cmd, auditMap, group, pinnedSet.has(cmd.id))).join('')}</div>
 </section>`
     ).join('');
 
@@ -172,7 +186,7 @@ export function buildLauncherHtml(
     if (testCmds.length > 0) {
         groupSections += `<section class="group-section" data-group="Tests">
   <h2 class="group-heading">Tests <span class="group-count">${testCmds.length}</span></h2>
-  <div class="cmd-grid">${testCmds.map(cmd => buildCard(cmd, auditMap, 'Tests')).join('')}</div>
+  <div class="cmd-grid">${testCmds.map(cmd => buildCard(cmd, auditMap, 'Tests', pinnedSet.has(cmd.id))).join('')}</div>
 </section>`;
     }
 
@@ -288,6 +302,10 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .f1-dismiss{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:6px 12px;border-radius:3px;cursor:pointer;font-size:12px}
 .f1-dismiss:hover{border-color:var(--vscode-focusBorder)}
 .scope-badge{display:inline-block;font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid;font-weight:600;white-space:nowrap;margin-right:2px}
+.pin-btn{background:transparent;border:none;color:var(--vscode-descriptionForeground);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;line-height:1;opacity:0.5;flex-shrink:0}
+.pin-btn:hover{opacity:1;color:var(--vscode-focusBorder)}
+.pin-btn[data-pinned="1"]{opacity:1;color:var(--vscode-focusBorder)}
+.pinned-section{border:1px solid var(--vscode-focusBorder);border-radius:4px;padding:8px 10px;margin-bottom:16px}
 #empty{padding:40px 16px;text-align:center;color:var(--vscode-descriptionForeground);display:none}
 #empty.visible{display:block}
 .audit-detail-overlay{position:fixed;inset:0;z-index:500;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;background:rgba(0,0,0,0.45)}
@@ -358,7 +376,14 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 const vscode   = acquireVsCodeApi();
 const CATALOG  = ${catalogJson};
 const TOTAL    = ${total};
-let _activeTags = new Set(), _activeGroup = '', _searchQ = '', _ddOpen = false, _activeScope = '';
+const WS_TYPE  = '${esc(resolvedWsType)}';
+const WS_SCOPES = WS_TYPE === 'diskcleanup' ? ['global','workspace','diskcleanup']
+                : WS_TYPE === 'tools'        ? ['global','workspace','tools']
+                : WS_TYPE === 'generic'      ? ['global','workspace','diskcleanup','tools']
+                : ['global','workspace'];
+const HAS_CONTEXT_FILTER = WS_TYPE !== 'generic';
+let _activeTags = new Set(), _activeGroup = '', _searchQ = '', _ddOpen = false;
+let _activeScope = HAS_CONTEXT_FILTER ? 'context' : '';
 
 var _runBtn = null, _runBtnOrig = '', _runBtnTimeout = null;
 function _resetRunBtn() {
@@ -451,6 +476,13 @@ document.getElementById('group-bar').addEventListener('click', function(e) {
 
 // ── MAIN CLICK HANDLER (document-level so toolbar + banner buttons are handled too) ──
 document.addEventListener('click', function(e) {
+  // Pin toggle
+  var pinBtn = e.target.closest('[data-action="toggle-pin"]');
+  if (pinBtn) {
+    vscode.postMessage({ command: 'toggle-pin', id: pinBtn.dataset.id });
+    return;
+  }
+
   // Breadcrumb — root clears all filters, group filters to that group
   var bcBtn = e.target.closest('[data-action^="bc-"]');
   if (bcBtn) {
@@ -557,9 +589,10 @@ document.getElementById('scope-toggle').addEventListener('click', function(e) {
 });
 
 function clearAll() {
-  _activeGroup   = ''; _searchQ = ''; _activeScope = '';
+  _activeGroup   = ''; _searchQ = '';
+  _activeScope   = HAS_CONTEXT_FILTER ? 'context' : '';
   searchEl.value = '';
-  document.querySelectorAll('.scope-tog').forEach(function(b) { b.classList.toggle('active', b.dataset.scope === ''); });
+  document.querySelectorAll('.scope-tog').forEach(function(b) { b.classList.toggle('active', b.dataset.scope === _activeScope); });
   clearTopics();
   document.querySelectorAll('.group-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.group === ''); });
   document.querySelectorAll('.cmd-card, .group-section').forEach(function(el) { el.classList.remove('hidden'); });
@@ -577,8 +610,9 @@ function applyFilters() {
     var scope     = card.dataset.scope || '';
     var matchGroup = !_activeGroup || group === _activeGroup;
     var matchScope = !_activeScope
-      || (_activeScope === 'global' && scope === 'global')
-      || (_activeScope === 'local'  && scope !== 'global');
+      || (_activeScope === 'global'   && scope === 'global')
+      || (_activeScope === 'local'    && scope !== 'global')
+      || (_activeScope === 'context'  && WS_SCOPES.indexOf(scope) !== -1);
     var matchTopic = _activeTags.size === 0 || Array.from(_activeTags).some(function(t) { return tags.indexOf(t.toLowerCase()) !== -1; });
     var matchQ     = !_searchQ || titleT.indexOf(_searchQ) !== -1 || descT.indexOf(_searchQ) !== -1 || tags.indexOf(_searchQ) !== -1;
     var show = matchGroup && matchScope && matchTopic && matchQ;
@@ -1008,7 +1042,8 @@ ${locationBarHtml}
     <h1 title="CieloVista Tools — developer toolkit">CieloVista Tools</h1>
     <input id="search" type="text" placeholder="Search commands, descriptions, or tags&#8230;" autocomplete="off">
     <div id="scope-toggle" title="Filter by where the command works">
-      <button class="scope-tog active" data-scope="" title="Show all commands">All</button>
+      ${resolvedWsType !== 'generic' ? `<button class="scope-tog active" data-scope="context" title="Show commands relevant to this ${esc(resolvedWsType)} workspace">⚡ ${esc(resolvedWsType)}</button>` : ''}
+      <button class="scope-tog${resolvedWsType === 'generic' ? ' active' : ''}" data-scope="" title="Show all commands">All</button>
       <button class="scope-tog" data-scope="global" title="Show only commands that work from any workspace">Global</button>
       <button class="scope-tog" data-scope="local" title="Show only commands that act on the current workspace folder">Local</button>
     </div>
@@ -1044,6 +1079,7 @@ ${locationBarHtml}
 </div>
 <div id="history-strip" class="empty"></div>
 <div id="content">
+  ${pinnedSection}
   ${groupSections}
   <div id="empty">No commands match your search.</div>
 </div>
