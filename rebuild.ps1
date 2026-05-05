@@ -32,6 +32,19 @@
 #   6. Stale .obsolete entries from prior broken installs can prevent a
 #      fresh install from being recognized. NEW: strip CVT entries from
 #      .obsolete at the START of every rebuild.
+#
+# ── Two install modes ──────────────────────────────────────────────────────
+#
+#   DEV (day-to-day):
+#     A directory junction at:
+#       ~\.vscode-insiders\extensions\cielovistasoftware.cielovista-tools
+#     points directly at the source tree. Run `npm run compile` (or watch)
+#     then Reload Window. No VSIX produced, no need to quit Insiders.
+#
+#   SHIP (distributable VSIX):
+#     Run this script. It compiles, gates imports, packages a VSIX, verifies
+#     the VSIX contents, and installs. Requires quitting VS Code Insiders
+#     first (step 0 enforces this). Use for releases, not for iteration.
 
 $ErrorActionPreference = 'Stop'
 Set-Location 'C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools'
@@ -92,19 +105,23 @@ if ($parts.Count -ne 3) { Die "version not in major.minor.patch form: $oldVer" }
 $parts[2] = ([int]$parts[2] + 1).ToString()
 $newVer = $parts -join '.'
 
+# Transactional rollback: save a .bak BEFORE writing the bump.
+# If any later step fails, restore from .bak (not from in-memory $pkgRaw).
+$pkgBak = $pkgPath + '.bak'
+Copy-Item $pkgPath $pkgBak -Force
+
 # Use a regex on raw text to preserve formatting (ConvertTo-Json reformats everything).
 $updated = $pkgRaw -replace '"version"\s*:\s*"[^"]+"', "`"version`": `"$newVer`""
 $updated | Set-Content $pkgPath -NoNewline -Encoding utf8
-OK "Version $oldVer -> $newVer"
+OK "Version $oldVer -> $newVer (bak saved)"
 
 # ── Step 3: Compile (strict, fail-fast) ──────────────────────────────────────
 Step 'Compile TypeScript (strict)'
 
 & '.\node_modules\.bin\tsc' -p tsconfig.json
 if ($LASTEXITCODE -ne 0) {
-    # Roll back the version bump if compile failed
-    $pkgRaw | Set-Content $pkgPath -NoNewline -Encoding utf8
-    Die "TypeScript compilation failed (exit $LASTEXITCODE). Version bump rolled back. Fix errors above and re-run."
+    Copy-Item $pkgBak $pkgPath -Force
+    Die "TypeScript compilation failed (exit $LASTEXITCODE). Version bump rolled back via .bak. Fix errors above and re-run."
 }
 OK 'Compile succeeded with zero errors'
 
@@ -128,8 +145,8 @@ Step 'Verify all imports in out/ resolve to real files'
 
 & node '.\scripts\verify-imports.js'
 if ($LASTEXITCODE -ne 0) {
-    $pkgRaw | Set-Content $pkgPath -NoNewline -Encoding utf8
-    Die "Import verification failed (exit $LASTEXITCODE). Version bump rolled back. WILL NOT package a VSIX with broken imports."
+    Copy-Item $pkgBak $pkgPath -Force
+    Die "Import verification failed (exit $LASTEXITCODE). Version bump rolled back via .bak. WILL NOT package a VSIX with broken imports."
 }
 OK 'All relative imports resolve to existing files'
 
@@ -139,12 +156,52 @@ Step 'Package VSIX'
 # Delete old VSIX files so we always pick the freshly-built one in step 6
 Get-ChildItem -Filter '*.vsix' | Remove-Item -Force -ErrorAction SilentlyContinue
 
-& '.\node_modules\.bin\vsce' package --no-dependencies
-if ($LASTEXITCODE -ne 0) { Die "vsce package failed (exit $LASTEXITCODE)" }
+# Capture stderr so we can surface vsce warnings that slip past exit 0.
+$vsceErr = [System.IO.Path]::GetTempFileName()
+& '.\node_modules\.bin\vsce' package --no-dependencies 2>$vsceErr
+$vsceExitCode = $LASTEXITCODE
+$vsceStderr = if (Test-Path $vsceErr) { Get-Content $vsceErr -Raw } else { '' }
+if (Test-Path $vsceErr) { Remove-Item $vsceErr -Force -ErrorAction SilentlyContinue }
+
+if ($vsceExitCode -ne 0) { Die "vsce package failed (exit $vsceExitCode)" }
+
+# Surface any WARNING or ERROR lines from vsce even on exit 0.
+$vsceWarnLines = $vsceStderr -split "`n" | Where-Object { $_ -match 'WARNING:|ERROR:' }
+if ($vsceWarnLines.Count -gt 0) {
+    Warn "vsce emitted $($vsceWarnLines.Count) warning(s):"
+    foreach ($wl in $vsceWarnLines) { Warn "  $($wl.Trim())" }
+}
 
 $vsix = Get-ChildItem -Filter '*.vsix' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $vsix) { Die 'vsce reported success but no .vsix file found' }
 OK "Packaged: $($vsix.Name) ($([math]::Round($vsix.Length/1MB,1)) MB)"
+
+# ── Step 5b: Verify VSIX contents ────────────────────────────────────────────
+# Unzip the VSIX (it is a zip) to a temp folder and run verify-imports on
+# extension/out/ inside it. This catches the edge case where vsce included
+# a file in the source tree that was not compiled, or excluded a file we
+# expected to ship.
+Step 'Verify VSIX contents (import gate on packaged out/)'
+
+$vsixTemp = Join-Path ([System.IO.Path]::GetTempPath()) "cielovista-vsix-verify-$([System.IO.Path]::GetRandomFileName())"
+New-Item -ItemType Directory -Path $vsixTemp -Force | Out-Null
+try {
+    Copy-Item $vsix.FullName (Join-Path $vsixTemp 'ext.zip') -Force
+    Expand-Archive -Path (Join-Path $vsixTemp 'ext.zip') -DestinationPath $vsixTemp -Force
+    $innerOut = Join-Path $vsixTemp 'extension\out'
+    if (Test-Path $innerOut) {
+        & node '.\scripts\verify-imports.js' $innerOut
+        if ($LASTEXITCODE -ne 0) {
+            Copy-Item $pkgBak $pkgPath -Force
+            Die "VSIX content verification failed — packaged out/ has broken imports. Version bumped rolled back."
+        }
+        OK 'VSIX out/ imports all resolve'
+    } else {
+        Warn "extension\out not found inside VSIX — skipping content check"
+    }
+} finally {
+    Remove-Item $vsixTemp -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # ── Step 6: Install ──────────────────────────────────────────────────────────
 Step 'Install via code-insiders CLI'
@@ -196,8 +253,15 @@ OK "home-page.js: $homeBytes bytes"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 Write-Host ''
-Write-Host "==================================================================" -ForegroundColor Green
+# Delete the .bak now that everything succeeded — no rollback needed.
+Remove-Item $pkgBak -Force -ErrorAction SilentlyContinue
+
+Write-Host "=================================================================="  -ForegroundColor Green
 Write-Host " SUCCESS  cielovista-tools $newVer installed and verified         " -ForegroundColor Green
+Write-Host " NOTE: This script is for SHIPPING a real VSIX (requires quitting  " -ForegroundColor DarkGray
+Write-Host "       Insiders). For day-to-day dev, use the directory junction:  " -ForegroundColor DarkGray
+Write-Host "       ~\.vscode-insiders\extensions\cielovistasoftware.cielovista-tools" -ForegroundColor DarkGray
+Write-Host "       -> source tree. tsc + Reload Window, no VSIX, no quit.      " -ForegroundColor DarkGray
 Write-Host "==================================================================" -ForegroundColor Green
 Write-Host ''
 Write-Host "Next: launch VS Code Insiders. The CVT Home dashboard, Recent"

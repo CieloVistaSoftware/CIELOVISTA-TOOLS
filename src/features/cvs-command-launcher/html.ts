@@ -506,6 +506,14 @@ document.addEventListener('click', function(e) {
   var fixBtn = e.target.closest('[data-action="audit-fix"]');
   if (fixBtn) { closeAuditDetail(); vscode.postMessage({ command: 'run', id: fixBtn.dataset.id }); return; }
 
+  // File audit issue button (inside overlay)
+  var fileIssueBtn = e.target.closest('[data-action="file-audit-issue"]');
+  if (fileIssueBtn) {
+    closeAuditDetail();
+    vscode.postMessage({ command: 'file-audit-issue', checkId: fileIssueBtn.dataset.checkId, summary: fileIssueBtn.dataset.summary, status: fileIssueBtn.dataset.status });
+    return;
+  }
+
   // Close overlay on backdrop click
   if (e.target.classList.contains('audit-detail-overlay')) { closeAuditDetail(); return; }
 
@@ -903,6 +911,8 @@ function showAuditDetail(dotEl) {
   var color   = status === 'red' ? '#f48771' : '#cca700';
   var label   = status === 'red' ? '🔴 Issues Found' : '🟡 Warnings';
   var fix     = FIX_ACTIONS[checkId];
+  // Build a safe-for-attribute escaped summary for the file-issue button
+  var summaryAttr = summary.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   var html    = '<div class="audit-detail-overlay">' +
     '<div class="audit-detail-box">' +
       '<div class="audit-detail-header">' +
@@ -914,6 +924,7 @@ function showAuditDetail(dotEl) {
       '<div class="audit-detail-actions">' +
         (fix ? '<button class="audit-fix-btn" data-action="audit-fix" data-id="' + fix.id + '">' + fix.label + '</button>' : '') +
         '<button class="audit-run-btn" data-action="audit-fix" data-id="cvs.audit.runDaily">🔄 Re-run Audit</button>' +
+        '<button class="audit-run-btn" data-action="file-audit-issue" data-check-id="' + checkId.replace(/"/g,'&quot;') + '" data-summary="' + summaryAttr + '" data-status="' + status + '" title="Create a pre-filled GitHub issue for this diagnostic">📋 File Issue</button>' +
         '<button class="audit-run-btn" data-action="close-audit">Dismiss</button>' +
       '</div>' +
     '</div>' +

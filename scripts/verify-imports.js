@@ -3,15 +3,33 @@
 //
 // This is the gate that catches "shipped a VSIX that imports a file that
 // doesn't exist" — the failure mode that broke the 1.0.2 install today.
+//
+// KNOWN LIMITATION — regex, not an AST parser:
+//   The pattern /require\s*\(\s*["']([^"']+)["']\s*\)/g matches the common
+//   case (CommonJS emit from tsc). It will NOT correctly handle:
+//     - require() calls inside string literals or block comments (false positives)
+//     - ES-module import statements (if tsconfig.json ever sets "module":"ESNext")
+//     - Dynamic await import("...") calls
+//   For the current CommonJS output this is acceptable. If the tsconfig target
+//   changes, swap this regex walk for an acorn or @typescript-eslint/parser
+//   AST walk before relying on this gate.
+//
+// Usage:
+//   node scripts/verify-imports.js                  — checks out/
+//   node scripts/verify-imports.js /path/to/dir     — checks that dir instead
 
 'use strict';
 
 const fs   = require('fs');
 const path = require('path');
 
-const OUT_DIR = path.resolve(__dirname, '..', 'out');
+// Accept an optional root directory as the first CLI argument (used by
+// rebuild.ps1 to verify VSIX contents against extension/out/ inside the
+// unpacked archive). Fall back to out/ in the project root.
+const argRoot = process.argv[2];
+const OUT_DIR = argRoot ? path.resolve(argRoot) : path.resolve(__dirname, '..', 'out');
 if (!fs.existsSync(OUT_DIR)) {
-    console.error('!! out/ directory does not exist. Did tsc succeed?');
+    console.error(`!! Directory does not exist: ${OUT_DIR}`);
     process.exit(1);
 }
 
@@ -26,7 +44,7 @@ const jsFiles = [];
     }
 })(OUT_DIR);
 
-console.log(`Verifying imports in ${jsFiles.length} compiled .js files under out/...`);
+console.log(`Verifying imports in ${jsFiles.length} compiled .js files under ${path.relative(process.cwd(), OUT_DIR) || OUT_DIR}...`);
 
 const problems = [];
 

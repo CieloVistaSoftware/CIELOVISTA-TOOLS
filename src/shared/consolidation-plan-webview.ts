@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import type { ConsolidationAction } from '../features/doc-consolidator';
+import type { ConsolidationAction } from '../features/doc-consolidator/feature';
 
 /**
  * Opens a webview to preview and confirm a consolidation plan.

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { loadRegistry } from '../shared/registry';
+import { log } from '../shared/output-channel';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.vscode', '.vscode-test', 'dist', 'out',
@@ -20,7 +21,19 @@ interface Finding {
   candidates: string[];
 }
 
+interface ProjectRollup {
+  projectName: string;
+  rootPath: string;
+  docsScanned: number;
+  brokenTotal: number;
+  byKind: { image: number; link: number; 'doc-id': number };
+  sourceFileCounts: Array<{ filePath: string; count: number }>;
+  withCandidates: number;
+  withoutCandidates: number;
+}
+
 let panel: vscode.WebviewPanel | undefined;
+let isScanRunning = false;
 
 function walkMdFiles(rootPath: string, maxDepth = 8): string[] {
   const files: string[] = [];
@@ -134,7 +147,94 @@ function esc(text: string): string {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function buildViewerHtml(findings: Finding[], totalDocsScanned: number): string {
+function reduceGoal(total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+  if (total >= 100) {
+    return 10;
+  }
+  if (total >= 25) {
+    return 5;
+  }
+  return 0;
+}
+
+function buildProjectActionItems(rollup: ProjectRollup): string[] {
+  const items: string[] = [];
+  if (rollup.brokenTotal === 0) {
+    items.push('No action needed. Keep links stable and re-run before publishing.');
+    return items;
+  }
+  if (rollup.byKind.link > 0) {
+    items.push(`Fix ${rollup.byKind.link} markdown link target(s): update moved/renamed relative paths first.`);
+  }
+  if (rollup.byKind.image > 0) {
+    items.push(`Fix ${rollup.byKind.image} image reference(s): confirm image file exists and path casing matches.`);
+  }
+  if (rollup.byKind['doc-id'] > 0) {
+    items.push(`Replace ${rollup.byKind['doc-id']} /doc/... reference(s) with concrete relative markdown paths.`);
+  }
+  if (rollup.withCandidates > 0) {
+    items.push(`${rollup.withCandidates} issue(s) already have candidate target files. Resolve these first for fastest reduction.`);
+  }
+  if (rollup.withoutCandidates > 0) {
+    items.push(`${rollup.withoutCandidates} issue(s) have no candidates. Create missing files or remove stale references.`);
+  }
+  const topFiles = rollup.sourceFileCounts.slice(0, 3);
+  if (topFiles.length > 0) {
+    items.push(`Start with top source file(s): ${topFiles.map((f) => `${path.basename(f.filePath)} (${f.count})`).join(', ')}.`);
+  }
+  return items;
+}
+
+function buildRollups(
+  findings: Finding[],
+  projectRoots: Array<{ projectName: string; rootPath: string }>,
+  mdByProject: Map<string, string[]>
+): ProjectRollup[] {
+  const findingsByProject = new Map<string, Finding[]>();
+  for (const finding of findings) {
+    const bucket = findingsByProject.get(finding.projectName);
+    if (bucket) {
+      bucket.push(finding);
+    } else {
+      findingsByProject.set(finding.projectName, [finding]);
+    }
+  }
+
+  return projectRoots.map((proj) => {
+    const items = findingsByProject.get(proj.projectName) ?? [];
+    const byKind: { image: number; link: number; 'doc-id': number } = { image: 0, link: 0, 'doc-id': 0 };
+    const sourceCounts = new Map<string, number>();
+    let withCandidates = 0;
+    let withoutCandidates = 0;
+    for (const item of items) {
+      byKind[item.kind] += 1;
+      sourceCounts.set(item.filePath, (sourceCounts.get(item.filePath) ?? 0) + 1);
+      if (item.candidates.length > 0) {
+        withCandidates += 1;
+      } else {
+        withoutCandidates += 1;
+      }
+    }
+    const sourceFileCounts = [...sourceCounts.entries()]
+      .map(([filePath, count]) => ({ filePath, count }))
+      .sort((a, b) => b.count - a.count);
+    return {
+      projectName: proj.projectName,
+      rootPath: proj.rootPath,
+      docsScanned: (mdByProject.get(proj.projectName) ?? []).length,
+      brokenTotal: items.length,
+      byKind,
+      sourceFileCounts,
+      withCandidates,
+      withoutCandidates
+    };
+  });
+}
+
+function buildViewerHtml(findings: Finding[], totalDocsScanned: number, rollups: ProjectRollup[]): string {
   const groups = new Map<string, Finding[]>();
   for (const finding of findings) {
     const arr = groups.get(finding.projectName);
@@ -172,10 +272,67 @@ function buildViewerHtml(findings: Finding[], totalDocsScanned: number): string 
 </section>`;
     }).join('');
 
+  const pass1Rows = rollups
+    .slice()
+    .sort((a, b) => b.brokenTotal - a.brokenTotal)
+    .map((r) => `<tr>
+  <td>${esc(r.projectName)}</td>
+  <td>${r.docsScanned}</td>
+  <td>${r.brokenTotal}</td>
+  <td>${r.byKind.link}</td>
+  <td>${r.byKind.image}</td>
+  <td>${r.byKind['doc-id']}</td>
+</tr>`).join('');
+
+  const topProjects = rollups
+    .slice()
+    .sort((a, b) => b.brokenTotal - a.brokenTotal)
+    .filter((r) => r.brokenTotal > 0)
+    .slice(0, 5);
+
+  const pass2Rows = topProjects.map((r) => {
+    const firstFiles = r.sourceFileCounts.slice(0, 5)
+      .map((f) => `${esc(path.basename(f.filePath))} (${f.count})`)
+      .join(', ');
+    return `<tr>
+  <td>${esc(r.projectName)}</td>
+  <td>${r.brokenTotal}</td>
+  <td>${r.withCandidates}</td>
+  <td>${r.withoutCandidates}</td>
+  <td>${firstFiles || '-'}</td>
+</tr>`;
+  }).join('');
+
+  const pass3Sections = rollups
+    .slice()
+    .sort((a, b) => b.brokenTotal - a.brokenTotal)
+    .map((r) => {
+      const actions = buildProjectActionItems(r).map((a) => `<li>${esc(a)}</li>`).join('');
+      const goal = reduceGoal(r.brokenTotal);
+      const goalText = r.brokenTotal === 0
+        ? 'PASS now: keep at 0.'
+        : goal === 0
+          ? 'Required for next audit pass: fix all remaining references to 0.'
+          : `Required for next audit pass: reduce to <= ${goal}, then clear to 0.`;
+      return `<section class="plan">
+  <h3>${esc(r.projectName)} - ${r.brokenTotal} issue(s)</h3>
+  <p class="goal">${esc(goalText)}</p>
+  <ul>${actions}</ul>
+</section>`;
+    }).join('');
+
   return `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"><style>
 body{font-family:var(--vscode-font-family);color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);margin:16px}
 h1{margin:0 0 8px 0;font-size:20px}
 .meta{color:var(--vscode-descriptionForeground);margin-bottom:16px}
+h2.pass{margin:16px 0 8px 0;font-size:15px}
+.pass-panel{border:1px solid var(--vscode-panel-border);border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.pass-panel p{margin:0 0 8px 0;color:var(--vscode-descriptionForeground)}
+.plan{border:1px solid var(--vscode-panel-border);border-radius:6px;padding:8px 10px;margin:8px 0}
+.plan h3{margin:0 0 4px 0;font-size:13px}
+.plan .goal{margin:0 0 6px 0;color:var(--vscode-descriptionForeground)}
+.plan ul{margin:0;padding-left:18px}
+.plan li{margin:0 0 3px 0}
 section.project{border:1px solid var(--vscode-panel-border);border-radius:8px;margin:0 0 14px 0;overflow:hidden}
 section.project h2{margin:0;padding:10px 12px;background:var(--vscode-sideBar-background);font-size:14px;display:flex;justify-content:space-between}
 table{width:100%;border-collapse:collapse}
@@ -193,6 +350,35 @@ code{font-family:var(--vscode-editor-font-family)}
 </style></head><body>
 <h1>Broken References</h1>
 <div class="meta">Scanned docs: ${totalDocsScanned} | Broken references: ${findings.length}</div>
+
+<h2 class="pass">Pass 1 - Discovery (What and Where)</h2>
+<div class="pass-panel">
+  <p>Inventory for every CVT-known folder/project in the registry.</p>
+  <table>
+    <thead>
+      <tr><th>Project</th><th>Docs Scanned</th><th>Broken</th><th>Links</th><th>Images</th><th>Doc IDs</th></tr>
+    </thead>
+    <tbody>${pass1Rows}</tbody>
+  </table>
+</div>
+
+<h2 class="pass">Pass 2 - Prioritization (How to Reach Next Audit Faster)</h2>
+<div class="pass-panel">
+  <p>Focus first on projects and files with the highest impact and easiest candidate-based fixes.</p>
+  <table>
+    <thead>
+      <tr><th>Project</th><th>Broken</th><th>With Candidates</th><th>Without Candidates</th><th>Top Source Files</th></tr>
+    </thead>
+    <tbody>${pass2Rows || '<tr><td colspan="5">No issues to prioritize.</td></tr>'}</tbody>
+  </table>
+</div>
+
+<h2 class="pass">Pass 3 - Remediation Checklist (What Must Be Done to Pass Next Audit)</h2>
+<div class="pass-panel">
+  ${pass3Sections}
+</div>
+
+<h2 class="pass">Detailed Findings</h2>
 ${sections || '<p>No broken references found.</p>'}
 <script>
 const vscode = acquireVsCodeApi();
@@ -203,6 +389,14 @@ document.querySelectorAll('button.cand').forEach((btn)=>btn.addEventListener('cl
 }
 
 async function scanBrokenRefs(): Promise<void> {
+  if (isScanRunning) {
+    vscode.window.showInformationMessage('Broken reference scan is already running.');
+    return;
+  }
+
+  isScanRunning = true;
+
+  try {
   const registry = loadRegistry();
   if (!registry) {
     return;
@@ -212,6 +406,8 @@ async function scanBrokenRefs(): Promise<void> {
     { projectName: 'global', rootPath: registry.globalDocsPath },
     ...registry.projects.map((p) => ({ projectName: p.name, rootPath: p.path }))
   ];
+
+  log('scan-broken-refs', `Scanning ${projectRoots.length} project root(s) for broken references...`);
 
   const mdByProject = new Map<string, string[]>();
   const filesByProject = new Map<string, string[]>();
@@ -274,6 +470,15 @@ async function scanBrokenRefs(): Promise<void> {
     }
   }
 
+  const rollups = buildRollups(findings, projectRoots, mdByProject);
+  log('scan-broken-refs', `Scanned ${totalDocsScanned} markdown file(s) across ${projectRoots.length} project(s).`);
+  log('scan-broken-refs', `Found ${findings.length} broken reference(s). Results are shown in the Broken References panel.`);
+  for (const rollup of rollups.slice().sort((a, b) => b.brokenTotal - a.brokenTotal)) {
+    if (rollup.brokenTotal > 0) {
+      log('scan-broken-refs', `  ${rollup.projectName}: ${rollup.brokenTotal} broken reference(s)`);
+    }
+  }
+
   if (!panel) {
     panel = vscode.window.createWebviewPanel('brokenRefs', 'Broken References', vscode.ViewColumn.One, {
       enableScripts: true,
@@ -299,13 +504,16 @@ async function scanBrokenRefs(): Promise<void> {
     });
   }
 
-  panel.webview.html = buildViewerHtml(findings, totalDocsScanned);
+  panel.webview.html = buildViewerHtml(findings, totalDocsScanned, rollups);
   panel.reveal(vscode.ViewColumn.One);
 
   if (findings.length === 0) {
     vscode.window.showInformationMessage('Broken reference scan complete: no issues found.');
   } else {
     vscode.window.showWarningMessage(`Broken reference scan complete: ${findings.length} issue(s) found.`);
+  }
+  } finally {
+    isScanRunning = false;
   }
 }
 
