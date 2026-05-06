@@ -31,7 +31,7 @@
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
     "package": "vsce package",
-    "rebuild": "npm run clean && npm run compile && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
+    "rebuild": "npm run clean && npm run clean:artifacts && npm run compile && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
     "copy:commandhelp": "node scripts/copy-commandhelp.js",
     "validate:package-json": "node scripts/validate-package-json.js",
     "test:catalog": "node tests/catalog-integrity.test.js",
@@ -73,6 +73,9 @@
     "audit:coverage": "node scripts/audit-test-coverage.js",
     "audit:coverage:detailed": "node scripts/audit-test-coverage.js --detailed",
     "audit:coverage:json": "node scripts/audit-test-coverage.js --json",
+    "clean:artifacts:dry": "node scripts/clean-generated-artifacts.js",
+    "clean:artifacts": "node scripts/clean-generated-artifacts.js --apply",
+    "clean:artifacts:with-audit-docs": "node scripts/clean-generated-artifacts.js --apply --include-audit-docs",
     "check-architecture": "node scripts/check-architecture.js",
     "pretest": "npm run clean && npm run compile",
     "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\""

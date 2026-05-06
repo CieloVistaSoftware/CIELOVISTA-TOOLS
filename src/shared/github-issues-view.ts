@@ -26,6 +26,7 @@ const REPO_NAME  = 'cielovista-tools';
 interface GHLabel    { name: string; color: string; }
 interface GHUser     { login: string; }
 interface GHAssignee { login: string; }
+type IssueState = 'open' | 'closed';
 interface GHIssue {
     number:       number;
     title:        string;
@@ -37,6 +38,7 @@ interface GHIssue {
     labels:       GHLabel[];
     assignees:    GHAssignee[];
     body:         string | null;
+    closed_at?:   string | null;
     pull_request?: unknown;   // present only when the entry is actually a PR
     comments:     number;
 }
@@ -99,16 +101,22 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     });
 
     let latestIssues: GHIssue[] = [];
+    let currentState: IssueState = 'open';
+
+    function panelTitleFor(state: IssueState): string {
+        return `cielovista-tools \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
+    }
 
     const setHtml = (loading: boolean, issues: GHIssue[] | null, error: string | null): void => {
         latestIssues = Array.isArray(issues) ? issues : [];
-        panel.webview.html = buildHtml(loading, issues, error);
+        panel.title = panelTitleFor(currentState);
+        panel.webview.html = buildHtml(loading, issues, error, currentState);
     };
 
     const refresh = async (): Promise<void> => {
         setHtml(true, null, null);
         try {
-            const issues = await fetchIssues();
+            const issues = await fetchIssues(currentState);
             setHtml(false, issues, null);
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -117,10 +125,16 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     };
     activeRefresh = refresh;
 
-    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string }) => {
+    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string }) => {
         if (!msg?.type) { return; }
         if (msg.type === 'refresh') {
             void refresh();
+        } else if (msg.type === 'setState') {
+            const nextState = msg.state === 'closed' ? 'closed' : 'open';
+            if (nextState !== currentState) {
+                currentState = nextState;
+                void refresh();
+            }
         } else if (msg.type === 'open' && msg.url) {
             void vscode.env.openExternal(vscode.Uri.parse(String(msg.url)));
         } else if (msg.type === 'copyAll' && latestIssues.length > 0) {
@@ -133,11 +147,11 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
 
-async function fetchIssues(): Promise<GHIssue[]> {
+async function fetchIssues(state: IssueState): Promise<GHIssue[]> {
     const errors: string[] = [];
 
     try {
-        const viaGh = await fetchIssuesViaGh();
+        const viaGh = await fetchIssuesViaGh(state);
         if (viaGh.length > 0) {
             return viaGh;
         }
@@ -146,7 +160,7 @@ async function fetchIssues(): Promise<GHIssue[]> {
     }
 
     try {
-        const rest = await fetchIssuesViaRest();
+        const rest = await fetchIssuesViaRest(state);
         if (rest.length > 0) {
             return rest;
         }
@@ -158,7 +172,7 @@ async function fetchIssues(): Promise<GHIssue[]> {
     throw new Error(errors.join(' | '));
 }
 
-function fetchIssuesViaRest(): Promise<GHIssue[]> {
+function fetchIssuesViaRest(state: IssueState): Promise<GHIssue[]> {
     // GitHub /issues returns both issues and pull requests. In active repos,
     // page 1 can be dominated by PRs and would look like "no issues" after
     // filtering. Scan a few pages to find real issues before giving up.
@@ -168,7 +182,7 @@ function fetchIssuesViaRest(): Promise<GHIssue[]> {
         const byNumber = new Map<number, GHIssue>();
 
         for (let page = 1; page <= maxPages; page++) {
-            const raw = await fetchIssuesPage(page, perPage);
+            const raw = await fetchIssuesPage(page, perPage, state);
             const issuesOnly = raw.filter((i) => !i.pull_request);
             for (const issue of issuesOnly) {
                 byNumber.set(issue.number, issue);
@@ -178,7 +192,12 @@ function fetchIssuesViaRest(): Promise<GHIssue[]> {
         }
 
         return [...byNumber.values()]
-            .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+            .sort((a, b) => {
+                if (state === 'closed') {
+                    return Date.parse(b.closed_at || b.updated_at) - Date.parse(a.closed_at || a.updated_at);
+                }
+                return Date.parse(b.updated_at) - Date.parse(a.updated_at);
+            })
             .slice(0, perPage);
     })();
 }
@@ -190,6 +209,7 @@ interface GhIssueRaw {
     state: string;
     createdAt: string;
     updatedAt: string;
+    closedAt?: string | null;
     author?: { login?: string };
     labels?: Array<{ name?: string; color?: string }>;
     assignees?: Array<{ login?: string }>;
@@ -197,7 +217,7 @@ interface GhIssueRaw {
     comments?: number;
 }
 
-function fetchIssuesViaGh(): Promise<GHIssue[]> {
+function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
         const ghCandidates = [
             'gh',
@@ -213,9 +233,9 @@ function fetchIssuesViaGh(): Promise<GHIssue[]> {
         const args = [
             'issue', 'list',
             '-R', `${REPO_OWNER}/${REPO_NAME}`,
-            '--state', 'open',
+            '--state', state,
             '--limit', '50',
-            '--json', 'number,title,url,state,createdAt,updatedAt,author,labels,assignees,body,comments',
+            '--json', 'number,title,url,state,createdAt,updatedAt,closedAt,author,labels,assignees,body,comments',
         ];
 
         execFile(ghPath, args, { windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
@@ -238,6 +258,7 @@ function fetchIssuesViaGh(): Promise<GHIssue[]> {
                     state: i.state,
                     created_at: i.createdAt,
                     updated_at: i.updatedAt,
+                    closed_at: i.closedAt ?? null,
                     user: { login: i.author?.login || 'unknown' },
                     labels: (i.labels || []).map((l) => ({ name: l.name || '', color: l.color || '888888' })),
                     assignees: (i.assignees || []).map((a) => ({ login: a.login || '' })).filter((a) => a.login),
@@ -253,9 +274,9 @@ function fetchIssuesViaGh(): Promise<GHIssue[]> {
     });
 }
 
-function fetchIssuesPage(page: number, perPage: number): Promise<GHIssue[]> {
+function fetchIssuesPage(page: number, perPage: number, state: IssueState): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
-        const path = `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=open&per_page=${perPage}&sort=updated&page=${page}`;
+        const path = `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}`;
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path,
@@ -326,7 +347,7 @@ function contrastText(hex: string): string {
 
 // ─── HTML ───────────────────────────────────────────────────────────────────
 
-function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null): string {
+function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null, viewState: IssueState = 'open'): string {
     const css = `
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100% !important;max-width:none !important}
@@ -368,18 +389,18 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .priority{background:var(--vscode-dropdown-background, var(--vscode-input-background));color:var(--vscode-dropdown-foreground, var(--vscode-input-foreground));border:1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));border-radius:4px;padding:2px 4px;font-size:11px}
 .state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45)}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
-#proj-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
+#proj-filter,#state-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
 
     const copyDisabled = loading || !!error || !issues || issues.length === 0 ? ' disabled' : '';
 
     let bodyHtml: string;
     if (loading) {
-        bodyHtml = `<div class="loading">Loading issues from github.com/${REPO_OWNER}/${REPO_NAME}\u2026</div>`;
+        bodyHtml = `<div class="loading">Loading ${viewState} issues from github.com/${REPO_OWNER}/${REPO_NAME}\u2026</div>`;
     } else if (error) {
         bodyHtml = `<div class="error"><strong>Couldn't fetch issues.</strong><br>${esc(error)}<br><br>Click <em>\u21bb Reload</em> to try again.</div>`;
     } else if (!issues || issues.length === 0) {
-        bodyHtml = `<div class="empty">\u2728 No open issues.</div>`;
+        bodyHtml = `<div class="empty">\u2728 No ${viewState} issues.</div>`;
     } else {
                 // Collect unique project names for the filter dropdown
                 const allProjects = [...new Set(
@@ -389,9 +410,9 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                     )
                 )].sort();
 
-                const summary = `<div class="summary"><span><strong id="countShown">${issues.length}</strong> / <strong id="countTotal">${issues.length}</strong> open ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sticky field headers + sortable columns</span><span>\u2022</span><span>priority 1 = highest</span></div>`;
+                const summary = `<div class="summary"><span><strong id="countShown">${issues.length}</strong> / <strong id="countTotal">${issues.length}</strong> ${viewState} ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sticky field headers + sortable columns</span><span>\u2022</span><span>priority 1 = highest</span></div>`;
                 const projectOptions = allProjects.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
+                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="state-filter" aria-label="Filter by issue state"><option value="open"${viewState === 'open' ? ' selected' : ''}>open</option><option value="closed"${viewState === 'closed' ? ' selected' : ''}>closed</option></select><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
                 const rows = issues.map((iss) => {
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
@@ -400,6 +421,8 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             }).join('');
                         const projectLabel = iss.labels.find((l) => l.name.startsWith('project:'));
                         const projectName  = projectLabel ? projectLabel.name.slice('project:'.length) : '';
+                        const closedAtTs = iss.closed_at ? new Date(iss.closed_at).getTime() : 0;
+                        const closedAtAgo = iss.closed_at ? ago(iss.closed_at) : '-';
                         const assigneesText = iss.assignees.map((a) => '@' + a.login).join(', ');
                         const labelsText = iss.labels.map((l) => l.name).join(' ');
                         const filterText = `${iss.number} ${iss.title} ${iss.body ?? ''} ${iss.user.login} ${labelsText} ${assigneesText}`.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -408,6 +431,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-title="${esc(iss.title.toLowerCase())}"
     data-created="${new Date(iss.created_at).getTime()}"
     data-updated="${new Date(iss.updated_at).getTime()}"
+    data-closed="${closedAtTs}"
     data-comments="${iss.comments}"
     data-state="${esc(iss.state.toLowerCase())}"
     data-author="${esc(iss.user.login.toLowerCase())}"
@@ -427,6 +451,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td>${iss.comments}</td>
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
+    <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
@@ -441,6 +466,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 <th><button type="button" data-sort="comments">comments <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="created">created_at <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="updated">updated_at <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="closed">closed_at <span class="sort-ind"></span></button></th>
 </tr></thead><tbody id="issueRows">${rows}</tbody></table></div>`;
                 bodyHtml = summary + controls + table;
     }
@@ -487,6 +513,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (key === 'comments')  { return Number(row.dataset.comments || 0); }
         if (key === 'created')   { return Number(row.dataset.created || 0); }
         if (key === 'updated')   { return Number(row.dataset.updated || 0); }
+        if (key === 'closed')    { return Number(row.dataset.closed || 0); }
         return '';
     }
 
@@ -573,6 +600,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     var projFilter = document.getElementById('proj-filter');
     if (projFilter) {
         projFilter.addEventListener('change', applyFilter);
+    }
+    var stateFilter = document.getElementById('state-filter');
+    if (stateFilter) {
+        stateFilter.addEventListener('change', function(){
+            var state = String(stateFilter.value || 'open').toLowerCase();
+            vsc.postMessage({ type: 'setState', state: state === 'closed' ? 'closed' : 'open' });
+        });
     }
     document.querySelectorAll('th button[data-sort]').forEach(function(btn){
         btn.addEventListener('click', function(){

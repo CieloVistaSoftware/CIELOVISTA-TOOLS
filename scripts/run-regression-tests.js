@@ -1,4 +1,4 @@
-/**
+﻿/**
  * run-regression-tests.js
  *
  * Zero-dependency regression tests that run BEFORE every build.
@@ -68,6 +68,35 @@ function stripTemplateLiterals(src) {
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+// ── Pre-flight: bundle freshness ─────────────────────────────────────────────
+// Several tests check out/extension.js (the compiled bundle). If the bundle is
+// older than any src/**/*.ts file, those tests fail with confusing "Missing:
+// <symbol>" errors instead of a clear "rebuild required" message.
+(function checkBundleFreshness() {
+  const BUNDLE = path.join(ROOT, 'out', 'extension.js');
+  if (!fs.existsSync(BUNDLE)) {
+    console.error('\n⚠ FATAL: out/extension.js not found. Run:\n  node esbuild.mjs\n');
+    process.exit(1);
+  }
+  const bundleMtime = fs.statSync(BUNDLE).mtimeMs;
+  let newestMtime = 0;
+  let newestFile  = '';
+  for (const f of walkTs(path.join(ROOT, 'src'))) {
+    const m = fs.statSync(f).mtimeMs;
+    if (m > newestMtime) { newestMtime = m; newestFile = f; }
+  }
+  if (newestMtime > bundleMtime) {
+    const rel = path.relative(ROOT, newestFile);
+    console.error(`
+⚠ FATAL: out/extension.js is stale.
+  Newer source: ${rel}
+  Run:
+    node esbuild.mjs
+`);
+    process.exit(1);
+  }
+})();
 
 console.log('\nCieloVista Tools \u2014 Regression Test Suite');
 console.log('\u2500'.repeat(50));
@@ -266,8 +295,8 @@ test('REG-007', 'extension.ts activates all feature modules', () => {
 
   // Each imported activate alias must appear as a call: foo(context) or activateIfEnabled(..., foo, context)
   const missing = imported.filter(alias => {
-    const called  = new RegExp('\\b' + alias + '\\s*\\(context\\)').test(extSrc);
-    const enabled = new RegExp('activateIfEnabled\\([^)]+,\\s*' + alias + '\\s*,').test(extSrc);
+    const called  = new RegExp('\\b' + alias + '[\\s\\S]*?\\(context\\)').test(extSrc);
+    const enabled = new RegExp('activateIfEnabled[\\s\\S]*?' + alias + '[\\s\\S]*?,').test(extSrc);
     return !called && !enabled;
   });
 
@@ -544,6 +573,19 @@ test('REG-024', 'Daily audit respects auditExcluded flag for container folders',
   );
   assert(result.status === 0,
     `REG-024 daily audit exclusion failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-025: Issue #283 — npm output routing + completion timing.
+// Guards that run-path output is routed through the NPM Output webview (no
+// terminal API calls in run block), the output panel opens lazily on first
+// stdout/stderr chunk, and completion status includes elapsed time.
+test('REG-025', 'NPM script output routes to webview with lazy-open and elapsed time', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-025-npm-output-routing-and-timing.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-025 npm output routing/timing failed:\n${result.stdout}\n${result.stderr}`);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────

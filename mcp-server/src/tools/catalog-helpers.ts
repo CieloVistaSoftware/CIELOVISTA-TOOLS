@@ -34,6 +34,8 @@ export interface DocEntry {
   title: string;
   description: string;
   dewey: string;
+  subject?: string; // Frontmatter subject (the stable Dewey classification)
+  id?: string; // Frontmatter id (the stable identity slug)
   projectDewey: number;
   projectPath: string;
   projectStatus: "product" | "workbench" | "generated" | "archived";
@@ -93,7 +95,6 @@ export function scanProjectDocs(
   maxDepth = 3
 ): DocEntry[] {
   const docs: DocEntry[] = [];
-  let seq = 0;
   if (!fs.existsSync(rootPath)) {
     return docs;
   }
@@ -120,15 +121,20 @@ export function scanProjectDocs(
           const content = fs.readFileSync(full, "utf8");
           const stat = fs.statSync(full);
           const help = extractDeweyAndHelp(full, content);
-          seq += 1;
-          const fallbackDewey = `${String(projectDewey).padStart(3, "0")}.${String(seq).padStart(3, "0")}`;
+          const frontmatter = extractFrontmatterSubjectAndId(content);
+          
+          // Primary source: frontmatter subject. Fallback: extracted from filename pattern.
+          const dewey = frontmatter.subject ?? help.dewey;
+          
           docs.push({
             projectName,
             fileName: entry.name,
             filePath: full,
             title: extractTitle(content, entry.name),
             description: extractDescription(content),
-            dewey: help.dewey ?? fallbackDewey,
+            dewey: dewey ?? "unknown",
+            subject: frontmatter.subject,
+            id: frontmatter.id,
             projectDewey,
             projectPath,
             projectStatus,
@@ -250,6 +256,36 @@ export function extractDeweyAndHelp(
 
   const helpMarkdown = helpLines.join("\n").trim() || undefined;
   return { dewey, helpMarkdown };
+}
+
+/** Extract subject and id from YAML frontmatter (between --- delimiters).
+ * Returns extracted values or undefined if not found.
+ */
+export function extractFrontmatterSubjectAndId(content: string): { subject?: string; id?: string } {
+  const lines = content.split("\n");
+  if (lines[0]?.trim() !== "---") {
+    return {};
+  }
+
+  const result: { subject?: string; id?: string } = {};
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "---") {
+      break; // End of frontmatter
+    }
+
+    const subjectMatch = line.match(/^subject:\s*(.+?)(?:\s*#.*)?$/);
+    if (subjectMatch) {
+      result.subject = subjectMatch[1].trim();
+    }
+
+    const idMatch = line.match(/^id:\s*(.+?)(?:\s*#.*)?$/);
+    if (idMatch) {
+      result.id = idMatch[1].trim();
+    }
+  }
+
+  return result;
 }
 
 export function buildProjectDeweyMap(

@@ -219,11 +219,14 @@ window.addEventListener('message',function(ev){
     if(out){out.classList.remove('empty');out.textContent+=m.text;logEl.scrollTop=logEl.scrollHeight;}
   } else if(m.type==='done'){
     var rc=document.getElementById('rc-'+m.jobKey);
+        var durText = (typeof m.durationMs === 'number' && m.durationMs >= 0)
+            ? ' ('+(m.durationMs/1000).toFixed(1)+'s)'
+            : '';
     if(rc){
       rc.classList.remove('running');
-      if(m.killed){rc.textContent='■ Stopped';rc.className='job-rc killed';}
-      else if(m.code===0){rc.textContent='✓ Exit 0';rc.className='job-rc ok';}
-      else{rc.textContent='✗ Exit '+m.code;rc.className='job-rc fail';}
+            if(m.killed){rc.textContent='■ Stopped'+durText;rc.className='job-rc killed';}
+            else if(m.code===0){rc.textContent='✓ Exit 0'+durText;rc.className='job-rc ok';}
+            else{rc.textContent='✗ Exit '+m.code+durText;rc.className='job-rc fail';}
     }
     // If the job produced no output, swap placeholder to final '(no output)'
     var outDone=document.getElementById('out-'+m.jobKey);
@@ -459,6 +462,7 @@ async function openPanel(): Promise<void> {
                 const { id, script, dir, folder } = msg as { id:string; script:string; dir:string; folder:string };
                 const jobKey = `${id}::${script}`;
                 // Do NOT open the output panel yet — it opens lazily on first output line
+                const startedAt = Date.now();
 
                 const sendOut  = (type: string, payload: object) => postToOutput({ jobKey, type, ...payload });
                 const sendCard = (type: string, payload: object) => _panel?.webview.postMessage({ type, id, script, ...payload });
@@ -507,14 +511,14 @@ async function openPanel(): Promise<void> {
                     _running.delete(jobKey);
                     killed = signal === 'SIGTERM' || signal === 'SIGKILL';
                     const state = killed ? 'stopped' : code === 0 ? 'ok' : 'error';
-                    sendOut('done', { code: code ?? 1, killed });
+                    sendOut('done', { code: code ?? 1, killed, durationMs: Date.now() - startedAt });
                     sendCard('status', { state, code: code ?? 1 });
                     log(FEATURE, `${script} exited ${code ?? 1}${killed ? ' (killed)' : ''}`);
                 });
                 proc.on('error', err => {
                     _running.delete(jobKey);
                     sendOut('output', { text: `\nError: ${err.message}\n` });
-                    sendOut('done', { code: 1, killed: false });
+                    sendOut('done', { code: 1, killed: false, durationMs: Date.now() - startedAt });
                     sendCard('status', { state: 'error', code: 1 });
                     logError(`Failed to spawn: ${script}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                 });

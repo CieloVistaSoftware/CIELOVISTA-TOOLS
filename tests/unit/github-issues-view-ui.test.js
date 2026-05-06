@@ -74,6 +74,7 @@ const sampleIssues = [{
     state: 'open',
     created_at: '2026-04-26T12:00:00.000Z',
     updated_at: '2026-04-27T12:00:00.000Z',
+    closed_at: null,
     user: { login: 'john' },
     labels: [{ name: 'bug', color: 'd73a4a' }],
     assignees: [{ login: 'alice' }],
@@ -117,6 +118,26 @@ test('issue rows render clickable title buttons with URLs', () => {
 test('empty state renders explicit no-open-issues message', () => {
     const html = buildHtml(false, [], null);
     has(html, 'No open issues.', 'empty-state text missing');
+});
+
+test('closed view empty state renders no-closed-issues message', () => {
+    const html = buildHtml(false, [], null, 'closed');
+    has(html, 'No closed issues.', 'closed empty-state text missing');
+});
+
+test('controls include issue state filter and setState postMessage', () => {
+    const html = buildHtml(false, sampleIssues, null);
+    has(html, 'id="state-filter"', 'state filter dropdown missing');
+    has(html, '<option value="open" selected>open</option>', 'open option should be selected by default');
+    has(html, "var stateFilter = document.getElementById('state-filter');", 'state-filter JS lookup missing');
+    has(html, "vsc.postMessage({ type: 'setState', state: state === 'closed' ? 'closed' : 'open' });", 'setState postMessage missing');
+});
+
+test('table renders closed_at sortable column', () => {
+    const html = buildHtml(false, sampleIssues, null);
+    has(html, 'data-sort="closed"', 'closed_at sort header missing');
+    has(html, '>closed_at <span class="sort-ind"></span></button></th>', 'closed_at header label missing');
+    has(html, 'data-closed="', 'row closed timestamp data attribute missing');
 });
 
 test('error state renders fetch failure panel', () => {
