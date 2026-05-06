@@ -49,6 +49,7 @@ import { activate as mcpBuildActivate,        deactivate as mcpBuildDeactivate  
 import { activate as imageReaderActivate,     deactivate as imageReaderDeactivate          } from './features/image-reader';
 import { activate as mcpViewerActivate,       deactivate as mcpViewerDeactivate            } from './features/mcp-viewer';
 import { activate as explorerCopyPathToChatActivate, deactivate as explorerCopyPathToChatDeactivate } from './features/explorer-copy-path-to-chat';
+import { activate as worktreeCleanerActivate,       deactivate as worktreeCleanerDeactivate         } from './features/worktree-cleaner';
 import { activate as registryPromoteActivate, deactivate as registryPromoteDeactivate      } from './features/registry-promote';
 import { activate as corequisiteCheckerActivate, deactivate as corequisiteCheckerDeactivate } from './features/corequisite-checker';
 import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeactivate       } from './features/json-copy-to-chat';
@@ -144,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate,        context);
     activateIfEnabled('corequisiteChecker',      'Corequisite Checker',                 corequisiteCheckerActivate,     context);
     activateIfEnabled('jsonCopyToChat',          'Editor: Copy JSON to Copilot Chat',   jsonCopyToChatActivate,         context);
+    worktreeCleanerActivate(context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
@@ -200,4 +202,5 @@ export function deactivate(): void {
     disposeChannel();
 
     deactivateFileListViewer();
+    worktreeCleanerDeactivate();
 }

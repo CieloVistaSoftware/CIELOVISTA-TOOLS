@@ -672,6 +672,12 @@
         "description": "Open the error log viewer for CieloVista Tools."
       },
       {
+        "command": "cvs.tools.cleanWorktrees",
+        "title": "Tools: Clean Claude Worktrees",
+        "category": "CieloVista",
+        "description": "List and remove stale Claude Code worktrees (.claude/worktrees/)."
+      },
+      {
         "command": "cvs.tools.regressionLog",
         "title": "Tools: Regression Log Viewer",
         "category": "CieloVista",
