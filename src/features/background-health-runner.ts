@@ -36,7 +36,7 @@ function isPortOpen(port: number): Promise<boolean> {
 }
 
 const FEATURE    = 'bg-health-runner';
-const DATA_DIR   = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR   = path.join(__dirname, '..', 'data');
 const HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
 const CHECK_GAP_MS = 8000;   // 8 seconds between checks — slow and steady
 
@@ -150,7 +150,7 @@ function resolveCommandEvidenceLocation(line: string): { filePath: string; line:
     const entry = CATALOG.find((item) => item.id === line);
     if (!entry?.location) { return null; }
 
-    const sourcePath = path.resolve(__dirname, '..', '..', 'src', entry.location);
+    const sourcePath = path.resolve(__dirname, '..', 'src', entry.location);
     try {
         if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
             return null;

@@ -10,7 +10,7 @@ import { log, logError } from '../shared/output-channel';
 const FEATURE = 'mcp-build';
 let buildProcess: ChildProcessWithoutNullStreams | null = null;
 let buildOutput = '';
-const BUILD_MD_PATH = path.join(__dirname, '../../data/mcp-build-result.md');
+const BUILD_MD_PATH = path.join(__dirname, '../data/mcp-build-result.md');
 
 export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(

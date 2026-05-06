@@ -379,7 +379,7 @@ async function collectCards(): Promise<ProjectCardData[]> {
 
     // Final fallback: include known local roots even when no workspace folders are open.
     if (byDir.size === 0) {
-        const fallbackDirs = [path.resolve(__dirname, '../../'), process.cwd()];
+        const fallbackDirs = [path.resolve(__dirname, '../'), process.cwd()];
         for (const dir of fallbackDirs) {
             if (!dir || byDir.has(dir)) { continue; }
             const pkgPath = path.join(dir, 'package.json');

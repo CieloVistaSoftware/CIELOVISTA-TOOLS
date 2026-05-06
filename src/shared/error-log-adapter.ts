@@ -31,7 +31,7 @@ import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
 export type { ErrorEntry } from './error-log';
 
 // Fixed path — must match the constant in error-log-utils.ts.
-const UTILS_LOG_PATH = path.join(__dirname, '..', '..', 'data', 'cielovista-errors.json');
+const UTILS_LOG_PATH = path.join(__dirname, '..', 'data', 'cielovista-errors.json');
 
 // ─── Read the utils-style log file ────────────────────────────────────────────
 

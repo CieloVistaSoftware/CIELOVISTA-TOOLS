@@ -18,7 +18,7 @@ import type { RegressionEntry }  from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
 
 const FEATURE    = 'regression-log-viewer';
-const DATA_PATH  = path.join(__dirname, '..', '..', 'data', 'regressions.json');
+const DATA_PATH  = path.join(__dirname, '..', 'data', 'regressions.json');
 
 let _panel: vscode.WebviewPanel | undefined;
 
@@ -232,7 +232,7 @@ export async function openRegressionLogViewer(): Promise<void> {
     _panel.webview.onDidReceiveMessage(async msg => {
 
         if (msg.command === 'open-markdown') {
-            const mdPath = path.join(__dirname, '..', '..', 'docs', 'REGRESSION-LOG.md');
+            const mdPath = path.join(__dirname, '..', 'docs', 'REGRESSION-LOG.md');
             if (fs.existsSync(mdPath)) {
                 const doc = await vscode.workspace.openTextDocument(mdPath);
                 await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);

@@ -19,7 +19,7 @@ export interface ArchivedEntry {
     archivedAt:  string;
 }
 
-const ARCHIVE_FILE = path.join(__dirname, '..', '..', '..', 'data', 'archived-docs.json');
+const ARCHIVE_FILE = path.join(__dirname, '..', 'data', 'archived-docs.json');
 
 function readFile(): ArchivedEntry[] {
     try {
