@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function buildGroupedCommands(registered: Set<string>): Record<string, Array<{title:string;command:string;description?:string}>> {
-  const pkgPath = path.join(__dirname, '../../package.json');
+  const pkgPath = path.join(__dirname, '../package.json');
   let commands: Array<{title:string; command:string; description?:string}> = [];
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));

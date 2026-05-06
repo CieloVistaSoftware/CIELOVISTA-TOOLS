@@ -10,7 +10,7 @@ import { log, logError } from '../shared/output-channel';
 const FEATURE = 'playwright-runner';
 let pwProcess: ChildProcessWithoutNullStreams | null = null;
 let pwOutput = '';
-const PW_MD_PATH = path.join(__dirname, '../../data/playwright-run-result.md');
+const PW_MD_PATH = path.join(__dirname, '../data/playwright-run-result.md');
 
 export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(

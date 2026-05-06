@@ -62,7 +62,7 @@ export interface ErrorLog {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const TOOLS_ROOT = path.join(__dirname, '..', '..');
+const TOOLS_ROOT = path.join(__dirname, '..');
 const LOG_PATH   = path.join(TOOLS_ROOT, 'data', 'tools-errors.json');
 const MAX_ERRORS = 100;
 

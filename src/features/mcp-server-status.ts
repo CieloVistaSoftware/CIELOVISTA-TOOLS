@@ -104,7 +104,7 @@ function resolveMcpDistPath(): string {
     // Fallback for cases where initMcpServerPath was not called by activation code.
     // In compiled output this file lives at out/features, so two levels up is
     // the extension root where mcp-server/dist/index.js lives.
-    return path.join(__dirname, '..', '..', 'mcp-server', 'dist', 'index.js');
+    return path.join(__dirname, '..', 'mcp-server', 'dist', 'index.js');
 }
 
 // ─── Lifecycle ─────────────────────────────────────────────────────────────────

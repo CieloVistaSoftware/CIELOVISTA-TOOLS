@@ -9,7 +9,7 @@
  *
  * BUG-A: Open project folder opens a new window
  *   - openProjectFolderSmart uses positional true (not named forceNewWindow)
- *   - HTTP /open-folder endpoint calls openProjectFolderSmart
+ *   - HTTP /openfolder endpoint calls openProjectFolderSmart
  *   - attachMessageHandler openFolder case calls openProjectFolderSmart
  *
  * BUG-B: NPM output has a Copy to Chat button (btn-chat / copy-to-chat)
