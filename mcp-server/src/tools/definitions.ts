@@ -62,6 +62,14 @@ export const SearchDocsToolSchema = z.object({
   projectName: z.string().optional().describe("Optional: limit search to one project by exact name"),
 });
 
+export const ListDocViolationsToolSchema = z.object({
+  projectName: z.string().optional().describe("Optional: limit scan to one project by exact name"),
+});
+
+export const ValidateDocToolSchema = z.object({
+  filePath: z.string().describe("Absolute path to the markdown file to validate against the Doc Contract"),
+});
+
 export const LookupDeweyToolSchema = z.object({
   query: z.string().describe("Full or partial Dewey ID to resolve, e.g. '1400.005', '1400', or '005'"),
   projectName: z.string().optional().describe("Optional: limit document lookup to one project by exact name"),
@@ -84,6 +92,30 @@ export const RepairBrokenRefsToolSchema = z.object({
     filePath: z.string().describe("Absolute path for placeholder SVG to create."),
     altText: z.string().optional().describe("Text rendered in placeholder SVG."),
   })).optional().describe("Optional placeholder SVGs to create for unresolved image refs."),
+});
+
+// ─── Doc contract Phase 3 / 4 tools ────────────────────────────────────
+
+export const NormalizeDocToolSchema = z.object({
+  filePath: z.string().describe("Absolute path to the .md file to normalize. Non-destructive — returns proposed additions only, never writes."),
+});
+
+export const GetDocByIdentityToolSchema = z.object({
+  identity: z.string().describe("Full stable identity string in the form '{subject}.{id}', e.g. '150.3.testing-strategy'. Checks aliases table first."),
+});
+
+export const RefreshDocLedgerToolSchema = z.object({
+  projectName: z.string().optional().describe("Optional: rebuild index for one project only. Omit to rebuild all projects."),
+});
+
+export const ListOldDeweyToolSchema = z.object({
+  projectName: z.string().optional().describe("Optional: limit scan to one project by exact name."),
+});
+
+export const MigrateDeweyToolSchema = z.object({
+  filePath: z.string().describe("Absolute path to the .md file with an old Dewey identifier to migrate."),
+  proposedSubject: z.string().optional().describe("Override subject for the proposed new identity (e.g. '150.3'). If omitted, tool will suggest one."),
+  proposedId: z.string().optional().describe("Override id slug for the proposed identity. If omitted, tool will derive from title or filename."),
 });
 
 // ─── Symbol index tools ────────────────────────────────────────────────
@@ -129,10 +161,16 @@ export type ListProjectsToolInput = z.infer<typeof ListProjectsToolSchema>;
 export type FindProjectToolInput = z.infer<typeof FindProjectToolSchema>;
 export type GetCatalogToolInput = z.infer<typeof GetCatalogToolSchema>;
 export type SearchDocsToolInput = z.infer<typeof SearchDocsToolSchema>;
+export type ListDocViolationsToolInput = z.infer<typeof ListDocViolationsToolSchema>;
+export type ValidateDocToolInput = z.infer<typeof ValidateDocToolSchema>;
 export type LookupDeweyToolInput = z.infer<typeof LookupDeweyToolSchema>;
 export type ListBrokenRefsToolInput = z.infer<typeof ListBrokenRefsToolSchema>;
 export type RepairBrokenRefsToolInput = z.infer<typeof RepairBrokenRefsToolSchema>;
 export type ListSymbolsToolInput = z.infer<typeof ListSymbolsToolSchema>;
 export type FindSymbolToolInput = z.infer<typeof FindSymbolToolSchema>;
 export type ListCvtCommandsToolInput = z.infer<typeof ListCvtCommandsToolSchema>;
-// FILE REMOVED BY REQUEST
+export type NormalizeDocToolInput = z.infer<typeof NormalizeDocToolSchema>;
+export type GetDocByIdentityToolInput = z.infer<typeof GetDocByIdentityToolSchema>;
+export type RefreshDocLedgerToolInput = z.infer<typeof RefreshDocLedgerToolSchema>;
+export type ListOldDeweyToolInput = z.infer<typeof ListOldDeweyToolSchema>;
+export type MigrateDeweyToolInput = z.infer<typeof MigrateDeweyToolSchema>;

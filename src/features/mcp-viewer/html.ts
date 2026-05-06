@@ -46,6 +46,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 #btn-run{background:#0078d4;color:#fff;border:none;border-radius:3px;padding:5px 14px;cursor:pointer;font-size:12px;font-weight:600}
 #btn-run:hover{background:#1b8ae5}
 #btn-run:disabled{background:#444;cursor:not-allowed;opacity:.6}
+#btn-active-file{background:#2f6f44;color:#fff;border:none;border-radius:3px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600}
+#btn-active-file:hover{background:#368251}
+#btn-workspace-file{background:#6e5a2e;color:#fff;border:none;border-radius:3px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600}
+#btn-workspace-file:hover{background:#816a35}
 
 /* Main content */
 #main{flex:1;overflow:auto;padding:14px 18px 40px}
@@ -109,6 +113,11 @@ pre.json{background:#1a1a1a;border:1px solid #2d2d2d;border-radius:4px;padding:1
   <button class="tab" data-endpoint="find_project">find_project</button>
   <button class="tab" data-endpoint="search_docs">search_docs</button>
   <button class="tab" data-endpoint="get_catalog">get_catalog</button>
+  <button class="tab" data-endpoint="list_doc_violations">list_doc_violations</button>
+  <button class="tab" data-endpoint="validate_doc">validate_doc</button>
+  <button class="tab" data-endpoint="normalize_doc">normalize_doc</button>
+  <button class="tab" data-endpoint="get_doc_by_identity">get_doc_by_identity</button>
+  <button class="tab" data-endpoint="list_old_dewey">list_old_dewey</button>
   <button class="tab" data-endpoint="list_symbols">list_symbols</button>
   <button class="tab" data-endpoint="find_symbol">find_symbol</button>
   <button class="tab" data-endpoint="list_cvt_commands">list_cvt_commands</button>
@@ -157,6 +166,29 @@ var CONTROLS = {
                 '<select id="proj"><option value="">blank = all projects</option></select>' +
                 '<label for="sortBy">sort</label>' +
                 '<select id="sortBy"><option value="recent" selected>most recent date</option><option value="title">title</option><option value="file">file</option><option value="description">description</option></select>' +
+                '<button id="btn-run">Run</button>',
+  list_doc_violations: '<label for="proj">project (optional)</label>' +
+                '<input id="proj" type="text" placeholder="exact project name" autocomplete="off">' +
+                '<button id="btn-run">Run</button>',
+  normalize_doc: '<label for="filePath">file path</label>' +
+                '<input id="filePath" type="text" placeholder="absolute path to .md file" autocomplete="off" style="min-width:340px">' +
+                '<button id="btn-active-file" type="button">Use Active .md</button>' +
+                '<label for="workspaceMd">workspace docs</label>' +
+                '<select id="workspaceMd" style="min-width:300px"><option value="">loading markdown files...</option></select>' +
+                '<button id="btn-workspace-file" type="button">Use Selected .md</button>' +
+                '<button id="btn-run">Run</button>',
+  get_doc_by_identity: '<label for="q">identity</label>' +
+                '<input id="q" type="text" placeholder="e.g. 150.3.testing-strategy" autocomplete="off" style="min-width:300px">' +
+                '<button id="btn-run">Run</button>',
+  list_old_dewey: '<label for="proj">project (optional)</label>' +
+                '<input id="proj" type="text" placeholder="exact project name" autocomplete="off">' +
+                '<button id="btn-run">Run</button>',
+  validate_doc: '<label for="filePath">file path</label>' +
+                '<input id="filePath" type="text" placeholder="absolute path to .md file" autocomplete="off" style="min-width:340px">' +
+                '<button id="btn-active-file" type="button">Use Active .md</button>' +
+                '<label for="workspaceMd">workspace docs</label>' +
+                '<select id="workspaceMd" style="min-width:300px"><option value="">loading markdown files...</option></select>' +
+                '<button id="btn-workspace-file" type="button">Use Selected .md</button>' +
                 '<button id="btn-run">Run</button>',
   list_symbols: '<label for="q">query</label>' +
                 '<input id="q" type="text" placeholder="name, signature, or doc text" autocomplete="off" style="min-width:220px">' +
@@ -211,6 +243,7 @@ function buildProjectTip(p){
 }
 
 function buildCmdTip(c){
+  if (c.runTooltip) { return c.runTooltip; }
   var parts = [];
   if (c.description) { parts.push('What:   ' + c.description); }
   parts.push('Where:  ' + (c.scope || 'global') + ' › ' + (c.group || ''));
@@ -436,6 +469,186 @@ function renderLookupDewey(data){
   resultEl.innerHTML = html;
 }
 
+function renderDocViolations(data){
+  var rows = (data && data.violations) || [];
+  if (!rows.length) {
+    resultEl.innerHTML = '<div class="state">No doc-contract violations found.</div>';
+    return;
+  }
+
+  var summary = '';
+  if (data && data.byCode && data.byCode.length) {
+    summary = '<div class="group-hd"><span>Violation Summary</span><span class="count">' +
+      esc(String(data.totalViolations || rows.length)) + ' total</span></div>' +
+      '<table><thead><tr><th>Code</th><th>Count</th></tr></thead><tbody>' +
+      data.byCode.map(function(r){
+        return '<tr><td class="c-name">' + esc(r.code) + '</td><td class="c-idx">' + esc(r.count) + '</td></tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+
+  var html = summary;
+  html += '<div class="group-hd"><span>Violations</span><span class="count">' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + '</span></div>';
+  html += '<table><thead><tr><th>#</th><th>Project</th><th>Code</th><th>Identity</th><th>Message</th><th>File</th></tr></thead><tbody>';
+  for (var i = 0; i < rows.length; i++) {
+    var v = rows[i];
+    var mdLink = BASE + '/md-preview?path=' + encodeURIComponent(v.filePath || '');
+    html += '<tr>' +
+      '<td class="c-idx">' + (i + 1) + '</td>' +
+      '<td class="c-proj">' + esc(v.projectName || '') + ' <span style="opacity:.6">(' + esc(String(v.projectDewey || '')) + ')</span></td>' +
+      '<td><span class="c-type">' + esc(v.code || '') + '</span></td>' +
+      '<td class="c-file">' + esc(v.identity || '') + '</td>' +
+      '<td class="c-desc">' + esc(v.message || '') + '</td>' +
+      '<td class="c-path" title="' + esc(v.filePath || '') + '"><a href="' + esc(mdLink) + '" target="_blank" rel="noopener">' + esc((v.filePath || '').split(/[\\/]/).slice(-1)[0] || v.filePath || '') + '</a></td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  resultEl.innerHTML = html;
+}
+
+function renderValidateDoc(data){
+  var rows = (data && data.violations) || [];
+  var mdLink = BASE + '/md-preview?path=' + encodeURIComponent((data && data.filePath) || '');
+  var header = '<div class="group-hd"><span>validate_doc</span><span class="count">' +
+    (data && data.ok ? '<span style="color:#3fb950">OK</span>' : '<span style="color:#f85149">violations found</span>') +
+    '</span></div>' +
+    '<table><tbody>' +
+      '<tr><th>File</th><td class="c-path"><a href="' + esc(mdLink) + '" target="_blank" rel="noopener">' + esc((data && data.filePath) || '') + '</a></td></tr>' +
+      '<tr><th>Project</th><td class="c-proj">' + esc((data && data.projectName) || '') + ' (' + esc(String((data && data.projectDewey) || '')) + ')</td></tr>' +
+      '<tr><th>Expected Subject Prefix</th><td class="c-file">' + esc((data && data.expectedSubjectPrefix) || '') + '</td></tr>' +
+      '<tr><th>Identity</th><td class="c-file">' + esc((data && data.identity) || '') + '</td></tr>' +
+    '</tbody></table>';
+
+  if (!rows.length) {
+    resultEl.innerHTML = header + '<div class="state">No violations for this document.</div>';
+    return;
+  }
+
+  var html = header;
+  html += '<div class="group-hd"><span>Violations</span><span class="count">' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + '</span></div>';
+  html += '<table><thead><tr><th>#</th><th>Code</th><th>Message</th></tr></thead><tbody>';
+  for (var i = 0; i < rows.length; i++) {
+    var v = rows[i];
+    html += '<tr>' +
+      '<td class="c-idx">' + (i + 1) + '</td>' +
+      '<td><span class="c-type">' + esc(v.code || '') + '</span></td>' +
+      '<td class="c-desc">' + esc(v.message || '') + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  resultEl.innerHTML = html;
+}
+
+function renderNormalizeDoc(data){
+  if (!data || !data.filePath) {
+    resultEl.innerHTML = '<div class="state err">No result returned.</div>';
+    return;
+  }
+  var statusColor = data.missingFields && data.missingFields.length ? '#f85149' : '#3fb950';
+  var statusLabel = data.missingFields && data.missingFields.length
+    ? data.missingFields.length + ' field(s) missing'
+    : 'fully conforming';
+  var html = '<div class="group-hd"><span>normalize_doc</span><span class="count"><span style="color:' + statusColor + '">' + statusLabel + '</span></span></div>';
+  html += '<table><tbody>';
+  html += '<tr><th>File</th><td class="c-path">' + esc(data.filePath || '') + '</td></tr>';
+  html += '<tr><th>Project</th><td class="c-proj">' + esc((data.projectName || '') + ' (' + (data.projectDewey || 0) + ')') + '</td></tr>';
+  html += '<tr><th>Has front-matter</th><td>' + (data.hasFrontmatter ? 'yes' : 'no') + '</td></tr>';
+  if (data.missingFields && data.missingFields.length) {
+    html += '<tr><th>Missing fields</th><td><code>' + esc(data.missingFields.join(', ')) + '</code></td></tr>';
+  }
+  html += '</tbody></table>';
+  if (data.suggestedFrontmatter) {
+    html += '<div class="group-hd"><span>Suggested front-matter</span></div>';
+    html += '<pre class="json">' + esc(data.suggestedFrontmatter) + '</pre>';
+  }
+  resultEl.innerHTML = html;
+}
+
+function renderDocIdentity(data){
+  if (!data) {
+    resultEl.innerHTML = '<div class="state err">No result returned.</div>';
+    return;
+  }
+  if (!data.found) {
+    resultEl.innerHTML = '<div class="group-hd"><span>get_doc_by_identity</span><span class="count"><span style="color:#f85149">not found</span></span></div>' +
+      '<div class="state">Identity <code>' + esc(data.identity || '') + '</code> not found in any registered project.</div>';
+    return;
+  }
+  var mdLink = BASE + '/md-preview?path=' + encodeURIComponent(data.filePath || '');
+  var html = '<div class="group-hd"><span>get_doc_by_identity</span><span class="count"><span style="color:#3fb950">found</span></span></div>';
+  html += '<table><tbody>';
+  html += '<tr><th>Identity</th><td><code>' + esc(data.identity || '') + '</code></td></tr>';
+  html += '<tr><th>File</th><td class="c-path"><a href="' + esc(mdLink) + '" target="_blank" rel="noopener">' + esc(data.filePath || '') + '</a></td></tr>';
+  html += '<tr><th>Project</th><td class="c-proj">' + esc((data.projectName || '') + ' (' + (data.projectDewey || 0) + ')') + '</td></tr>';
+  html += '<tr><th>Title</th><td>' + esc(data.title || '') + '</td></tr>';
+  html += '<tr><th>Description</th><td class="c-desc">' + esc(data.description || '') + '</td></tr>';
+  html += '<tr><th>Status</th><td>' + esc(data.status || '') + '</td></tr>';
+  html += '</tbody></table>';
+  resultEl.innerHTML = html;
+}
+
+function renderOldDewey(data){
+  var rows = (data && data.docs) || [];
+  var html = '<div class="group-hd"><span>list_old_dewey</span><span class="count">' + (data.totalFound || 0) + ' found</span></div>';
+  if (!rows.length) {
+    resultEl.innerHTML = html + '<div class="state">No old-scheme Dewey identifiers found.</div>';
+    return;
+  }
+  html += '<table><thead><tr><th>#</th><th>Project</th><th>Old Dewey</th><th>Source</th><th>File</th><th>Title</th></tr></thead><tbody>';
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    html += '<tr>' +
+      '<td class="c-idx">' + (i + 1) + '</td>' +
+      '<td class="c-proj">' + esc(r.projectName || '') + '</td>' +
+      '<td><code>' + esc(r.oldDewey || '') + '</code></td>' +
+      '<td><span class="c-type">' + esc(r.source || '') + '</span></td>' +
+      '<td class="c-path">' + esc(r.filePath || '') + '</td>' +
+      '<td class="c-desc">' + esc(r.title || '') + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  resultEl.innerHTML = html;
+}
+
+function loadActiveMarkdownPath(filePathEl){
+  if (!filePathEl) { return; }
+  fetch(BASE + '/api/active_markdown')
+    .then(function(res){ return res.json(); })
+    .then(function(json){
+      if (!json || !json.hasActiveMarkdown || !json.filePath) { return; }
+      if (!filePathEl.value.trim()) {
+        filePathEl.value = json.filePath;
+      }
+    })
+    .catch(function(){
+      // no-op
+    });
+}
+
+function loadWorkspaceMarkdownOptions(selectEl){
+  if (!selectEl) { return; }
+
+  fetch(BASE + '/api/list_markdown_paths?limit=300')
+    .then(function(res){ return res.json(); })
+    .then(function(json){
+      var rows = (json && json.paths) || [];
+      if (!rows.length) {
+        selectEl.innerHTML = '<option value="">no markdown files found</option>';
+        return;
+      }
+      var opts = ['<option value="">choose a markdown file...</option>'];
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var label = (r.projectName || '(unknown)') + ' - ' + (r.fileName || 'doc') + ' - ' + (r.lastModified || '');
+        opts.push('<option value="' + esc(r.filePath || '') + '" title="' + esc(r.filePath || '') + '">' + esc(label) + '</option>');
+      }
+      selectEl.innerHTML = opts.join('');
+    })
+    .catch(function(){
+      selectEl.innerHTML = '<option value="">unable to load markdown files</option>';
+    });
+}
+
 /* Fetch and render the current endpoint. */
 function runEndpoint(params){
   var qs = params ? ('?' + new URLSearchParams(params).toString()) : '';
@@ -458,6 +671,11 @@ function runEndpoint(params){
         if (currentEndpoint === 'find_project')   { renderFindProjectTable(json); return; }
         if (currentEndpoint === 'search_docs')    { renderDocsTable(json); return; }
         if (currentEndpoint === 'get_catalog')    { renderDocsTable(json); return; }
+        if (currentEndpoint === 'list_doc_violations') { renderDocViolations(json); return; }
+        if (currentEndpoint === 'validate_doc')   { renderValidateDoc(json); return; }
+        if (currentEndpoint === 'normalize_doc')  { renderNormalizeDoc(json); return; }
+        if (currentEndpoint === 'get_doc_by_identity') { renderDocIdentity(json); return; }
+        if (currentEndpoint === 'list_old_dewey') { renderOldDewey(json); return; }
         if (currentEndpoint === 'list_symbols')   { renderSymbolsTable(json); return; }
         if (currentEndpoint === 'find_symbol')    { renderSymbolsTable(json); return; }
         if (currentEndpoint === 'list_cvt_commands') { renderCvtCommandsTable(json); return; }
@@ -485,6 +703,8 @@ function countSummary(json){
     return json.matchCount + ' matches';
   }
   if (typeof json.docCount     === 'number') { return json.docCount + ' docs'; }
+  if (typeof json.totalViolations === 'number') { return json.totalViolations + ' violations'; }
+  if (Array.isArray(json.violations)) { return json.violations.length + ' violations'; }
   return '';
 }
 
@@ -567,12 +787,22 @@ function selectTab(endpoint){
   var groupEl = document.getElementById('group');
   var statusEl = document.getElementById('status');
   var sortByEl = document.getElementById('sortBy');
+  var filePathEl = document.getElementById('filePath');
+  var activeFileBtn = document.getElementById('btn-active-file');
+  var workspaceMdEl = document.getElementById('workspaceMd');
+  var workspaceFileBtn = document.getElementById('btn-workspace-file');
 
   if (endpoint === 'get_catalog' && pEl) {
     loadProjectOptions(pEl);
   }
   if (endpoint === 'get_catalog' && sortByEl) {
     sortByEl.value = catalogSortBy;
+  }
+  if ((endpoint === 'validate_doc' || endpoint === 'normalize_doc') && filePathEl) {
+    loadActiveMarkdownPath(filePathEl);
+  }
+  if ((endpoint === 'validate_doc' || endpoint === 'normalize_doc') && workspaceMdEl) {
+    loadWorkspaceMarkdownOptions(workspaceMdEl);
   }
 
   function runFromControls(){
@@ -597,6 +827,24 @@ function selectTab(endpoint){
       var p3 = (pEl && pEl.value || '').trim();
       catalogSortBy = (sortByEl && sortByEl.value) ? sortByEl.value : 'recent';
       runEndpoint(p3 ? { projectName: p3 } : null);
+    } else if (endpoint === 'list_doc_violations') {
+      var p5 = (pEl && pEl.value || '').trim();
+      runEndpoint(p5 ? { projectName: p5 } : null);
+    } else if (endpoint === 'validate_doc') {
+      var f0 = (filePathEl && filePathEl.value || '').trim();
+      if (!f0) { toast('Enter a .md file path'); filePathEl && filePathEl.focus(); return; }
+      runEndpoint({ filePath: f0 });
+    } else if (endpoint === 'normalize_doc') {
+      var fn0 = (filePathEl && filePathEl.value || '').trim();
+      if (!fn0) { toast('Enter a .md file path'); filePathEl && filePathEl.focus(); return; }
+      runEndpoint({ filePath: fn0 });
+    } else if (endpoint === 'get_doc_by_identity') {
+      var idQ = (qEl && qEl.value || '').trim();
+      if (!idQ) { toast('Enter an identity string'); qEl && qEl.focus(); return; }
+      runEndpoint({ identity: idQ });
+    } else if (endpoint === 'list_old_dewey') {
+      var p6 = (pEl && pEl.value || '').trim();
+      runEndpoint(p6 ? { projectName: p6 } : null);
     } else if (endpoint === 'list_symbols') {
       var params2 = {};
       var qSym = (qEl && qEl.value || '').trim();
@@ -626,7 +874,38 @@ function selectTab(endpoint){
   }
 
   if (btn) { btn.addEventListener('click', runFromControls); }
-  [qEl, pEl, nameEl, groupEl].forEach(function(el){
+  if (activeFileBtn && filePathEl) {
+    activeFileBtn.addEventListener('click', function(){
+      fetch(BASE + '/api/active_markdown')
+        .then(function(res){ return res.json(); })
+        .then(function(json){
+          if (!json || !json.hasActiveMarkdown || !json.filePath) {
+            toast('No active markdown editor found');
+            return;
+          }
+          filePathEl.value = json.filePath;
+          toast('Loaded active markdown file');
+          filePathEl.focus();
+        })
+        .catch(function(){
+          toast('Could not load active markdown file');
+        });
+    });
+  }
+  if (workspaceFileBtn && workspaceMdEl && filePathEl) {
+    workspaceFileBtn.addEventListener('click', function(){
+      var selected = (workspaceMdEl.value || '').trim();
+      if (!selected) {
+        toast('Select a workspace markdown file first');
+        workspaceMdEl.focus();
+        return;
+      }
+      filePathEl.value = selected;
+      toast('Loaded selected markdown file');
+      filePathEl.focus();
+    });
+  }
+  [qEl, pEl, nameEl, groupEl, filePathEl].forEach(function(el){
     if (!el) { return; }
     el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { runFromControls(); } });
   });
@@ -639,12 +918,22 @@ function selectTab(endpoint){
   } else if (endpoint === 'get_catalog') {
     /* No query required for get_catalog — run empty. */
     runEndpoint(null);
+  } else if (endpoint === 'list_doc_violations') {
+    /* No query required — run full scanner by default. */
+    runEndpoint(null);
   } else if (endpoint === 'list_symbols') {
     /* Full index — run empty to show everything. */
     runEndpoint(null);
   } else if (endpoint === 'list_cvt_commands') {
     /* All 83 commands — run empty. */
     runEndpoint(null);
+  } else if (endpoint === 'list_old_dewey') {
+    runEndpoint(null);
+  } else if (endpoint === 'validate_doc' || endpoint === 'normalize_doc' || endpoint === 'get_doc_by_identity') {
+    resultEl.innerHTML = '<div class="state">Enter a value above and click Run.</div>';
+    metaEl.textContent = '';
+    if (filePathEl) { filePathEl.focus(); }
+    if (qEl) { qEl.focus(); }
   } else {
     resultEl.innerHTML = '<div class="state">Enter a query and click Run.</div>';
     metaEl.textContent = '';

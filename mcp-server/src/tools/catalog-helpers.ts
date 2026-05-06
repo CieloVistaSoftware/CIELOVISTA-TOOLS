@@ -14,10 +14,16 @@ export interface ProjectEntry {
   description: string;
   /** Lifecycle status. Missing entries default to "product" for backward compatibility. */
   status?: "product" | "workbench" | "generated" | "archived";
+  /** Fixed Dewey hundred for this project. Stored in project-registry.json. */
+  dewey?: number;
+  /** GitHub repository URL, used to build GitHub links in the viewer. */
+  githubUrl?: string;
 }
 
 export interface ProjectRegistry {
   globalDocsPath: string;
+  /** Dewey number for the global docs folder. Defaults to 0. */
+  globalDewey?: number;
   projects: ProjectEntry[];
 }
 
@@ -247,13 +253,32 @@ export function extractDeweyAndHelp(
 }
 
 export function buildProjectDeweyMap(
-  projectNames: string[]
+  projects: ProjectEntry[] | string[],
+  registry?: ProjectRegistry
 ): Map<string, ProjectDewey> {
   const map = new Map<string, ProjectDewey>();
-  map.set("global", { num: 0, label: "Global Standards" });
-  projectNames.forEach((name, index) => {
-    map.set(name, { num: (index + 1) * 100, label: name });
-  });
+  const globalDewey = registry?.globalDewey ?? 0;
+  map.set("global", { num: globalDewey, label: "Global Standards" });
+
+  if (projects.length === 0) { return map; }
+
+  if (typeof projects[0] === "string") {
+    // Legacy: string[] path — look up dewey from registry if available
+    const entries = projects as string[];
+    entries.forEach((name, index) => {
+      const entry = registry?.projects.find((p) => p.name === name);
+      const num = entry?.dewey ?? (index + 1) * 100;
+      map.set(name, { num, label: name });
+    });
+  } else {
+    // Preferred: ProjectEntry[] path — use dewey field directly
+    const entries = projects as ProjectEntry[];
+    entries.forEach((entry, index) => {
+      const num = entry.dewey ?? (index + 1) * 100;
+      map.set(entry.name, { num, label: entry.name });
+    });
+  }
+
   return map;
 }
 
@@ -283,7 +308,7 @@ export function scanAllDocs(
   projectNameFilter?: string
 ): DocEntry[] {
   const docs: DocEntry[] = [];
-  const deweyMap = buildProjectDeweyMap(registry.projects.map((p) => p.name));
+  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
 
   if (!projectNameFilter || projectNameFilter === "global") {
     docs.push(
@@ -313,6 +338,443 @@ export function scanAllDocs(
   }
 
   return docs;
+}
+
+export type DocViolationCode =
+  | "missing-frontmatter"
+  | "missing-subject"
+  | "missing-id"
+  | "missing-title"
+  | "missing-project"
+  | "missing-description"
+  | "missing-status"
+  | "invalid-subject-format"
+  | "subject-project-mismatch"
+  | "invalid-id-format"
+  | "invalid-status"
+  | "identity-collision";
+
+export interface DocViolation {
+  projectName: string;
+  projectDewey: number;
+  filePath: string;
+  identity?: string;
+  code: DocViolationCode;
+  message: string;
+}
+
+export interface DocViolationsResult {
+  totalDocsScanned: number;
+  totalViolations: number;
+  violations: DocViolation[];
+  byProject: Array<{ projectName: string; projectDewey: number; count: number }>;
+  byCode: Array<{ code: DocViolationCode; count: number }>;
+}
+
+export interface ValidateDocResult {
+  ok: boolean;
+  filePath: string;
+  projectName: string;
+  projectDewey: number;
+  expectedSubjectPrefix: string;
+  identity?: string;
+  violations: DocViolation[];
+}
+
+function parseFrontmatter(content: string): Record<string, string> | null {
+  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*/);
+  if (!match) {
+    return null;
+  }
+  const result: Record<string, string> = {};
+  const lines = match[1].split(/\r?\n/);
+  for (const line of lines) {
+    const idx = line.indexOf(":");
+    if (idx <= 0) {
+      continue;
+    }
+    const key = line.slice(0, idx).trim().toLowerCase();
+    const value = line.slice(idx + 1).trim().replace(/^['"]|['"]$/g, "");
+    if (key) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+export function validateDoc(
+  registry: ProjectRegistry,
+  filePath: string
+): ValidateDocResult {
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`File not found: ${resolved}`);
+  }
+  if (!/\.md$/i.test(resolved)) {
+    throw new Error(`validate_doc only supports .md files: ${resolved}`);
+  }
+
+  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
+  const roots: Array<{ projectName: string; rootPath: string; projectDewey: number }> = [
+    { projectName: "global", rootPath: path.resolve(registry.globalDocsPath), projectDewey: 0 },
+    ...registry.projects.map((p) => ({
+      projectName: p.name,
+      rootPath: path.resolve(p.path),
+      projectDewey: lookupDewey(deweyMap, p.name).num,
+    })),
+  ];
+
+  const lower = resolved.toLowerCase();
+  const owner = roots.find((r) => lower.startsWith(r.rootPath.toLowerCase()));
+  const projectName = owner?.projectName ?? "unknown";
+  const projectDewey = owner?.projectDewey ?? 999;
+  const expectedPrefix = String(projectDewey).padStart(3, "0");
+
+  const content = fs.readFileSync(resolved, "utf8");
+  const fm = parseFrontmatter(content);
+  const violations: DocViolation[] = [];
+  const allowedStatus = new Set(["active", "draft", "archived"]);
+  let identity: string | undefined;
+
+  if (!fm) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-frontmatter",
+      message: "Missing YAML front-matter block",
+    });
+    return {
+      ok: false,
+      filePath: resolved,
+      projectName,
+      projectDewey,
+      expectedSubjectPrefix: expectedPrefix,
+      violations,
+    };
+  }
+
+  const subject = (fm.subject ?? "").trim();
+  const id = (fm.id ?? "").trim();
+  const title = (fm.title ?? "").trim();
+  const project = (fm.project ?? "").trim();
+  const description = (fm.description ?? "").trim();
+  const status = (fm.status ?? "").trim().toLowerCase();
+
+  if (!subject) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-subject",
+      message: "Missing required front-matter field: subject",
+    });
+  } else if (!/^\d{3}\.\d+$/.test(subject)) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "invalid-subject-format",
+      message: "subject must match pattern ###.# (for example 200.1)",
+    });
+  } else if (projectName !== "unknown" && !subject.startsWith(`${expectedPrefix}.`)) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "subject-project-mismatch",
+      message: `subject prefix must match project Dewey ${expectedPrefix}`,
+    });
+  }
+
+  if (!id) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-id",
+      message: "Missing required front-matter field: id",
+    });
+  } else if (!/^[a-z0-9]+(?:-[a-z0-9]+){0,24}$/.test(id) || id.length < 3 || id.length > 50) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "invalid-id-format",
+      message: "id must be lowercase-kebab-case, 3-50 chars",
+    });
+  }
+
+  if (!title) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-title",
+      message: "Missing required front-matter field: title",
+    });
+  }
+  if (!project) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-project",
+      message: "Missing required front-matter field: project",
+    });
+  }
+  if (!description) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-description",
+      message: "Missing required front-matter field: description",
+    });
+  }
+  if (!status) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "missing-status",
+      message: "Missing required front-matter field: status",
+    });
+  } else if (!allowedStatus.has(status)) {
+    violations.push({
+      projectName,
+      projectDewey,
+      filePath: resolved,
+      code: "invalid-status",
+      message: "status must be one of: active, draft, archived",
+    });
+  }
+
+  if (subject && id) {
+    identity = `${subject}.${id}`.toLowerCase();
+    const allDocs = scanAllDocs(registry);
+    let seen = 0;
+    for (const doc of allDocs) {
+      try {
+        const docFm = parseFrontmatter(fs.readFileSync(doc.filePath, "utf8"));
+        if (!docFm) {
+          continue;
+        }
+        const docSubject = (docFm.subject ?? "").trim().toLowerCase();
+        const docId = (docFm.id ?? "").trim().toLowerCase();
+        if (docSubject && docId && `${docSubject}.${docId}` === identity) {
+          seen += 1;
+        }
+      } catch {
+        // ignore unreadable docs
+      }
+    }
+    if (seen > 1) {
+      violations.push({
+        projectName,
+        projectDewey,
+        filePath: resolved,
+        identity,
+        code: "identity-collision",
+        message: `Identity collision: ${identity} appears in ${seen} docs`,
+      });
+    }
+  }
+
+  return {
+    ok: violations.length === 0,
+    filePath: resolved,
+    projectName,
+    projectDewey,
+    expectedSubjectPrefix: expectedPrefix,
+    identity,
+    violations,
+  };
+}
+
+export function listDocViolations(
+  registry: ProjectRegistry,
+  projectName?: string
+): DocViolationsResult {
+  const docs = scanAllDocs(registry, projectName);
+  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
+  const violations: DocViolation[] = [];
+  const identityBuckets = new Map<string, DocEntry[]>();
+  const allowedStatus = new Set(["active", "draft", "archived"]);
+
+  for (const doc of docs) {
+    let content = "";
+    try {
+      content = fs.readFileSync(doc.filePath, "utf8");
+    } catch {
+      continue;
+    }
+
+    const projectDewey = doc.projectName === "global"
+      ? 0
+      : lookupDewey(deweyMap, doc.projectName).num;
+    const expectedPrefix = String(projectDewey).padStart(3, "0");
+    const fm = parseFrontmatter(content);
+
+    if (!fm) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-frontmatter",
+        message: "Missing YAML front-matter block",
+      });
+      continue;
+    }
+
+    const subject = (fm.subject ?? "").trim();
+    const id = (fm.id ?? "").trim();
+    const title = (fm.title ?? "").trim();
+    const project = (fm.project ?? "").trim();
+    const description = (fm.description ?? "").trim();
+    const status = (fm.status ?? "").trim().toLowerCase();
+
+    if (!subject) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-subject",
+        message: "Missing required front-matter field: subject",
+      });
+    } else if (!/^\d{3}\.\d+$/.test(subject)) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "invalid-subject-format",
+        message: "subject must match pattern ###.# (for example 200.1)",
+      });
+    } else if (!subject.startsWith(`${expectedPrefix}.`)) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "subject-project-mismatch",
+        message: `subject prefix must match project Dewey ${expectedPrefix}`,
+      });
+    }
+
+    if (!id) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-id",
+        message: "Missing required front-matter field: id",
+      });
+    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+){0,24}$/.test(id) || id.length < 3 || id.length > 50) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "invalid-id-format",
+        message: "id must be lowercase-kebab-case, 3-50 chars",
+      });
+    }
+
+    if (!title) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-title",
+        message: "Missing required front-matter field: title",
+      });
+    }
+    if (!project) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-project",
+        message: "Missing required front-matter field: project",
+      });
+    }
+    if (!description) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-description",
+        message: "Missing required front-matter field: description",
+      });
+    }
+    if (!status) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "missing-status",
+        message: "Missing required front-matter field: status",
+      });
+    } else if (!allowedStatus.has(status)) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey,
+        filePath: doc.filePath,
+        code: "invalid-status",
+        message: "status must be one of: active, draft, archived",
+      });
+    }
+
+    if (subject && id) {
+      const identity = `${subject}.${id}`.toLowerCase();
+      const bucket = identityBuckets.get(identity);
+      if (bucket) {
+        bucket.push(doc);
+      } else {
+        identityBuckets.set(identity, [doc]);
+      }
+    }
+  }
+
+  for (const [identity, bucket] of identityBuckets) {
+    if (bucket.length < 2) {
+      continue;
+    }
+    for (const doc of bucket) {
+      violations.push({
+        projectName: doc.projectName,
+        projectDewey: doc.projectDewey,
+        filePath: doc.filePath,
+        identity,
+        code: "identity-collision",
+        message: `Identity collision: ${identity} appears in ${bucket.length} docs`,
+      });
+    }
+  }
+
+  const byProjectMap = new Map<string, { projectName: string; projectDewey: number; count: number }>();
+  for (const v of violations) {
+    const key = `${v.projectName}:${v.projectDewey}`;
+    const row = byProjectMap.get(key);
+    if (row) {
+      row.count += 1;
+    } else {
+      byProjectMap.set(key, { projectName: v.projectName, projectDewey: v.projectDewey, count: 1 });
+    }
+  }
+
+  const byCodeMap = new Map<DocViolationCode, number>();
+  for (const v of violations) {
+    byCodeMap.set(v.code, (byCodeMap.get(v.code) ?? 0) + 1);
+  }
+
+  return {
+    totalDocsScanned: docs.length,
+    totalViolations: violations.length,
+    violations,
+    byProject: [...byProjectMap.values()].sort((a, b) => b.count - a.count),
+    byCode: [...byCodeMap.entries()]
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => b.count - a.count),
+  };
 }
 
 export function searchDocs(docs: DocEntry[], query: string): DocEntry[] {
@@ -551,7 +1013,7 @@ export function listBrokenRefs(
     if (projectName && p.name !== projectName) {
       continue;
     }
-    const deweyMap = buildProjectDeweyMap(registry.projects.map((x) => x.name));
+    const deweyMap = buildProjectDeweyMap(registry.projects, registry);
     roots.push({ projectName: p.name, projectDewey: lookupDewey(deweyMap, p.name).num, rootPath: path.resolve(p.path) });
   }
 
@@ -705,4 +1167,330 @@ export function repairBrokenRefs(input: {
   }
 
   return { editsApplied, placeholdersCreated, failures };
+}
+
+// ─── Phase 3: Normalizer ─────────────────────────────────────────────────────
+
+export interface NormalizeDocResult {
+  filePath: string;
+  projectName: string;
+  projectDewey: number;
+  hasFrontmatter: boolean;
+  missingFields: string[];
+  proposed: {
+    subject?: string;
+    id?: string;
+    title?: string;
+    project?: string;
+    description?: string;
+    status?: string;
+  };
+  suggestedFrontmatter: string;
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 50)
+    .replace(/^-|-$/g, "");
+}
+
+export function normalizeDoc(
+  registry: ProjectRegistry,
+  filePath: string
+): NormalizeDocResult {
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`File not found: ${resolved}`);
+  }
+
+  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
+  const roots: Array<{ projectName: string; rootPath: string; projectDewey: number }> = [
+    { projectName: "global", rootPath: path.resolve(registry.globalDocsPath), projectDewey: registry.globalDewey ?? 0 },
+    ...registry.projects.map((p) => ({
+      projectName: p.name,
+      rootPath: path.resolve(p.path),
+      projectDewey: deweyMap.get(p.name)?.num ?? 999,
+    })),
+  ];
+
+  const lower = resolved.toLowerCase();
+  const owner = roots.find((r) => lower.startsWith(r.rootPath.toLowerCase()));
+  const projectName = owner?.projectName ?? "unknown";
+  const projectDewey = owner?.projectDewey ?? 999;
+  const prefix = String(projectDewey).padStart(3, "0");
+
+  const content = fs.readFileSync(resolved, "utf8");
+  const fm = parseFrontmatter(content);
+  const hasFrontmatter = fm !== null;
+
+  const subject = fm?.subject?.trim() ?? "";
+  const id = fm?.id?.trim() ?? "";
+  const title = fm?.title?.trim() ?? extractTitle(content, path.basename(resolved));
+  const project = fm?.project?.trim() ?? "";
+  const description = fm?.description?.trim() ?? extractDescription(content);
+  const status = fm?.status?.trim() ?? "";
+
+  const missing: string[] = [];
+  const proposed: NormalizeDocResult["proposed"] = {};
+
+  if (!subject) {
+    missing.push("subject");
+    proposed.subject = `${prefix}.9`;
+  }
+  if (!id) {
+    missing.push("id");
+    const raw = slugify(title || path.basename(resolved, ".md"));
+    proposed.id = raw.length >= 3 ? raw : `${raw}-doc`;
+  }
+  if (!title) {
+    missing.push("title");
+    proposed.title = path.basename(resolved, ".md").replace(/[-_]/g, " ");
+  }
+  if (!project) {
+    missing.push("project");
+    if (projectName !== "unknown") { proposed.project = projectName; }
+  }
+  if (!description) {
+    missing.push("description");
+    const auto = extractDescription(content);
+    if (auto !== "No description.") { proposed.description = auto.slice(0, 200); }
+  }
+  if (!status) {
+    missing.push("status");
+    proposed.status = "draft";
+  }
+
+  const merged = {
+    subject: subject || proposed.subject || `${prefix}.9`,
+    id: id || proposed.id || "unnamed-doc",
+    title: title || proposed.title || path.basename(resolved, ".md"),
+    project: project || proposed.project || projectName,
+    description: description || proposed.description || "No description.",
+    status: status || proposed.status || "draft",
+  };
+
+  const suggestedFrontmatter = [
+    "---",
+    `subject: ${merged.subject}`,
+    `id: ${merged.id}`,
+    `title: ${merged.title}`,
+    `project: ${merged.project}`,
+    `description: ${merged.description.slice(0, 200)}`,
+    `status: ${merged.status}`,
+    "---",
+  ].join("\n");
+
+  return { filePath: resolved, projectName, projectDewey, hasFrontmatter, missingFields: missing, proposed, suggestedFrontmatter };
+}
+
+// ─── Phase 4: Doc ledger / identity resolution ───────────────────────────────
+
+export interface DocIdentityEntry {
+  identity: string;
+  subject: string;
+  id: string;
+  filePath: string;
+  projectName: string;
+  projectDewey: number;
+  title: string;
+  description: string;
+  status: string;
+  githubUrl?: string;
+}
+
+export interface DocLedgerResult {
+  docsScanned: number;
+  identitiesIndexed: number;
+  duplicates: number;
+  index: DocIdentityEntry[];
+}
+
+const ALIAS_PATH =
+  "C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\dewey-aliases.json";
+
+function loadAliases(): Record<string, string> {
+  try {
+    if (!fs.existsSync(ALIAS_PATH)) { return {}; }
+    const raw = JSON.parse(fs.readFileSync(ALIAS_PATH, "utf8")) as { aliases?: Record<string, string> };
+    return raw.aliases ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export function buildDocLedger(
+  registry: ProjectRegistry,
+  projectName?: string
+): DocLedgerResult {
+  const docs = scanAllDocs(registry, projectName);
+  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
+  const index: DocIdentityEntry[] = [];
+  const seen = new Map<string, number>();
+  let duplicates = 0;
+
+  const githubByProject = new Map<string, string>();
+  for (const p of registry.projects) {
+    if (p.githubUrl) { githubByProject.set(p.name, p.githubUrl); }
+  }
+
+  for (const doc of docs) {
+    let content = "";
+    try { content = fs.readFileSync(doc.filePath, "utf8"); } catch { continue; }
+    const fm = parseFrontmatter(content);
+    if (!fm) { continue; }
+    const subject = (fm.subject ?? "").trim();
+    const id = (fm.id ?? "").trim();
+    if (!subject || !id) { continue; }
+    const identity = `${subject}.${id}`.toLowerCase();
+    const projectDewey = doc.projectName === "global"
+      ? (registry.globalDewey ?? 0)
+      : (deweyMap.get(doc.projectName)?.num ?? 999);
+    seen.set(identity, (seen.get(identity) ?? 0) + 1);
+    if ((seen.get(identity) ?? 0) > 1) { duplicates += 1; }
+    index.push({
+      identity,
+      subject,
+      id,
+      filePath: doc.filePath,
+      projectName: doc.projectName,
+      projectDewey,
+      title: (fm.title ?? doc.title).trim(),
+      description: (fm.description ?? doc.description).trim(),
+      status: (fm.status ?? "active").trim(),
+      githubUrl: githubByProject.get(doc.projectName),
+    });
+  }
+
+  return { docsScanned: docs.length, identitiesIndexed: index.length, duplicates, index };
+}
+
+export function getDocByIdentity(
+  registry: ProjectRegistry,
+  identity: string
+): DocIdentityEntry | null {
+  const normalized = identity.trim().toLowerCase();
+  const aliases = loadAliases();
+  const resolved = aliases[normalized] ?? normalized;
+
+  const ledger = buildDocLedger(registry);
+  return ledger.index.find((e) => e.identity === resolved) ?? null;
+}
+
+// ─── Phase 4: Old Dewey scanner ──────────────────────────────────────────────
+
+export interface OldDeweyEntry {
+  filePath: string;
+  projectName: string;
+  projectDewey: number;
+  title: string;
+  oldDewey: string;
+  source: "filename" | "frontmatter-category" | "frontmatter-dewey";
+}
+
+export interface OldDeweyResult {
+  totalFound: number;
+  docs: OldDeweyEntry[];
+}
+
+export function listOldDewey(
+  registry: ProjectRegistry,
+  projectName?: string
+): OldDeweyResult {
+  const docs = scanAllDocs(registry, projectName);
+  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
+  const results: OldDeweyEntry[] = [];
+
+  for (const doc of docs) {
+    const projectDewey = doc.projectName === "global"
+      ? (registry.globalDewey ?? 0)
+      : (deweyMap.get(doc.projectName)?.num ?? 999);
+
+    // Check filename pattern: NNN.NNN.md or NNNN.NNN.md
+    const fnMatch = path.basename(doc.filePath).match(/^(\d{3,}\.\d{3})\.md$/i);
+    if (fnMatch) {
+      results.push({ filePath: doc.filePath, projectName: doc.projectName, projectDewey, title: doc.title, oldDewey: fnMatch[1], source: "filename" });
+      continue;
+    }
+
+    // Check front-matter for old-style numeric `category` or `dewey` fields
+    let content = "";
+    try { content = fs.readFileSync(doc.filePath, "utf8"); } catch { continue; }
+    const fm = parseFrontmatter(content);
+    if (!fm) { continue; }
+
+    const category = (fm.category ?? "").trim();
+    if (category && /^\d{3,}\.\d{3}$/.test(category)) {
+      results.push({ filePath: doc.filePath, projectName: doc.projectName, projectDewey, title: doc.title, oldDewey: category, source: "frontmatter-category" });
+      continue;
+    }
+    const dewey = (fm.dewey ?? "").trim();
+    if (dewey && /^\d{3,}\.\d{3}$/.test(dewey)) {
+      results.push({ filePath: doc.filePath, projectName: doc.projectName, projectDewey, title: doc.title, oldDewey: dewey, source: "frontmatter-dewey" });
+    }
+  }
+
+  return { totalFound: results.length, docs: results };
+}
+
+// ─── Phase 4: Dewey migration proposal ──────────────────────────────────────
+
+export interface MigrateDeweyResult {
+  filePath: string;
+  projectName: string;
+  oldDewey: string | null;
+  proposedSubject: string;
+  proposedId: string;
+  proposedIdentity: string;
+  suggestedFrontmatterAdditions: string;
+  aliasEntry: { old: string; new: string } | null;
+}
+
+export function migrateDewey(
+  registry: ProjectRegistry,
+  filePath: string,
+  overrideSubject?: string,
+  overrideId?: string
+): MigrateDeweyResult {
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`File not found: ${resolved}`);
+  }
+
+  const norm = normalizeDoc(registry, resolved);
+  const content = fs.readFileSync(resolved, "utf8");
+  const fm = parseFrontmatter(content);
+
+  // Find old Dewey: filename pattern, or category/dewey front-matter field
+  let oldDewey: string | null = null;
+  const fnMatch = path.basename(resolved).match(/^(\d{3,}\.\d{3})\.md$/i);
+  if (fnMatch) { oldDewey = fnMatch[1]; }
+  else if (fm) {
+    const cat = (fm.category ?? "").trim();
+    const dw = (fm.dewey ?? "").trim();
+    if (/^\d{3,}\.\d{3}$/.test(cat)) { oldDewey = cat; }
+    else if (/^\d{3,}\.\d{3}$/.test(dw)) { oldDewey = dw; }
+  }
+
+  const proposedSubject = overrideSubject ?? norm.proposed.subject ?? fm?.subject ?? `${String(norm.projectDewey).padStart(3, "0")}.9`;
+  const rawId = overrideId ?? norm.proposed.id ?? fm?.id ?? slugify(norm.proposed.title ?? path.basename(resolved, ".md"));
+  const proposedId = rawId.length >= 3 ? rawId : `${rawId}-doc`;
+  const proposedIdentity = `${proposedSubject}.${proposedId}`.toLowerCase();
+
+  const suggestedFrontmatterAdditions = [
+    `subject: ${proposedSubject}`,
+    `id: ${proposedId}`,
+    `project: ${norm.projectName}`,
+    `status: draft`,
+  ].join("\n");
+
+  const aliasEntry = oldDewey
+    ? { old: oldDewey, new: proposedIdentity }
+    : null;
+
+  return { filePath: resolved, projectName: norm.projectName, oldDewey, proposedSubject, proposedId, proposedIdentity, suggestedFrontmatterAdditions, aliasEntry };
 }
