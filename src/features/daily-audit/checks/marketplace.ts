@@ -19,6 +19,7 @@ interface ProjectResult {
 
 function checkOne(project: ProjectEntry): ProjectResult {
     const missing: string[] = [];
+    const isExtension = project.type === 'vscode-extension';
     if (!fs.existsSync(project.path)) { return { name: project.name, score: 0, missing: ['project folder not found'] }; }
 
     if (!fs.existsSync(path.join(project.path, 'LICENSE')) &&
@@ -27,20 +28,22 @@ function checkOne(project: ProjectEntry): ProjectResult {
     if (!fs.existsSync(path.join(project.path, 'CHANGELOG.md'))) { missing.push('CHANGELOG.md'); }
     if (!fs.existsSync(path.join(project.path, 'icon.png')))     { missing.push('icon.png'); }
 
-    const pkgPath = path.join(project.path, 'package.json');
-    if (!fs.existsSync(pkgPath)) {
-        missing.push('package.json');
-    } else {
-        try {
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            if (!pkg.name        || !pkg.name.trim())        { missing.push('package.json:name'); }
-            if (!pkg.description || !pkg.description.trim()) { missing.push('package.json:description'); }
-            if (!pkg.version     || !pkg.version.trim())     { missing.push('package.json:version'); }
-            const lic = (pkg.license ?? '').trim();
-            if (!lic)                                 { missing.push('package.json:license'); }
-            else if (OPEN_SOURCE_LICENSES.includes(lic)) { missing.push(`package.json:license="${lic}" must be PROPRIETARY`); }
-            if (project.type === 'vscode-extension' && !pkg.publisher) { missing.push('package.json:publisher'); }
-        } catch { missing.push('package.json:invalid JSON'); }
+    if (isExtension) {
+        const pkgPath = path.join(project.path, 'package.json');
+        if (!fs.existsSync(pkgPath)) {
+            missing.push('package.json');
+        } else {
+            try {
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                if (!pkg.name        || !pkg.name.trim())        { missing.push('package.json:name'); }
+                if (!pkg.description || !pkg.description.trim()) { missing.push('package.json:description'); }
+                if (!pkg.version     || !pkg.version.trim())     { missing.push('package.json:version'); }
+                const lic = (pkg.license ?? '').trim();
+                if (!lic)                                 { missing.push('package.json:license'); }
+                else if (OPEN_SOURCE_LICENSES.includes(lic)) { missing.push(`package.json:license="${lic}" must be PROPRIETARY`); }
+                if (!pkg.publisher) { missing.push('package.json:publisher'); }
+            } catch { missing.push('package.json:invalid JSON'); }
+        }
     }
 
     const errors   = missing.filter(m => !m.includes('icon') && !m.includes('CHANGELOG')).length;
@@ -73,7 +76,7 @@ export function runMarketplaceCheck(projects: ProjectEntry[]): AuditCheck {
     } else {
         status  = 'green';
         summary = `All ${green.length} projects fully compliant`;
-        detail  = `All projects have LICENSE, CHANGELOG, icon.png, and valid package.json.`;
+        detail  = 'All projects have LICENSE, CHANGELOG, and icon.png. Extension projects also have valid package.json metadata.';
     }
 
     return {

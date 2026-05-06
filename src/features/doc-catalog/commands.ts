@@ -236,6 +236,12 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             case 'openFolder':
                 if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
+            case 'openSrcFile':
+                if (msg.data && fs.existsSync(msg.data)) {
+                    const doc = await vscode.workspace.openTextDocument(msg.data);
+                    await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+                }
+                break;
             case 'openClaude': {
                 const claudePath = path.join(msg.data, 'CLAUDE.md');
                 if (fs.existsSync(claudePath)) {

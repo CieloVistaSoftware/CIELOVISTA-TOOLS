@@ -768,14 +768,18 @@ function escHtml(s: string): string {
         .replace(/"/g, '&quot;');
 }
 
-function buildMarkdownPreviewHtml(filePath: string, markdown: string): string {
+function buildMarkdownPreviewHtml(filePath: string, markdown: string, backUrl?: string): string {
     const safePath = escHtml(filePath);
+    const safeBack = escHtml(backUrl || '');
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>${safePath}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#1e1e1e;color:#d4d4d4}
-header{position:sticky;top:0;background:#252526;border-bottom:1px solid #404040;padding:10px 16px;font-size:12px;color:#9cdcfe;font-family:Consolas,monospace}
+header{position:sticky;top:0;background:#252526;border-bottom:1px solid #404040;padding:10px 16px;font-size:12px;color:#9cdcfe;font-family:Consolas,monospace;display:flex;align-items:center;gap:10px}
+.btn-back{background:#2d2d2d;color:#9cdcfe;border:1px solid #404040;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px;font-family:inherit}
+.btn-back:hover{border-color:#0078d4;color:#fff}
+.path-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 main{max-width:980px;margin:0 auto;padding:18px 20px 40px;line-height:1.65}
 h1,h2,h3,h4{color:#fff;margin-top:1.4em}
 a{color:#FFD700}
@@ -786,13 +790,25 @@ table{border-collapse:collapse;width:100%}
 th,td{border:1px solid #2d2d2d;padding:6px 8px}
 </style></head>
 <body>
-<header>${safePath}</header>
+<header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><span class="path-label">${safePath}</span></header>
 <main id="content"></main>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
 const raw = ${JSON.stringify(markdown)};
+const backUrl = ${JSON.stringify(safeBack)};
 const content = document.getElementById('content');
 content.innerHTML = marked.parse(raw);
+document.getElementById('btn-back').addEventListener('click', function(){
+    if (backUrl) {
+        window.location.href = backUrl;
+        return;
+    }
+    if (window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+    window.location.href = '/';
+});
 </script>
 </body></html>`;
 }
@@ -884,13 +900,14 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
     if (p === '/md-preview') {
         const filePath = url.searchParams.get('path') || '';
+        const backUrl = url.searchParams.get('back') || '';
         if (!filePath || !filePath.toLowerCase().endsWith('.md') || !fs.existsSync(filePath)) {
             htmlResponse(res, 404, '<h1>Markdown file not found</h1>');
             return;
         }
         try {
             const md = fs.readFileSync(filePath, 'utf8');
-            htmlResponse(res, 200, buildMarkdownPreviewHtml(filePath, md));
+            htmlResponse(res, 200, buildMarkdownPreviewHtml(filePath, md, backUrl));
             return;
         } catch {
             htmlResponse(res, 500, '<h1>Unable to read markdown file</h1>');

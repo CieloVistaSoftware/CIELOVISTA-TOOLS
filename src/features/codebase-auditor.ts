@@ -23,13 +23,9 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 
-const FEATURE  = 'codebase-auditor';
-const SRC_ROOT = path.join(__dirname, '..', '..');  // resolves to src/
-// Fallback to hardcoded path when __dirname is in out/
-const FEATURES_DIR = fs.existsSync(path.join(__dirname, '..', 'features'))
-    ? path.join(__dirname, '..', 'features')
-    : 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\src\\features';
-const SHARED_DIR = FEATURES_DIR.replace('features', 'shared');
+const FEATURE      = 'codebase-auditor';
+const FEATURES_DIR = path.join(__dirname, '..', 'src', 'features');
+const SHARED_DIR   = path.join(__dirname, '..', 'src', 'shared');
 const SRC_DIR    = FEATURES_DIR.replace(/[/\\]features$/, '');
 
 // ─── Types ────────────────────────────────────────────────────────────────────

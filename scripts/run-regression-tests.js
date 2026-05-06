@@ -523,6 +523,29 @@ test('REG-022', 'md-renderer table rendering produces proper <table> HTML', () =
     `REG-022 md-renderer table test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-023: Issue #276 — doc placeholder guardrail.
+// Guards that no markdown docs in src/, docs/, or root contain stub placeholder
+// text that violates the one-time-one-place documentation rule.
+test('REG-023', 'No doc placeholder stubs in source docs (one-time-one-place)', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-023-doc-placeholder-guardrail.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-023 doc placeholder guardrail failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-024: Daily audit auditExcluded flag.
+// Guards that container/umbrella folders are excluded from daily audit checks.
+test('REG-024', 'Daily audit respects auditExcluded flag for container folders', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-024-daily-audit-excluded.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-024 daily audit exclusion failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));

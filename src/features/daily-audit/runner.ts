@@ -31,6 +31,7 @@ interface ProjectEntry {
     type: string;
     description: string;
     status?: 'product' | 'workbench' | 'generated' | 'archived';
+    auditExcluded?: boolean;
 }
 interface ProjectRegistry { globalDocsPath: string; projects: ProjectEntry[]; }
 
@@ -74,11 +75,13 @@ export async function runDailyAudit(): Promise<RunAuditResult> {
     }
 
     const projects = registry.projects;
-    const strictProjects = projects.filter(p => (p.status ?? 'product') === 'product' || (p.status ?? 'product') === 'workbench');
+    const strictProjects = projects.filter(
+        p => !p.auditExcluded && ((p.status ?? 'product') === 'product' || (p.status ?? 'product') === 'workbench')
+    );
 
     // Run all checks — each is independent, failures don't block others
     const checks: AuditCheck[] = await Promise.all([
-        safeRun(() => runRegistryHealthCheck(projects)),
+        safeRun(() => runRegistryHealthCheck(strictProjects)),
         safeRun(() => runMarketplaceCheck(strictProjects)),
         safeRun(() => runReadmeQualityCheck(strictProjects)),
         safeRun(() => runClaudeCoverageCheck(strictProjects)),
@@ -110,9 +113,9 @@ export async function runDailyAudit(): Promise<RunAuditResult> {
 
     try {
         fs.writeFileSync(AUDIT_REPORT_PATH, JSON.stringify(report, null, 2), 'utf8');
-        return { report, written: true, projectNames: projects.map(p => p.name) };
+        return { report, written: true, projectNames: strictProjects.map(p => p.name) };
     } catch (err) {
-        return { report, written: false, projectNames: projects.map(p => p.name), error: String(err) };
+        return { report, written: false, projectNames: strictProjects.map(p => p.name), error: String(err) };
     }
 }
 

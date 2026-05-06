@@ -1,0 +1,1 @@
+module.exports = { window:{}, commands:{}, Uri:{}, workspace:{} };

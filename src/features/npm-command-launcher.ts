@@ -267,7 +267,7 @@ function flushOutputQueue(): void {
 }
 
 function setupOutputPanel(): void {
-    if (_outputPanel) { _outputPanel.reveal(vscode.ViewColumn.Beside, true); return; }
+    if (_outputPanel) { return; } // already exists — don't flash/re-reveal on every data chunk
     _outputReady = false;
     _outputQueue = [];
     const panel = vscode.window.createWebviewPanel(
@@ -458,7 +458,7 @@ async function openPanel(): Promise<void> {
             case 'run': {
                 const { id, script, dir, folder } = msg as { id:string; script:string; dir:string; folder:string };
                 const jobKey = `${id}::${script}`;
-                setupOutputPanel();
+                // Do NOT open the output panel yet — it opens lazily on first output line
 
                 const sendOut  = (type: string, payload: object) => postToOutput({ jobKey, type, ...payload });
                 const sendCard = (type: string, payload: object) => _panel?.webview.postMessage({ type, id, script, ...payload });
@@ -491,11 +491,13 @@ async function openPanel(): Promise<void> {
 
                 proc.stdout?.on('data', (chunk: Buffer) => {
                     const text = stripAnsi(chunk.toString());
+                    setupOutputPanel(); // open lazily on first real output
                     sendOut('output', { text });
                     maybeOpenBrowser(text);
                 });
                 proc.stderr?.on('data', (chunk: Buffer) => {
                     const text = stripAnsi(chunk.toString());
+                    setupOutputPanel(); // open lazily on first real output
                     sendOut('output', { text });
                     maybeOpenBrowser(text);  // many dev servers write their URL to stderr
                 });

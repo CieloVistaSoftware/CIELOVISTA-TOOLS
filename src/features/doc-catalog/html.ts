@@ -86,6 +86,13 @@ export function buildCatalogInitPayload(
                 ? `<button class="btn-demo" data-action="wb-demo" data-path="${esc(card.filePath)}" data-name="${esc(card.title)}" title="Open live component demo in browser">&#9654; Demo</button>`
                 : '';
 
+            // Companion source file: strip .README.md / .md → try .ts then .js
+            const srcDir  = path.dirname(card.filePath);
+            const srcBase = path.basename(card.filePath).replace(/\.README\.md$/i, '').replace(/\.md$/i, '');
+            const srcTs   = path.join(srcDir, srcBase + '.ts');
+            const srcJs   = path.join(srcDir, srcBase + '.js');
+            const srcPath = fs.existsSync(srcTs) ? srcTs : fs.existsSync(srcJs) ? srcJs : null;
+
             return `<article class="card"
   data-id="${esc(card.id)}"
   data-project="${esc(card.projectName)}"
@@ -114,7 +121,9 @@ export function buildCatalogInitPayload(
     <div class="card-btns">
       <button class="btn-view" data-action="open-preview" data-path="${esc(card.filePath)}">&#128196; View</button>
       <button class="btn-open" data-action="open"         data-path="${esc(card.filePath)}">&#9998; Edit</button>
-      <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
+      ${srcPath
+          ? `<button class="btn-open" data-action="open-src-file" data-path="${esc(srcPath)}" title="Open source file: ${esc(path.basename(srcPath))}">&#128196; SRC</button>`
+          : `<button class="btn-open" data-action="open-folder"   data-path="${esc(card.projectPath)}">&#128194; Folder</button>`}
       <button class="btn-archive" data-action="archive-doc" data-path="${esc(card.filePath)}" data-title="${esc(card.title)}" data-project="${esc(card.projectName)}" title="Hide this doc from the catalog (archive). Restore via View Archived.">&#128190; Archive</button>
       ${demoBtn}
     </div>

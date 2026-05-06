@@ -104,6 +104,10 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
           vscode.window.showErrorMessage('Failed to send to chat — check output channel for details.');
         }
       } else if (msg.type === 'rerun' && active.onRerun) {
+        // Immediately notify the webview to disable the Rerun button and show a
+        // running state. The button is re-enabled naturally when the new audit
+        // completes and showInteractiveResultWebview replaces the entire HTML.
+        _panels.get(viewType)?.panel.webview.postMessage({ type: 'running' });
         active.onRerun();
       } else if (msg.type === 'openLog' && active.onOpenLog) {
         active.onOpenLog();
@@ -158,6 +162,7 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
             cursor: pointer;
           }
           button:hover { background: var(--vscode-button-hoverBackground); }
+          button:disabled { opacity: 0.5; cursor: not-allowed; }
           #chatBtn {
             background: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
             color: var(--vscode-button-foreground);
@@ -185,9 +190,20 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
             const text = document.getElementById('output').innerText;
             vscode.postMessage({ type: 'copy-to-chat', text });
           };
-          ${opts.onRerun ? "document.getElementById('rerunBtn').onclick = () => vscode.postMessage({ type: 'rerun' });" : ''}
+          ${opts.onRerun ? "document.getElementById('rerunBtn').onclick = () => { const btn = document.getElementById('rerunBtn'); if (btn && !btn.disabled) { btn.disabled = true; btn.textContent = 'Running\u2026'; } vscode.postMessage({ type: 'rerun' }); };" : ''}
           ${opts.onOpenLog ? "document.getElementById('logBtn').onclick = () => vscode.postMessage({ type: 'openLog' });" : ''}
           document.getElementById('closeBtn').onclick = () => vscode.postMessage({ type: 'close' });
+          // Handle messages from the extension host.
+          // 'running': disable Rerun button and show in-progress state while
+          //            the audit executes. The fresh HTML rendered on completion
+          //            automatically restores the button to its enabled state.
+          window.addEventListener('message', e => {
+            const msg = e.data;
+            if (msg.type === 'running') {
+              const btn = document.getElementById('rerunBtn');
+              if (btn) { btn.disabled = true; btn.textContent = 'Running\u2026'; }
+            }
+          });
         </script>
       </body>
     </html>

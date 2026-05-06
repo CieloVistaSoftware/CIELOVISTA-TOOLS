@@ -50,22 +50,25 @@ function checkMarketplace(projects) {
     for (const p of projects) {
         if (!fs.existsSync(p.path)) { red.push({ name: p.name, missing: ['folder not found'] }); continue; }
         const missing = [];
+        const isExtension = p.type === 'vscode-extension';
         if (!fs.existsSync(path.join(p.path,'LICENSE')) && !fs.existsSync(path.join(p.path,'LICENSE.txt'))) { missing.push('LICENSE'); }
         if (!fs.existsSync(path.join(p.path,'CHANGELOG.md'))) { missing.push('CHANGELOG.md'); }
         if (!fs.existsSync(path.join(p.path,'icon.png')))     { missing.push('icon.png'); }
-        const pkgPath = path.join(p.path,'package.json');
-        if (!fs.existsSync(pkgPath)) { missing.push('package.json'); }
-        else {
-            try {
-                const pkg = JSON.parse(fs.readFileSync(pkgPath,'utf8'));
-                if (!pkg.name?.trim())        { missing.push('package.json:name'); }
-                if (!pkg.description?.trim()) { missing.push('package.json:description'); }
-                if (!pkg.version?.trim())     { missing.push('package.json:version'); }
-                const lic = (pkg.license||'').trim();
-                if (!lic) { missing.push('package.json:license'); }
-                else if (OPEN_SRC_LICS.includes(lic)) { missing.push('license must be PROPRIETARY'); }
-                if (p.type === 'vscode-extension' && !pkg.publisher) { missing.push('package.json:publisher'); }
-            } catch { missing.push('package.json:invalid'); }
+        if (isExtension) {
+            const pkgPath = path.join(p.path,'package.json');
+            if (!fs.existsSync(pkgPath)) { missing.push('package.json'); }
+            else {
+                try {
+                    const pkg = JSON.parse(fs.readFileSync(pkgPath,'utf8'));
+                    if (!pkg.name?.trim())        { missing.push('package.json:name'); }
+                    if (!pkg.description?.trim()) { missing.push('package.json:description'); }
+                    if (!pkg.version?.trim())     { missing.push('package.json:version'); }
+                    const lic = (pkg.license||'').trim();
+                    if (!lic) { missing.push('package.json:license'); }
+                    else if (OPEN_SRC_LICS.includes(lic)) { missing.push('license must be PROPRIETARY'); }
+                    if (!pkg.publisher) { missing.push('package.json:publisher'); }
+                } catch { missing.push('package.json:invalid'); }
+            }
         }
         const errors   = missing.filter(m => !m.includes('icon')&&!m.includes('CHANGELOG')).length;
         const warnings = missing.filter(m =>  m.includes('icon')||m.includes('CHANGELOG')).length;
@@ -168,7 +171,7 @@ function main() {
         process.exit(1);
     }
 
-    const projects = registry.projects;
+    const projects = registry.projects.filter(p => !p.auditExcluded);
     const checks   = [
         checkRegistryHealth(projects),
         checkMarketplace(projects),

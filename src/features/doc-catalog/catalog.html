@@ -36,6 +36,8 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .card-desc{font-size:11px;line-height:1.45;opacity:0.85;flex:1}
 .card-path{font-family:var(--vscode-editor-font-family);font-size:9px;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
+.card-title,.card-desc,.card-filename,.card-path{overflow-wrap:anywhere;word-break:break-word}
+.card-path{white-space:normal;text-overflow:clip}
 .tag{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);cursor:pointer}
 .card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:4px;flex-wrap:wrap;gap:4px}
 .card-size{font-size:10px;color:var(--vscode-descriptionForeground)}
@@ -379,6 +381,7 @@ document.addEventListener('click', function(e) {
     else if (a === 'open')                { vscode.postMessage({ command: 'open',               data: btn.dataset.path }); }
     else if (a === 'open-npm-scripts')    { vscode.postMessage({ command: 'open-npm-scripts' }); }
     else if (a === 'open-folder')         { vscode.postMessage({ command: 'openFolder',         data: btn.dataset.path || btn.dataset.projPath }); }
+    else if (a === 'open-src-file')       { vscode.postMessage({ command: 'openSrcFile',         data: btn.dataset.path }); }
     else if (a === 'wb-demo')             { vscode.postMessage({ command: 'wb-demo',             data: btn.dataset.path, name: btn.dataset.name }); }
     else if (a === 'open-project-folder') { vscode.postMessage({ command: 'openProjectFolder',  data: btn.dataset.projPath }); }
     else if (a === 'open-claude')         { vscode.postMessage({ command: 'openClaude',          data: btn.dataset.projPath }); }

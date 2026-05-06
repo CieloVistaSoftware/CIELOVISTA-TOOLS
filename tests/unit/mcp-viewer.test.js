@@ -259,6 +259,12 @@ test('renderLookupDewey renders both docs and commands sections', () => {
 test('docs table links use /md-preview?path= for file preview', () => {
     assert.ok(src.includes('/md-preview?path='), 'Doc table rows must link to /md-preview for file preview');
 });
+test('docs table links include back= return URL parameter', () => {
+    assert.ok(src.includes('&back='), 'md-preview links must include back return URL parameter');
+});
+test('buildMdPreviewLink helper exists', () => {
+    assert.ok(src.includes('function buildMdPreviewLink('), 'buildMdPreviewLink helper must be defined');
+});
 
 // ── 9. CSS / dark theme ───────────────────────────────────────────────────────
 console.log('\n[9] CSS / dark theme');

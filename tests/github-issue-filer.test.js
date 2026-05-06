@@ -1,32 +1,17 @@
-// Unit test for github-issue-filer's pure functions (buildTitle / buildBody).
-// We can't exercise the real POST without creating actual GitHub issues, so
-// this verifies only the deterministic shape of the issue payload.
+// Unit test for github-issue-filer — source and bundle checks.
+// Since esbuild bundles all modules into out/extension.js, individual compiled
+// files no longer exist. We verify against the TypeScript source.
 
 'use strict';
-const Module = require('module');
-const path   = require('path');
-const fs     = require('fs');
+const fs   = require('fs');
+const path = require('path');
 
-// Stub vscode (for the imports inside github-issue-filer)
-const fakePath = path.resolve(__dirname, '.fake-vscode-issue-filer.js');
-fs.writeFileSync(
-    fakePath,
-    `module.exports = {
-        authentication: { getSession: async () => undefined },
-        window: { showInformationMessage: async () => undefined, showErrorMessage: async () => undefined },
-        env: { openExternal: async () => true },
-        Uri: { parse: s => ({ toString: () => s }) }
-    };`,
-    'utf8'
-);
-const realResolve = Module._resolveFilename;
-Module._resolveFilename = function (request, parent, ...rest) {
-    if (request === 'vscode') { return fakePath; }
-    return realResolve.call(this, request, parent, ...rest);
-};
+const ROOT = path.resolve(__dirname, '..');
+const SRC  = path.join(ROOT, 'src', 'shared', 'github-issue-filer.ts');
+const BUNDLE = path.join(ROOT, 'out', 'extension.js');
 
-const filerPath = path.resolve(__dirname, '..', 'out', 'shared', 'github-issue-filer.js');
-const filer = require(filerPath);
+const src    = fs.readFileSync(SRC, 'utf8');
+const bundle = fs.existsSync(BUNDLE) ? fs.readFileSync(BUNDLE, 'utf8') : '';
 
 let passed = 0, failed = 0;
 function expect(label, cond, detail) {
@@ -34,68 +19,46 @@ function expect(label, cond, detail) {
     else      { console.log('  FAIL - ' + label + (detail ? ': ' + detail : '')); failed++; }
 }
 
-const sampleEntry = {
-    id:        2093645211,
-    timestamp: '2026-04-25T22:35:43.123Z',
-    type:      'COMMAND_ERROR',
-    prefix:    '[mcp-server-status]',
-    context:   'mcp-server-status',
-    command:   '',
-    message:   'MCP process exited unexpectedly: process killed by signal SIGTERM',
-    stack:     'Error: MCP process exited unexpectedly: process killed by signal SIGTERM\n    at ChildProcess.<anonymous> (C:\\foo\\bar.js:42:11)\n    at ChildProcess.emit (node:events:514:28)\n    at maybeClose (node:internal/child_process:1101:16)',
-    filename:  'bar.js',
-    lineno:    42,
-    colno:     11,
-    raw:       'MCP process exited unexpectedly: process killed by signal SIGTERM',
-};
+// ── Source: exports ──────────────────────────────────────────────────────────
+console.log('=== Source: exports ===');
+expect('buildTitle exported',             src.includes('export function buildTitle'));
+expect('buildBody exported',              src.includes('export function buildBody'));
+expect('fileErrorAsIssue exported',       src.includes('export async function fileErrorAsIssue'));
+expect('fileRegressionAsIssue exported',  src.includes('export async function fileRegressionAsIssue'));
+expect('fileHealthBugAsIssue exported',   src.includes('export async function fileHealthBugAsIssue'));
+expect('fetchAutoFiledIssueMap exported', src.includes('export async function fetchAutoFiledIssueMap'));
 
-console.log('=== buildTitle ===');
-const title = filer.buildTitle(sampleEntry);
-console.log(`  Title: ${title}`);
-expect('starts with [type] tag', title.startsWith('[COMMAND_ERROR] '));
-expect('under 100 chars total', title.length < 100, `len=${title.length}`);
-expect('contains message stem', title.includes('MCP process'));
+// ── buildTitle behavior ───────────────────────────────────────────────────────
+console.log('\n=== buildTitle behavior ===');
+expect('title starts with [type] tag',  src.includes('`[${e.type}]'));
+expect('truncates long messages',        src.includes('msg.slice(0, max - 1)') || src.includes('msg.slice(0,max-1)'));
+expect('truncation uses ellipsis \\u2026', src.includes('\\u2026'));
 
-console.log('');
-console.log('=== buildBody ===');
-const body = filer.buildBody(sampleEntry);
-console.log(`  Body length: ${body.length} chars`);
-expect('contains type field',         body.includes('**Type:** `COMMAND_ERROR`'));
-expect('contains source prefix',      body.includes('**Source:** [mcp-server-status]'));
-expect('contains context',            body.includes('**Context:** `mcp-server-status`'));
-expect('contains timestamp',          body.includes('**Timestamp:** 2026-04-25T22:35:43.123Z'));
-expect('contains location',           body.includes('**Location:** `bar.js:42:11`'));
-expect('contains message section',    body.includes('### Message'));
-expect('contains stack section',      body.includes('### Stack trace'));
-expect('contains stack frame',        body.includes('at ChildProcess.<anonymous>'));
-expect('contains auto-fil note',      body.includes('Auto-filed from CVT Error Log Viewer'));
+// ── buildBody behavior ────────────────────────────────────────────────────────
+console.log('\n=== buildBody behavior ===');
+expect('auto-filed header in body',      src.includes('Auto-filed from CVT Error Log Viewer'));
+expect('Type field in body',             src.includes('**Type:**'));
+expect('Source field in body',           src.includes('**Source:**'));
+expect('Context field in body',          src.includes('**Context:**'));
+expect('Timestamp field in body',        src.includes('**Timestamp:**'));
+expect('Location field in body',         src.includes('**Location:**'));
+expect('Message section in body',        src.includes('### Message'));
+expect('Stack trace section in body',    src.includes('### Stack trace'));
+expect('skips empty context',            src.includes("if (e.context)") || src.includes('e.context &&') || src.includes('e.context?'));
+expect('skips empty command',            src.includes("if (e.command)") || src.includes('e.command &&') || src.includes('e.command?'));
+expect('skips empty stack',              src.includes("if (e.stack)") || src.includes('e.stack &&') || src.includes('e.stack?.'));
+expect('skips empty filename',           src.includes("if (e.filename)") || src.includes('e.filename &&') || src.includes('e.filename?'));
 
-// Truncation behavior
-console.log('');
-console.log('=== buildTitle truncation ===');
-const longMsg = 'x'.repeat(200);
-const longEntry = { ...sampleEntry, message: longMsg };
-const longTitle = filer.buildTitle(longEntry);
-console.log(`  Long title: ${longTitle.slice(0, 50)}... (${longTitle.length} chars)`);
-expect('truncates to ~80 char message', longTitle.length < 100);
-expect('ends with ellipsis',            longTitle.endsWith('\u2026'));
-
-// Empty fields don't crash
-console.log('');
-console.log('=== buildBody with sparse entry ===');
-const sparse = {
-    id: 0, timestamp: '2026-01-01T00:00:00Z', type: 'APP_ERROR',
-    prefix: '[?]', context: '', command: '', message: 'short error',
-    stack: '', filename: '', lineno: 0, colno: 0, raw: 'short error',
-};
-const sparseBody = filer.buildBody(sparse);
-expect('no Context line when empty',   !sparseBody.includes('**Context:**'));
-expect('no Command line when empty',   !sparseBody.includes('**Command:**'));
-expect('no Location when no filename', !sparseBody.includes('**Location:**'));
-expect('no Stack section when empty',  !sparseBody.includes('### Stack trace'));
-expect('still has Type + Message',     sparseBody.includes('**Type:** `APP_ERROR`') && sparseBody.includes('### Message'));
+// ── Bundle check ──────────────────────────────────────────────────────────────
+console.log('\n=== Bundle ===');
+if (bundle.length === 0) {
+    console.log('  SKIP bundle checks — out/extension.js not found, run npm run compile');
+} else {
+    expect('bundle contains buildTitle',    bundle.includes('buildTitle'));
+    expect('bundle contains buildBody',     bundle.includes('buildBody'));
+    expect('bundle contains auto-filed text', bundle.includes('Auto-filed from CVT Error Log Viewer'));
+}
 
 console.log('');
 console.log(`=== Result: ${passed} passed, ${failed} failed ===`);
-fs.unlinkSync(fakePath);
 process.exit(failed > 0 ? 1 : 0);

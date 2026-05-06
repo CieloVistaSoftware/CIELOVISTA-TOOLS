@@ -58,7 +58,13 @@ function stripTemplateLiterals(src) {
 console.log('\nREG-001: Extension activation safety\n' + '\u2500'.repeat(50));
 
 // 1. Every runtime dependency has a .vscodeignore negation entry
+//    SKIP when esbuild is in use — deps are bundled into out/extension.js
 test('Every package in dependencies has !node_modules/<pkg>/** in .vscodeignore', () => {
+    const usesEsbuild = fs.existsSync(path.join(ROOT, 'esbuild.mjs'));
+    if (usesEsbuild) {
+        console.log('    (skipped — esbuild bundles all deps; node_modules excluded from VSIX)');
+        return;
+    }
     const pkg    = readJson(path.join(ROOT, 'package.json'));
     const deps   = Object.keys(pkg.dependencies ?? {});
     if (deps.length === 0) { return; }

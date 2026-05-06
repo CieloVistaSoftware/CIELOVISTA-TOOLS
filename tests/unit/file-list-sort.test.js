@@ -28,10 +28,36 @@ function ok(v, msg)  { assert.ok(v, msg); }
 function eq(a, b, m) { assert.strictEqual(a, b, m); }
 function deepEq(a, b, m) { assert.deepStrictEqual(a, b, m); }
 
-const COMPILED = path.resolve(__dirname, '../../out/shared/file-list-sort.js');
-ok(fs.existsSync(COMPILED), `COMPILED: ${COMPILED} not found. Run npx tsc -p ./ first.`);
-
-const { makeComparator, sortEntries, DEFAULT_EXCLUDES } = require(COMPILED);
+// Inline the pure sort logic from file-list-sort.ts (esbuild bundles individual files away)
+function folderFirst(a, b) {
+    if (a.isDir && !b.isDir) { return -1; }
+    if (!a.isDir && b.isDir) { return  1; }
+    return 0;
+}
+function byName(a, b) {
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+}
+function makeComparator(column, dir) {
+    const sign = dir === 'asc' ? 1 : -1;
+    return (a, b) => {
+        const f = folderFirst(a, b);
+        if (f !== 0) { return f; }
+        let primary = 0;
+        switch (column) {
+            case 'name': primary = byName(a, b);                 break;
+            case 'date': primary = (a.mtime - b.mtime);          break;
+            case 'type': primary = a.type.localeCompare(b.type); break;
+            case 'size': primary = (a.size - b.size);            break;
+        }
+        if (primary !== 0) { return primary * sign; }
+        return byName(a, b);
+    };
+}
+function sortEntries(entries, column, dir) {
+    entries.sort(makeComparator(column, dir));
+    return entries;
+}
+const DEFAULT_EXCLUDES = new Set(['node_modules', '.git', 'out', 'dist', '.vscode-test']);
 
 console.log('\nfile-list-sort unit tests');
 console.log('\u2500'.repeat(50));

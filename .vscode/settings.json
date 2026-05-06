@@ -13,6 +13,14 @@
       "approve": true,
       "matchCommandLine": true
     },
-    "gh": true
+    "gh": true,
+    "/^node tests/unit/mcp-viewer-dropdown-runtime\\.test\\.js$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^node tests/unit/mcp-viewer\\.test\\.js$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
   }
 }

@@ -70,6 +70,8 @@ tr:hover td{background:#252526}
 /* Cell formatting */
 .c-idx{font-family:monospace;font-size:10px;color:#858585;text-align:right;width:40px}
 .c-name{font-weight:700;color:#9cdcfe;white-space:nowrap}
+.c-name-link{background:none;border:none;color:inherit;cursor:pointer;font:inherit;font-weight:inherit;padding:0;text-align:left}
+.c-name-link:hover{text-decoration:underline}
 .c-type{font-family:monospace;font-size:10px;color:#ce9178;background:#2d2d2d;padding:1px 6px;border-radius:3px;display:inline-block}
 .c-path{font-family:monospace;font-size:10px;color:#858585;word-break:break-all}
 .c-desc{color:#d4d4d4;font-size:11px;line-height:1.5}
@@ -146,6 +148,7 @@ var toastEl    = document.getElementById('toast');
 var currentEndpoint = 'list_projects';
 var catalogSortBy = 'recent';
 var projectOptions = [];
+var pendingCatalogProjectName = '';
 
 /* Control templates per endpoint. */
 var CONTROLS = {
@@ -225,6 +228,10 @@ function esc(s){
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function buildMdPreviewLink(filePath){
+  return BASE + '/md-preview?path=' + encodeURIComponent(filePath || '') + '&back=' + encodeURIComponent(window.location.href);
+}
+
 function setMeta(url, status, ms, extra){
   var cls = status >= 200 && status < 300 ? 'ok' : 'err';
   var tail = extra ? ' &middot; ' + esc(extra) : '';
@@ -239,7 +246,7 @@ function statusPill(s){
 function buildProjectTip(p){
   var parts = ['Status: ' + (p.status || 'product'), 'Type: ' + (p.type || ''), 'Path: ' + (p.path || '')];
   if (p.description) { parts.push(''); parts.push(p.description); }
-  return parts.join('\n');
+  return parts.join('\\n');
 }
 
 function buildCmdTip(c){
@@ -250,13 +257,13 @@ function buildCmdTip(c){
   if (c.action)   { parts.push('How:    ' + c.action + ' action'); }
   if (c.location) { parts.push('Source: ' + c.location); }
   if (c.tags && c.tags.length) { parts.push('Tags:   ' + c.tags.join(', ')); }
-  return parts.join('\n');
+  return parts.join('\\n');
 }
 
 function buildSymbolTip(s){
   var parts = ['Kind:     ' + (s.kind || ''), 'Role:     ' + (s.role || ''), 'Exported: ' + (s.exported ? 'yes' : 'no'), 'File:     ' + (s.sourceFile || '') + ':' + (s.line || '')];
-  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\s*\/\*\*/, '').replace(/\*\/\s*$/, '').replace(/^\s*\*\s?/gm, '').trim()); }
-  return parts.join('\n');
+  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\\s*\\/\\*\\*/, '').replace(/\\*\\/\\s*$/, '').replace(/^\\s*\\*\\s?/gm, '').trim()); }
+  return parts.join('\\n');
 }
 
 function renderProjectsTable(data){
@@ -270,7 +277,7 @@ function renderProjectsTable(data){
     var descText  = p.description ? esc(p.description) : '(empty)';
     return '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
-      '<td class="c-name" title="' + esc(buildProjectTip(p)) + '">' + esc(p.name) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
+      '<td class="c-name" title="' + esc(buildProjectTip(p)) + '"><button class="c-name-link" data-action="open-project-catalog" data-project="' + esc(p.name) + '">' + esc(p.name) + '</button> <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
       '<td>' + statusPill(p.status) + '</td>' +
       '<td><span class="c-type">' + esc(p.type) + '</span></td>' +
       '<td class="' + descClass + '">' + descText + '</td>' +
@@ -293,7 +300,7 @@ function renderFindProjectTable(data){
   var rows = matches.map(function(p, i){
     return '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
-      '<td class="c-name" title="' + esc(buildProjectTip(p)) + '">' + esc(p.name) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
+      '<td class="c-name" title="' + esc(buildProjectTip(p)) + '"><button class="c-name-link" data-action="open-project-catalog" data-project="' + esc(p.name) + '">' + esc(p.name) + '</button> <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
       '<td>' + statusPill(p.status) + '</td>' +
       '<td><span class="c-type">' + esc(p.type) + '</span></td>' +
       '<td class="c-desc">' + esc(p.description || '') + '</td>' +
@@ -337,7 +344,7 @@ function renderDocsTable(data){
       var d = docs[j];
       var descClass = d.description ? 'c-desc' : 'c-desc empty';
       var descText  = d.description ? esc(d.description) : '(empty)';
-      var mdLink = BASE + '/md-preview?path=' + encodeURIComponent(d.filePath || '');
+      var mdLink = buildMdPreviewLink(d.filePath || '');
       html += '<tr>' +
         '<td class="c-idx">' + (j + 1) + '</td>' +
         '<td class="c-title"><a href="' + esc(mdLink) + '" target="_blank" rel="noopener" title="Open rendered markdown in new tab">' + esc(d.title || d.fileName) + '</a></td>' +
@@ -492,7 +499,7 @@ function renderDocViolations(data){
   html += '<table><thead><tr><th>#</th><th>Project</th><th>Code</th><th>Identity</th><th>Message</th><th>File</th></tr></thead><tbody>';
   for (var i = 0; i < rows.length; i++) {
     var v = rows[i];
-    var mdLink = BASE + '/md-preview?path=' + encodeURIComponent(v.filePath || '');
+    var mdLink = buildMdPreviewLink(v.filePath || '');
     html += '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
       '<td class="c-proj">' + esc(v.projectName || '') + ' <span style="opacity:.6">(' + esc(String(v.projectDewey || '')) + ')</span></td>' +
@@ -508,7 +515,7 @@ function renderDocViolations(data){
 
 function renderValidateDoc(data){
   var rows = (data && data.violations) || [];
-  var mdLink = BASE + '/md-preview?path=' + encodeURIComponent((data && data.filePath) || '');
+  var mdLink = buildMdPreviewLink((data && data.filePath) || '');
   var header = '<div class="group-hd"><span>validate_doc</span><span class="count">' +
     (data && data.ok ? '<span style="color:#3fb950">OK</span>' : '<span style="color:#f85149">violations found</span>') +
     '</span></div>' +
@@ -574,7 +581,7 @@ function renderDocIdentity(data){
       '<div class="state">Identity <code>' + esc(data.identity || '') + '</code> not found in any registered project.</div>';
     return;
   }
-  var mdLink = BASE + '/md-preview?path=' + encodeURIComponent(data.filePath || '');
+  var mdLink = buildMdPreviewLink(data.filePath || '');
   var html = '<div class="group-hd"><span>get_doc_by_identity</span><span class="count"><span style="color:#3fb950">found</span></span></div>';
   html += '<table><tbody>';
   html += '<tr><th>Identity</th><td><code>' + esc(data.identity || '') + '</code></td></tr>';
@@ -738,7 +745,7 @@ function formatStamp(iso){
 function loadProjectOptions(selectEl){
   if (!selectEl) { return; }
   function renderOptions(names){
-    var selected = selectEl.value || '';
+    var selected = pendingCatalogProjectName || selectEl.value || '';
     var opts = ['<option value="">blank = all projects</option>'];
     for (var i = 0; i < names.length; i++) {
       var n = names[i];
@@ -746,6 +753,11 @@ function loadProjectOptions(selectEl){
     }
     selectEl.innerHTML = opts.join('');
     selectEl.value = selected;
+    if (pendingCatalogProjectName && selected === pendingCatalogProjectName) {
+      var chosen = pendingCatalogProjectName;
+      pendingCatalogProjectName = '';
+      runEndpoint({ projectName: chosen });
+    }
   }
 
   if (projectOptions.length) {
@@ -763,6 +775,12 @@ function loadProjectOptions(selectEl){
     .catch(function(){
       // Keep default blank option only.
     });
+}
+
+function openProjectCatalog(projectName){
+  if (!projectName) { return; }
+  pendingCatalogProjectName = projectName;
+  selectTab('get_catalog');
 }
 
 /* Switch tabs. */
@@ -911,6 +929,7 @@ function selectTab(endpoint){
   });
   /* Status dropdown re-runs on change — no need to click Run. */
   if (statusEl) { statusEl.addEventListener('change', runFromControls); }
+  if (endpoint === 'get_catalog' && pEl && pEl.tagName === 'SELECT') { pEl.addEventListener('change', runFromControls); }
   if (sortByEl) { sortByEl.addEventListener('change', runFromControls); }
 
   if (endpoint === 'list_projects') {
@@ -947,6 +966,12 @@ tabsEl.addEventListener('click', function(e){
   var t = e.target.closest('.tab');
   if (!t) { return; }
   selectTab(t.dataset.endpoint);
+});
+
+resultEl.addEventListener('click', function(e){
+  var btn = e.target.closest('[data-action="open-project-catalog"]');
+  if (!btn) { return; }
+  openProjectCatalog(btn.dataset.project || '');
 });
 
 /* Initial load. */
