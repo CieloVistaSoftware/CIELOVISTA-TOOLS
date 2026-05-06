@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-css-class-hoverts
 title: feature: css-class-hover.ts
-description: Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…
 project: cielovista-tools
+description: Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…
+status: active
+tags: [css, class, hover]
 category: 700 — Project Docs
-relativePath: src/features/css-class-hover.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [css, class, hover]
+relativepath: src/features/css-class-hover.README.md
 ---
-
 # feature: css-class-hover.ts
 
 ## What it does

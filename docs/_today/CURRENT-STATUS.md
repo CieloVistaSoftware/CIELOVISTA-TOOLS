@@ -1,27 +1,48 @@
 ---
+subject: 150.9
+id: current-statusmd-cielovista-tools
 title: CURRENT-STATUS.md — cielovista-tools
-description: - Verified live after junction install: ✅ MCP Viewer status column + pills, ✅ Symbol Index (listsymbols / listcvtcommands), ✅ Send Path tooltip + c…
 project: cielovista-tools
+description: - Verified live after junction install: ✅ MCP Viewer status column + pills, ✅ Symbol Index (listsymbols / listcvtcommands), ✅ Send Path tooltip + c…
+status: active
+tags: [current, status, currentstatusmd]
 category: 000 — Meta / Session / Status
-relativePath: docs/_today/CURRENT-STATUS.md
 created: 2026-04-25
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [current, status, currentstatusmd]
+relativepath: docs/_today/CURRENT-STATUS.md
 ---
-
 # CURRENT-STATUS.md — cielovista-tools
 
 ---
 
-## 🅿️ PARKING LOT — end of session 2026-05-05
+## 🅿️ PARKING LOT — end of session 2026-05-06 (issue #21 Phase 1-4)
 
-**TASK:** Expanded test coverage from 50% to 98.15%  
-**FILES:** 27 new test files in `tests/unit/` (copilot-*.test.js, corequisite-*.test.js, doc-*.test.js, ... cvs-command-launcher.test.js, daily-audit.test.js)  
-**LAST ACTION:** Committed test file `daily-audit.test.js` as part of batch coverage expansion  
-**NEXT STEP:** None — task complete. Coverage exceeded 95% target at 98.15% (53/54 features covered, 1429 test cases).
+**TASK:** Implement Doc Contract + Subject-Based Dewey + Stable Identity (issue #21, Phases 1-4)
+**FILES TOUCHED:**
+- `CieloVistaStandards/doc-contract.md` — NEW: full spec
+- `CieloVistaStandards/doc-contract.schema.json` — NEW: JSON Schema
+- `CieloVistaStandards/subject-taxonomy.md` — NEW: standardized X.1–X.9 subjects
+- `CieloVistaStandards/dewey-aliases.json` — NEW: empty migration table
+- `CieloVistaStandards/exemplar-conforming-doc.md` — NEW: reference doc (150.4.doc-contract-standard)
+- `CieloVistaStandards/project-registry.json` — added `dewey` field to all 19 projects; cielovista-tools=150
+- `mcp-server/src/tools/catalog-helpers.ts` — ProjectEntry.dewey, ProjectRegistry.globalDewey; buildProjectDeweyMap reads registry; 5 new functions: normalizeDoc, buildDocLedger, getDocByIdentity, listOldDewey, migrateDewey
+- `mcp-server/src/tools/definitions.ts` — 5 new tool schemas
+- `mcp-server/src/tools/index.ts` — 5 new tools registered
+- `src/features/mcp-viewer/html.ts` — 3 new tabs: normalize_doc, get_doc_by_identity, list_old_dewey; 3 render functions
+**LAST ACTION:** Committed as `1b9a089` feat: #21 Phase 2-4; VSIX packaged but not installed (VS Code Insiders needs restart)
+**NEXT STEP:** Phase 5 — editorial backfill: open each project, run `normalize_doc` on its .md files, assign subject+id, commit. Start with cielovista-tools. Use `list_old_dewey` to find old-scheme docs.
+**OPEN QUESTIONS:**
+- VSIX install pending (VS Code Insiders was locked during install attempt — restart and install manually)
+- Phase 5 backfill is human-in-the-loop — not automatable
+
+**LAST ACTION:** Committed all fixes to branch `claude/vigorous-moser-cf428f`; closed issues #256, #244 with root causes  
+**NEXT STEP:** Fix issue #261 — View a Doc toolbar buttons broken (filed but not yet fixed); then merge worktree branch to main  
+**OPEN QUESTIONS:**
+- `error-log-adapter.test.js` fails in worktree (no `.vscode/logs/cielovista-errors.json` in worktree — worktree limitation, passes in main)
+- `broken-refs-mcp`, `dewey-lookup-mcp` tests crash — need `npm run mcp:build` (infrastructure)
+- `install-verify` VSIX check — needs `npm run package` first
 
 ---
 

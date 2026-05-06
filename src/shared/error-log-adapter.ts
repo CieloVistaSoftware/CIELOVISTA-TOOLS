@@ -49,6 +49,7 @@ function readUtilsLog(): UtilsErrorEntry[] {
 // ─── Translate utils-shape -> viewer-shape ────────────────────────────────────
 
 function inferType(message: string): ErrorType {
+    if (!message || typeof message !== 'string') { return 'APP_ERROR'; }
     const m = message.toLowerCase();
     if (m.includes('json') || m.includes('unexpected token') || m.includes('not valid json')) { return 'JSON_PARSE_ERROR'; }
     if (m.includes('enoent') || m.includes('no such file') || m.includes('eacces'))           { return 'FILE_IO_ERROR'; }

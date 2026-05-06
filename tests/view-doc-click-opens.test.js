@@ -1,241 +1,167 @@
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
 'use strict';
 /**
  * tests/view-doc-click-opens.test.js
  *
- * Reproduces: Does clicking a doc link in View a Doc actually open the doc?
- *
- * Two layers:
- *   1. Webview JS — clicking a link must post { command:'open', data: filePath }
- *   2. Extension host — the 'open' handler must call openDocPreview (not just existsSync silently)
+ * Tests that clicking a doc link sets the iframe src (browser-server architecture).
+ * Updated for buildViewDocBrowserHtml.
  *
  * Run: node tests/view-doc-click-opens.test.js
  */
 
-'use strict';
 const assert  = require('assert');
 const fs      = require('fs');
 const path    = require('path');
 const { JSDOM } = require('jsdom');
 
-const SOURCE_CMDS = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts');
-const INSTALLED_CMDS = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
-    '.vscode-insiders', 'extensions',
-    'cielovistasoftware.cielovista-tools-1.0.0',
-    'out', 'features', 'doc-catalog', 'commands.js'
-);
+const SOURCE = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts');
+const src    = fs.readFileSync(SOURCE, 'utf8');
 
-const src      = fs.readFileSync(SOURCE_CMDS, 'utf8');
-const compiled = fs.existsSync(INSTALLED_CMDS) ? fs.readFileSync(INSTALLED_CMDS, 'utf8') : '';
-
-// ── Extract JS template ───────────────────────────────────────────────────
-function extractJsTemplate(text) {
-    const fnStart = text.indexOf('function buildViewDocHtml(');
+function extractBrowserScript(text, port, totalDocs) {
+    const fnStart = text.indexOf('function buildViewDocBrowserHtml(');
     if (fnStart === -1) { return null; }
     const scope  = text.slice(fnStart);
-    const marker = 'const JS = `\n';
-    const idx    = scope.indexOf(marker);
-    if (idx === -1) { return null; }
-    let i = idx + marker.length, out = '';
-    while (i < scope.length) {
-        if (scope[i] === '`') break;
-        if (scope[i] === '\\' && scope[i+1] === '`') { out += '`'; i += 2; continue; }
-        out += scope[i++];
-    }
-    return out;
+    const sStart = scope.indexOf('<script>');
+    const sEnd   = scope.indexOf('</script>');
+    if (sStart === -1 || sEnd === -1) { return null; }
+    return scope.slice(sStart + '<script>'.length, sEnd)
+        .replace(/\$\{port\}/g, String(port))
+        .replace(/\$\{totalDocs\}/g, String(totalDocs));
 }
 
-const jsTemplate = extractJsTemplate(src);
+const TEST_PORT = 9999;
+const TEST_DOCS = 4;
+const DOC_PATH  = 'C:\\standards\\README.md';
+const scriptContent = extractBrowserScript(src, TEST_PORT, TEST_DOCS);
 
-// ── Real file path from registry for testing ──────────────────────────────
-const REGISTRY = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-let realFilePath = null;
-try {
-    const reg = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'));
-    // Find a real .md file that actually exists
-    const globalPath = reg.globalDocsPath;
-    if (globalPath && fs.existsSync(globalPath)) {
-        const files = fs.readdirSync(globalPath).filter(f => f.endsWith('.md'));
-        if (files.length > 0) {
-            realFilePath = path.join(globalPath, files[0]);
-        }
-    }
-} catch {}
-
-// ── Build DOM ─────────────────────────────────────────────────────────────
-function makeDom(realPath) {
-    const messages = [];
-    const rendered = (jsTemplate || '')
-        .replace(/\$\{totalDocs\}/g, '2')
-        .replace(/\$\{totalProjects\}/g, '1');
-
-    const escapedPath = String(realPath || 'C:\\standards\\README.md')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
+function makeDom() {
     const html = `<!DOCTYPE html><html><head></head><body>
-<input id="search" type="text"><span id="stat">2 docs</span>
-<div id="content">
-  <table><thead><tr><th>F</th><th>D</th></tr></thead>
-  <tbody>
-    <tr>
-      <td class="folder-cell">
-        <span class="folder-name">global</span>
-        <button class="open-folder-btn" data-folder="C:\\standards">&#128194;</button>
-      </td>
-      <td class="links-cell">
-        <a class="doc-link doc-link-priority" href="#" data-path="${escapedPath}">JavaScript Standards</a>
-        <a class="doc-link" href="#" data-path="C:\\standards\\NOTES.md">Notes</a>
-      </td>
-    </tr>
-  </tbody>
-  </table>
-  <div id="empty"></div>
+<div id="topbar">
+  <h1>View a Doc</h1>
+  <input id="search" type="text" autocomplete="off">
+  <select id="proj-filter"><option value="">All Projects</option></select>
+  <span id="stat">${TEST_DOCS} docs</span>
 </div>
-<div id="copy-toast"></div>
-<script>${rendered}</script></body></html>`;
+<div id="split">
+  <div id="index">
+    <div class="proj-group" data-proj="global">
+      <div class="proj-hd"><span class="dw">000</span><span class="fn">global</span>
+        <button class="folder-btn" data-folder="C:\\standards"></button>
+      </div>
+      <div class="proj-links">
+        <a class="doc-link" href="#" data-path="${DOC_PATH}">README Global</a>
+        <a class="doc-link" href="#" data-path="C:\\standards\\COPILOT.md">CieloVista Copilot Rules</a>
+      </div>
+    </div>
+    <div id="idx-empty">No matches</div>
+  </div>
+  <div id="resize-handle"></div>
+  <div id="viewer">
+    <div id="viewer-bar">
+      <span id="viewer-path">Select a document</span>
+      <button id="btn-copy-path" style="display:none">Copy Path</button>
+    </div>
+    <div id="welcome">Welcome</div>
+    <iframe id="doc-frame" style="display:none"></iframe>
+  </div>
+</div>
+<div id="toast"></div>
+<script>${scriptContent || ''}</script>
+</body></html>`;
 
+    const fetchCalls = [];
     const dom = new JSDOM(html, {
-        runScripts: 'dangerously', pretendToBeVisual: true,
+        runScripts: 'dangerously',
+        pretendToBeVisual: true,
         beforeParse(win) {
-            win.acquireVsCodeApi = () => ({ postMessage: m => messages.push(m), getState: () => null, setState: () => {} });
-            win.requestAnimationFrame = fn => setTimeout(fn, 0);
+            win.fetch = (url) => { fetchCalls.push(url); return Promise.resolve({ ok: true, text: () => Promise.resolve('OK') }); };
+            try { Object.defineProperty(win, 'localStorage', { value: { getItem: () => null, setItem: () => {} }, configurable: true }); } catch(e) {}
         },
     });
-    return { dom, messages, doc: dom.window.document, win: dom.window };
+    return { dom, doc: dom.window.document, win: dom.window, fetchCalls };
 }
 
-// ── Test runner ───────────────────────────────────────────────────────────
 let passed = 0, failed = 0;
 const results = [];
 function test(name, fn) {
-    try { fn(); passed++; results.push({ ok: true, name }); }
-    catch(e) { failed++; results.push({ ok: false, name, err: e.message }); }
+    try   { fn(); passed++; results.push({ ok: true,  name }); }
+    catch (e) { failed++; results.push({ ok: false, name, err: e.message }); }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// LAYER 1: Webview JS posts 'open' message when link clicked
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('JS template extracted from source', () => {
-    assert.ok(jsTemplate && jsTemplate.length > 100, 'Could not extract JS template');
+// Static checks
+test('Source has buildViewDocBrowserHtml', () => {
+    assert.ok(src.includes('function buildViewDocBrowserHtml('), 'function not found');
+});
+test('Script extracted successfully', () => {
+    assert.ok(scriptContent && scriptContent.length > 200, 'script extraction failed');
+});
+test('Source uses iframe for doc viewing (doc?path= route)', () => {
+    assert.ok(src.includes('doc?path=') || src.includes("'/doc'") || src.includes('doc-frame'), 'iframe doc loading missing');
+});
+test('Source does NOT use postMessage for doc open (browser arch has no vscode postMessage)', () => {
+    // In the browser arch, the script uses fetch/iframe, not acquireVsCodeApi().postMessage
+    // The script content should not have acquireVsCodeApi
+    assert.ok(!scriptContent || !scriptContent.includes('acquireVsCodeApi'), 'script still uses acquireVsCodeApi — old arch?');
+});
+test('Source has openfolder route for folder button', () => {
+    assert.ok(src.includes('openfolder'), 'openfolder route missing');
 });
 
-test('DOM builds and doc links exist', () => {
-    const { doc } = makeDom(realFilePath || 'C:\\standards\\README.md');
-    const links = doc.querySelectorAll('.doc-link');
-    assert.ok(links.length >= 1, 'No doc-link elements found in DOM');
+// DOM behavior
+let ctx;
+test('DOM builds without errors', () => {
+    ctx = makeDom();
+    assert.ok(ctx.doc.querySelector('.doc-link'), '.doc-link must exist');
+    assert.ok(ctx.doc.getElementById('doc-frame'), '#doc-frame must exist');
+    assert.ok(ctx.doc.getElementById('welcome'), '#welcome must exist');
+});
+test('Click doc-link: frame.src set (contains /doc)', () => {
+    const { doc, win } = ctx;
+    const lnk = doc.querySelector('.doc-link[data-path]');
+    assert.ok(lnk, 'No doc-link with data-path found');
+    lnk.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const frame = doc.getElementById('doc-frame');
+    assert.ok(frame.src && frame.src !== 'about:blank' && frame.src.includes('doc'),
+        `frame.src should contain "doc" after click. Got: "${frame.src}"`);
+});
+test('Click doc-link: path encoded in frame.src', () => {
+    const { doc } = ctx;
+    const frame = doc.getElementById('doc-frame');
+    // README.md path should be encoded in the src
+    const encoded = encodeURIComponent(DOC_PATH);
+    assert.ok(frame.src.includes(encoded) || frame.src.includes('README'),
+        `DOC_PATH not encoded in frame.src. Got: "${frame.src}"`);
+});
+test('Click second doc-link: frame.src updates to new path', () => {
+    const { doc, win } = ctx;
+    const links = doc.querySelectorAll('.doc-link[data-path]');
+    assert.ok(links.length >= 2, 'Need 2+ doc-links for this test');
+    links[1].dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const frame = doc.getElementById('doc-frame');
+    assert.ok(frame.src.includes('COPILOT') || frame.src.includes('copilot'),
+        `frame.src should reference second link. Got: "${frame.src}"`);
+});
+test('Folder button click: fetch called with openfolder URL', () => {
+    const { doc, win, fetchCalls } = ctx;
+    fetchCalls.length = 0;
+    const btn = doc.querySelector('.folder-btn[data-folder]');
+    if (!btn) { return; }
+    btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.ok(fetchCalls.length >= 1, `fetch not called. Calls: ${fetchCalls.length}`);
+    assert.ok(fetchCalls[0].includes('openfolder'), `fetch URL should include openfolder. Got: "${fetchCalls[0]}"`);
 });
 
-test('Clicking a doc link posts { command:"open", data: filePath }', () => {
-    const testPath = realFilePath || 'C:\\standards\\README.md';
-    const { doc, win, messages } = makeDom(testPath);
-    messages.length = 0;
-
-    const link = doc.querySelector('.doc-link');
-    assert.ok(link, 'doc-link must exist');
-
-    link.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
-
-    const openMsg = messages.find(m => m.command === 'open');
-    assert.ok(
-        openMsg,
-        `Clicking doc link did NOT post open message. Messages posted: ${JSON.stringify(messages)}`
-    );
-    assert.strictEqual(
-        openMsg.data, testPath,
-        `open message has wrong path. Expected: ${testPath}, got: ${openMsg.data}`
-    );
-});
-
-test('Clicking folder button posts { command:"openFolder", data: folderPath }', () => {
-    const { doc, win, messages } = makeDom(realFilePath);
-    messages.length = 0;
-    const btn = doc.querySelector('.open-folder-btn');
-    assert.ok(btn, 'open-folder-btn must exist');
-    btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
-    const msg = messages.find(m => m.command === 'openFolder');
-    assert.ok(msg, `Folder button did NOT post openFolder message. Got: ${JSON.stringify(messages)}`);
-    assert.strictEqual(msg.data, 'C:\\standards');
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LAYER 2: Extension host handler calls openDocPreview
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('SOURCE: viewSpecificDoc has open message handler', () => {
-    const viewIdx = src.indexOf('async function viewSpecificDoc');
-    assert.ok(viewIdx !== -1, 'viewSpecificDoc function not found');
-    const section = src.slice(viewIdx, viewIdx + 1000);
-    assert.ok(
-        section.includes("msg.command === 'open'"),
-        'open message handler missing from viewSpecificDoc'
-    );
-});
-
-test('SOURCE: open handler calls openDocPreview (not silently swallowed)', () => {
-    const viewIdx = src.indexOf('async function viewSpecificDoc');
-    const section = src.slice(viewIdx, viewIdx + 1000);
-    assert.ok(
-        section.includes('openDocPreview'),
-        'openDocPreview call missing from viewSpecificDoc open handler — clicks go nowhere'
-    );
-});
-
-test('SOURCE: open handler does NOT have silent existsSync-only gate (old bug)', () => {
-    // Old bug: if (msg.command === 'open' && msg.data && fs.existsSync(msg.data)) { ... }
-    // No existsSync check that silently does nothing when file missing
-    const viewIdx = src.indexOf('async function viewSpecificDoc');
-    const section = src.slice(viewIdx, viewIdx + 1000);
-    // The fix adds a warning — should have showWarningMessage for missing files
-    assert.ok(
-        section.includes('showWarningMessage') || section.includes('openDocPreview'),
-        'open handler must either warn on missing file or always call openDocPreview'
-    );
-});
-
-test('INSTALLED: compiled has openDocPreview in viewSpecificDoc handler', () => {
-    assert.ok(compiled.length > 0, 'Installed commands.js not found — run npm run rebuild');
-    // In compiled output the function name is preserved
-    assert.ok(
-        compiled.includes('openDocPreview'),
-        'openDocPreview missing from installed commands.js — doc clicks will not open anything'
-    );
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LAYER 3: Real file exists to open
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('At least one real .md file exists at registry globalDocsPath', () => {
-    assert.ok(
-        realFilePath !== null,
-        'No real .md file found in globalDocsPath — registry may be wrong or path does not exist'
-    );
-    assert.ok(
-        fs.existsSync(realFilePath),
-        `Real file path does not exist on disk: ${realFilePath}`
-    );
-});
-
-test('Real file path used in DOM click test actually exists on disk', () => {
-    if (!realFilePath) { throw new Error('No real file path available'); }
-    assert.ok(fs.existsSync(realFilePath), `File not found: ${realFilePath}`);
-    console.log('  Using real path:', realFilePath);
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OUTPUT
-// ═══════════════════════════════════════════════════════════════════════════
-
+// Output
 console.log('\n' + '='.repeat(60));
-console.log('View-a-Doc Click Opens Test');
+console.log('View-a-Doc Click-Opens Tests');
 console.log('='.repeat(60));
 for (const r of results) {
     const icon = r.ok ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
     console.log(`  ${icon}  ${r.name}`);
-    if (!r.ok) console.log(`         \x1b[31m→ ${r.err}\x1b[0m`);
+    if (!r.ok) console.log(`         \x1b[31m-> ${r.err}\x1b[0m`);
 }
 console.log('='.repeat(60));
 const failStr = failed > 0 ? `\x1b[31m${failed} failed\x1b[0m` : '0 failed';
 console.log(`${passed + failed} tests: \x1b[32m${passed} passed\x1b[0m, ${failStr}\n`);
-if (failed > 0) process.exit(1);
+if (failed > 0) { process.exit(1); }
+

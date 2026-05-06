@@ -1,17 +1,18 @@
 ---
+subject: 150.3
+id: view-a-doc-manual-test-procedure
 title: View a Doc — Manual Test Procedure
-description: Objective: Verify that View a Doc opens a browser and all links are clickable.
 project: cielovista-tools
+description: Objective: Verify that View a Doc opens a browser and all links are clickable.
+status: active
+tags: [test, view, doc]
 category: 400 — Testing & Quality
-relativePath: TEST-VIEW-A-DOC.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [test, view, doc]
+relativepath: TEST-VIEW-A-DOC.md
 ---
-
 # View a Doc — Manual Test Procedure
 
 **Objective:** Verify that View a Doc opens a browser and all links are clickable.

@@ -1,17 +1,18 @@
 ---
+subject: 150.5
+id: feature-copilot-rules-enforcerts
 title: feature: copilot-rules-enforcer.ts
-description: Injects your custom Copilot instruction rules into the workspace (or user) settings on startup. Rules are read from copilot-rules.md in the workspa…
 project: cielovista-tools
+description: Injects your custom Copilot instruction rules into the workspace (or user) settings on startup. Rules are read from copilot-rules.md in the workspa…
+status: active
+tags: [copilot, rules, enforcer]
 category: 600 — Tools & Extensions
-relativePath: src/features/copilot-rules-enforcer.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [copilot, rules, enforcer]
+relativepath: src/features/copilot-rules-enforcer.README.md
 ---
-
 # feature: copilot-rules-enforcer.ts
 
 ## What it does

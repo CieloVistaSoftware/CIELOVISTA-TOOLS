@@ -1,12 +1,12 @@
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
 'use strict';
 /**
  * tests/view-doc-search-yellow.test.js
  *
- * PROVES that typing in the View a Doc search bar
- * turns matching doc-link tags yellow (#ffe066).
+ * Proves that typing in the View-a-Doc search bar turns matching links yellow (#ffe066).
+ * Updated for browser-server architecture (buildViewDocBrowserHtml).
  *
- * Tests the INSTALLED compiled file — not source.
- * If these pass, the feature works. If they fail, it's broken.
+ * Run: node tests/view-doc-search-yellow.test.js
  */
 
 const assert  = require('assert');
@@ -14,278 +14,155 @@ const fs      = require('fs');
 const path    = require('path');
 const { JSDOM } = require('jsdom');
 
-const INSTALLED = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
-    '.vscode-insiders', 'extensions',
-    'cielovistasoftware.cielovista-tools-1.0.0',
-    'out', 'features', 'doc-catalog', 'commands.js'
-);
+const SOURCE = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts');
+const src    = fs.readFileSync(SOURCE, 'utf8');
 
-if (!fs.existsSync(INSTALLED)) {
-    console.error('INSTALLED commands.js NOT FOUND. Run npm run rebuild first.');
-    process.exit(1);
-}
-
-const compiled = fs.readFileSync(INSTALLED, 'utf8');
-const SOURCE   = path.join(
-    'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools',
-    'src', 'features', 'doc-catalog', 'commands.ts'
-);
-const src = fs.readFileSync(SOURCE, 'utf8');
-
-// ── Extract JS template from SOURCE ──────────────────────────────────────
-function extractJs(text) {
-    const fnStart = text.indexOf('function buildViewDocHtml(');
+// Extract inline script from buildViewDocBrowserHtml
+function extractBrowserScript(text, port, totalDocs) {
+    const fnStart = text.indexOf('function buildViewDocBrowserHtml(');
     if (fnStart === -1) { return null; }
     const scope  = text.slice(fnStart);
-    const marker = 'const JS = `\n';
-    const idx    = scope.indexOf(marker);
-    if (idx === -1) { return null; }
-    let i = idx + marker.length, out = '';
-    while (i < scope.length) {
-        if (scope[i] === '`') break;
-        if (scope[i] === '\\' && scope[i+1] === '`') { out += '`'; i += 2; continue; }
-        out += scope[i++];
-    }
-    return out;
+    const sStart = scope.indexOf('<script>');
+    const sEnd   = scope.indexOf('</script>');
+    if (sStart === -1 || sEnd === -1) { return null; }
+    return scope.slice(sStart + '<script>'.length, sEnd)
+        .replace(/\$\{port\}/g, String(port))
+        .replace(/\$\{totalDocs\}/g, String(totalDocs));
 }
 
-// ── Extract CSS template from SOURCE ─────────────────────────────────────
-function extractCss(text) {
-    const fnStart = text.indexOf('function buildViewDocHtml(');
-    if (fnStart === -1) { return ''; }
-    const scope    = text.slice(fnStart);
-    const marker   = 'const CSS = `\n';
-    const idx      = scope.indexOf(marker);
-    if (idx === -1) { return ''; }
-    let i = idx + marker.length, out = '';
-    while (i < scope.length) {
-        if (scope[i] === '`') break;
-        if (scope[i] === '\\' && scope[i+1] === '`') { out += '`'; i += 2; continue; }
-        out += scope[i++];
-    }
-    return out;
-}
+const TEST_PORT    = 9999;
+const TEST_DOCS    = 4;
+const scriptContent = extractBrowserScript(src, TEST_PORT, TEST_DOCS);
 
-const jsTemplate  = extractJs(src);
-const cssTemplate = extractCss(src);
-
-// ── Build realistic DOM ───────────────────────────────────────────────────
 function makeDom() {
-    const rendered = (jsTemplate || '')
-        .replace(/\$\{totalDocs\}/g, '6')
-        .replace(/\$\{totalProjects\}/g, '2');
-
-    const html = `<!DOCTYPE html><html><head><style>${cssTemplate}</style></head><body>
-<div id="toolbar">
+    const html = `<!DOCTYPE html><html><head></head><body>
+<div id="topbar">
+  <h1>View a Doc</h1>
   <input id="search" type="text" autocomplete="off">
-  <span id="stat">6 docs across 2 projects</span>
+  <select id="proj-filter"><option value="">All Projects</option>
+    <option value="global">global</option>
+    <option value="wb-core">wb-core</option>
+  </select>
+  <span id="stat">${TEST_DOCS} docs</span>
 </div>
-<div id="content">
-<table>
-  <thead><tr><th>Folder</th><th>Documents</th></tr></thead>
-  <tbody>
-    <tr>
-      <td class="folder-cell"><span class="folder-name">global</span></td>
-      <td class="links-cell">
-        <a class="doc-link doc-link-priority" href="#" data-path="C:\\s\\JS-STANDARDS.md">JavaScript Standards</a>
-        <a class="doc-link" href="#" data-path="C:\\s\\COPILOT-RULES.md">CieloVista Copilot Rules</a>
-        <a class="doc-link" href="#" data-path="C:\\s\\GIT.md">Git Workflow Standards</a>
-      </td>
-    </tr>
-    <tr>
-      <td class="folder-cell"><span class="folder-name">vscode-claude</span></td>
-      <td class="links-cell">
-        <a class="doc-link doc-link-priority" href="#" data-path="C:\\v\\CHANGELOG.md">Changelog vscode-claude</a>
-        <a class="doc-link" href="#" data-path="C:\\v\\ARCH.md">vscode-claude UI Architecture</a>
-        <a class="doc-link" href="#" data-path="C:\\v\\RULES.md">Copilot Instructions vscode-claude</a>
-      </td>
-    </tr>
-  </tbody>
-</table>
-<div id="empty">No docs match.</div>
+<div id="split">
+  <div id="index">
+    <div class="proj-group" data-proj="global">
+      <div class="proj-hd"><span class="dw">000</span><span class="fn">global</span></div>
+      <div class="proj-links">
+        <a class="doc-link" href="#" data-path="C:\\standards\\README.md">README Global</a>
+        <a class="doc-link" href="#" data-path="C:\\standards\\COPILOT.md">CieloVista Copilot Rules</a>
+        <a class="doc-link" href="#" data-path="C:\\standards\\GIT.md">Git Workflow Standards</a>
+      </div>
+    </div>
+    <div class="proj-group" data-proj="wb-core">
+      <div class="proj-hd"><span class="dw">100</span><span class="fn">wb-core</span></div>
+      <div class="proj-links">
+        <a class="doc-link" href="#" data-path="C:\\wb-core\\NOTES.md">Project Notes wb-core</a>
+      </div>
+    </div>
+    <div id="idx-empty">No matches</div>
+  </div>
+  <div id="resize-handle"></div>
+  <div id="viewer">
+    <div id="viewer-bar">
+      <span id="viewer-path">Select a document</span>
+      <button id="btn-copy-path" style="display:none">Copy Path</button>
+    </div>
+    <div id="welcome">Welcome</div>
+    <iframe id="doc-frame" style="display:none"></iframe>
+  </div>
 </div>
-<div id="copy-toast"></div>
-<script>${rendered}</script>
+<div id="toast"></div>
+<script>${scriptContent || ''}</script>
 </body></html>`;
 
-    const messages = [];
     const dom = new JSDOM(html, {
         runScripts: 'dangerously',
         pretendToBeVisual: true,
         beforeParse(win) {
-            win.acquireVsCodeApi = () => ({
-                postMessage: m => messages.push(m),
-                getState:    ()  => null,
-                setState:    ()  => {},
-            });
-            win.requestAnimationFrame = fn => setTimeout(fn, 0);
+            win.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve('OK') });
+            try { Object.defineProperty(win, 'localStorage', { value: { getItem: () => null, setItem: () => {} }, configurable: true }); } catch(e) {}
         },
     });
-    return { dom, messages, doc: dom.window.document, win: dom.window };
+    return { dom, doc: dom.window.document, win: dom.window };
 }
 
-// ── Test runner ───────────────────────────────────────────────────────────
 let passed = 0, failed = 0;
 const results = [];
 function test(name, fn) {
-    try { fn(); passed++; results.push({ ok: true,  name }); }
-    catch(e) { failed++; results.push({ ok: false, name, err: e.message }); }
+    try   { fn(); passed++; results.push({ ok: true,  name }); }
+    catch (e) { failed++; results.push({ ok: false, name, err: e.message }); }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STATIC CHECKS ON INSTALLED FILE
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('INSTALLED: #ffe066 color present in compiled CSS', () => {
-    assert.ok(compiled.includes('ffe066'), 'Yellow #ffe066 missing from installed commands.js');
+// Static source checks
+test('Source has buildViewDocBrowserHtml function', () => {
+    assert.ok(src.includes('function buildViewDocBrowserHtml('), 'function not found in commands.ts');
+});
+test('Script extracted from source', () => {
+    assert.ok(scriptContent && scriptContent.length > 200, 'Could not extract script from buildViewDocBrowserHtml');
+});
+test('SOURCE CSS has #ffe066 yellow', () => {
+    assert.ok(src.includes('ffe066'), '#ffe066 missing from commands.ts');
+});
+test('SOURCE CSS has .index-searching rule', () => {
+    assert.ok(src.includes('index-searching'), '.index-searching missing from source');
 });
 
-test('INSTALLED: .search-match class in compiled CSS', () => {
-    assert.ok(compiled.includes('search-match'), '.search-match missing from installed commands.js');
-});
-
-test('INSTALLED: .searching .doc-link filter rule present', () => {
-    assert.ok(
-        compiled.includes('.searching .doc-link:not(.search-match)'),
-        '.searching filter rule missing — non-matching links will not hide'
-    );
-});
-
-test('INSTALLED: searchEl.addEventListener present', () => {
-    assert.ok(compiled.includes('searchEl.addEventListener'), 'search listener missing from installed file');
-});
-
-test('INSTALLED: classList.add search-match present', () => {
-    assert.ok(
-        compiled.includes('search-match'),
-        'search-match class assignment missing from installed file'
-    );
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DOM BEHAVIOUR — YELLOW HIGHLIGHT
-// ═══════════════════════════════════════════════════════════════════════════
-
-test('JS template extracted from source', () => {
-    assert.ok(jsTemplate && jsTemplate.length > 200, 'Could not extract JS template from source');
-});
-
-test('CSS template extracted from source', () => {
-    assert.ok(cssTemplate && cssTemplate.length > 100, 'Could not extract CSS template from source');
-});
-
+// DOM behavior
 let ctx;
 test('DOM builds without errors', () => {
     ctx = makeDom();
     const links = ctx.doc.querySelectorAll('.doc-link');
-    assert.ok(links.length >= 4, `Expected 4+ doc-link elements, got ${links.length}`);
-    assert.ok(ctx.doc.getElementById('search'), 'search input must exist');
+    assert.ok(links.length >= 4, `Expected 4+ .doc-link elements, got ${links.length}`);
+    assert.ok(ctx.doc.getElementById('search'), '#search must exist');
 });
-
-test('Before search: no links have search-match class', () => {
-    const yellow = ctx.doc.querySelectorAll('.doc-link.search-match');
-    assert.strictEqual(yellow.length, 0, `${yellow.length} links already have search-match before any search`);
+test('Before search: no links have .hi class', () => {
+    const hi = ctx.doc.querySelectorAll('.doc-link.hi');
+    assert.strictEqual(hi.length, 0, `${hi.length} links already have .hi before any search`);
 });
-
-test('After typing "rules": table gets .searching class', () => {
+test('After typing "readme": matching link gets .hi class', () => {
     const { doc, win } = ctx;
     const search = doc.getElementById('search');
-    search.value = 'rules';
+    search.value = 'readme';
     search.dispatchEvent(new win.Event('input', { bubbles: true }));
-    assert.ok(
-        doc.querySelector('table').classList.contains('searching'),
-        'Table does NOT have .searching class after typing — JS listener not firing'
-    );
+    const hi = doc.querySelectorAll('.doc-link.hi');
+    assert.ok(hi.length >= 1, 'No links got .hi class after typing "readme"');
+    assert.ok([...hi].some(l => l.textContent.toLowerCase().includes('readme')),
+        'README link should have .hi class');
 });
-
-test('After typing "rules": matching links get search-match class', () => {
-    const { doc } = ctx;
-    const allLinks = [...doc.querySelectorAll('.doc-link')];
-    const yellow   = allLinks.filter(l => l.classList.contains('search-match'));
-    assert.ok(
-        yellow.length >= 1,
-        `NO links have search-match class after typing "rules". ` +
-        `All link texts: ${allLinks.map(l => l.textContent).join(', ')}`
-    );
-    // Specifically "CieloVista Copilot Rules" and "Copilot Instructions vscode-claude" match "rules"
-    const rulesLink = allLinks.find(l => l.textContent.toLowerCase().includes('rules'));
-    assert.ok(rulesLink, '"rules" link must exist in DOM');
-    assert.ok(
-        rulesLink.classList.contains('search-match'),
-        `Link "${rulesLink.textContent}" does NOT have search-match class. classList: "${rulesLink.className}"`
-    );
+test('After typing "readme": non-matching links do NOT have .hi', () => {
+    const wrong = [...ctx.doc.querySelectorAll('.doc-link')]
+        .filter(l => !l.textContent.toLowerCase().includes('readme') && l.classList.contains('hi'));
+    assert.strictEqual(wrong.length, 0,
+        `${wrong.length} non-matching links incorrectly have .hi: ${wrong.map(l => l.textContent).join(', ')}`);
 });
-
-test('After typing "rules": non-matching links do NOT get search-match', () => {
-    const { doc } = ctx;
-    const wrongLinks = [...doc.querySelectorAll('.doc-link')]
-        .filter(l => !l.textContent.toLowerCase().includes('rules') && l.classList.contains('search-match'));
-    assert.strictEqual(
-        wrongLinks.length, 0,
-        `${wrongLinks.length} non-matching links incorrectly have search-match: ` +
-        wrongLinks.map(l => l.textContent).join(', ')
-    );
+test('After typing "readme": #index gets .index-searching class', () => {
+    const idx = ctx.doc.getElementById('index');
+    assert.ok(idx.classList.contains('index-searching'),
+        '#index does NOT have .index-searching class');
 });
-
-test('After typing "rules": rows with no matches are hidden', () => {
-    const { doc } = ctx;
-    // The "global" row has "CieloVista Copilot Rules" which matches
-    // The "vscode-claude" row has "Copilot Instructions vscode-claude" which matches "rules"
-    // So actually both rows have matches — let's check with a term that only hits one row
-    // Reset and use "git" which only appears in global
-    const search = doc.getElementById('search');
-    const { win } = ctx;
-    search.value = 'git';
-    search.dispatchEvent(new win.Event('input', { bubbles: true }));
-
-    const hiddenRows = [...doc.querySelectorAll('tbody tr.hidden')];
-    const visibleRows = [...doc.querySelectorAll('tbody tr:not(.hidden)')];
-    assert.ok(hiddenRows.length >= 1, `No rows were hidden after searching "git" — expected vscode-claude row to hide`);
-    assert.ok(visibleRows.length >= 1, `At least 1 row must be visible after searching "git"`);
-});
-
-test('After clearing search: no links have search-match, table loses .searching', () => {
+test('After clearing search: .hi removed, .index-searching removed', () => {
     const { doc, win } = ctx;
     const search = doc.getElementById('search');
     search.value = '';
     search.dispatchEvent(new win.Event('input', { bubbles: true }));
-
-    const yellow = doc.querySelectorAll('.doc-link.search-match');
-    assert.strictEqual(yellow.length, 0, `${yellow.length} links still have search-match after clearing`);
-    assert.ok(
-        !doc.querySelector('table').classList.contains('searching'),
-        'Table still has .searching class after clearing search'
-    );
+    assert.strictEqual(ctx.doc.querySelectorAll('.doc-link.hi').length, 0, 'Links still have .hi');
+    assert.ok(!ctx.doc.getElementById('index').classList.contains('index-searching'),
+        '#index still has .index-searching');
 });
 
-test('CSS has .search-match background:#ffe066', () => {
-    assert.ok(
-        cssTemplate.includes('ffe066'),
-        'CSS template does not contain #ffe066 — yellow highlight will never appear'
-    );
-});
-
-test('CSS has .searching .doc-link:not(.search-match){display:none}', () => {
-    assert.ok(
-        cssTemplate.includes('.searching .doc-link:not(.search-match)'),
-        'CSS hide rule missing — non-matching links will not disappear during search'
-    );
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OUTPUT
-// ═══════════════════════════════════════════════════════════════════════════
-
-console.log('\n' + '='.repeat(65));
+// Output
+console.log('\n' + '='.repeat(60));
 console.log('View-a-Doc Search Yellow Highlight Tests');
-console.log('='.repeat(65));
+console.log('='.repeat(60));
 for (const r of results) {
     const icon = r.ok ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
     console.log(`  ${icon}  ${r.name}`);
-    if (!r.ok) console.log(`         \x1b[31m→ ${r.err}\x1b[0m`);
+    if (!r.ok) console.log(`         \x1b[31m-> ${r.err}\x1b[0m`);
 }
-console.log('='.repeat(65));
+console.log('='.repeat(60));
 const failStr = failed > 0 ? `\x1b[31m${failed} failed\x1b[0m` : '0 failed';
 console.log(`${passed + failed} tests: \x1b[32m${passed} passed\x1b[0m, ${failStr}\n`);
-if (failed > 0) process.exit(1);
+if (failed > 0) { process.exit(1); }
+

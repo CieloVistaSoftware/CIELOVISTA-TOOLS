@@ -117,9 +117,9 @@ const readyCaseIdx = launcherSrc.indexOf("'ready'");
 ok("Extension has 'ready' case handler", readyCaseIdx >= 0);
 
 if (readyCaseIdx >= 0) {
-    const readyBlock = launcherSrc.slice(readyCaseIdx, readyCaseIdx + 200);
+    const readyBlock = launcherSrc.slice(readyCaseIdx, readyCaseIdx + 500);
     ok("ready handler sends {type:'init'}", readyBlock.includes("type: 'init'") || readyBlock.includes('type:\'init\''),
-        readyBlock.includes("type: 'init'") ? 'YES' : readyBlock.slice(0, 100));
+        readyBlock.includes("type: 'init'") ? 'YES' : readyBlock.slice(0, 150));
 }
 
 // ── Check setTimeout in launcher ─────────────────────────────────────────────

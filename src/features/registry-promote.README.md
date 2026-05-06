@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: registry-promote
 title: registry-promote
-description: Register a folder as a CieloVista product. One-click alternative to hand-editing project-registry.json.
 project: cielovista-tools
+description: Register a folder as a CieloVista product. One-click alternative to hand-editing project-registry.json.
+status: active
+tags: [registry, promote, readme]
 category: 700 — Project Docs
-relativePath: src/features/registry-promote.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [registry, promote, readme]
+relativepath: src/features/registry-promote.README.md
 ---
-
 # registry-promote
 
 Register a folder as a CieloVista product. One-click alternative to hand-editing `project-registry.json`.

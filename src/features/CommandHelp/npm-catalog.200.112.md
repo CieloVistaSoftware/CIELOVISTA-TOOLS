@@ -1,15 +1,16 @@
 ---
+subject: 150.1
+id: npm-catalog-200-112
 title: npm catalog 200 112
-description: NPM script: unique Dewey test entry 200.112
 project: cielovista-tools
+description: NPM script: unique Dewey test entry 200.112
+status: active
+tags: [npm, catalog, 200]
 category: 700 — Project Docs
-relativePath: src/features/CommandHelp/npm-catalog.200.112.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [npm, catalog, 200]
+relativepath: src/features/CommandHelp/npm-catalog.200.112.md
 ---
-
 NPM script: unique Dewey test entry 200.112

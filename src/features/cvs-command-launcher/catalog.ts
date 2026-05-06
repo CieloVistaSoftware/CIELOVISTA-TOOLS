@@ -2,12 +2,13 @@
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
 import type { CmdEntry } from './types';
+import { buildRunTooltip } from './tooltip-builder';
 
 // Base path for feature README files
 const F = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\src\\features\\';
 export const README = (name: string): string => `${F}${name}.README.md`;
 
-export const CATALOG: CmdEntry[] = [
+const RAW_CATALOG: CmdEntry[] = [
     // ── Doc Catalog  (000) — global ───────────────────────────────────────────
     { id: 'cvs.catalog.open',    title: 'Open Doc Catalog',        description: 'Browse all docs and projects in a card catalog.', tags: ['browse docs', 'find files', 'catalog'],    group: 'Doc Catalog', groupIcon: '📚', dewey: '000.100', scope: 'global', action: 'read', auditCheckId: 'claudeCoverage', location: 'features/cvs-command-launcher/index.ts' },
     { id: 'cvs.catalog.rebuild', title: 'Rebuild Doc Catalog',     description: 'Force a full rescan of all projects.',             tags: ['refresh', 'rescan', 'catalog'],            group: 'Doc Catalog', groupIcon: '📚', dewey: '000.101', scope: 'global', action: 'read', nextAction: 'cvs.catalog.open', location: 'features/cvs-command-launcher/index.ts' },
@@ -144,6 +145,11 @@ export const CATALOG: CmdEntry[] = [
     { id: 'cvs.corequisites.check',     title: 'Corequisites: Check Peer Extensions',    description: 'Re-run the corequisite check and show the status of every declared peer extension.', tags: ['corequisites', 'extensions', 'check', 'peers', 'install'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.009', scope: 'global', location: 'features/corequisite-checker.ts' },
     { id: 'cvs.corequisites.install',   title: 'Corequisites: Auto-Install Peers',        description: 'Automatically install or upgrade any missing or outdated peer extensions declared in cieloRequires.', tags: ['corequisites', 'extensions', 'install', 'upgrade', 'peers'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.010', scope: 'global', location: 'features/corequisite-checker.ts' },
 ];
+
+export const CATALOG: CmdEntry[] = RAW_CATALOG.map((cmd) => ({
+    ...cmd,
+    runTooltip: buildRunTooltip({ cmd, group: cmd.group }),
+}));
 
 // ── Derived helpers ──────────────────────────────────────────────────────────
 

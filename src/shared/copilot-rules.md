@@ -1,17 +1,18 @@
 ---
+subject: 150.5
+id: cielovista-code-suggestion-guidelines
 title: CieloVista Code Suggestion Guidelines
-description: 1. Always include the full file path in every suggestion. 2. Format suggestions as JSON objects with line numbers. 3. Be friendly, concise, and foc…
 project: cielovista-tools
+description: 1. Always include the full file path in every suggestion. 2. Format suggestions as JSON objects with line numbers. 3. Be friendly, concise, and foc…
+status: active
+tags: [copilot, rules, cielovista]
 category: 600 — Tools & Extensions
-relativePath: src/shared/copilot-rules.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [copilot, rules, cielovista]
+relativepath: src/shared/copilot-rules.md
 ---
-
 # CieloVista Code Suggestion Guidelines
 
 ## Rules for Code Suggestions

@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-html-template-downloaderts
 title: feature: html-template-downloader.ts
-description: Downloads HTML starter templates from the CieloVistaSoftware GitHub repository into your workspace. Also provides a utility to open any path curren…
 project: cielovista-tools
+description: Downloads HTML starter templates from the CieloVistaSoftware GitHub repository into your workspace. Also provides a utility to open any path curren…
+status: active
+tags: [html, template, downloader]
 category: 700 — Project Docs
-relativePath: src/features/html-template-downloader.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [html, template, downloader]
+relativepath: src/features/html-template-downloader.README.md
 ---
-
 # feature: html-template-downloader.ts
 
 ## What it does

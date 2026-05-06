@@ -7,7 +7,11 @@
       "Bash(gh issue *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(.\\\\node_modules\\\\.bin\\\\tsc -p tsconfig.json --noEmit)"
+      "Bash(.\\\\node_modules\\\\.bin\\\\tsc -p tsconfig.json --noEmit)",
+      "Bash(node -e ' *)",
+      "Bash(npm run *)",
+      "Bash(node tests/unit/registry-promote.test.js)",
+      "Bash(git checkout *)"
     ]
   }
 }

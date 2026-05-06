@@ -62,7 +62,7 @@ export function buildShell(opts: TemplateShellOptions): string {
         .join('\n');
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';img-src data: https: http: vscode-webview: vscode-resource:;style-src 'unsafe-inline';script-src 'unsafe-inline';">
 ${styleTag}
 </head><body>
 ${opts.bodyPrefix ?? ''}

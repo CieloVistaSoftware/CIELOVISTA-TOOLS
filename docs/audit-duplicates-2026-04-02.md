@@ -1,17 +1,18 @@
 ---
+subject: 150.9
+id: duplicate-filenames-audit
 title: Duplicate Filenames Audit
-description: - C:\Users\jwpmi\Downloads\CieloVistaStandards\copilot-rules.md (global, 1471 bytes) - C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\co…
 project: cielovista-tools
+description: - C:\Users\jwpmi\Downloads\CieloVistaStandards\copilot-rules.md (global, 1471 bytes) - C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\co…
+status: active
+tags: [audit, duplicates, 2026]
 category: 900 — Audit & Reports
-relativePath: docs/audit-duplicates-2026-04-02.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [audit, duplicates, 2026]
+relativepath: docs/audit-duplicates-2026-04-02.md
 ---
-
 # Duplicate Filenames Audit
 
 > **Date:** 4/1/2026, 11:20:08 PM

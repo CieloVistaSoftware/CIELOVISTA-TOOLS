@@ -1,17 +1,18 @@
 ---
+subject: 150.7
+id: feature-docs-audit-utilsts-developer-guide
 title: feature: docs-audit-utils.ts — Developer Guide
-description: Shared pure utility functions and types for scanning, analyzing, and recommending actions for documentation health across all CieloVista projects a…
 project: cielovista-tools
+description: Shared pure utility functions and types for scanning, analyzing, and recommending actions for documentation health across all CieloVista projects a…
+status: active
+tags: [docs, audit, utils]
 category: 700 — Project Docs
-relativePath: src/shared/docs-audit-utils.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [docs, audit, utils]
+relativepath: src/shared/docs-audit-utils.README.md
 ---
-
 # feature: docs-audit-utils.ts — Developer Guide
 
 ## Purpose

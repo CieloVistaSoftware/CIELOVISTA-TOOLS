@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-docs-managerts-advanced-developer-guide
 title: feature: docs-manager.ts — Advanced Developer Guide
-description: The docs-manager is the central orchestrator for all documentation operations across CieloVista projects. It provides a unified, discoverable inter…
 project: cielovista-tools
+description: The docs-manager is the central orchestrator for all documentation operations across CieloVista projects. It provides a unified, discoverable inter…
+status: active
+tags: [docs, manager, readme]
 category: 700 — Project Docs
-relativePath: src/features/docs-manager.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [docs, manager, readme]
+relativepath: src/features/docs-manager.README.md
 ---
-
 # feature: docs-manager.ts — Advanced Developer Guide
 
 ## Overview

@@ -1,17 +1,18 @@
 ---
+subject: 150.9
+id: regression-log-cielovista-tools
 title: Regression Log — CieloVista Tools
-description: Every regression that has ever happened in this project is documented here. Read this at the start of every session before touching any code.
 project: cielovista-tools
+description: Every regression that has ever happened in this project is documented here. Read this at the start of every session before touching any code.
+status: active
+tags: [regression, log, cielovista]
 category: 700 — Project Docs
-relativePath: docs/REGRESSION-LOG.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [regression, log, cielovista]
+relativepath: docs/REGRESSION-LOG.md
 ---
-
 # Regression Log — CieloVista Tools
 
 Every regression that has ever happened in this project is documented here.

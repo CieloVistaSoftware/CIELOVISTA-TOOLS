@@ -413,7 +413,14 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             const idx = pins.indexOf(msg.id as string);
             if (idx >= 0) { pins.splice(idx, 1); } else { pins.push(msg.id as string); }
             await setPinnedIds(wsPath, pins);
-            if (_panel) { _panel.webview.html = await buildPanelHtml(wsPath); }
+            if (_panel) {
+                const cvtPaths2 = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
+                _panel.webview.html = buildLauncherHtml(
+                    loadLastReport(), wsPath, getHistory(), getRecentProjects(),
+                    await getRegisteredCommandSet(), cvtPaths2,
+                    detectWorkspaceType(wsPath), getPinnedIds(wsPath)
+                );
+            }
             return;
         }
         if (msg.command === 'file-audit-issue') {
@@ -471,20 +478,16 @@ async function getRegisteredCommandSet(): Promise<Set<string>> {
     return new Set(await vscode.commands.getCommands(false));
 }
 
-async function buildPanelHtml(wsPath: string): Promise<string> {
-    const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
-    return buildLauncherHtml(
-        loadLastReport(), wsPath, getHistory(), getRecentProjects(),
-        await getRegisteredCommandSet(), cvtPaths,
-        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
-    );
-}
-
 async function showLauncherPanel(): Promise<void> {
     const wsPath  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     const wsName  = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
     touchCurrentProject();
-    const html = await buildPanelHtml(wsPath);
+    const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
+    const html = buildLauncherHtml(
+        loadLastReport(), wsPath, getHistory(), getRecentProjects(),
+        await getRegisteredCommandSet(), cvtPaths,
+        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
+    );
     if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.One, true); return; }
     _panel = vscode.window.createWebviewPanel(
         'cvsLauncher', `\u26a1 ${wsName}`, vscode.ViewColumn.One,
@@ -502,7 +505,12 @@ async function showLauncherPanel(): Promise<void> {
 async function refreshLauncherPanel(): Promise<void> {
     if (!_panel) { return; }
     const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    _panel.webview.html = await buildPanelHtml(wsPath);
+    const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
+    _panel.webview.html = buildLauncherHtml(
+        loadLastReport(), wsPath, getHistory(), getRecentProjects(),
+        await getRegisteredCommandSet(), cvtPaths,
+        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
+    );
 }
 
 // ─── Activate / Deactivate ────────────────────────────────────────────────────

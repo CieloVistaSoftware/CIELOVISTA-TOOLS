@@ -1,17 +1,18 @@
 ---
+subject: 150.9
+id: wb-core-duplication-audit-cielovista-tools
 title: WB-Core Duplication Audit — cielovista-tools
-description: Date: 2026-04-02 Completed: 2026-04-03 Scope: src/ (all features, shared, and UI code) Objective: Identify and reduce all logic and style duplicati…
 project: cielovista-tools
+description: Date: 2026-04-02 Completed: 2026-04-03 Scope: src/ (all features, shared, and UI code) Objective: Identify and reduce all logic and style duplicati…
+status: active
+tags: [core, duplication, audit]
 category: 700 — Project Docs
-relativePath: docs/_today/WB-CORE-DUPLICATION-AUDIT.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [core, duplication, audit]
+relativepath: docs/_today/WB-CORE-DUPLICATION-AUDIT.md
 ---
-
 # WB-Core Duplication Audit — cielovista-tools
 
 **Date:** 2026-04-02

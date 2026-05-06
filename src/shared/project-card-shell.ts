@@ -34,7 +34,7 @@
 
 export const PROJECT_CARD_SHELL_HTML = /* html */`<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';img-src data: https: http: vscode-webview: vscode-resource:;style-src 'unsafe-inline';script-src 'unsafe-inline';">
 <style>
 /* ── Reset ── */
 *{box-sizing:border-box;margin:0;padding:0}

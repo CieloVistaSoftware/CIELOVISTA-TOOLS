@@ -648,7 +648,7 @@ body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#888" stroke-width="2"/><line x1="11" y1="12" x2="29" y2="12" stroke="#888" stroke-width="1.5"/><line x1="11" y1="17" x2="29" y2="17" stroke="#888" stroke-width="1.5"/><line x1="11" y1="22" x2="22" y2="22" stroke="#888" stroke-width="1.5"/></svg>
       <span>Select a document from the index</span>
     </div>
-    <iframe id="doc-frame" style="display:none" sandbox="allow-scripts allow-same-origin"></iframe>
+    <iframe id="doc-frame" style="display:none" sandbox="allow-scripts"></iframe>
   </div>
 
 </div>

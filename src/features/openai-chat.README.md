@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-openai-chatts
 title: feature: openai-chat.ts
-description: Adds OpenAI-powered commands to VS Code: explain selected code, suggest refactoring, generate a JSDoc docstring, and open a persistent chat panel. …
 project: cielovista-tools
+description: Adds OpenAI-powered commands to VS Code: explain selected code, suggest refactoring, generate a JSDoc docstring, and open a persistent chat panel. …
+status: active
+tags: [openai, chat, readme]
 category: 700 — Project Docs
-relativePath: src/features/openai-chat.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [openai, chat, readme]
+relativepath: src/features/openai-chat.README.md
 ---
-
 # feature: openai-chat.ts
 
 ## What it does

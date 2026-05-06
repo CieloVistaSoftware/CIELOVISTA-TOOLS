@@ -63,39 +63,66 @@ const htmlSrc  = fs.readFileSync(HTML_TS,  'utf8');
     ok('getRegisteredCommandSet() helper present and uses vscode.commands.getCommands(false) returning a Set');
 })();
 
-// ─── Check 2: all three call sites pass the registered set ────────────────
+// ─── Check 2: all render paths wire getRegisteredCommandSet → buildLauncherHtml
+//
+// The code accepts two equivalent patterns:
+//   Pattern A — helper: showLauncherPanel/refreshLauncherPanel → buildPanelHtml
+//               → buildLauncherHtml(..., getRegisteredCommandSet())
+//   Pattern B — inline: showLauncherPanel/refreshLauncherPanel directly call
+//               buildLauncherHtml(..., getRegisteredCommandSet())
+// Both preserve the invariant. The test verifies whichever is in use.
 
-(function checkAllCallSitesPassRegisteredSet() {
+(function checkAllRenderPathsWireRegisteredSet() {
+    // Helper used for pattern A: if present, must wire both calls.
+    const hasBuildPanelHtml = /async function buildPanelHtml\s*\(/.test(indexSrc);
+    if (hasBuildPanelHtml) {
+        const panelIdx = indexSrc.indexOf('async function buildPanelHtml(');
+        const rest     = indexSrc.slice(panelIdx);
+        const nextFn   = rest.indexOf('\nasync function ', 1);
+        const slice    = rest.slice(0, nextFn > 0 ? nextFn : Math.min(rest.length, 2000));
+        if (!slice.includes('buildLauncherHtml(') || !/getRegisteredCommandSet\s*\(\s*\)/.test(slice)) {
+            fail('buildPanelHtml helper does not wire getRegisteredCommandSet → buildLauncherHtml');
+        } else {
+            ok('buildPanelHtml wires getRegisteredCommandSet → buildLauncherHtml (pattern A)');
+        }
+    }
+
+    // showLauncherPanel and refreshLauncherPanel — check each for the active pattern.
     const callSites = [
-        { name: 'showLauncherPanel',     anchor: 'async function showLauncherPanel(' },
-        { name: 'refreshLauncherPanel',  anchor: 'async function refreshLauncherPanel(' },
-        { name: 'deserializeWebviewPanel', anchor: 'deserializeWebviewPanel(' },
+        { name: 'showLauncherPanel',    anchor: 'async function showLauncherPanel(' },
+        { name: 'refreshLauncherPanel', anchor: 'async function refreshLauncherPanel(' },
     ];
     for (const site of callSites) {
         const idx = indexSrc.indexOf(site.anchor);
-        if (idx < 0) {
-            fail(`${site.name}: anchor "${site.anchor}" not found in index.ts`);
+        if (idx < 0) { fail(`${site.name}: anchor not found in index.ts`); continue; }
+        const rest    = indexSrc.slice(idx);
+        const nextFn  = rest.indexOf('\nasync function ', 1);
+        const slice   = rest.slice(0, nextFn > 0 ? nextFn : Math.min(rest.length, 1500));
+        const pattern = hasBuildPanelHtml ? 'buildPanelHtml(' : 'buildLauncherHtml(';
+        if (!slice.includes(pattern)) {
+            fail(`${site.name}: does not call ${pattern} — registered-command set not passed to renderer`);
             continue;
         }
-        // Slice forward until the next top-level `function` or end of file
-        const rest = indexSrc.slice(idx);
-        const nextFn = rest.indexOf('\nfunction ', 1);
-        const nextAsync = rest.indexOf('\nasync function ', 1);
-        const slice = rest.slice(0, Math.min(
-            nextFn  > 0 ? nextFn  : rest.length,
-            nextAsync > 0 ? nextAsync : rest.length,
-            5000
-        ));
-        if (!slice.includes('buildLauncherHtml(')) {
-            fail(`${site.name}: does not call buildLauncherHtml — cannot verify it passes the registered set`);
+        if (!hasBuildPanelHtml && !/getRegisteredCommandSet\s*\(\s*\)/.test(slice)) {
+            fail(`${site.name}: calls buildLauncherHtml but omits getRegisteredCommandSet() — filter bypassed`);
             continue;
         }
-        if (!/getRegisteredCommandSet\s*\(\s*\)/.test(slice)) {
-            fail(`${site.name}: does not pass await getRegisteredCommandSet() to buildLauncherHtml — stale catalog will be rendered with dead entries`);
-            continue;
-        }
-        ok(`${site.name}: passes await getRegisteredCommandSet() to buildLauncherHtml`);
+        ok(`${site.name}: wires getRegisteredCommandSet → buildLauncherHtml (${hasBuildPanelHtml ? 'via helper' : 'inline'})`);
     }
+
+    // deserializeWebviewPanel always calls buildLauncherHtml directly.
+    const dsIdx = indexSrc.indexOf('deserializeWebviewPanel(');
+    if (dsIdx < 0) { fail('deserializeWebviewPanel anchor not found in index.ts'); return; }
+    const dsSlice = indexSrc.slice(dsIdx, dsIdx + 2000);
+    if (!dsSlice.includes('buildLauncherHtml(')) {
+        fail('deserializeWebviewPanel: does not call buildLauncherHtml — registered-command set not passed');
+        return;
+    }
+    if (!/getRegisteredCommandSet\s*\(\s*\)/.test(dsSlice)) {
+        fail('deserializeWebviewPanel: does not pass getRegisteredCommandSet() to buildLauncherHtml');
+        return;
+    }
+    ok('deserializeWebviewPanel: passes getRegisteredCommandSet() to buildLauncherHtml');
 })();
 
 // ─── Check 3: buildLauncherHtml signature accepts registeredCommands ──────

@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-project-home-opener
 title: Feature: Project Home Opener
-description: Adds a single command that opens your configured CieloVista home project root in VS Code from any workspace. Useful when you need to jump back to t…
 project: cielovista-tools
+description: Adds a single command that opens your configured CieloVista home project root in VS Code from any workspace. Useful when you need to jump back to t…
+status: active
+tags: [project, home, opener]
 category: 700 — Project Docs
-relativePath: src/features/project-home-opener.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [project, home, opener]
+relativepath: src/features/project-home-opener.README.md
 ---
-
 # Feature: Project Home Opener
 
 ## What it does

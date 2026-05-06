@@ -1,17 +1,18 @@
 ---
+subject: 150.9
+id: keeper-utils-migration-research-2026-04-10
 title: Keeper Utils Migration Research — 2026-04-10
-description: Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.
 project: cielovista-tools
+description: Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.
+status: active
+tags: [keeper, utils, migration]
 category: 700 — Project Docs
-relativePath: docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [keeper, utils, migration]
+relativepath: docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md
 ---
-
 # Keeper Utils Migration Research — 2026-04-10
 
 Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.

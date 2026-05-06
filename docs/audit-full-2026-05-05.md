@@ -1,3 +1,11 @@
+---
+subject: 150.9
+id: cielovista-docs-audit-report
+title: CieloVista Docs Audit Report
+project: cielovista-tools
+description: - C:\Users\jwpmi\Downloads\CieloVistaStandards\CLAUDE.md (global, 1099 bytes) - C:\dev\vscode-claude\CLAUDE.md (vscode-claude, 1537 bytes) - C:\dev\wb-core\CLAUDE.md (wb-core, 1353 bytes)
+status: draft
+---
 # CieloVista Docs Audit Report
 
 > **Date:** 5/4/2026, 7:03:18 PM

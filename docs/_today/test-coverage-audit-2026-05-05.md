@@ -1,6 +1,14 @@
+---
+subject: 150.3
+id: test-coverage-audit
+title: Test Coverage Audit
+project: cielovista-tools
+description: Date: 2026-05-05 15:51:16 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)
+status: draft
+---
 # Test Coverage Audit
 
-**Date:** 2026-05-05 21:04:07
+**Date:** 2026-05-05 15:51:16
 **Project:** cielovista-tools
 **Strategy:** Tiered Testing (Tiers 1–5)
 
@@ -10,8 +18,8 @@
 
 | Metric | Count |
 |---|---|
-| Test Files | 112 |
-| Test Cases | 1429 |
+| Test Files | 113 |
+| Test Cases | 1462 |
 | Features Covered | 53/54 |
 
 ## 📋 Tier Breakdown
@@ -30,17 +38,18 @@
 
 **Description:** Isolated functions, business logic, edge cases
 
-**Files:** 97 | **Test Cases:** 1291
+**Files:** 98 | **Test Cases:** 1320
 
 | Test File | Test Cases | Bug Refs |
 |---|---|---|
 | `broken-refs-mcp.test.js` | 1 | — |
-| `catalog-dewey-uniqueness.test.js` | 1 | — |
+| `catalog-dewey-uniqueness.test.js` | 3 | — |
 | `catalog-integrity.test.js` | 17 | — |
 | `command-validation.test.js` | 3 | — |
 | `dewey-lookup-mcp.test.js` | 1 | — |
 | `doc-catalog.add-project.test.js` | 6 | — |
-| `doc-catalog.test.js` | 12 | — |
+| `doc-catalog.archive.test.js` | 24 | — |
+| `doc-catalog.test.js` | 11 | — |
 | `error-log-adapter.test.js` | 2 | — |
 | `github-issue-filer.test.js` | 2 | — |
 | `github-issues-view.test.js` | 3 | — |
@@ -52,12 +61,12 @@
 | `install-verify.test.js` | 8 | — |
 | `launcher-script.test.js` | 21 | — |
 | `npm-dewey-uniqueness.test.js` | 0 | — |
-| `npm-fix-button.test.js` | 14 | — |
-| `npm-send-to-claude.test.js` | 13 | — |
+| `npm-fix-button.test.js` | 17 | — |
+| `npm-send-to-claude.test.js` | 15 | — |
 | `package-json-command-descriptions.test.js` | 2 | — |
 | `unit\background-health-runner.test.js` | 20 | — |
 | `unit\claude-process-monitor.test.js` | 13 | — |
-| `unit\code-highlight-audit.pairing.test.js` | 4 | — |
+| `unit\code-highlight-audit.pairing.test.js` | 6 | — |
 | `unit\codebase-auditor.test.js` | 34 | — |
 | `unit\command-renames.test.js` | 14 | — |
 | `unit\config-editor.test.js` | 5 | — |
@@ -124,11 +133,11 @@
 | `unit\test-coverage-auditor.test.js` | 8 | — |
 | `unit\thin-features.test.js` | 40 | — |
 | `unit\validate-package-json.test.js` | 16 | — |
-| `unit\view-a-doc.test.ts` | 2 | — |
+| `unit\view-a-doc.test.ts` | 16 | — |
 | `unit\webview-utils.test.js` | 67 | — |
 | `view-doc-click-opens.test.js` | 12 | — |
-| `view-doc-interactions.test.js` | 26 | — |
-| `view-doc-search-yellow.test.js` | 19 | — |
+| `view-doc-interactions.test.js` | 16 | — |
+| `view-doc-search-yellow.test.js` | 12 | — |
 | `view-doc-server.test.js` | 2 | — |
 | `vscode\suite\activation.test.js` | 7 | — |
 
@@ -159,19 +168,19 @@
 
 **Description:** Specific bug fixes, prevents re-breaking
 
-**Files:** 9 | **Test Cases:** 85
+**Files:** 9 | **Test Cases:** 89
 
 | Test File | Test Cases | Bug Refs |
 |---|---|---|
 | `regression\REG-001-extension-activation.test.js` | 13 | — |
 | `regression\REG-015-package-json-round-trip.test.js` | 3 | — |
 | `regression\REG-016-npm-output-webview.test.js` | 7 | — |
-| `regression\REG-017-launcher-filter.test.js` | 11 | — |
+| `regression\REG-017-launcher-filter.test.js` | 14 | — |
 | `regression\REG-018-mcp-lifecycle-and-dedup.test.js` | 11 | — |
 | `regression\REG-019-filelist-feature.test.js` | 15 | — |
 | `regression\REG-020-launcher-read-error-visible.test.js` | 7 | — |
 | `regression\REG-022-md-renderer-tables.test.js` | 1 | — |
-| `three-bugs.test.js` | 17 | — |
+| `three-bugs.test.js` | 18 | — |
 
 ## 🎯 Feature Coverage Matrix
 
@@ -236,5 +245,5 @@
 
 ---
 
-**Generated:** 2026-05-05T02:04:07.219Z
+**Generated:** 2026-05-05T20:51:16.203Z
 **Command:** `node scripts/audit-test-coverage.js`

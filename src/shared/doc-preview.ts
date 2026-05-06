@@ -96,7 +96,7 @@ img{max-width:100%;height:auto}
 `;
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: http: vscode-webview: vscode-resource:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>${CSS}</style></head><body>
 <div id="topbar">
   <div id="topbar-row1">

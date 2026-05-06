@@ -1,17 +1,18 @@
 ---
+subject: 150.6
+id: changelog-cielovista-tools
 title: Changelog — cielovista-tools
-description: All notable changes to this project are documented here.
 project: cielovista-tools
+description: All notable changes to this project are documented here.
+status: active
+tags: [changelog, cielovistatools, unreleased]
 category: 300 — Dev Workflow & Process
-relativePath: CHANGELOG.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [changelog, cielovistatools, unreleased]
+relativepath: CHANGELOG.md
 ---
-
 # Changelog — cielovista-tools
 
 All notable changes to this project are documented here.

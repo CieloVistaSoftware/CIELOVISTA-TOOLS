@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-docs-broken-refsts
 title: feature: docs-broken-refs.ts
-description: Scans markdown docs across all registered projects and reports broken image and markdown links. The report includes likely candidate files by filen…
 project: cielovista-tools
+description: Scans markdown docs across all registered projects and reports broken image and markdown links. The report includes likely candidate files by filen…
+status: active
+tags: [docs, broken, refs]
 category: 700 — Project Docs
-relativePath: src/features/docs-broken-refs.README.md
 created: 2026-04-24
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [docs, broken, refs]
+relativepath: src/features/docs-broken-refs.README.md
 ---
-
 # feature: docs-broken-refs.ts
 
 ## What it does

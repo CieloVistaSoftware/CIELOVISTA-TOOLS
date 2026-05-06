@@ -40,9 +40,13 @@ if (msgListenerIdx >= 0) {
     fail++;
 }
 
-// 2. Check the INSTALLED version
-const installedShell = 'C:\\Users\\jwpmi\\.vscode-insiders\\extensions\\cielovistasoftware.cielovista-tools-1.0.0\\out\\shared\\project-card-shell.js';
-if (fs.existsSync(installedShell)) {
+// 2. Check the INSTALLED version — resolve dynamically so the test doesn't break on version bumps
+const extDir = path.join(process.env.USERPROFILE || 'C:\\Users\\jwpmi', '.vscode-insiders', 'extensions');
+const installedExt = fs.readdirSync(extDir).find(d => d.startsWith('cielovistasoftware.cielovista-tools-'));
+const installedShell = installedExt
+    ? path.join(extDir, installedExt, 'out', 'shared', 'project-card-shell.js')
+    : null;
+if (installedShell && fs.existsSync(installedShell)) {
     const installed = require(installedShell);
     const iHtml = installed.PROJECT_CARD_SHELL_HTML;
     const iHasInit   = iHtml.includes("m.type === 'init'");

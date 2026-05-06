@@ -1,3 +1,11 @@
+---
+subject: 150.3
+id: test-coverage-audit
+title: Test Coverage Audit
+project: cielovista-tools
+description: Date: 2026-04-29 21:34:07 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)
+status: draft
+---
 # Test Coverage Audit
 
 **Date:** 2026-04-29 21:34:07

@@ -343,7 +343,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .action-btn:disabled{opacity:.5;cursor:default}
 #body{padding:14px 20px;width:100% !important;max-width:none !important;display:flex;flex-direction:column;align-items:stretch}
 .loading{padding:24px;text-align:center;color:var(--vscode-descriptionForeground)}
-.error{padding:14px 16px;border:1px solid #f85149;border-radius:6px;background:rgba(248,81,73,.08);color:#f85149;margin-bottom:14px;line-height:1.5}
+.error{padding:14px 16px;border:1px solid #f85149;border-radius:6px;background:rgba(248,81,73,.08);color:#f85149;margin-bottom:14px;line-height:1.5;overflow-wrap:break-word;word-break:break-word}
 .empty{padding:32px;text-align:center;color:var(--vscode-descriptionForeground);font-size:14px}
 .summary{display:flex;gap:14px;margin-bottom:10px;padding:8px 12px;background:var(--vscode-textCodeBlock-background);border-radius:4px;font-size:11px;color:var(--vscode-descriptionForeground);align-items:center;flex-wrap:wrap;width:100%;max-width:none}
 .controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;width:100%;max-width:none}
@@ -630,7 +630,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 
     return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';img-src data: https: http: vscode-webview: vscode-resource:;style-src 'unsafe-inline';script-src 'unsafe-inline';">
 <style>${css}</style>
 </head><body>
 <div id="hd">

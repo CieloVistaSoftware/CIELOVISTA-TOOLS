@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: filelist-sortable-alternative-file-browser
 title: FileList — Sortable Alternative File Browser
-description: Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68). A details-view file browser surfaced as a Quick Launch button on the…
 project: cielovista-tools
+description: Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68). A details-view file browser surfaced as a Quick Launch button on the…
+status: active
+tags: [file, list, viewer]
 category: 700 — Project Docs
-relativePath: src/features/file-list-viewer.README.md
 created: 2026-04-27
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [file, list, viewer]
+relativepath: src/features/file-list-viewer.README.md
 ---
-
 # FileList — Sortable Alternative File Browser
 
 Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68).

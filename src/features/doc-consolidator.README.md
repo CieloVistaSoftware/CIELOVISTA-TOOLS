@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: feature-doc-consolidatorts-advanced-developer-guid
 title: feature: doc-consolidator.ts — Advanced Developer Guide
-description: The doc-consolidator is a robust, interactive tool for eliminating duplicate documentation across all CieloVista projects and the global standards …
 project: cielovista-tools
+description: The doc-consolidator is a robust, interactive tool for eliminating duplicate documentation across all CieloVista projects and the global standards …
+status: active
+tags: [doc, consolidator, readme]
 category: 700 — Project Docs
-relativePath: src/features/doc-consolidator.README.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [doc, consolidator, readme]
+relativepath: src/features/doc-consolidator.README.md
 ---
-
 # feature: doc-consolidator.ts — Advanced Developer Guide
 
 ## Overview

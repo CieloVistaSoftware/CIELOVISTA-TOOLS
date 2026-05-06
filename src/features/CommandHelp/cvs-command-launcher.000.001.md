@@ -1,17 +1,18 @@
 ---
+subject: 150.1
+id: 000001-cielovista-tools-home
 title: 000.001 — CieloVista Tools — Home
-description: Command ID: cvs.tools.home
 project: cielovista-tools
+description: Command ID: cvs.tools.home
+status: active
+tags: [cvs, command, launcher]
 category: 700 — Project Docs
-relativePath: src/features/CommandHelp/cvs-command-launcher.000.001.md
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
 author: CieloVista Software
-status: active
-tags: [cvs, command, launcher]
+relativepath: src/features/CommandHelp/cvs-command-launcher.000.001.md
 ---
-
 # 000.001 — CieloVista Tools — Home
 
 **Command ID:** cvs.tools.home
