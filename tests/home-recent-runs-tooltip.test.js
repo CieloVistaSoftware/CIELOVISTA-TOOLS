@@ -17,11 +17,12 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const SRC = path.join(__dirname, '..', 'src', 'features', 'home-page.ts');
-const OUT = path.join(__dirname, '..', 'out', 'features', 'home-page.js');
+const SRC    = path.join(__dirname, '..', 'src', 'features', 'home-page.ts');
+// esbuild bundles all features into a single out/extension.js
+const BUNDLE = path.join(__dirname, '..', 'out', 'extension.js');
 
-const src = fs.readFileSync(SRC, 'utf8');
-const out = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+const src    = fs.readFileSync(SRC, 'utf8');
+const bundle = fs.existsSync(BUNDLE) ? fs.readFileSync(BUNDLE, 'utf8') : '';
 
 function mustContain(haystack, needle, label) {
   assert.ok(haystack.includes(needle), `${label}\nMissing: ${needle}`);
@@ -35,14 +36,14 @@ mustContain(src, '.hist-title::after{',
 mustContain(src, '.hist-title:hover::after{display:block}',
   'SOURCE: Tooltip must show immediately on hover');
 
-// Compiled checks
-assert.ok(out.length > 0,
-  'COMPILED: out/features/home-page.js not found. Run npm run compile or npm run rebuild.');
-mustContain(out, 'class="hist-title" data-tip="',
-  'COMPILED: data-tip attribute missing in compiled output');
-mustContain(out, '.hist-title::after{',
-  'COMPILED: tooltip CSS missing in compiled output');
-mustContain(out, '.hist-title:hover::after{display:block}',
-  'COMPILED: immediate hover display rule missing in compiled output');
+// Bundle checks (esbuild inlines all feature modules into out/extension.js)
+assert.ok(bundle.length > 0,
+  'BUNDLE: out/extension.js not found. Run npm run compile or npm run rebuild.');
+mustContain(bundle, 'class="hist-title" data-tip="',
+  'BUNDLE: data-tip attribute missing in compiled bundle');
+mustContain(bundle, '.hist-title::after{',
+  'BUNDLE: tooltip CSS missing in compiled bundle');
+mustContain(bundle, '.hist-title:hover::after{display:block}',
+  'BUNDLE: immediate hover display rule missing in compiled bundle');
 
 console.log('PASS: Home Recent Runs tooltip regression checks passed.');

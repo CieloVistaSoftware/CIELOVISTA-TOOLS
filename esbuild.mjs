@@ -1,0 +1,50 @@
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
+// Unauthorized copying or distribution of this file is strictly prohibited.
+import * as esbuild from 'esbuild';
+
+const production = process.argv.includes('--production');
+const mcpOnly    = process.argv.includes('--mcp-only');
+
+const nodeBase = {
+  bundle:   true,
+  platform: 'node',
+  target:   'node18',
+  minify:   production,
+  logLevel: 'info',
+};
+
+async function buildExtension() {
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/extension.ts'],
+    outfile:     'out/extension.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   !production,
+  });
+}
+
+async function buildMcpServer() {
+  // Main server entry — self-contained, no external deps needed at runtime
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['mcp-server/src/index.ts'],
+    outfile:     'mcp-server/dist/index.js',
+    format:      'esm',
+    sourcemap:   false,
+  });
+  // Standalone catalog-helpers module consumed by scripts/backfill-doc-contract.mjs
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['mcp-server/src/tools/catalog-helpers.ts'],
+    outfile:     'mcp-server/dist/tools/catalog-helpers.js',
+    format:      'esm',
+    sourcemap:   false,
+  });
+}
+
+if (mcpOnly) {
+  await buildMcpServer();
+} else {
+  await Promise.all([buildExtension(), buildMcpServer()]);
+}

@@ -345,22 +345,35 @@ test('REG-010', 'Every package in dependencies is imported somewhere in src/ or 
     `Dead dependencies bloat the VSIX unnecessarily (REG-010).`);
 });
 
-// REG-011: Every package in dependencies must have a negation entry in .vscodeignore.
-// .vscodeignore contains node_modules/** which strips all of node_modules from the VSIX.
-// Runtime packages must be explicitly re-included with !node_modules/<pkg>/** ABOVE that line.
-// Missing negation = package stripped from VSIX = "Cannot find module" crash on activation.
+// REG-011: Runtime deps must be available in the VSIX at activation.
+// Two valid approaches:
+//   A) esbuild bundling  — node_modules/** blanket-excluded; deps are inlined into bundles.
+//   B) unbundled (legacy) — deps re-included via !node_modules/<pkg>/** negation entries.
+// The presence of esbuild in the compile script selects approach A.
 test('REG-011', 'Every runtime dependency has a !node_modules/<pkg>/** entry in .vscodeignore', () => {
   const pkg    = readJson(path.join(ROOT, 'package.json'));
-  const deps   = Object.keys(pkg.dependencies ?? {});
-  if (deps.length === 0) { return; }
   const ignore = fs.readFileSync(path.join(ROOT, '.vscodeignore'), 'utf8');
-  const missing = deps.filter(d => !ignore.includes(`!node_modules/${d}/`));
-  assert(missing.length === 0,
-    `These runtime dependencies are in package.json "dependencies" but NOT negation-included\n` +
-    `in .vscodeignore. They will be stripped from the VSIX and crash activation:\n  ${missing.join('\n  ')}\n\n` +
-    `FIX: Add the following lines to .vscodeignore ABOVE the node_modules/** line:\n` +
-    `${missing.map(d => `  !node_modules/${d}/**`).join('\n')}\n` +
-    `Order matters — negations must come before node_modules/**.`);
+
+  const usingEsbuild = !!(pkg.scripts?.compile ?? '').includes('esbuild');
+
+  if (usingEsbuild) {
+    // Bundled approach: node_modules must be blanket-excluded
+    const hasBlanket = /^\s*node_modules\/\*\*\s*$/m.test(ignore);
+    assert(hasBlanket,
+      'esbuild compile detected but node_modules/** is not blanket-excluded in .vscodeignore.\n' +
+      'Add: node_modules/**');
+  } else {
+    // Unbundled approach: every dep needs an explicit negation entry
+    const deps = Object.keys(pkg.dependencies ?? {});
+    if (deps.length === 0) { return; }
+    const missing = deps.filter(d => !ignore.includes(`!node_modules/${d}/`));
+    assert(missing.length === 0,
+      `These runtime dependencies are in package.json "dependencies" but NOT negation-included\n` +
+      `in .vscodeignore. They will be stripped from the VSIX and crash activation:\n  ${missing.join('\n  ')}\n\n` +
+      `FIX: Add the following lines to .vscodeignore ABOVE the node_modules/** line:\n` +
+      `${missing.map(d => `  !node_modules/${d}/**`).join('\n')}\n` +
+      `Order matters — negations must come before node_modules/**.`);
+  }
 });
 
 test('REG-012', 'Static HTML files are copied to out/ by copy-commandhelp.js', () => {

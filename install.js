@@ -223,11 +223,9 @@ function runCli(command, args) {
 function verifyInstalledFiles() {
     const installedPkgJson = path.join(installedRoot, 'package.json');
     const installedMainJs  = path.join(installedRoot, 'out', 'extension.js');
-    const installedCmdsJs  = path.join(installedRoot, 'out', 'features', 'doc-catalog', 'commands.js');
-
-    if (!fs.existsSync(installedPkgJson) || fs.statSync(installedPkgJson).size <= 1000) { return false; }
-    if (!fs.existsSync(installedMainJs)  || fs.statSync(installedMainJs).size <= 1000)   { return false; }
-    if (!fs.existsSync(installedCmdsJs)  || fs.statSync(installedCmdsJs).size <= 10000)  { return false; }
+    // esbuild bundles everything into out/extension.js — no individual feature files
+    if (!fs.existsSync(installedPkgJson) || fs.statSync(installedPkgJson).size <= 1000)    { return false; }
+    if (!fs.existsSync(installedMainJs)  || fs.statSync(installedMainJs).size <= 500000)   { return false; }
     return true;
 }
 

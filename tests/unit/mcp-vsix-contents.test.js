@@ -1,7 +1,8 @@
 /**
  * tests/unit/mcp-vsix-contents.test.js
  *
- * Fails if the packaged VSIX does not include MCP runtime SDK files.
+ * Verifies the packaged VSIX contains the esbuild-bundled MCP server entry
+ * and does NOT contain node_modules (which are now inlined by esbuild).
  *
  * Run: node tests/unit/mcp-vsix-contents.test.js
  */
@@ -54,23 +55,26 @@ try {
     fail(`Unable to inspect VSIX zip entries: ${err instanceof Error ? err.message : String(err)}`);
 }
 
+function has(entry) {
+    return entries.includes(entry);
+}
 function hasPrefix(prefix) {
     return entries.some((name) => name.startsWith(prefix));
 }
 
-console.log(`Checking VSIX: ${latest.name}`);
+console.log(`Checking VSIX: ${latest.name} (${entries.length} entries)`);
 
-const sdkPrefix = 'extension/node_modules/@modelcontextprotocol/sdk/';
-const sdkDistPrefix = 'extension/node_modules/@modelcontextprotocol/sdk/dist/';
-const mcpDistFile = 'extension/mcp-server/dist/index.js';
+const mcpDistFile  = 'extension/mcp-server/dist/index.js';
+const extFile      = 'extension/out/extension.js';
+const nodeModules  = 'extension/node_modules/';
 
 try {
-    assert.ok(hasPrefix(sdkPrefix), `Missing ${sdkPrefix} in VSIX`);
-    assert.ok(hasPrefix(sdkDistPrefix), `Missing ${sdkDistPrefix} in VSIX`);
-    assert.ok(entries.includes(mcpDistFile), `Missing ${mcpDistFile} in VSIX`);
+    assert.ok(has(mcpDistFile),   `Missing ${mcpDistFile} in VSIX`);
+    assert.ok(has(extFile),       `Missing ${extFile} in VSIX`);
+    assert.ok(!hasPrefix(nodeModules), `VSIX must not contain node_modules — deps should be inlined by esbuild (found ${nodeModules})`);
 } catch (err) {
     fail(err.message);
 }
 
-console.log('PASS: VSIX contains MCP runtime SDK and mcp-server dist entry.');
+console.log('PASS: VSIX contains bundled extension + MCP server and excludes node_modules.');
 process.exit(0);

@@ -1,13 +1,17 @@
-# Source — compiled to out/ already
+# Source — compiled + bundled to out/ and mcp-server/dist/ by esbuild
 src/**
+esbuild.mjs
+
+# node_modules — not needed; all deps are inlined by esbuild bundler
+node_modules/**
 
 # Tests — not needed at runtime
 tests/**
 playwright.config.ts
 playwright-report/**
+test-results/**
 
-# MCP server — include compiled dist and package.json (needed for ESM type),
-# but exclude source and dev-only files
+# MCP server — include only compiled dist; exclude source and dev files
 mcp-server/src/**
 mcp-server/tsconfig.json
 mcp-server/install-config.mjs
@@ -16,28 +20,37 @@ mcp-server/install-config.mjs
 scripts/**
 patch-help-docs.js
 install.js
+rebuild.ps1
+debug-coverage.js
+start-test-watch.bat
 
-# Build artifacts and temp files
+# Build artifacts
 *.vsix
-test-results/**
+**/*.map
+.scripts/**
+**/logs/**
+launcher-debug.png
 
 # Config and meta files not needed in extension
 .vscode/**
+.claude/**
+.github/**
 tsconfig.json
 package-lock.json
 config.json
 CLAUDE.md
 Downloads/**
 data/**
+*.code-workspace
 
-# Keep production dependencies available in VSIX (MCP runtime requires SDK).
-# vsce will package runtime dependencies; do not blanket-exclude node_modules.
+# Root-level temp/working files
+_*
+*.log
+*.tmp
+*.bat
 
-# Explicit runtime keep-list — referenced by REG-011. Each runtime dep in
-# package.json "dependencies" MUST have a matching !node_modules/<pkg>/** line
-# here so it survives vsce packaging. If the extension fails to activate after
-# build with "Cannot find module X", the culprit is almost always a missing
-# entry in this block.
-!node_modules/@modelcontextprotocol/sdk/**
-!node_modules/diff/**
-!node_modules/highlight.js/**
+# Docs that are developer-facing only (not user-facing)
+docs/**
+TEST-VIEW-A-DOC.md
+ViewADoc.md
+copilot-rules.md

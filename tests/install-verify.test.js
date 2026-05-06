@@ -103,19 +103,11 @@ ok('package.json: main',      !!pkg.main,      pkg.main);
 const mainJs = pkg.main.replace(/^\.\//, '');
 ok('Compiled main entry exists', fs.existsSync(mainJs), mainJs);
 
-// 6. Key compiled feature files exist
-const keyFiles = [
-    'out/features/home-page.js',
-    'out/features/doc-catalog/commands.js',
-    'out/features/doc-catalog/projects.js',
-    'out/features/doc-catalog/html.js',
-    'out/shared/md-renderer.js',
-    'out/shared/doc-preview.js',
-    'out/shared/webview-utils.js',
-];
-for (const f of keyFiles) {
-    ok(`Compiled output exists: ${f}`, fs.existsSync(f), '');
-}
+// 6. Extension bundle exists and is non-trivial (esbuild inlines all feature modules)
+const bundleJs = 'out/extension.js';
+const bundleSize = fs.existsSync(bundleJs) ? fs.statSync(bundleJs).size : 0;
+ok('Extension bundle out/extension.js is non-trivial (>500KB)', bundleSize > 500_000,
+    bundleSize > 0 ? `${Math.round(bundleSize / 1024)} KB` : 'MISSING');
 
 // 7. Registry file is valid JSON with required shape
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -168,13 +160,10 @@ ok('Installed extension folder exists', fs.existsSync(installedRoot), installedR
 // If only data/bg-health.json is present, the VSIX was queued but never extracted.
 const installedPkgJson = path.join(installedRoot, 'package.json');
 const installedMainJs  = path.join(installedRoot, 'out', 'extension.js');
-const installedCmdsJs  = path.join(installedRoot, 'out', 'features', 'doc-catalog', 'commands.js');
 const pkgSize  = fs.existsSync(installedPkgJson) ? fs.statSync(installedPkgJson).size : 0;
 const mainSize = fs.existsSync(installedMainJs)  ? fs.statSync(installedMainJs).size  : 0;
-const cmdsSize = fs.existsSync(installedCmdsJs)  ? fs.statSync(installedCmdsJs).size  : 0;
-ok('Installed: package.json (>1KB)',            pkgSize  > 1000, `${pkgSize} bytes — ${installedPkgJson}`);
-ok('Installed: out/extension.js (>1KB)',        mainSize > 1000, `${mainSize} bytes — ${installedMainJs}`);
-ok('Installed: doc-catalog/commands.js (>10KB)',cmdsSize > 10000,`${cmdsSize} bytes — ${installedCmdsJs}`);
+ok('Installed: package.json (>1KB)',           pkgSize  > 1000,    `${pkgSize} bytes — ${installedPkgJson}`);
+ok('Installed: out/extension.js (>500KB)',     mainSize > 500_000, `${mainSize} bytes — ${installedMainJs}`);
 
 if (fs.existsSync(installedRoot)) {
     // Scan compiled output for require() calls to non-builtin, non-vscode modules

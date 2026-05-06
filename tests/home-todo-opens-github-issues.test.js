@@ -15,11 +15,12 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const SRC = path.join(__dirname, '..', 'src', 'features', 'home-page.ts');
-const OUT = path.join(__dirname, '..', 'out', 'features', 'home-page.js');
+const SRC    = path.join(__dirname, '..', 'src', 'features', 'home-page.ts');
+// esbuild bundles all features into a single out/extension.js
+const BUNDLE = path.join(__dirname, '..', 'out', 'extension.js');
 
-const src = fs.readFileSync(SRC, 'utf8');
-const out = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+const src    = fs.readFileSync(SRC, 'utf8');
+const bundle = fs.existsSync(BUNDLE) ? fs.readFileSync(BUNDLE, 'utf8') : '';
 
 function mustContain(haystack, needle, label) {
   assert.ok(haystack.includes(needle), `${label}\nMissing: ${needle}`);
@@ -39,14 +40,14 @@ mustContain(src, "from '../shared/github-issues-view'", 'SOURCE: Home page must 
 mustNotContain(src, 'openDocPreview(todoPath, \'Home\')', 'SOURCE: Issue Viewer command must not open local TODO doc preview');
 mustNotContain(src, 'TODO-UPDATED.md', 'SOURCE: Issue Viewer command must not depend on local TODO-UPDATED.md file');
 
-// Compiled checks
-assert.ok(out.length > 0,
-  'COMPILED: out/features/home-page.js not found. Run npm run compile or npm run rebuild.');
-mustContain(out, 'showGithubIssues', 'COMPILED: GitHub issues helper wiring missing in compiled output');
-mustNotContain(out, 'TODO-UPDATED.md', 'COMPILED: Local TODO doc path should not appear in compiled output');
+// Bundle checks (esbuild inlines all feature modules into out/extension.js)
+assert.ok(bundle.length > 0,
+  'BUNDLE: out/extension.js not found. Run npm run compile or npm run rebuild.');
+mustContain(bundle, 'showGithubIssues', 'BUNDLE: GitHub issues helper wiring missing in compiled bundle');
+mustNotContain(bundle, 'TODO-UPDATED.md', 'BUNDLE: Local TODO doc path should not appear in compiled bundle');
 assert.ok(
-  out.includes('__openIssues__') || out.includes('__openTodo__'),
-  'COMPILED: Expected Home quick-launch issues command key (__openIssues__ or legacy __openTodo__) in compiled output'
+  bundle.includes('__openIssues__') || bundle.includes('__openTodo__'),
+  'BUNDLE: Expected Home quick-launch issues command key (__openIssues__ or legacy __openTodo__) in compiled bundle'
 );
 
 console.log('PASS: Home Issue Viewer button routes to GitHub Issues (regression guard).');

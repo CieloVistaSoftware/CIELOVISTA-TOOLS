@@ -26,11 +26,12 @@
   "icon": "icon.png",
   "main": "./out/extension.js",
   "scripts": {
-    "compile": "tsc -p ./",
+    "compile": "node esbuild.mjs",
+    "typecheck": "tsc --noEmit",
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
     "package": "vsce package",
-    "rebuild": "npm run compile && npm run test:mcp-packaging && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run copy:commandhelp && npm run package && npm run test:mcp-vsix && node install.js && node tests/install-verify.test.js && npm run validate:package-json",
+    "rebuild": "npm run clean && npm run compile && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run package && npm run test:mcp-vsix && node install.js && node tests/install-verify.test.js && npm run validate:package-json",
     "copy:commandhelp": "node scripts/copy-commandhelp.js",
     "validate:package-json": "node scripts/validate-package-json.js",
     "test:catalog": "node tests/catalog-integrity.test.js",
@@ -39,8 +40,8 @@
     "test:activation": "node tests/activation.test.js",
     "test:vscode": "node tests/vscode/runTests.js",
     "start": "npm run rebuild",
-    "vscode:prepublish": "echo skip",
-    "mcp:build": "cd mcp-server && npm run build",
+    "vscode:prepublish": "node esbuild.mjs --production",
+    "mcp:build": "node esbuild.mjs --mcp-only",
     "mcp:start": "cross-env NODE_PATH=./node_modules node mcp-server/dist/index.js",
     "mcp:dev": "cd mcp-server && tsc --watch",
     "mcp:inspect": "cross-env NODE_PATH=./node_modules npx @modelcontextprotocol/inspector node mcp-server/dist/index.js",
@@ -67,7 +68,7 @@
     "audit:coverage:json": "node scripts/audit-test-coverage.js --json",
     "check-architecture": "node scripts/check-architecture.js",
     "pretest": "npm run clean && npm run compile",
-    "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\""
+    "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\""
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
@@ -78,6 +79,7 @@
     "@vscode/test-electron": "^2.3.4",
     "@vscode/vsce": "^3.0.0",
     "cross-env": "^10.1.0",
+    "esbuild": "^0.27.4",
     "jsdom": "^29.0.1",
     "sinon": "^21.0.3",
     "typescript": "^5.3.0",
