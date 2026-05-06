@@ -141,7 +141,7 @@ let _pendingScrollY = 0;
             console.error('DocPreview: Button not found:', id);
         }
     }
-    safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'open',           path: '${jsPath}' }));
+    safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'edit-file',      path: '${jsPath}' }));
     safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
     safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
     safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
@@ -301,6 +301,17 @@ export function openDocPreview(
                     const doc = await vscode.workspace.openTextDocument(target);
                     await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
                 }
+                break;
+            }
+            case 'edit-file': {
+                if (!msg.path) { break; }
+                const target = path.normalize(String(msg.path));
+                if (!fs.existsSync(target)) {
+                    vscode.window.showWarningMessage(`File not found: ${target}`);
+                    break;
+                }
+                const doc = await vscode.workspace.openTextDocument(target);
+                await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
                 break;
             }
             case 'open-in-vscode': {

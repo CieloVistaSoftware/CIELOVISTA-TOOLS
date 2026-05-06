@@ -31,7 +31,7 @@ export interface InteractiveResultOptions {
   durationMs?: number;     // Optional duration in milliseconds
   onRerun?: () => void;    // Optional callback for rerun action
   onOpenLog?: () => void;  // Optional callback for open log action
-  failed?: boolean;        // If true, shows "Send to Chat" button for error reporting
+  failed?: boolean;        // If true, keeps existing failure styling behavior for callers
   viewType?: string;       // Unique key for panel isolation — callers with different viewTypes get separate panels
 }
 
@@ -170,7 +170,7 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
         <div class="output" id="output">${outputHtml}</div>
         <div class="buttons">
           <button id="copyBtn">Copy Output</button>
-          ${opts.failed ? '<button id="chatBtn">📤 Send to Chat</button>' : ''}
+          <button id="chatBtn">Copy to VS Code Chat</button>
           ${opts.onRerun ? '<button id="rerunBtn">Rerun</button>' : ''}
           ${opts.onOpenLog ? '<button id="logBtn">Open Log</button>' : ''}
           <button id="closeBtn">Close</button>
@@ -181,7 +181,10 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
             const text = document.getElementById('output').innerText;
             vscode.postMessage({ type: 'copy', text });
           };
-          ${opts.failed ? "document.getElementById('chatBtn').onclick = () => { const text = document.getElementById('output').innerText; vscode.postMessage({ type: 'copy-to-chat', text }); };" : ''}
+          document.getElementById('chatBtn').onclick = () => {
+            const text = document.getElementById('output').innerText;
+            vscode.postMessage({ type: 'copy-to-chat', text });
+          };
           ${opts.onRerun ? "document.getElementById('rerunBtn').onclick = () => vscode.postMessage({ type: 'rerun' });" : ''}
           ${opts.onOpenLog ? "document.getElementById('logBtn').onclick = () => vscode.postMessage({ type: 'openLog' });" : ''}
           document.getElementById('closeBtn').onclick = () => vscode.postMessage({ type: 'close' });

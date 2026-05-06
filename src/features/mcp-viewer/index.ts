@@ -554,6 +554,155 @@ function handleListCvtCommands(params: URLSearchParams): unknown {
     return { group: group || '(all)', totalCommands: all.length, matchCount: filtered.length, commands: filtered };
 }
 
+/* ── normalize_doc, get_doc_by_identity, list_old_dewey ─────────────────── */
+
+interface NormalizeDocJson {
+    filePath: string;
+    projectName: string;
+    projectDewey: number;
+    hasFrontmatter: boolean;
+    missingFields: string[];
+    suggestedFrontmatter: string;
+}
+
+async function handleNormalizeDoc(params: URLSearchParams): Promise<NormalizeDocJson> {
+    const rawFilePath = (params.get('filePath') || '').trim();
+    if (!rawFilePath) { throw new Error('Missing required query param: filePath'); }
+    const resolved = path.resolve(rawFilePath);
+    if (!fs.existsSync(resolved)) { throw new Error(`File not found: ${resolved}`); }
+    if (!/\.md$/i.test(resolved)) { throw new Error(`normalize_doc only supports .md files: ${resolved}`); }
+
+    const reg = loadRegistry();
+    const roots: Array<{ projectName: string; rootPath: string; projectDewey: number }> = [];
+    if (reg) {
+        roots.push({ projectName: 'global', rootPath: path.resolve(reg.globalDocsPath), projectDewey: 0 });
+        reg.projects.forEach((p, i) => {
+            roots.push({ projectName: p.name, rootPath: path.resolve(p.path), projectDewey: (i + 1) * 100 });
+        });
+    }
+    const lower = resolved.toLowerCase();
+    const owner = roots.find(r => lower.startsWith(r.rootPath.toLowerCase()));
+    const projectName = owner?.projectName ?? 'unknown';
+    const projectDewey = owner?.projectDewey ?? 999;
+    const prefix = String(projectDewey).padStart(3, '0');
+
+    const content = fs.readFileSync(resolved, 'utf8');
+    const fm = parseFrontmatter(content);
+    const hasFrontmatter = fm !== null;
+
+    const subject     = (fm?.subject     ?? '').trim();
+    const id          = (fm?.id          ?? '').trim();
+    const title       = (fm?.title       ?? '').trim();
+    const project     = (fm?.project     ?? '').trim();
+    const description = (fm?.description ?? '').trim();
+    const status      = (fm?.status      ?? '').trim();
+
+    const missingFields: string[] = [];
+    if (!subject)     { missingFields.push('subject'); }
+    if (!id)          { missingFields.push('id'); }
+    if (!title)       { missingFields.push('title'); }
+    if (!project)     { missingFields.push('project'); }
+    if (!description) { missingFields.push('description'); }
+    if (!status)      { missingFields.push('status'); }
+
+    const baseName        = path.basename(resolved, '.md');
+    const mergedSubject   = subject     || `${prefix}.9`;
+    const mergedId        = id          || baseName.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 50);
+    const mergedTitle     = title       || baseName.replace(/[-_]/g, ' ');
+    const mergedProject   = project     || (projectName !== 'unknown' ? projectName : '');
+    const mergedDesc      = description || '';
+    const mergedStatus    = status      || 'draft';
+
+    const fmLines = [
+        '---',
+        `subject: ${mergedSubject}`,
+        `id: ${mergedId}`,
+        `title: ${mergedTitle}`,
+        mergedProject ? `project: ${mergedProject}` : null,
+        mergedDesc    ? `description: ${mergedDesc.slice(0, 200)}` : null,
+        `status: ${mergedStatus}`,
+        '---',
+    ].filter((l): l is string => l !== null);
+
+    return { filePath: resolved, projectName, projectDewey, hasFrontmatter, missingFields, suggestedFrontmatter: fmLines.join('\n') };
+}
+
+interface DocIdentityJson {
+    found: boolean;
+    identity: string;
+    filePath?: string;
+    projectName?: string;
+    projectDewey?: number;
+    title?: string;
+    description?: string;
+    status?: string;
+}
+
+async function handleGetDocByIdentity(params: URLSearchParams): Promise<DocIdentityJson> {
+    const identity = (params.get('identity') || '').trim().toLowerCase();
+    if (!identity) { return { found: false, identity }; }
+
+    const reg   = loadRegistry();
+    const cards = (await buildCatalog()) ?? [];
+    const deweyMap = new Map<string, number>();
+    if (reg) { reg.projects.forEach((p, i) => { deweyMap.set(p.name, (i + 1) * 100); }); }
+
+    for (const d of cards) {
+        let content = '';
+        try { content = fs.readFileSync(d.filePath, 'utf8'); } catch { continue; }
+        const fm = parseFrontmatter(content);
+        if (!fm) { continue; }
+        const subject = (fm.subject ?? '').trim().toLowerCase();
+        const docId   = (fm.id      ?? '').trim().toLowerCase();
+        if (!subject || !docId) { continue; }
+        if (`${subject}.${docId}` === identity) {
+            const projectDewey = deweyMap.get(d.projectName) ?? 999;
+            return {
+                found: true, identity,
+                filePath:    d.filePath,
+                projectName: d.projectName,
+                projectDewey,
+                title:       (fm.title       ?? d.title       ?? '').trim(),
+                description: (fm.description ?? d.description ?? '').trim(),
+                status:      (fm.status      ?? 'active').trim(),
+            };
+        }
+    }
+    return { found: false, identity };
+}
+
+interface OldDeweyEntryJson { filePath: string; projectName: string; title: string; oldDewey: string; source: string; }
+
+async function handleListOldDewey(params: URLSearchParams): Promise<{ projectName: string; totalFound: number; docs: OldDeweyEntryJson[] }> {
+    const requestedProject = (params.get('projectName') || '').trim();
+    const cards = (await buildCatalog()) ?? [];
+    const docs  = requestedProject ? cards.filter(c => c.projectName === requestedProject) : cards;
+    const OLD_DEWEY_RE = /^(\d{3,}\.\d{3})\.md$/i;
+    const results: OldDeweyEntryJson[] = [];
+
+    for (const d of docs) {
+        const fnMatch = path.basename(d.filePath).match(OLD_DEWEY_RE);
+        if (fnMatch) {
+            results.push({ filePath: d.filePath, projectName: d.projectName, title: d.title, oldDewey: fnMatch[1], source: 'filename' });
+            continue;
+        }
+        let content = '';
+        try { content = fs.readFileSync(d.filePath, 'utf8'); } catch { continue; }
+        const fm = parseFrontmatter(content);
+        if (!fm) { continue; }
+        const category = (fm.category ?? '').trim();
+        if (category && /^\d{3,}\.\d{3}$/.test(category)) {
+            results.push({ filePath: d.filePath, projectName: d.projectName, title: d.title, oldDewey: category, source: 'frontmatter-category' });
+            continue;
+        }
+        const deweyField = (fm.dewey ?? '').trim();
+        if (deweyField && /^\d{3,}\.\d{3}$/.test(deweyField)) {
+            results.push({ filePath: d.filePath, projectName: d.projectName, title: d.title, oldDewey: deweyField, source: 'frontmatter-dewey' });
+        }
+    }
+    return { projectName: requestedProject || '(all)', totalFound: results.length, docs: results };
+}
+
 function handleGetActiveMarkdown(): { filePath: string; hasActiveMarkdown: boolean } {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -700,6 +849,26 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             const message = error instanceof Error ? error.message : String(error);
             jsonResponse(res, 400, { error: message });
         }
+        return;
+    }
+
+    if (p === '/api/normalize_doc') {
+        try {
+            jsonResponse(res, 200, await handleNormalizeDoc(url.searchParams));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            jsonResponse(res, 400, { error: message });
+        }
+        return;
+    }
+
+    if (p === '/api/get_doc_by_identity') {
+        jsonResponse(res, 200, await handleGetDocByIdentity(url.searchParams));
+        return;
+    }
+
+    if (p === '/api/list_old_dewey') {
+        jsonResponse(res, 200, await handleListOldDewey(url.searchParams));
         return;
     }
 

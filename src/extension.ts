@@ -50,6 +50,8 @@ import { activate as imageReaderActivate,     deactivate as imageReaderDeactivat
 import { activate as mcpViewerActivate,       deactivate as mcpViewerDeactivate            } from './features/mcp-viewer';
 import { activate as explorerCopyPathToChatActivate, deactivate as explorerCopyPathToChatDeactivate } from './features/explorer-copy-path-to-chat';
 import { activate as registryPromoteActivate, deactivate as registryPromoteDeactivate      } from './features/registry-promote';
+import { activate as corequisiteCheckerActivate, deactivate as corequisiteCheckerDeactivate } from './features/corequisite-checker';
+import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeactivate       } from './features/json-copy-to-chat';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -139,7 +141,9 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('imageReader',             'Image Reader',                  imageReaderActivate,     context);
     activateIfEnabled('mcpViewer',               'MCP Endpoint Viewer',           mcpViewerActivate,       context);
     activateIfEnabled('explorerCopyPathToChat',  'Explorer: Copy Path to Copilot Chat', explorerCopyPathToChatActivate, context);
-    activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate, context);
+    activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate,        context);
+    activateIfEnabled('corequisiteChecker',      'Corequisite Checker',                 corequisiteCheckerActivate,     context);
+    activateIfEnabled('jsonCopyToChat',          'Editor: Copy JSON to Copilot Chat',   jsonCopyToChatActivate,         context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
@@ -187,6 +191,8 @@ export function deactivate(): void {
     mcpViewerDeactivate();
     explorerCopyPathToChatDeactivate();
     registryPromoteDeactivate();
+    corequisiteCheckerDeactivate();
+    jsonCopyToChatDeactivate();
     deactivateDocHeader();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
