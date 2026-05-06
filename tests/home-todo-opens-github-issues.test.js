@@ -35,7 +35,7 @@ mustContain(src, "label: 'Issue Viewer'", 'SOURCE: Home quick-launch Issue Viewe
 mustContain(src, "desc: 'Live GitHub issues for cielovista-tools'", 'SOURCE: Issue Viewer description must indicate GitHub issues');
 mustContain(src, "cmd: '__openIssues__'", 'SOURCE: Issue Viewer command key must remain wired');
 mustContain(src, "if (msg.command === '__openIssues__')", 'SOURCE: Issue Viewer command handler must exist');
-mustContain(src, 'showGithubIssues();', 'SOURCE: Issue Viewer command must open GitHub issues view');
+mustContain(src, 'showGithubIssues(', 'SOURCE: Issue Viewer command must open GitHub issues view');
 mustContain(src, "from '../shared/github-issues-view'", 'SOURCE: Home page must import GitHub issues view helper');
 mustNotContain(src, 'openDocPreview(todoPath, \'Home\')', 'SOURCE: Issue Viewer command must not open local TODO doc preview');
 mustNotContain(src, 'TODO-UPDATED.md', 'SOURCE: Issue Viewer command must not depend on local TODO-UPDATED.md file');

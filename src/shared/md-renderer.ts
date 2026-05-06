@@ -46,11 +46,28 @@ function highlightCode(code: string, lang: string): string {
     }
 }
 
+function parseFrontmatter(lines: string[]): { block: string; startAt: number } {
+    if (lines[0]?.trim() !== '---') { return { block: '', startAt: 0 }; }
+    const end = lines.findIndex((l, idx) => idx > 0 && l.trim() === '---');
+    if (end === -1) { return { block: '', startAt: 0 }; }
+    const pairs = lines.slice(1, end)
+        .map(l => l.match(/^([^:]+):\s*(.*)$/))
+        .filter(Boolean) as RegExpMatchArray[];
+    if (pairs.length === 0) { return { block: '', startAt: end + 1 }; }
+    const rows = pairs.map(([, k, v]) => {
+        const label = k.trim().replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `<div class="fm-row"><span class="fm-label">${esc(label)}</span><span class="fm-value">${esc(v.trim())}</span></div>`;
+    }).join('');
+    const block = `<div class="fm-block">${rows}</div>`;
+    return { block, startAt: end + 1 };
+}
+
 export function mdToHtml(input: string): string {
     const lines  = input.split('\n').map(l => l.replace(/\r$/, ''));
-    const out: string[] = [];
+    const { block: fmBlock, startAt } = parseFrontmatter(lines);
+    const out: string[] = fmBlock ? [fmBlock] : [];
     const headingIds = new Map<string, number>();
-    let i = 0;
+    let i = startAt;
 
     while (i < lines.length) {
         const line = lines[i];

@@ -44,7 +44,7 @@ function buildFolderPathHtml(filePath: string): string {
 }
 
 // ── Preview HTML ──────────────────────────────────────────────────────────────
-function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[]): string {
+function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[], hasSource: boolean): string {
     const nonce = getNonce();
     const jsPath = filePath.replace(/\\/g, '\\\\');
     const jsDir  = path.dirname(filePath).replace(/\\/g, '\\\\');
@@ -91,6 +91,10 @@ hr{border:none;border-top:1px solid var(--vscode-panel-border);margin:18px 0}
 a{color:var(--vscode-textLink-foreground)} a:hover{text-decoration:underline}
 strong{font-weight:700} em{font-style:italic} del{opacity:0.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
+.fm-block{display:flex;flex-wrap:wrap;gap:6px 20px;padding:10px 14px;margin-bottom:16px;border:1px solid rgba(77,171,247,0.35);border-radius:5px;background:rgba(77,171,247,0.06);font-family:Georgia,'Times New Roman',serif}
+.fm-row{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+.fm-label{font-size:11px;font-weight:700;color:#4dabf7;font-variant:small-caps;letter-spacing:0.04em}
+.fm-value{font-size:12px;color:#74c7ec;font-style:italic}
 /* ── highlight.js — github-dark theme (inline, no CDN needed) ── */
 .hljs{color:#adbac7;background:#22272e}.hljs-doctag,.hljs-keyword,.hljs-meta .hljs-keyword,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-variable.language_{color:#f47067}.hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__,.hljs-title.function_{color:#dcbdfb}.hljs-attr,.hljs-attribute,.hljs-literal,.hljs-meta,.hljs-number,.hljs-operator,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-variable{color:#6cb6ff}.hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#96d0ff}.hljs-built_in,.hljs-symbol{color:#f69d50}.hljs-code,.hljs-comment,.hljs-formula{color:#768390}.hljs-name,.hljs-quote,.hljs-selector-pseudo,.hljs-selector-tag{color:#8ddb8c}.hljs-subst{color:#adbac7}.hljs-section{color:#316dca;font-weight:700}.hljs-bullet{color:#eac55f}.hljs-emphasis{color:#adbac7;font-style:italic}.hljs-strong{color:#adbac7;font-weight:700}.hljs-addition{color:#b4f1b4;background-color:#1b4721}.hljs-deletion{color:#ffd8d3;background-color:#78191b}
 `;
@@ -101,6 +105,7 @@ img{max-width:100%;height:auto}
 <div id="topbar">
   <div id="topbar-row1">
     <span id="topbar-title">&#128196; ${esc(title)}</span>
+    ${hasSource ? '<button class="btn-action" id="btn-back-source" title="Back to source view">&larr; Back</button>' : ''}
     <button class="btn-action" id="btn-vscode">&#128195; Open in VS Code</button>
     <button class="btn-action" id="btn-terminal">&#8250;_ Change Working Directory</button>
     <button class="btn-action" id="btn-explorer">&#128193; Explorer</button>
@@ -142,6 +147,7 @@ let _pendingScrollY = 0;
         }
     }
     safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'edit-file',      path: '${jsPath}' }));
+    safeAddListener('btn-back-source', 'click', () => vscode.postMessage({ command: 'navigate-source' }));
     safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
     safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
     safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
@@ -239,7 +245,7 @@ export function openDocPreview(
 
     if (_previewPanel) {
         _previewPanel.title            = `\u{1F4C4} ${title}`;
-        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history);
+        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
         // preserveFocus=true keeps the catalog panel active so it doesn't scroll
         _previewPanel.reveal(vscode.ViewColumn.Beside, true);
         return;
@@ -250,7 +256,7 @@ export function openDocPreview(
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true }
     );
-    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history);
+    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
     _previewPanel.onDidDispose(() => {
         _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
         _history = [];

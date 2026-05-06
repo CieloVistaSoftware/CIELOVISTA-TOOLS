@@ -123,7 +123,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
     if (!msg?.type) { return; }
     if (msg.type === 'runCommand' && msg.command) {
       if (msg.command === '__openIssues__') {
-        showGithubIssues();
+        showGithubIssues(vscode.ViewColumn.Two);
         return;
       }
       const OPEN_DIRECT = [
@@ -138,7 +138,10 @@ function showHomePage(context: vscode.ExtensionContext): void {
         'workbench.action.reloadWindow',
       ];
       if (OPEN_DIRECT.includes(msg.command)) {
-        vscode.commands.executeCommand(msg.command);
+        // Focus column 2 first so commands that respect the active column open beside the Home panel
+        void vscode.commands.executeCommand('workbench.action.focusSecondEditorGroup').then(() =>
+          vscode.commands.executeCommand(msg.command)
+        );
       } else {
         vscode.commands.executeCommand('cvs.launcher.runWithOutput', msg.command);
       }

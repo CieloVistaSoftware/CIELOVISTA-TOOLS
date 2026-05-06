@@ -77,9 +77,9 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
  * Function name is `showGithubIssues` (lowercase h) to match the existing
  * import in home-page.ts.
  */
-export function showGithubIssues(): void {
+export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColumn.Two): void {
     if (activePanel) {
-        activePanel.reveal();
+        activePanel.reveal(viewColumn);
         if (activeRefresh) {
             void activeRefresh();
         }
@@ -89,7 +89,7 @@ export function showGithubIssues(): void {
     const panel = vscode.window.createWebviewPanel(
         'cvtIssues',
         'cielovista-tools \u2014 Open Issues',
-        vscode.ViewColumn.One,
+        viewColumn,
         { enableScripts: true }
     );
     activePanel = panel;
