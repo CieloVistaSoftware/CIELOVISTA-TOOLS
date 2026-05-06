@@ -378,7 +378,7 @@ test('REG-011', 'Every runtime dependency has a !node_modules/<pkg>/** entry in 
 
 test('REG-012', 'Static HTML files are copied to out/ by copy-commandhelp.js', () => {
   const staticFiles = [
-    'out/features/doc-catalog/catalog.html',
+    'out/catalog.html',
   ];
   const missing = staticFiles.filter(f => !fs.existsSync(path.join(ROOT, f)));
   assert(missing.length === 0,

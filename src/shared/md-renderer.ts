@@ -3,7 +3,37 @@
 // Pure TypeScript Markdown renderer with server-side syntax highlighting.
 // Produces clean HTML suitable for VS Code webview panels.
 
-import hljs from 'highlight.js';
+import hljs      from 'highlight.js/lib/core';
+import typescript from 'highlight.js/lib/languages/typescript';
+import javascript from 'highlight.js/lib/languages/javascript';
+import json       from 'highlight.js/lib/languages/json';
+import yaml       from 'highlight.js/lib/languages/yaml';
+import powershell from 'highlight.js/lib/languages/powershell';
+import bash       from 'highlight.js/lib/languages/bash';
+import css        from 'highlight.js/lib/languages/css';
+import xml        from 'highlight.js/lib/languages/xml';
+import markdown   from 'highlight.js/lib/languages/markdown';
+import plaintext  from 'highlight.js/lib/languages/plaintext';
+
+hljs.registerLanguage('typescript',  typescript);
+hljs.registerLanguage('ts',          typescript);
+hljs.registerLanguage('javascript',  javascript);
+hljs.registerLanguage('js',          javascript);
+hljs.registerLanguage('json',        json);
+hljs.registerLanguage('yaml',        yaml);
+hljs.registerLanguage('yml',         yaml);
+hljs.registerLanguage('powershell',  powershell);
+hljs.registerLanguage('ps1',         powershell);
+hljs.registerLanguage('bash',        bash);
+hljs.registerLanguage('sh',          bash);
+hljs.registerLanguage('shell',       bash);
+hljs.registerLanguage('css',         css);
+hljs.registerLanguage('xml',         xml);
+hljs.registerLanguage('html',        xml);
+hljs.registerLanguage('markdown',    markdown);
+hljs.registerLanguage('md',          markdown);
+hljs.registerLanguage('plaintext',   plaintext);
+hljs.registerLanguage('text',        plaintext);
 
 function highlightCode(code: string, lang: string): string {
     try {
