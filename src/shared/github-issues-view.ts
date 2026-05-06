@@ -125,7 +125,7 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     };
     activeRefresh = refresh;
 
-    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string }) => {
+    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number }) => {
         if (!msg?.type) { return; }
         if (msg.type === 'refresh') {
             void refresh();
@@ -139,10 +139,29 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void vscode.env.openExternal(vscode.Uri.parse(String(msg.url)));
         } else if (msg.type === 'copyAll' && latestIssues.length > 0) {
             void vscode.env.clipboard.writeText(formatIssuesForClipboard(latestIssues));
+        } else if (msg.type === 'claim' && msg.number) {
+            void claimIssue(msg.number, panel);
         }
     });
 
     void refresh();
+}
+
+// ─── Claim ──────────────────────────────────────────────────────────────────
+
+async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<void> {
+    const run = (args: string[]) => new Promise<void>((resolve, reject) => {
+        execFile('gh', args, { shell: true }, (err) => err ? reject(err) : resolve());
+    });
+    try {
+        await run(['issue', 'edit', String(number), '--add-label', 'status:in-progress', '--repo', `${REPO_OWNER}/${REPO_NAME}`]);
+        await run(['issue', 'edit', String(number), '--add-assignee', '@me',             '--repo', `${REPO_OWNER}/${REPO_NAME}`]);
+        panel.webview.postMessage({ type: 'claimed', number });
+        void vscode.window.showInformationMessage(`Issue #${number} claimed — status:in-progress applied.`);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Failed to claim issue #${number}: ${msg}`);
+    }
 }
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
@@ -388,6 +407,9 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .label{padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;line-height:1.45;border:1px solid rgba(0,0,0,.1)}
 .priority{background:var(--vscode-dropdown-background, var(--vscode-input-background));color:var(--vscode-dropdown-foreground, var(--vscode-input-foreground));border:1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));border-radius:4px;padding:2px 4px;font-size:11px}
 .state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45)}
+.claim-btn{margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(88,166,255,.14);color:#58a6ff;border:1px solid rgba(88,166,255,.45);cursor:pointer;font-family:inherit}
+.claim-btn:hover{background:rgba(88,166,255,.28)}
+.claim-btn:disabled{opacity:.5;cursor:wait}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
 #proj-filter,#state-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
@@ -444,7 +466,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
     <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></td>
-    <td><span class="state-pill">${esc(iss.state)}</span></td>
+    <td><span class="state-pill">${esc(iss.state)}</span>${iss.state === 'open' ? `<button class="claim-btn" type="button" data-number="${iss.number}" title="Assign to me and set status:in-progress">Claim</button>` : ''}</td>
     <td><span class="muted">@${esc(iss.user.login)}</span></td>
     <td>${labels ? `<span class="tags">${labels}</span>` : `<span class="muted">-</span>`}</td>
     <td>${assigneesText ? `<span class="muted">${esc(assigneesText)}</span>` : `<span class="muted">-</span>`}</td>
@@ -657,6 +679,22 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                         if (href) { vsc.postMessage({ type: 'open', url: href }); }
                 });
         }
+    document.querySelectorAll('.claim-btn').forEach(function(b){
+        b.addEventListener('click', function(){
+            var num = Number(b.getAttribute('data-number'));
+            if (!num) { return; }
+            b.disabled = true;
+            b.textContent = '…';
+            vsc.postMessage({ type: 'claim', number: num });
+        });
+    });
+    window.addEventListener('message', function(ev){
+        var m = ev.data || {};
+        if (m.type === 'claimed') {
+            var btn = document.querySelector('.claim-btn[data-number="' + m.number + '"]');
+            if (btn) { btn.textContent = '✓ Claimed'; btn.style.color = '#3fb950'; btn.style.borderColor = 'rgba(63,185,80,.45)'; }
+        }
+    });
     applySort();
     applyFilter();
 })();
