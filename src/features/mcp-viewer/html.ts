@@ -207,23 +207,23 @@ function statusPill(s){
 function buildProjectTip(p){
   var parts = ['Status: ' + (p.status || 'product'), 'Type: ' + (p.type || ''), 'Path: ' + (p.path || '')];
   if (p.description) { parts.push(''); parts.push(p.description); }
-  return parts.join('\n');
+  return parts.join('\\n');
 }
 
 function buildCmdTip(c){
   var parts = [];
   if (c.description) { parts.push('What:   ' + c.description); }
-  parts.push('Where:  ' + (c.scope || 'global') + ' › ' + (c.group || ''));
+  parts.push('Where:  ' + (c.scope || 'global') + ' \u203a ' + (c.group || ''));
   if (c.action)   { parts.push('How:    ' + c.action + ' action'); }
   if (c.location) { parts.push('Source: ' + c.location); }
   if (c.tags && c.tags.length) { parts.push('Tags:   ' + c.tags.join(', ')); }
-  return parts.join('\n');
+  return parts.join('\\n');
 }
 
 function buildSymbolTip(s){
   var parts = ['Kind:     ' + (s.kind || ''), 'Role:     ' + (s.role || ''), 'Exported: ' + (s.exported ? 'yes' : 'no'), 'File:     ' + (s.sourceFile || '') + ':' + (s.line || '')];
-  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\s*\/\*\*/, '').replace(/\*\/\s*$/, '').replace(/^\s*\*\s?/gm, '').trim()); }
-  return parts.join('\n');
+  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\\s*\\/\\*\\*/, '').replace(/\\*\\/\\s*$/, '').replace(/^\\s*\\*\\s?/gm, '').trim()); }
+  return parts.join('\\n');
 }
 
 function renderProjectsTable(data){
