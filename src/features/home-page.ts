@@ -380,7 +380,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 /* Recent projects */
 #panel-recents{grid-column:2}
-.rec-card{padding:8px 10px;border-radius:4px;border:1px solid var(--vscode-panel-border);cursor:pointer;margin-bottom:6px;transition:border-color .12s}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px;width:100%}
+.rec-card{padding:8px 10px;border-radius:4px;border:1px solid var(--vscode-panel-border);cursor:pointer;transition:border-color .12s;min-width:0}
 .rec-card:last-child{margin-bottom:0}
 .rec-card:hover{border-color:var(--vscode-focusBorder);background:var(--vscode-list-hoverBackground)}
 .rec-current{border-color:var(--vscode-focusBorder);opacity:.7;cursor:default}
