@@ -3,7 +3,7 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
-import { extractTitle, extractDescription, extractTags } from './content';
+import { extractTitle, extractDescription, extractTags, extractDocType, stripTypePrefix } from './content';
 import { extractDeweyAndHelp } from '../../shared/help-utils';
 import type { CatalogCard } from './types';
 
@@ -13,6 +13,26 @@ const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 let _cardIdCounter = 0;
 
 export function resetCardCounter(): void { _cardIdCounter = 0; }
+
+function extractDocIdFromFrontmatter(content: string): string | undefined {
+    const lines = content.split('\n');
+    if (lines[0]?.trim() !== '---') { return undefined; }
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line === '---') { break; }
+        const m = line.match(/^docid\s*:\s*(.+?)\s*$/i);
+        if (m) { return m[1].trim(); }
+    }
+    return undefined;
+}
+
+function categoryNumFromDocId(docId: string | undefined, fallback: number): number {
+    if (!docId) { return fallback; }
+    const m = docId.match(/^(\d{3})\./);
+    if (!m) { return fallback; }
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : fallback;
+}
 
 export function scanForCards(
     rootPath:        string,
@@ -41,20 +61,26 @@ export function scanForCards(
                     const content = fs.readFileSync(fullPath, 'utf8');
                     const stat    = fs.statSync(fullPath);
                     const { dewey, helpMarkdown } = extractDeweyAndHelp(fullPath);
+                    const docId = extractDocIdFromFrontmatter(content) ?? dewey;
+                    const categoryNum = categoryNumFromDocId(docId, projectDeweyNum);
+                    const rawTitle = extractTitle(content, entry.name);
+                    const docType  = extractDocType(content, rawTitle);
+                    const title    = stripTypePrefix(rawTitle);
                     cards.push({
                         id:           `card-${++_cardIdCounter}`,
                         fileName:     entry.name,
-                        title:        extractTitle(content, entry.name),
+                        title,
                         description:  extractDescription(content),
+                        docType,
                         filePath:     fullPath,
                         projectName,
                         projectPath:  projectRootPath,
                         category:     projectName,   // section heading = project name
-                        categoryNum:  projectDeweyNum,
+                        categoryNum,
                         sizeBytes:    Buffer.byteLength(content, 'utf8'),
                         lastModified: stat.mtime.toISOString().slice(0, 10),
                         tags:         extractTags(content, entry.name),
-                        dewey,
+                        dewey: docId,
                         helpMarkdown,
                     });
                 } catch { /* skip unreadable */ }

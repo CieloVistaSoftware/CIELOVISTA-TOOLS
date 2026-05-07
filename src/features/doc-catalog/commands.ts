@@ -81,6 +81,16 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
                 if (a.projectName !== b.projectName) { return a.projectName.localeCompare(b.projectName); }
                 return a.fileName.localeCompare(b.fileName);
             });
+            // Mark doc id collisions
+            const deweyCount = new Map<string, number>();
+            for (const c of cards) {
+                if (c.dewey && c.dewey !== 'missing-docid') {
+                    deweyCount.set(c.dewey, (deweyCount.get(c.dewey) ?? 0) + 1);
+                }
+            }
+            for (const c of cards) {
+                if (c.dewey && (deweyCount.get(c.dewey) ?? 0) > 1) { c.docIdCollision = true; }
+            }
             _cachedCards = cards;
             log(FEATURE, `Catalog built: ${cards.length} cards`);
             return cards;

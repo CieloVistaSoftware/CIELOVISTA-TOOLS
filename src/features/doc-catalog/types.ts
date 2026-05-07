@@ -41,4 +41,8 @@ export interface CatalogCard {
     dewey?: string;
     helpDoc?: string;
     helpMarkdown?: string;
+    /** Type extracted from frontmatter `type:` or stripped from title prefix (e.g. "Feature") */
+    docType?: string;
+    /** True when another card in the catalog shares this dewey id */
+    docIdCollision?: boolean;
 }

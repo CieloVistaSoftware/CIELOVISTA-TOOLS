@@ -58,19 +58,23 @@ export function buildCatalogInitPayload(
     }
 
     const categorySections = sortedCategories.map(([catLabel, catCards]) => {
-        const seqWithinCat = new Map<string, number>();
 
         function buildCardHtml(card: CatalogCard): string {
+            const displayTitle = card.title;
             const relPath  = path.relative(card.projectPath, card.filePath).replace(/\\/g, '/');
+            const folderPath = path.dirname(card.filePath);
             const relDir   = path.relative(card.projectPath, path.dirname(card.filePath));
+            const relDirDisplay = (!relDir || relDir === '.') ? '(project root)' : relDir.replace(/\\/g, '/');
             const firstSeg = relDir.split(/[/\\]/)[0];
             const section  = (!firstSeg || firstSeg === '.') ? 'root' : firstSeg;
             const tagsHtml = card.tags.slice(0, 6).map(t =>
                 `<span class="tag" data-action="filter-tag" data-tag="${esc(t)}">${esc(t)}</span>`
             ).join('');
-            const seq      = (seqWithinCat.get(catLabel) ?? 0) + 1;
-            seqWithinCat.set(catLabel, seq);
-            const deweyNum = `${card.categoryNum.toString().padStart(3,'0')}.${seq.toString().padStart(3,'0')}`;
+            const deweyNum     = (card.dewey && card.dewey.trim()) ? card.dewey.trim() : 'missing-docid';
+            const typeChip     = card.docType ? `<span class="card-doc-type">${esc(card.docType)}</span>` : '';
+            const collisionBadge = card.docIdCollision
+                ? `<span class="card-collision-badge" title="⚠ This Doc Id is shared by multiple documents — fix by assigning a unique id">⚠ collision</span>`
+                : '';
 
             const tooltipText = [
                 `Where: ${card.projectName} — ${relPath}`,
@@ -78,7 +82,7 @@ export function buildCatalogInitPayload(
                 `Why: ${card.description}`,
                 `How: Click title or View to preview  |  Edit to open in editor`,
                 ``,
-                `Dewey: ${deweyNum}  |  ${card.fileName}`,
+                `Doc Id: ${deweyNum}  |  ${card.fileName}`,
             ].join('\n');
 
             const isWbCore = card.projectPath.toLowerCase().includes('wb-core');
@@ -108,13 +112,15 @@ export function buildCatalogInitPayload(
     <span class="card-date">${esc(card.lastModified)}</span>
   </div>
   <div class="card-dewey-row">
-    <span class="card-dewey">${deweyNum}</span>
+    <span class="card-dewey">${deweyNum}</span>${collisionBadge}
     <span class="card-filename">${esc(card.fileName)}</span>
+    ${typeChip}
   </div>
-  <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(card.title)}</div>
-  <div style="font-family:monospace;font-size:10px;color:var(--vscode-descriptionForeground)">${esc(card.projectPath)}</div>
+    <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(displayTitle)}</div>
+    <div class="card-project-path"><strong>Location:</strong> ${esc(folderPath)}</div>
+    <div class="card-origin" title="${esc(folderPath)}"><strong>Folder:</strong> ${esc(relDirDisplay)}</div>
   <div class="card-desc">${esc(card.description)}</div>
-  <div class="card-path" title="${esc(card.filePath)}">${esc(relPath)}</div>
+    <div class="card-path" title="${esc(card.filePath)}"><strong>File:</strong> ${esc(relPath)}</div>
   <div class="card-tags">${tagsHtml}</div>
   <div class="card-footer">
     <span class="card-size">${(card.sizeBytes / 1024).toFixed(1)} KB</span>
@@ -123,7 +129,7 @@ export function buildCatalogInitPayload(
       <button class="btn-open" data-action="open"         data-path="${esc(card.filePath)}">&#9998; Edit</button>
       ${srcPath
           ? `<button class="btn-open" data-action="open-src-file" data-path="${esc(srcPath)}" title="Open source file: ${esc(path.basename(srcPath))}">&#128196; SRC</button>`
-          : `<button class="btn-open" data-action="open-folder"   data-path="${esc(card.projectPath)}">&#128194; Folder</button>`}
+          : `<button class="btn-open" data-action="open-folder"   data-path="${esc(folderPath)}">&#128194; Folder</button>`}
       <button class="btn-archive" data-action="archive-doc" data-path="${esc(card.filePath)}" data-title="${esc(card.title)}" data-project="${esc(card.projectName)}" title="Hide this doc from the catalog (archive). Restore via View Archived.">&#128190; Archive</button>
       ${demoBtn}
     </div>
@@ -174,7 +180,9 @@ export function buildCatalogInitPayload(
             }
         }
 
-        const baseLabel = (catCards[0]?.categoryNum ?? 0).toString().padStart(3,'0');
+        const firstDocId = (catCards.find((c) => !!c.dewey)?.dewey ?? '').trim();
+        const docIdPrefix = firstDocId.match(/^(\d{3})\./)?.[1];
+        const baseLabel = docIdPrefix ?? (catCards[0]?.categoryNum ?? 0).toString().padStart(3,'0');
         return `<section class="cat-section" data-category="${esc(catLabel)}">
   <h2 class="cat-heading">
     <span class="cat-dewey">${esc(baseLabel)}</span>

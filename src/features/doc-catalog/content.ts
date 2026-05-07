@@ -7,6 +7,26 @@ export function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const TYPE_PREFIXES = /^(Feature|Command|Tool|Guide|Reference|Spec|Standard|Template|Readme|Changelog|Status|Module|Service|Plugin|Library|Package|Config|Schema|Report|Audit|Test|Workflow|Process|Policy)\s*:\s*/i;
+
+export function extractDocType(content: string, rawTitle: string): string | undefined {
+    const lines = content.split('\n');
+    if (lines[0]?.trim() === '---') {
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line === '---') { break; }
+            const m = line.match(/^type\s*:\s*(.+?)\s*$/i);
+            if (m) { return m[1].trim(); }
+        }
+    }
+    const m = rawTitle.match(TYPE_PREFIXES);
+    return m ? m[1] : undefined;
+}
+
+export function stripTypePrefix(title: string): string {
+    return title.replace(TYPE_PREFIXES, '').trim();
+}
+
 export function extractTitle(content: string, fileName: string): string {
     const h1 = content.match(/^#\s+(.+)$/m);
     if (h1) { return h1[1].trim(); }
@@ -18,8 +38,18 @@ export function extractDescription(content: string): string {
     const textLines: string[] = [];
     let pastFirstHeading = false;
     const metadataLine = /^\s*\*\*[^*]+\*\*\s*:/;
+    let frontmatterDelimsSeen = 0;
+    const inFrontmatterMode = lines[0]?.trim() === '---';
 
-    for (const line of lines) {
+    for (let idx = 0; idx < lines.length; idx++) {
+        const line = lines[idx];
+        if (inFrontmatterMode && frontmatterDelimsSeen < 2) {
+            if (line.trim() === '---') {
+                frontmatterDelimsSeen += 1;
+            }
+            continue;
+        }
+
         const trimmed = line.trim();
         if (!trimmed) { continue; }
         if (trimmed.startsWith('#')) {
