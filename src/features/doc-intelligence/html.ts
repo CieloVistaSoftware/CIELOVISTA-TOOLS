@@ -7,6 +7,8 @@ import { esc } from '../../shared/webview-utils';
 import type { Finding, IntelligenceReport } from './types';
 
 const KIND_ICON: Record<string, string> = {
+    'exact-duplicate':    '⚡',
+    'folder-duplicate':   '📂',
     'duplicate':          '📄',
     'similar':            '🔀',
     'misplaced':          '📦',
@@ -17,6 +19,9 @@ const KIND_ICON: Record<string, string> = {
 };
 
 const ACTION_LABEL: Record<string, string> = {
+    'keep-newest-delete-rest': '✅ Keep & Delete Rest',
+    'delete-file':  '🗑 Delete File',
+    'delete-folder': '🗑 Delete Folder',
     'merge':          '⛙ Merge',
     'diff':           '⬛ Diff',
     'move-to-global': '📦 Move to Global',
@@ -56,7 +61,7 @@ function avoidNextRun(kind: string): string {
 }
 
 export function buildDashboardHtml(report: IntelligenceReport): string {
-    const { findings, summary, totalDocs, projects, scannedAt, durationMs } = report;
+    const { findings, summary, totalDocs, projects, scannedAt, durationMs, wastedBytes } = report;
 
     const pending  = findings.filter(f => !f.decision || f.decision === 'pending');
     const accepted = findings.filter(f => f.decision === 'accepted');
@@ -70,7 +75,9 @@ export function buildDashboardHtml(report: IntelligenceReport): string {
         `<span class="di-pill">${KIND_ICON[k] ?? '•'} ${n} ${esc(kindLabel(k))}</span>`
     ).join('');
 
-    const scanDate  = new Date(scannedAt).toLocaleString();
+    const scanDate    = new Date(scannedAt).toLocaleString();
+    const fmtBytes = (n: number) => n >= 1048576 ? (n/1048576).toFixed(1)+' MB' : n >= 1024 ? (n/1024).toFixed(1)+' KB' : n+' B';
+    const savingsBanner = wastedBytes > 0 ? `<div class="di-savings">📊 <strong>${fmtBytes(wastedBytes)}</strong> wasted across all duplicate clusters — resolve exact duplicates to reclaim it.</div>` : '';
     const progress  = findings.length === 0 ? 100 : Math.round(((accepted.length + skipped.length) / findings.length) * 100);
 
     // Cards — one per finding
@@ -289,6 +296,38 @@ body{
   display:none;align-items:center;gap:8px;z-index:100;
 }
 #di-status-strip.visible{display:flex}
+
+/* savings banner */
+.di-savings{background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.3);border-radius:4px;padding:6px 12px;font-size:12px;margin-bottom:6px}
+/* exact-duplicate cluster card */
+.di-cluster{border:2px solid var(--vscode-focusBorder);border-radius:5px;margin-bottom:10px;overflow:hidden}
+.di-cluster-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(88,166,255,.07);border-bottom:1px solid var(--vscode-panel-border)}
+.di-cluster-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:3px;background:#58a6ff;color:#fff;white-space:nowrap}
+.di-cluster-title{font-weight:700;font-size:0.92em;flex:1}
+.di-cluster-savings{font-size:11px;color:#3fb950;font-weight:700;white-space:nowrap}
+.di-cluster-body{padding:12px 14px}
+.di-keeper{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border:2px solid #3fb950;background:rgba(63,185,80,.07);margin-bottom:8px}
+.di-keeper-badge{font-size:10px;font-weight:700;color:#3fb950;white-space:nowrap}
+.di-keeper-path{font-family:var(--vscode-editor-font-family);font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.di-keeper-why{font-size:10px;color:var(--vscode-descriptionForeground);white-space:nowrap}
+.di-dup-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;border:1px solid var(--vscode-panel-border);background:var(--vscode-textCodeBlock-background);margin-bottom:4px}
+.di-dup-row:last-child{margin-bottom:0}
+.di-dup-path{font-family:var(--vscode-editor-font-family);font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-descriptionForeground)}
+.di-dup-proj{font-size:10px;color:var(--vscode-descriptionForeground);white-space:nowrap;min-width:80px}
+.di-dup-btns{display:flex;gap:4px;flex-shrink:0}
+.di-dup-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap}
+.di-dup-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.di-dup-btn.danger{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.4)}
+.di-dup-btn.danger:hover{background:rgba(248,81,73,.3)}
+.di-cluster-cta{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--vscode-panel-border)}
+.di-cta-primary{background:#3fb950;color:#fff;border:none;padding:6px 16px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700}
+.di-cta-primary:hover{opacity:.85}
+.di-cta-skip{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 12px;border-radius:3px;cursor:pointer;font-size:12px}
+.di-cta-skip:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.di-cluster.accepted .di-cluster-hd{opacity:.5}
+.di-cluster.accepted .di-cluster-body{opacity:.5}
+.di-cluster.skipped{opacity:.35}
+.di-cluster.hidden{display:none}
 </style>
 </head>
 <body>
@@ -311,6 +350,7 @@ body{
   </div>
 
   <div class="di-pills">${pillsHtml}</div>
+  ${savingsBanner}
 
   <div class="di-progress-row">
     <div class="di-progress-track">
@@ -447,11 +487,37 @@ function rescan() {
 document.querySelectorAll('[data-di-action]').forEach(function(btn) {
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
-    var action  = btn.dataset.diAction;
-    var id      = btn.closest('.di-card').dataset.id;
+    var action   = btn.dataset.diAction;
+    var cardEl   = btn.closest('[data-id]');
+    var id       = cardEl ? cardEl.dataset.id : undefined;
     var pathsRaw = btn.dataset.paths;
     var paths;
     try { paths = JSON.parse(pathsRaw); } catch { paths = [pathsRaw]; }
+
+    // ── Cluster card actions ───────────────────────────────────────────────
+    if (action === 'keep-and-delete-rest') {
+      var payload;
+      try { payload = JSON.parse(btn.dataset.payload); } catch { return; }
+      btn.disabled = true;
+      btn.textContent = '\\u23F3 Deleting…';
+      showStrip('Deleting duplicates…');
+      vscode.postMessage({ command: 'keepAndDeleteRest', id: payload.id, keepPath: payload.keepPath, deletePaths: payload.deletePaths });
+      return;
+    }
+    if (action === 'delete-one') {
+      var dp;
+      try { dp = JSON.parse(btn.dataset.payload); } catch { return; }
+      showStrip('Moving to trash…');
+      vscode.postMessage({ command: 'deleteOneFile', filePath: dp.filePath, findingId: dp.findingId });
+      return;
+    }
+    if (action === 'delete-folder-one') {
+      var dfp;
+      try { dfp = JSON.parse(btn.dataset.payload); } catch { return; }
+      showStrip('Moving folder to trash…');
+      vscode.postMessage({ command: 'deleteFolder', folderPath: dfp.folderPath, findingId: dfp.findingId });
+      return;
+    }
 
     if (action === 'accept')   { setDecision(id, 'accepted'); return; }
     if (action === 'skip')     { setDecision(id, 'skipped');  return; }
@@ -495,6 +561,11 @@ window.addEventListener('message', function(e) {
   if (msg.type === 'done')     { hideStrip(); }
   if (msg.type === 'progress') { showStrip(msg.text); }
   if (msg.type === 'decision') { setDecision(msg.id, msg.decision); }
+  if (msg.type === 'fileDeleted') {
+    // Remove the specific dup-row for the trashed file/folder
+    var row = document.querySelector('[data-path="' + msg.filePath + '"]');
+    if (row) { row.style.opacity = '0.3'; row.style.textDecoration = 'line-through'; }
+  }
 });
 
 updateProgress();
@@ -551,7 +622,98 @@ function buildFileTable(f: Finding): string {
     return `<div class="di-file-table">${fileRows}</div>${diffButtons ? `<div class="di-pair-btns">${diffButtons}</div>` : ''}`;
 }
 
+
+// ── Exact-duplicate cluster card ─────────────────────────────────────────────
+
+function buildExactDuplicateCard(f: Finding): string {
+    const keeper    = f.keepPath ?? f.paths[0];
+    const delPaths  = f.paths.filter(p => p !== keeper);
+    const wasted    = f.meta?.wastedFmt as string | undefined;
+    const decClass  = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
+
+    const keeperRow = '<div class="di-keeper">'
+        + '<span class="di-keeper-badge">✓ KEEP</span>'
+        + '<span class="di-keeper-path" title="' + esc(keeper) + '">' + esc(keeper) + '</span>'
+        + '<span class="di-keeper-why">' + esc(f.keepReason ?? String(f.meta?.keepProject ?? '')) + '</span>'
+        + '<button class="di-dup-btn" data-di-action="open-file" data-paths="' + esc(JSON.stringify([keeper])) + '" title="Open">↗ Open</button>'
+        + '</div>';
+
+    const dupRows = delPaths.map(p => {
+        const segs    = p.replace(/\\/g, '/').split('/');
+        const projSeg = segs.length >= 3 ? segs[segs.length - 3] : '';
+        const delJson = esc(JSON.stringify({ findingId: f.id, filePath: p }));
+        return '<div class="di-dup-row" data-path="' + esc(p) + '">'
+            + '<span class="di-dup-proj">' + esc(projSeg) + '</span>'
+            + '<span class="di-dup-path" title="' + esc(p) + '">' + esc(p) + '</span>'
+            + '<div class="di-dup-btns">'
+            + '<button class="di-dup-btn" data-di-action="open-file" data-paths="' + esc(JSON.stringify([p])) + '" title="Open">↗ Open</button>'
+            + '<button class="di-dup-btn danger" data-di-action="delete-one" data-payload="' + delJson + '" title="Move to trash">🗑 Trash</button>'
+            + '</div></div>';
+    }).join('');
+
+    const ctaPayload = esc(JSON.stringify({ id: f.id, keepPath: keeper, deletePaths: delPaths }));
+
+    return '<div class="di-cluster' + decClass + '" data-id="' + esc(f.id) + '" data-severity="' + esc(f.severity) + '" data-kind="exact-duplicate">'
+        + '<div class="di-cluster-hd">'
+        + '<span class="di-cluster-badge">⚡ Exact Duplicate</span>'
+        + '<span class="di-cluster-title">' + esc(f.title) + '</span>'
+        + (wasted ? '<span class="di-cluster-savings">saves ' + esc(wasted) + '</span>' : '')
+        + (f.decision === 'accepted' ? '<span style="font-size:11px;color:#3fb950;font-weight:700">✅ Done</span>' : '')
+        + (f.decision === 'skipped'  ? '<span style="font-size:11px;color:var(--vscode-descriptionForeground)">⏭ Skipped</span>' : '')
+        + '</div>'
+        + '<div class="di-cluster-body">'
+        + keeperRow
+        + '<div style="font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:6px">Delete ' + delPaths.length + ' duplicate' + (delPaths.length !== 1 ? 's' : '') + ':</div>'
+        + dupRows
+        + '<div class="di-cluster-cta">'
+        + '<button class="di-cta-primary" data-di-action="keep-and-delete-rest" data-payload="' + ctaPayload + '" title="Keep recommended and trash all others">✓ Keep Recommended &amp; Delete Rest</button>'
+        + '<button class="di-cta-skip" data-di-action="skip" title="Skip">⏭ Skip</button>'
+        + (f.decision && f.decision !== 'pending' ? '<button class="di-dup-btn" data-di-action="undo">↩ Undo</button>' : '')
+        + '</div></div></div>';
+}
+
+// ── Folder-duplicate card ─────────────────────────────────────────────────────
+
+function buildFolderDuplicateCard(f: Finding): string {
+    const keeper     = f.keepPath ?? f.paths[0];
+    const delFolders = f.paths.filter(p => p !== keeper);
+    const wasted     = f.meta?.wastedFmt as string | undefined;
+    const decClass   = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
+
+    const keeperRow = '<div class="di-keeper">'
+        + '<span class="di-keeper-badge">✓ KEEP FOLDER</span>'
+        + '<span class="di-keeper-path" title="' + esc(keeper) + '">' + esc(keeper) + '</span>'
+        + '</div>';
+
+    const dupRows = delFolders.map(p => {
+        const delJson = esc(JSON.stringify({ findingId: f.id, folderPath: p }));
+        return '<div class="di-dup-row" data-path="' + esc(p) + '">'
+            + '<span class="di-dup-path" title="' + esc(p) + '">' + esc(p) + '</span>'
+            + '<div class="di-dup-btns">'
+            + '<button class="di-dup-btn danger" data-di-action="delete-folder-one" data-payload="' + delJson + '" title="Move folder to trash">🗑 Trash Folder</button>'
+            + '</div></div>';
+    }).join('');
+
+    return '<div class="di-cluster' + decClass + '" data-id="' + esc(f.id) + '" data-severity="' + esc(f.severity) + '" data-kind="folder-duplicate">'
+        + '<div class="di-cluster-hd">'
+        + '<span class="di-cluster-badge" style="background:#cca700">📂 Folder Duplicate</span>'
+        + '<span class="di-cluster-title">' + esc(f.title) + '</span>'
+        + (wasted ? '<span class="di-cluster-savings">saves ' + esc(wasted) + '</span>' : '')
+        + '</div>'
+        + '<div class="di-cluster-body">'
+        + keeperRow
+        + dupRows
+        + '<div class="di-cluster-cta">'
+        + '<button class="di-cta-skip" data-di-action="skip">⏭ Skip</button>'
+        + (f.decision && f.decision !== 'pending' ? '<button class="di-dup-btn" data-di-action="undo">↩ Undo</button>' : '')
+        + '</div></div></div>';
+}
+
 function buildCard(f: Finding, scanDate: string): string {
+    // Route exact-duplicate and folder-duplicate to dedicated card builders
+    if (f.kind === 'exact-duplicate') { return buildExactDuplicateCard(f); }
+    if (f.kind === 'folder-duplicate') { return buildFolderDuplicateCard(f); }
+
     const pathsJson     = esc(JSON.stringify(f.paths));
     const decisionClass = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
     const decisionLabel = f.decision === 'accepted' ? '<span class="di-card-decision accepted">✅ Accepted</span>'

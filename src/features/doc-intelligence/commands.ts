@@ -99,12 +99,15 @@ async function runScan(): Promise<IntelligenceReport | undefined> {
                 total:  findings.length,
             };
 
+            const wastedBytes = findings.reduce((sum, f) => sum + (f.wastedBytes ?? 0), 0);
+
             const report: IntelligenceReport = {
                 scannedAt:  new Date().toISOString(),
                 durationMs: Date.now() - t0,
                 totalDocs:  allDocs.length,
                 projects:   registry.projects.length + 1,
                 findings,
+                wastedBytes,
                 summary,
             };
 
@@ -140,6 +143,23 @@ async function executeFinding(finding: Finding): Promise<boolean> {
                 await moveToGlobal(finding.paths[0], registry.globalDocsPath);
                 break;
             }
+
+            case 'keep-newest-delete-rest':
+                if (finding.keepPath) {
+                    await keepAndDeleteRest(finding.keepPath, finding.paths.filter(p => p !== finding.keepPath));
+                }
+                break;
+
+            case 'delete-file':
+                await trashFile(finding.paths[0]);
+                break;
+
+            case 'delete-folder':
+                // paths[0] = keep, rest = delete
+                for (const folder of finding.paths.slice(1)) {
+                    await trashFolder(folder);
+                }
+                break;
 
             case 'delete':
                 await deleteFile(finding.paths[0]);
@@ -234,6 +254,32 @@ async function moveToGlobal(filePath: string, globalDocsPath: string): Promise<v
     log(FEATURE, `Moved to global: ${filePath} → ${destPath}`);
     vscode.window.showInformationMessage(`Moved to CieloVistaStandards: ${fileName}`);
 }
+
+// ─── Trash / safe delete ─────────────────────────────────────────────────────
+
+async function trashFile(filePath: string): Promise<void> {
+    if (!fs.existsSync(filePath)) { return; }
+    await vscode.workspace.fs.delete(vscode.Uri.file(filePath), { useTrash: true });
+    log(FEATURE, `Trashed: ${filePath}`);
+}
+
+async function trashFolder(folderPath: string): Promise<void> {
+    if (!fs.existsSync(folderPath)) { return; }
+    await vscode.workspace.fs.delete(vscode.Uri.file(folderPath), { recursive: true, useTrash: true });
+    log(FEATURE, `Trashed folder: ${folderPath}`);
+}
+
+async function keepAndDeleteRest(keepPath: string, deletePaths: string[]): Promise<void> {
+    const existing = deletePaths.filter(p => fs.existsSync(p));
+    if (existing.length === 0) { return; }
+    for (const p of existing) {
+        await vscode.workspace.fs.delete(vscode.Uri.file(p), { useTrash: true });
+        log(FEATURE, `Trashed duplicate: ${p}`);
+    }
+    vscode.window.showInformationMessage(`Deleted ${existing.length} duplicate(s). Kept: ${path.basename(keepPath)}`);
+}
+
+// ─── Legacy delete (used by 'delete' action) ─────────────────────────────────
 
 async function deleteFile(filePath: string): Promise<void> {
     if (!fs.existsSync(filePath)) { return; }
@@ -371,6 +417,65 @@ function showPanel(report: IntelligenceReport): void {
                 } else if (msg.paths?.[0] && fs.existsSync(msg.paths[0])) {
                     const doc = await vscode.workspace.openTextDocument(msg.paths[0]);
                     await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                }
+                _panel?.webview.postMessage({ type: 'done' });
+                break;
+            }
+
+            case 'keepAndDeleteRest': {
+                // One-click resolution for exact-duplicate: keepPath + deletePaths
+                const { keepPath, deletePaths, id: findingId } = msg as { keepPath: string; deletePaths: string[]; id: string };
+                if (!keepPath || !deletePaths?.length) { _panel?.webview.postMessage({ type: 'done' }); break; }
+                _panel?.webview.postMessage({ type: 'progress', text: `Deleting ${deletePaths.length} duplicate(s)…` });
+                try {
+                    await keepAndDeleteRest(keepPath, deletePaths);
+                    const finding = _report.findings.find(f => f.id === findingId);
+                    if (finding) { finding.decision = 'accepted'; }
+                    _panel?.webview.postMessage({ type: 'decision', id: findingId, decision: 'accepted' });
+                } catch (err) {
+                    logError('keepAndDeleteRest failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                    void vscode.window.showErrorMessage(`Failed to delete duplicates: ${String(err)}`);
+                }
+                _panel?.webview.postMessage({ type: 'done' });
+                break;
+            }
+
+            case 'deleteOneFile': {
+                const { filePath: delPath, findingId: fid } = msg as { filePath: string; findingId: string };
+                if (!delPath) { _panel?.webview.postMessage({ type: 'done' }); break; }
+                const confirm = await vscode.window.showWarningMessage(
+                    `Move to Trash: ${path.basename(delPath)}?`,
+                    { modal: true }, 'Move to Trash', 'Cancel'
+                );
+                if (confirm === 'Move to Trash') {
+                    try {
+                        await trashFile(delPath);
+                        _panel?.webview.postMessage({ type: 'fileDeleted', filePath: delPath, findingId: fid });
+                    } catch (err) {
+                        void vscode.window.showErrorMessage(`Failed to trash file: ${String(err)}`);
+                    }
+                }
+                _panel?.webview.postMessage({ type: 'done' });
+                break;
+            }
+
+            case 'deleteFolder': {
+                const { folderPath: delFolder, findingId: ffid } = msg as { folderPath: string; findingId: string };
+                if (!delFolder) { _panel?.webview.postMessage({ type: 'done' }); break; }
+                const inside = await vscode.workspace.fs.readDirectory(vscode.Uri.file(delFolder)).then(
+                    entries => entries.length, () => 0
+                );
+                const confirmF = await vscode.window.showWarningMessage(
+                    `Move to Trash: ${path.basename(delFolder)} (${inside} items)?`,
+                    { modal: true }, 'Move to Trash', 'Cancel'
+                );
+                if (confirmF === 'Move to Trash') {
+                    try {
+                        await trashFolder(delFolder);
+                        _panel?.webview.postMessage({ type: 'fileDeleted', filePath: delFolder, findingId: ffid });
+                    } catch (err) {
+                        void vscode.window.showErrorMessage(`Failed to trash folder: ${String(err)}`);
+                    }
                 }
                 _panel?.webview.postMessage({ type: 'done' });
                 break;

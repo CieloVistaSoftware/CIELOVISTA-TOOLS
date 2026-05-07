@@ -3,67 +3,58 @@
 
 /**
  * types.ts — Unified finding types for Doc Intelligence.
- *
- * A Finding is one discrete issue detected across the doc corpus.
- * Each Finding carries everything needed to:
- *   1. Display it in the dashboard (title, reason, recommendation)
- *   2. Execute the suggested action (action + paths)
- *   3. Log what happened (kind, paths, outcome)
  */
 
 export type FindingKind =
-    | 'duplicate'       // same filename in 2+ places
-    | 'similar'         // different name, overlapping content
-    | 'misplaced'       // project doc that belongs in global standards
-    | 'orphan'          // no other doc links to this file
-    | 'missing-readme'  // project has no README.md
-    | 'missing-claude'  // project has no CLAUDE.md
-    | 'missing-changelog'; // project has no CHANGELOG.md
+    | 'exact-duplicate'  // byte-for-byte identical content (hash match)
+    | 'folder-duplicate' // entire folder is an exact copy of another folder
+    | 'duplicate'        // same filename, ≥50% similar content
+    | 'similar'          // different name, ≥65% Jaccard overlap
+    | 'misplaced'        // project doc that belongs in global standards
+    | 'orphan'           // no other doc links to this file
+    | 'missing-readme'
+    | 'missing-claude'
+    | 'missing-changelog';
 
 export type FindingSeverity = 'red' | 'yellow' | 'info';
 
 export type FindingAction =
-    | 'merge'           // merge multiple files into one
-    | 'diff'            // open side-by-side diff (read-only)
-    | 'move-to-global'  // copy to CieloVistaStandards, delete original
-    | 'delete'          // delete file after review
-    | 'open'            // open file in editor
-    | 'create'          // create a missing file from template
-    | 'none';           // informational only
+    | 'keep-newest-delete-rest' // keep recommended copy, trash the rest
+    | 'delete-file'             // trash a single file
+    | 'delete-folder'           // trash an entire folder
+    | 'merge'                   // merge multiple files into one
+    | 'diff'                    // open side-by-side diff (read-only)
+    | 'move-to-global'          // copy to CieloVistaStandards, delete original
+    | 'delete'                  // legacy delete
+    | 'open'
+    | 'create'
+    | 'none';
 
 /** One issue found during the intelligence scan. */
 export interface Finding {
-    /** Stable unique ID for this finding within a scan run */
-    id:           string;
-    kind:         FindingKind;
-    severity:     FindingSeverity;
-
-    /** Short title shown on the card — e.g. "Duplicate: CLAUDE.md (3 copies)" */
-    title:        string;
-
-    /** One sentence — the why. e.g. "Same filename in wb-core, cielovista-tools, DiskCleanUp" */
-    reason:       string;
-
-    /** Plain-English suggestion. e.g. "Keep the most complete copy and delete the rest." */
+    id:             string;
+    kind:           FindingKind;
+    severity:       FindingSeverity;
+    title:          string;
+    reason:         string;
     recommendation: string;
+    action:         FindingAction;
 
-    /** The recommended action to execute when user clicks Accept */
-    action:       FindingAction;
+    /** All paths involved. For exact-duplicate, paths[0] = recommended keeper. */
+    paths:          string[];
+    projects:       string[];
+    priority:       number;
+    decision?:      'accepted' | 'skipped' | 'pending';
 
-    /** Paths involved. First path = primary target for single-path actions. */
-    paths:        string[];
+    /** Extra display context */
+    meta?:          Record<string, string | number>;
 
-    /** Which project(s) are involved */
-    projects:     string[];
+    /** For exact-duplicate: the path recommended to keep, with the reason why */
+    keepPath?:      string;
+    keepReason?:    string;
 
-    /** Priority score 0-100. Higher = show first. */
-    priority:     number;
-
-    /** User's decision — set by the dashboard */
-    decision?:    'accepted' | 'skipped' | 'pending';
-
-    /** Extra context for display (e.g. similarity percentage) */
-    meta?:        Record<string, string | number>;
+    /** Bytes that would be freed if duplicates were deleted */
+    wastedBytes?:   number;
 }
 
 export interface IntelligenceReport {
@@ -72,6 +63,7 @@ export interface IntelligenceReport {
     totalDocs:    number;
     projects:     number;
     findings:     Finding[];
+    wastedBytes:  number;
     summary: {
         red:    number;
         yellow: number;
@@ -90,7 +82,7 @@ export interface ProjectEntry {
 export interface ProjectRegistry {
     globalDocsPath: string;
     projects:       ProjectEntry[];
-    [key: string]: unknown; // allow extra registry fields
+    [key: string]: unknown;
 }
 
 export interface DocFile {
@@ -100,4 +92,6 @@ export interface DocFile {
     sizeBytes:   number;
     content:     string;
     normalized:  string;
+    hash:        string;
+    mtime:       number;
 }

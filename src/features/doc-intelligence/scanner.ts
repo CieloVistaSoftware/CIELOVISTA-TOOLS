@@ -3,8 +3,9 @@
 
 /** scanner.ts — Collects all .md files across the registry. */
 
-import * as fs   from 'fs';
-import * as path from 'path';
+import * as crypto from 'crypto';
+import * as fs     from 'fs';
+import * as path   from 'path';
 import type { DocFile } from './types';
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', 'reports']);
@@ -24,7 +25,10 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
                 walk(full, depth + 1);
             } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
                 try {
-                    const content    = fs.readFileSync(full, 'utf8');
+                    const buf        = fs.readFileSync(full);
+                    const content    = buf.toString('utf8');
+                    const stat       = fs.statSync(full);
+                    const hash       = crypto.createHash('sha256').update(buf).digest('hex');
                     const normalized = content
                         .toLowerCase()
                         .replace(/\s+/g, ' ')
@@ -34,9 +38,11 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
                         filePath:    full,
                         fileName:    entry.name,
                         projectName,
-                        sizeBytes:   Buffer.byteLength(content, 'utf8'),
+                        sizeBytes:   stat.size,
                         content,
                         normalized,
+                        hash,
+                        mtime:       stat.mtimeMs,
                     });
                 } catch { /* skip unreadable */ }
             }
