@@ -1,12 +1,13 @@
 ---
-subject: 150.7
+docid: 150.7
+dewey: 150.7
 id: cielovista-tools
 title: CieloVista Tools
 project: cielovista-tools
 description: One VS Code extension. One install. All CieloVistaSoftware developer tools in one place. CieloVista Tools is the developer toolchain for the entire…
 status: active
 tags: [readme, cielovista, tools]
-category: 700 — Project Docs
+category: 150.7 — Getting Started
 created: 2026-03-13
 updated: 2026-04-27
 version: 1.0.0

@@ -1,12 +1,13 @@
 ---
-subject: 150.5
+docid: 150.5
+dewey: 150.5
 id: cielovista-code-suggestion-guidelines
 title: CieloVista Code Suggestion Guidelines
 project: cielovista-tools
 description: 1. Always include the full file path in every suggestion. 2. Format suggestions as JSON objects with line numbers. 3. Be friendly, concise, and foc…
 status: active
 tags: [copilot, rules, cielovista]
-category: 600 — Tools & Extensions
+category: 150.5 — AI Coordination
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

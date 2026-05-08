@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: feature-project-home-opener
 title: Feature: Project Home Opener
 project: cielovista-tools
 description: Adds a single command that opens your configured CieloVista home project root in VS Code from any workspace. Useful when you need to jump back to t…
 status: active
 tags: [project, home, opener]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: similar-content-audit
 title: Similar Content Audit
 project: cielovista-tools
 description: - A: C:\Users\jwpmi\Downloads\VSCode\projects\extensions\CoPilotRulesProvider\AllPriorSugesstions\suggestion6.md - B: C:\Users\jwpmi\Downloads\VSCo…
 status: active
 tags: [audit, similar, 2026]
-category: 900 — Audit & Reports
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

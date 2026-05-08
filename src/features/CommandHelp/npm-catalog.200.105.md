@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: npm-catalog-200-105
 title: npm catalog 200 105
 project: cielovista-tools
 description: NPM script: unique Dewey test entry 200.105
 status: active
 tags: [npm, catalog, 200]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

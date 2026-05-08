@@ -393,7 +393,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "list_doc_violations",
-    "Scans markdown docs for Doc Contract front-matter violations (subject, id, title, project, description, status), validates subject prefix against project Dewey, and detects identity collisions ({subject}.{id}). Optionally limit to one project.",
+    "Scans markdown docs for Doc Contract front-matter violations (docid, id, title, project, description, status), validates docid prefix against project Dewey, and detects identity collisions ({docid}.{id}). Optionally limit to one project.",
     ListDocViolationsToolSchema.shape,
     async ({ projectName }) => {
       try {
@@ -705,12 +705,12 @@ export function registerTools(server: McpServer): void {
   // ── Phase 4: migrate_dewey ────────────────────────────────────────────────
   server.tool(
     "migrate_dewey",
-    "Propose a new doc-contract identity (subject + id) for a doc using the old Dewey scheme. Returns a proposal with suggested front-matter additions and an alias entry for dewey-aliases.json. Does not write anything — caller must approve and apply.",
+    "Propose a new doc-contract identity (docid + id) for a doc using the old Dewey scheme. Returns a proposal with suggested front-matter additions and an alias entry for dewey-aliases.json. Does not write anything — caller must approve and apply.",
     MigrateDeweyToolSchema.shape,
-    async ({ filePath, proposedSubject, proposedId }) => {
+    async ({ filePath, proposedDocId, proposedId }) => {
       try {
         const registry = loadRegistry();
-        const result = migrateDewey(registry, filePath, proposedSubject, proposedId);
+        const result = migrateDewey(registry, filePath, proposedDocId, proposedId);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);

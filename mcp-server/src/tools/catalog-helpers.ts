@@ -34,7 +34,7 @@ export interface DocEntry {
   title: string;
   description: string;
   dewey: string;
-  subject?: string; // Frontmatter subject (the stable Dewey classification)
+  docId?: string; // Frontmatter docid (the stable numeric doc identifier)
   id?: string; // Frontmatter id (the stable identity slug)
   projectDewey: number;
   projectPath: string;
@@ -121,10 +121,8 @@ export function scanProjectDocs(
           const content = fs.readFileSync(full, "utf8");
           const stat = fs.statSync(full);
           const help = extractDeweyAndHelp(full, content);
-          const frontmatter = extractFrontmatterSubjectAndId(content);
-          
-          // Primary source: frontmatter subject. Fallback: extracted from filename pattern.
-          const dewey = frontmatter.subject ?? help.dewey;
+          const frontmatter = extractFrontmatterDocIdAndId(content);
+          const dewey = (frontmatter.docId ?? "").trim();
           
           docs.push({
             projectName,
@@ -132,8 +130,9 @@ export function scanProjectDocs(
             filePath: full,
             title: extractTitle(content, entry.name),
             description: extractDescription(content),
-            dewey: dewey ?? "unknown",
-            subject: frontmatter.subject,
+            // One-time-one-place identity: catalog dewey comes from frontmatter docid only.
+            dewey: dewey || "missing-docid",
+            docId: dewey || undefined,
             id: frontmatter.id,
             projectDewey,
             projectPath,
@@ -167,8 +166,18 @@ export function extractDescription(content: string): string {
   const textLines: string[] = [];
   let pastFirstHeading = false;
   const metadataLine = /^\s*\*\*[^*]+\*\*\s*:/;
+  let frontmatterDelimsSeen = 0;
+  const inFrontmatterMode = lines[0]?.trim() === "---";
 
-  for (const line of lines) {
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
+    if (inFrontmatterMode && frontmatterDelimsSeen < 2) {
+      if (line.trim() === "---") {
+        frontmatterDelimsSeen += 1;
+      }
+      continue;
+    }
+
     const trimmed = line.trim();
     if (!trimmed) {
       continue;
@@ -258,25 +267,31 @@ export function extractDeweyAndHelp(
   return { dewey, helpMarkdown };
 }
 
-/** Extract subject and id from YAML frontmatter (between --- delimiters).
+/** Extract docid and id from YAML frontmatter (between --- delimiters).
  * Returns extracted values or undefined if not found.
  */
-export function extractFrontmatterSubjectAndId(content: string): { subject?: string; id?: string } {
+export function extractFrontmatterDocIdAndId(content: string): { docId?: string; id?: string } {
   const lines = content.split("\n");
   if (lines[0]?.trim() !== "---") {
     return {};
   }
 
-  const result: { subject?: string; id?: string } = {};
+  const result: { docId?: string; id?: string } = {};
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === "---") {
       break; // End of frontmatter
     }
 
-    const subjectMatch = line.match(/^subject:\s*(.+?)(?:\s*#.*)?$/);
-    if (subjectMatch) {
-      result.subject = subjectMatch[1].trim();
+    const docIdMatch = line.match(/^docid:\s*(.+?)(?:\s*#.*)?$/i);
+    if (docIdMatch) {
+      result.docId = docIdMatch[1].trim();
+    }
+
+    // Backward-compatibility read path during migration from subject -> docid.
+    const subjectMatch = line.match(/^subject:\s*(.+?)(?:\s*#.*)?$/i);
+    if (!result.docId && subjectMatch) {
+      result.docId = subjectMatch[1].trim();
     }
 
     const idMatch = line.match(/^id:\s*(.+?)(?:\s*#.*)?$/);
@@ -378,14 +393,14 @@ export function scanAllDocs(
 
 export type DocViolationCode =
   | "missing-frontmatter"
-  | "missing-subject"
+  | "missing-docid"
   | "missing-id"
   | "missing-title"
   | "missing-project"
   | "missing-description"
   | "missing-status"
-  | "invalid-subject-format"
-  | "subject-project-mismatch"
+  | "invalid-docid-format"
+  | "docid-project-mismatch"
   | "invalid-id-format"
   | "invalid-status"
   | "identity-collision";
@@ -412,9 +427,13 @@ export interface ValidateDocResult {
   filePath: string;
   projectName: string;
   projectDewey: number;
-  expectedSubjectPrefix: string;
+  expectedDocIdPrefix: string;
   identity?: string;
   violations: DocViolation[];
+}
+
+function readDocId(fm: Record<string, string>): string {
+  return (fm.docid ?? fm.subject ?? "").trim();
 }
 
 function parseFrontmatter(content: string): Record<string, string> | null {
@@ -485,41 +504,41 @@ export function validateDoc(
       filePath: resolved,
       projectName,
       projectDewey,
-      expectedSubjectPrefix: expectedPrefix,
+      expectedDocIdPrefix: expectedPrefix,
       violations,
     };
   }
 
-  const subject = (fm.subject ?? "").trim();
+  const docId = readDocId(fm);
   const id = (fm.id ?? "").trim();
   const title = (fm.title ?? "").trim();
   const project = (fm.project ?? "").trim();
   const description = (fm.description ?? "").trim();
   const status = (fm.status ?? "").trim().toLowerCase();
 
-  if (!subject) {
+  if (!docId) {
     violations.push({
       projectName,
       projectDewey,
       filePath: resolved,
-      code: "missing-subject",
-      message: "Missing required front-matter field: subject",
+      code: "missing-docid",
+      message: "Missing required front-matter field: docid",
     });
-  } else if (!/^\d{3}\.\d+$/.test(subject)) {
+  } else if (!/^\d{3}\.\d+$/.test(docId)) {
     violations.push({
       projectName,
       projectDewey,
       filePath: resolved,
-      code: "invalid-subject-format",
-      message: "subject must match pattern ###.# (for example 200.1)",
+      code: "invalid-docid-format",
+      message: "docid must match pattern ###.# (for example 200.1)",
     });
-  } else if (projectName !== "unknown" && !subject.startsWith(`${expectedPrefix}.`)) {
+  } else if (projectName !== "unknown" && !docId.startsWith(`${expectedPrefix}.`)) {
     violations.push({
       projectName,
       projectDewey,
       filePath: resolved,
-      code: "subject-project-mismatch",
-      message: `subject prefix must match project Dewey ${expectedPrefix}`,
+      code: "docid-project-mismatch",
+      message: `docid prefix must match project Dewey ${expectedPrefix}`,
     });
   }
 
@@ -586,8 +605,8 @@ export function validateDoc(
     });
   }
 
-  if (subject && id) {
-    identity = `${subject}.${id}`.toLowerCase();
+  if (docId && id) {
+    identity = `${docId}.${id}`.toLowerCase();
     const allDocs = scanAllDocs(registry);
     let seen = 0;
     for (const doc of allDocs) {
@@ -596,7 +615,7 @@ export function validateDoc(
         if (!docFm) {
           continue;
         }
-        const docSubject = (docFm.subject ?? "").trim().toLowerCase();
+        const docSubject = readDocId(docFm).toLowerCase();
         const docId = (docFm.id ?? "").trim().toLowerCase();
         if (docSubject && docId && `${docSubject}.${docId}` === identity) {
           seen += 1;
@@ -622,7 +641,7 @@ export function validateDoc(
     filePath: resolved,
     projectName,
     projectDewey,
-    expectedSubjectPrefix: expectedPrefix,
+    expectedDocIdPrefix: expectedPrefix,
     identity,
     violations,
   };
@@ -663,7 +682,7 @@ export function listDocViolations(
       continue;
     }
 
-    const subject = (fm.subject ?? "").trim();
+    const subject = readDocId(fm);
     const id = (fm.id ?? "").trim();
     const title = (fm.title ?? "").trim();
     const project = (fm.project ?? "").trim();
@@ -675,24 +694,24 @@ export function listDocViolations(
         projectName: doc.projectName,
         projectDewey,
         filePath: doc.filePath,
-        code: "missing-subject",
-        message: "Missing required front-matter field: subject",
+        code: "missing-docid",
+        message: "Missing required front-matter field: docid",
       });
     } else if (!/^\d{3}\.\d+$/.test(subject)) {
       violations.push({
         projectName: doc.projectName,
         projectDewey,
         filePath: doc.filePath,
-        code: "invalid-subject-format",
-        message: "subject must match pattern ###.# (for example 200.1)",
+        code: "invalid-docid-format",
+        message: "docid must match pattern ###.# (for example 200.1)",
       });
     } else if (!subject.startsWith(`${expectedPrefix}.`)) {
       violations.push({
         projectName: doc.projectName,
         projectDewey,
         filePath: doc.filePath,
-        code: "subject-project-mismatch",
-        message: `subject prefix must match project Dewey ${expectedPrefix}`,
+        code: "docid-project-mismatch",
+        message: `docid prefix must match project Dewey ${expectedPrefix}`,
       });
     }
 
@@ -899,12 +918,13 @@ interface ParsedRef {
 
 function normalizeTarget(raw: string): string {
   const trimmed = raw.trim().replace(/^<|>$/g, "");
-  const q = trimmed.indexOf("?");
-  const h = trimmed.indexOf("#");
-  let end = trimmed.length;
+  const withNoTitle = trimmed.replace(/^([^\s]+)\s+(?:"[^"]*"|'[^']*')$/, "$1");
+  const q = withNoTitle.indexOf("?");
+  const h = withNoTitle.indexOf("#");
+  let end = withNoTitle.length;
   if (q >= 0) { end = Math.min(end, q); }
   if (h >= 0) { end = Math.min(end, h); }
-  const noFrag = trimmed.slice(0, end);
+  const noFrag = withNoTitle.slice(0, end);
   try { return decodeURI(noFrag); } catch { return noFrag; }
 }
 
@@ -915,7 +935,13 @@ function isExternalTarget(target: string): boolean {
     t.startsWith("https://") ||
     t.startsWith("mailto:") ||
     t.startsWith("tel:") ||
-    t.startsWith("#")
+    t.startsWith("#") ||
+    t.startsWith("command:") ||
+    t.startsWith("vscode:") ||
+    t.startsWith("vscode-insiders:") ||
+    t.startsWith("ms-vscode:") ||
+    t.startsWith("file:") ||
+    t.startsWith("data:")
   );
 }
 
@@ -1214,7 +1240,7 @@ export interface NormalizeDocResult {
   hasFrontmatter: boolean;
   missingFields: string[];
   proposed: {
-    subject?: string;
+    docid?: string;
     id?: string;
     title?: string;
     project?: string;
@@ -1264,7 +1290,7 @@ export function normalizeDoc(
   const fm = parseFrontmatter(content);
   const hasFrontmatter = fm !== null;
 
-  const subject = fm?.subject?.trim() ?? "";
+  const docid = readDocId(fm ?? {});
   const id = fm?.id?.trim() ?? "";
   const title = fm?.title?.trim() ?? extractTitle(content, path.basename(resolved));
   const project = fm?.project?.trim() ?? "";
@@ -1274,9 +1300,9 @@ export function normalizeDoc(
   const missing: string[] = [];
   const proposed: NormalizeDocResult["proposed"] = {};
 
-  if (!subject) {
-    missing.push("subject");
-    proposed.subject = `${prefix}.9`;
+  if (!docid) {
+    missing.push("docid");
+    proposed.docid = `${prefix}.9`;
   }
   if (!id) {
     missing.push("id");
@@ -1302,7 +1328,7 @@ export function normalizeDoc(
   }
 
   const merged = {
-    subject: subject || proposed.subject || `${prefix}.9`,
+    docid: docid || proposed.docid || `${prefix}.9`,
     id: id || proposed.id || "unnamed-doc",
     title: title || proposed.title || path.basename(resolved, ".md"),
     project: project || proposed.project || projectName,
@@ -1312,7 +1338,7 @@ export function normalizeDoc(
 
   const suggestedFrontmatter = [
     "---",
-    `subject: ${merged.subject}`,
+    `docid: ${merged.docid}`,
     `id: ${merged.id}`,
     `title: ${merged.title}`,
     `project: ${merged.project}`,
@@ -1328,7 +1354,7 @@ export function normalizeDoc(
 
 export interface DocIdentityEntry {
   identity: string;
-  subject: string;
+  docid: string;
   id: string;
   filePath: string;
   projectName: string;
@@ -1379,7 +1405,7 @@ export function buildDocLedger(
     try { content = fs.readFileSync(doc.filePath, "utf8"); } catch { continue; }
     const fm = parseFrontmatter(content);
     if (!fm) { continue; }
-    const subject = (fm.subject ?? "").trim();
+    const subject = readDocId(fm);
     const id = (fm.id ?? "").trim();
     if (!subject || !id) { continue; }
     const identity = `${subject}.${id}`.toLowerCase();
@@ -1390,7 +1416,7 @@ export function buildDocLedger(
     if ((seen.get(identity) ?? 0) > 1) { duplicates += 1; }
     index.push({
       identity,
-      subject,
+      docid: subject,
       id,
       filePath: doc.filePath,
       projectName: doc.projectName,
@@ -1479,7 +1505,7 @@ export interface MigrateDeweyResult {
   filePath: string;
   projectName: string;
   oldDewey: string | null;
-  proposedSubject: string;
+  proposedDocId: string;
   proposedId: string;
   proposedIdentity: string;
   suggestedFrontmatterAdditions: string;
@@ -1489,7 +1515,7 @@ export interface MigrateDeweyResult {
 export function migrateDewey(
   registry: ProjectRegistry,
   filePath: string,
-  overrideSubject?: string,
+  overrideDocId?: string,
   overrideId?: string
 ): MigrateDeweyResult {
   const resolved = path.resolve(filePath);
@@ -1512,13 +1538,13 @@ export function migrateDewey(
     else if (/^\d{3,}\.\d{3}$/.test(dw)) { oldDewey = dw; }
   }
 
-  const proposedSubject = overrideSubject ?? norm.proposed.subject ?? fm?.subject ?? `${String(norm.projectDewey).padStart(3, "0")}.9`;
+  const proposedDocId = overrideDocId ?? norm.proposed.docid ?? readDocId(fm ?? {}) ?? `${String(norm.projectDewey).padStart(3, "0")}.9`;
   const rawId = overrideId ?? norm.proposed.id ?? fm?.id ?? slugify(norm.proposed.title ?? path.basename(resolved, ".md"));
   const proposedId = rawId.length >= 3 ? rawId : `${rawId}-doc`;
-  const proposedIdentity = `${proposedSubject}.${proposedId}`.toLowerCase();
+  const proposedIdentity = `${proposedDocId}.${proposedId}`.toLowerCase();
 
   const suggestedFrontmatterAdditions = [
-    `subject: ${proposedSubject}`,
+    `docid: ${proposedDocId}`,
     `id: ${proposedId}`,
     `project: ${norm.projectName}`,
     `status: draft`,
@@ -1528,5 +1554,5 @@ export function migrateDewey(
     ? { old: oldDewey, new: proposedIdentity }
     : null;
 
-  return { filePath: resolved, projectName: norm.projectName, oldDewey, proposedSubject, proposedId, proposedIdentity, suggestedFrontmatterAdditions, aliasEntry };
+  return { filePath: resolved, projectName: norm.projectName, oldDewey, proposedDocId, proposedId, proposedIdentity, suggestedFrontmatterAdditions, aliasEntry };
 }

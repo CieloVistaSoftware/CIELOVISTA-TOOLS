@@ -678,6 +678,24 @@
         "description": "List and remove stale Claude Code worktrees (.claude/worktrees/)."
       },
       {
+        "command": "cvs.playwright.run",
+        "title": "Playwright: Run Tests",
+        "category": "CieloVista",
+        "description": "Select and run Playwright test files in headed mode."
+      },
+      {
+        "command": "cvs.playwright.stop",
+        "title": "Playwright: Stop Tests",
+        "category": "CieloVista",
+        "description": "Kill the running Playwright test process."
+      },
+      {
+        "command": "cvs.playwright.cleanResults",
+        "title": "Playwright: Clean Test Results",
+        "category": "CieloVista",
+        "description": "Delete all test-results and playwright-report folders across registered projects."
+      },
+      {
         "command": "cvs.tools.regressionLog",
         "title": "Tools: Regression Log Viewer",
         "category": "CieloVista",

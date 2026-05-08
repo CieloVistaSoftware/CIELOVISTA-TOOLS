@@ -1,12 +1,13 @@
 ---
-subject: 150.7
+docid: 150.1
+dewey: 150.1
 id: feature-sharedterminal-utilsts
 title: feature: shared/terminal-utils.ts
 project: cielovista-tools
 description: Reusable terminal and file-navigation helpers shared across all features that involve terminals or opening files/folders. The rule is simple: if tw…
 status: active
 tags: [terminal, utils, readme]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: current-statusmd-cielovista-tools
 title: CURRENT-STATUS.md — cielovista-tools
 project: cielovista-tools
 description: - Verified live after junction install: ✅ MCP Viewer status column + pills, ✅ Symbol Index (listsymbols / listcvtcommands), ✅ Send Path tooltip + c…
 status: active
 tags: [current, status, currentstatusmd]
-category: 000 — Meta / Session / Status
+category: 150.9 — Meta
 created: 2026-04-25
 updated: 2026-04-27
 version: 1.0.0
@@ -16,6 +17,38 @@ relativepath: docs/_today/CURRENT-STATUS.md
 # CURRENT-STATUS.md — cielovista-tools
 
 ---
+
+## 🅿️ PARKING LOT — end of session 2026-05-07
+
+**TASK:** Multi-issue session — docid backfill, collision fixes, broken refs, Copy/Chat buttons
+**FILES TOUCHED:**
+- `src/features/doc-catalog/scanner.ts` — added `.claude`/`.vscode-test` to SKIP_DIRS; `extractFrontmatterDocId`; `docSlugId`
+- `src/features/doc-catalog/types.ts` — added `docSlugId?` to `CatalogCard`
+- `src/features/doc-catalog/commands.ts` — collision detection uses `docid` alone (one docid = one document)
+- `src/features/codebase-auditor.ts` — added Copy and Chat buttons; `buildSummaryText()` JS; clipboard + Copilot handlers
+- `src/features/doc-header-scan.ts` — added `.claude`/`.vscode-test`/`CommandHelp`/`image-reader-assets` to SKIP_DIRS
+- 54 `.md` files in `docs/` — assigned unique docids 150.10–150.63 via batch script
+- `docs/audit-orphans-2026-05-07.md` — added front-matter with `docid: 150.62`
+- `docs/_today/test-coverage-audit-2026-05-06.md` — added front-matter with `docid: 150.37`
+**LAST ACTION:** Verified 0 broken refs across all 793 docs (was 139)
+**NEXT STEP:** Doc Intelligence live test — verify cluster cards and Trash actions in VS Code
+**OPEN QUESTIONS:** None
+**NEXT STEP:** Only #288 remains open — "Fix all broken markdown references across registry projects"
+**OPEN QUESTIONS:** None
+
+## 🅿️ PARKING LOT — end of session 2026-05-06 (issue #284 + catalog tag fix)
+
+**TASK:** Issue #284 — Doc Intelligence exact-duplicate detection + catalog tag rendering fix
+**FILES TOUCHED:**
+- `src/features/doc-intelligence/scanner.ts` — SHA-256 hash + mtime on every DocFile
+- `src/features/doc-intelligence/types.ts` — exact-duplicate/folder-duplicate kinds, new actions, keepPath/keepReason/wastedBytes
+- `src/features/doc-intelligence/analyzer.ts` — complete rewrite: hash clustering, smart keep scoring, folder fingerprinting
+- `src/features/doc-intelligence/commands.ts` — trashFile/trashFolder helpers, keepAndDeleteRest/deleteOneFile/deleteFolder handlers
+- `src/features/doc-intelligence/html.ts` — cluster cards, savings pill, keeper badge, per-dup Trash + one-click CTA
+- `src/features/doc-catalog/catalog.html` — fix tags shown as long concatenated string (removed .card-tags from innerHTML replacement loops)
+**LAST ACTION:** Committed `1d36acb` — all 27 regression tests passing
+**NEXT STEP:** Install VSIX and test Doc Intelligence scan against a repo with real duplicates; verify cluster cards render correctly and Trash deletes work
+**OPEN QUESTIONS:** None
 
 ## 🅿️ PARKING LOT — end of session 2026-05-06 (issue #21 Phase 1-4)
 
@@ -139,7 +172,8 @@ The 2026-04-02 item "Finish Dewey markdown-backed tooltip sourcing in the shared
 
 ```yaml
 ---
-subject: 200.1              # Subject classification (project prefix + subject sub-code)
+docid: 200.1              # Subject classification (project prefix + subject sub-code)
+
 id: address-element         # Stable identity slug within subject — never changes
 title: <address> Element Documentation
 project: wb-core

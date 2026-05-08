@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: image-reader-feature
 title: Image Reader Feature
 project: cielovista-tools
 description: This feature provides an image reader webview panel using HTML, CSS, and JS assets migrated from CodePilot-Wake-Monitor.
 status: active
 tags: [image, reader, readme]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

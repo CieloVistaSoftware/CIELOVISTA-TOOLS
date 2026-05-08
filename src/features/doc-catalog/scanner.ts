@@ -7,21 +7,21 @@ import { extractTitle, extractDescription, extractTags, extractDocType, stripTyp
 import { extractDeweyAndHelp } from '../../shared/help-utils';
 import type { CatalogCard } from './types';
 
-const SKIP_DIRS  = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', 'reports', 'CommandHelp', 'image-reader-assets']);
+const SKIP_DIRS  = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
 const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 
 let _cardIdCounter = 0;
 
 export function resetCardCounter(): void { _cardIdCounter = 0; }
 
-function extractDocIdFromFrontmatter(content: string): string | undefined {
+function extractFrontmatterDocId(content: string): string | undefined {
     const lines = content.split('\n');
     if (lines[0]?.trim() !== '---') { return undefined; }
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line === '---') { break; }
-        const m = line.match(/^docid\s*:\s*(.+?)\s*$/i);
-        if (m) { return m[1].trim(); }
+        const mDocid = line.match(/^docid\s*:\s*(.+?)\s*$/i);
+        if (mDocid) { return mDocid[1].trim(); }
     }
     return undefined;
 }
@@ -61,7 +61,8 @@ export function scanForCards(
                     const content = fs.readFileSync(fullPath, 'utf8');
                     const stat    = fs.statSync(fullPath);
                     const { dewey, helpMarkdown } = extractDeweyAndHelp(fullPath);
-                    const docId = extractDocIdFromFrontmatter(content) ?? dewey;
+                    const fmDocid = extractFrontmatterDocId(content);
+                    const docId = fmDocid ?? dewey;
                     const categoryNum = categoryNumFromDocId(docId, projectDeweyNum);
                     const rawTitle = extractTitle(content, entry.name);
                     const docType  = extractDocType(content, rawTitle);

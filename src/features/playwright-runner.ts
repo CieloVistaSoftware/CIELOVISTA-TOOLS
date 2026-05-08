@@ -6,6 +6,7 @@ import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { log, logError } from '../shared/output-channel';
+import { loadRegistry } from '../shared/registry';
 
 const FEATURE = 'playwright-runner';
 let pwProcess: ChildProcessWithoutNullStreams | null = null;
@@ -15,7 +16,8 @@ const PW_MD_PATH = path.join(__dirname, '../data/playwright-run-result.md');
 export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.playwright.run', runPlaywrightTests),
-        vscode.commands.registerCommand('cvs.playwright.stop', stopPlaywrightTests)
+        vscode.commands.registerCommand('cvs.playwright.stop', stopPlaywrightTests),
+        vscode.commands.registerCommand('cvs.playwright.cleanResults', cleanTestResults)
     );
 }
 
@@ -92,4 +94,43 @@ function writePlaywrightResultMarkdown(code: number) {
 
 function showPlaywrightResultMarkdown() {
     vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(PW_MD_PATH));
+}
+
+const RESULT_DIRS = ['test-results', 'playwright-report'];
+
+async function cleanTestResults(): Promise<void> {
+    const registry = loadRegistry();
+    const roots: string[] = [];
+    if (registry) {
+        roots.push(registry.globalDocsPath);
+        registry.projects.forEach(p => roots.push(p.path));
+    }
+    // Also include current workspace folders not in registry
+    (vscode.workspace.workspaceFolders ?? []).forEach(wf => {
+        if (!roots.includes(wf.uri.fsPath)) { roots.push(wf.uri.fsPath); }
+    });
+
+    const deleted: string[] = [];
+    for (const root of roots) {
+        for (const dirName of RESULT_DIRS) {
+            const target = path.join(root, dirName);
+            if (fs.existsSync(target)) {
+                try {
+                    await vscode.workspace.fs.delete(vscode.Uri.file(target), { recursive: true, useTrash: false });
+                    deleted.push(target);
+                    log(FEATURE, `Deleted: ${target}`);
+                } catch (err) {
+                    logError(`Failed to delete ${target}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                }
+            }
+        }
+    }
+
+    if (deleted.length === 0) {
+        vscode.window.showInformationMessage('No test-results or playwright-report folders found.');
+    } else {
+        vscode.window.showInformationMessage(
+            `Cleaned ${deleted.length} folder${deleted.length === 1 ? '' : 's'}: ${deleted.map(d => path.basename(path.dirname(d)) + '/' + path.basename(d)).join(', ')}`
+        );
+    }
 }

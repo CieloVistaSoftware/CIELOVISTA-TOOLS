@@ -331,7 +331,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #btn-configure:hover,#btn-reload:hover{background:var(--vscode-button-secondaryHoverBackground)}
 
 /* Layout */
-#body{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(0,1.6fr);grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;max-width:1400px;width:100%}
+#body{display:grid;grid-template-columns:minmax(16rem,.9fr) minmax(0,1.6fr);grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;width:100%;box-sizing:border-box}
 .panel{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:6px;padding:14px 16px;min-width:0}
 .panel-hd{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);margin-bottom:10px}
 
@@ -379,19 +379,19 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .hist-ok{color:#3fb950}.hist-err{color:#f85149}
 
 /* Recent projects */
-#panel-recents{grid-column:2}
-.rec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px;width:100%}
-.rec-card{padding:8px 10px;border-radius:4px;border:1px solid var(--vscode-panel-border);cursor:pointer;transition:border-color .12s;min-width:0}
+#panel-recents{grid-column:2;min-width:0;overflow-x:hidden}
+.rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(28ch,100%),1fr));gap:6px;width:100%}
+.rec-card{padding:8px 10px;border-radius:4px;border:1px solid var(--vscode-panel-border);cursor:pointer;transition:border-color .12s;min-width:0;overflow:hidden}
 .rec-card:last-child{margin-bottom:0}
 .rec-card:hover{border-color:var(--vscode-focusBorder);background:var(--vscode-list-hoverBackground)}
 .rec-current{border-color:var(--vscode-focusBorder);opacity:.7;cursor:default}
-.rec-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.rec-name{font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px}
-.rec-actions{display:flex;align-items:center;gap:6px}
+.rec-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0}
+.rec-name{font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-actions{display:flex;align-items:center;gap:6px;min-width:0;flex-shrink:0}
 .rec-badge{font-size:9px;background:var(--vscode-focusBorder);color:#fff;border-radius:3px;padding:1px 5px}
 .rec-chat{background:#3fb950;color:#fff;border:none;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:10px;font-weight:600}
 .rec-chat:hover{background:#31a442}
-.rec-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-path{display:block;width:100%;min-width:0;max-width:100%;font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Recent-projects Edit mode */
 .panel-hd-split{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -453,7 +453,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .empty-state{font-size:12px;color:var(--vscode-descriptionForeground);padding:8px 0;line-height:1.6}
 
 @media (max-width: 1200px){
-  #body{grid-template-columns:minmax(240px,.95fr) minmax(0,1.35fr)}
+  #body{grid-template-columns:minmax(14rem,.95fr) minmax(0,1.35fr)}
 }
 
 @media (max-width: 940px){

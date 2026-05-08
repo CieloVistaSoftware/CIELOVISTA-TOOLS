@@ -1,0 +1,88 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+const args = new Set(process.argv.slice(2));
+const apply = args.has('--apply');
+const includeAuditDocs = args.has('--include-audit-docs');
+
+const TARGETS = [
+  { rel: 'temp/generated-mcp-viewer-script.js', kind: 'file' },
+  { rel: 'temp/inspect-mcp-script.js', kind: 'file' },
+  { rel: 'temp/mcp-viewer-inline-script.js', kind: 'file' },
+  { rel: 'temp_script.js', kind: 'file' },
+  { rel: 'playwright-report', kind: 'dir' },
+];
+
+if (includeAuditDocs) {
+  const todayDir = path.join(ROOT, 'docs', '_today');
+  if (fs.existsSync(todayDir)) {
+    const names = fs.readdirSync(todayDir, { withFileTypes: true })
+      .filter((d) => d.isFile() && /^test-coverage-audit-\d{4}-\d{2}-\d{2}\.md$/i.test(d.name))
+      .map((d) => path.join('docs', '_today', d.name));
+    for (const rel of names) {
+      TARGETS.push({ rel, kind: 'file' });
+    }
+  }
+}
+
+function exists(fullPath) {
+  try {
+    fs.accessSync(fullPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeTarget(target) {
+  const full = path.join(ROOT, target.rel);
+  if (!exists(full)) {
+    return { rel: target.rel, status: 'missing' };
+  }
+
+  if (!apply) {
+    return { rel: target.rel, status: 'would-delete' };
+  }
+
+  if (target.kind === 'dir') {
+    fs.rmSync(full, { recursive: true, force: true });
+  } else {
+    fs.rmSync(full, { force: true });
+  }
+
+  return { rel: target.rel, status: 'deleted' };
+}
+
+const results = TARGETS.map(removeTarget);
+
+if (apply) {
+  const tempDir = path.join(ROOT, 'temp');
+  if (exists(tempDir)) {
+    const items = fs.readdirSync(tempDir);
+    if (items.length === 0) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      results.push({ rel: 'temp', status: 'deleted-empty-dir' });
+    }
+  }
+}
+
+const wouldDelete = results.filter((r) => r.status === 'would-delete').length;
+const deleted = results.filter((r) => r.status === 'deleted' || r.status === 'deleted-empty-dir').length;
+const missing = results.filter((r) => r.status === 'missing').length;
+
+console.log('Generated artifact cleanup');
+console.log(`Mode: ${apply ? 'APPLY' : 'DRY RUN'}`);
+console.log(`Targets: ${results.length}`);
+
+for (const r of results) {
+  console.log(`- ${r.status.padEnd(17)} ${r.rel}`);
+}
+
+console.log('');
+console.log(`Summary: ${apply ? deleted + ' deleted' : wouldDelete + ' would delete'}, ${missing} missing`);
+if (!apply) {
+  console.log('Run with --apply to delete these files.');
+}

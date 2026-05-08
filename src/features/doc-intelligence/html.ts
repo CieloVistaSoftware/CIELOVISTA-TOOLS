@@ -16,6 +16,11 @@ const KIND_ICON: Record<string, string> = {
     'missing-readme':     '📝',
     'missing-claude':     '🤖',
     'missing-changelog':  '📋',
+    'subject-mismatch':   '🔢',
+    'test-artifact':      '🧪',
+    'stale-doc':          '🕰',
+    'draft-rot':          '🪣',
+    'thin-description':   '✏️',
 };
 
 const ACTION_LABEL: Record<string, string> = {
@@ -55,6 +60,16 @@ function avoidNextRun(kind: string): string {
       return 'Store cross-project standards in global docs and keep project docs focused on local implementation.';
     case 'orphan':
       return 'Link every important doc from README.md, CLAUDE.md, or docs index files.';
+    case 'subject-mismatch':
+      return 'Always use the project\'s assigned Dewey hundreds prefix when writing the subject field.';
+    case 'test-artifact':
+      return 'Delete test-results and playwright-report folders after reviewing failures — never commit them.';
+    case 'stale-doc':
+      return 'Review docs during each sprint — update or archive anything not touched in 90 days.';
+    case 'draft-rot':
+      return 'Finish a draft within 30 days or archive it. Drafts that linger become noise.';
+    case 'thin-description':
+      return 'Write the description field as a one-sentence summary before publishing a doc.';
     default:
       return 'Keep docs in one canonical location and review doc health during each release cycle.';
   }
@@ -267,6 +282,8 @@ body{
   cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap;
 }
 .di-file-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.di-file-btn.danger{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.4)}
+.di-file-btn.danger:hover{background:rgba(248,81,73,.3)}
 .di-pair-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .di-diff-btn{
   background:transparent;
@@ -297,6 +314,18 @@ body{
 }
 #di-status-strip.visible{display:flex}
 
+/* subject-mismatch table */
+.sm-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px}
+.sm-table th{text-align:left;padding:4px 8px;color:var(--vscode-descriptionForeground);font-weight:700;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--vscode-panel-border)}
+.sm-table td{padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:middle}
+.sm-table tr:last-child td{border-bottom:none}
+.sm-table tr:hover td{background:var(--vscode-list-hoverBackground)}
+.sm-proj{color:var(--vscode-descriptionForeground);white-space:nowrap}
+.sm-file{font-family:var(--vscode-editor-font-family);font-weight:600;white-space:nowrap}
+.sm-cur{color:#f85149;font-family:var(--vscode-editor-font-family)}
+.sm-prop{color:#3fb950;font-family:var(--vscode-editor-font-family);font-weight:600}
+.sm-cat{font-family:var(--vscode-editor-font-family);color:var(--vscode-descriptionForeground)}
+.sm-act{white-space:nowrap}
 /* savings banner */
 .di-savings{background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.3);border-radius:4px;padding:6px 12px;font-size:12px;margin-bottom:6px}
 /* exact-duplicate cluster card */
@@ -391,9 +420,10 @@ const vscode = acquireVsCodeApi();
 // ── Decision tracking ─────────────────────────────────────────────────────
 var decisions = {}; // id -> 'accepted' | 'skipped' | 'pending'
 
-// Init from rendered state
-document.querySelectorAll('.di-card').forEach(function(card) {
+// Init from rendered state — covers both regular cards and cluster cards
+document.querySelectorAll('.di-card, .di-cluster').forEach(function(card) {
   var id = card.dataset.id;
+  if (!id) { return; }
   if (card.classList.contains('accepted'))  { decisions[id] = 'accepted'; }
   else if (card.classList.contains('skipped')) { decisions[id] = 'skipped'; }
   else { decisions[id] = 'pending'; }
@@ -401,7 +431,7 @@ document.querySelectorAll('.di-card').forEach(function(card) {
 
 function setDecision(id, decision) {
   decisions[id] = decision;
-  var card = document.querySelector('.di-card[data-id="' + id + '"]');
+  var card = document.querySelector('.di-card[data-id="' + id + '"], .di-cluster[data-id="' + id + '"]');
   if (!card) { return; }
 
   card.classList.remove('accepted','skipped');
@@ -442,7 +472,7 @@ function setFilter(f) {
   document.querySelectorAll('.di-filter-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.filter === f);
   });
-  document.querySelectorAll('.di-card').forEach(function(card) {
+  document.querySelectorAll('.di-card, .di-cluster').forEach(function(card) {
     var sev      = card.dataset.severity;
     var decision = decisions[card.dataset.id] || 'pending';
     var show = f === 'all'
@@ -457,13 +487,13 @@ function setFilter(f) {
 
 // ── Bulk actions ──────────────────────────────────────────────────────────
 function acceptAll() {
-  document.querySelectorAll('.di-card').forEach(function(card) {
-    setDecision(card.dataset.id, 'accepted');
+  document.querySelectorAll('.di-card, .di-cluster').forEach(function(card) {
+    if (card.dataset.id) { setDecision(card.dataset.id, 'accepted'); }
   });
 }
 function skipAll() {
-  document.querySelectorAll('.di-card').forEach(function(card) {
-    setDecision(card.dataset.id, 'skipped');
+  document.querySelectorAll('.di-card, .di-cluster').forEach(function(card) {
+    if (card.dataset.id) { setDecision(card.dataset.id, 'skipped'); }
   });
 }
 
@@ -495,6 +525,24 @@ document.querySelectorAll('[data-di-action]').forEach(function(btn) {
     try { paths = JSON.parse(pathsRaw); } catch { paths = [pathsRaw]; }
 
     // ── Cluster card actions ───────────────────────────────────────────────
+    if (action === 'fix-mismatches') {
+      var fmp;
+      try { fmp = JSON.parse(btn.dataset.payload); } catch { return; }
+      btn.disabled = true;
+      btn.textContent = '\\u23F3 Fixing…';
+      showStrip('Updating fields…');
+      vscode.postMessage({ command: 'fixMismatches', findingId: fmp.findingId, fixes: fmp.fixes });
+      return;
+    }
+    if (action === 'fix-one-mismatch') {
+      var fop;
+      try { fop = JSON.parse(btn.dataset.payload); } catch { return; }
+      btn.disabled = true;
+      btn.textContent = '\\u23F3';
+      showStrip('Updating field…');
+      vscode.postMessage({ command: 'fixMismatches', findingId: fop.findingId, fixes: [{ filePath: fop.filePath, field: fop.field, value: fop.value }] });
+      return;
+    }
     if (action === 'keep-and-delete-rest') {
       var payload;
       try { payload = JSON.parse(btn.dataset.payload); } catch { return; }
@@ -507,6 +555,8 @@ document.querySelectorAll('[data-di-action]').forEach(function(btn) {
     if (action === 'delete-one') {
       var dp;
       try { dp = JSON.parse(btn.dataset.payload); } catch { return; }
+      btn.disabled = true;
+      btn.textContent = '⏳';
       showStrip('Moving to trash…');
       vscode.postMessage({ command: 'deleteOneFile', filePath: dp.filePath, findingId: dp.findingId });
       return;
@@ -534,6 +584,16 @@ document.querySelectorAll('[data-di-action]').forEach(function(btn) {
     if (action === 'open-file') {
       vscode.postMessage({ command: 'openFile', paths: paths });
     }
+    if (action === 'open-folder') {
+      vscode.postMessage({ command: 'openFolder', paths: paths });
+    }
+    if (action === 'copy-path') {
+      var txt = paths.join('\\n');
+      navigator.clipboard && navigator.clipboard.writeText(txt).then(function() { toast('📋 Copied to clipboard'); });
+    }
+    if (action === 'copy-chat') {
+      vscode.postMessage({ command: 'copyChat', paths: paths });
+    }
     if (action === 'diff-pair') {
       showStrip('Opening diff…');
       vscode.postMessage({ command: 'diffPair', paths: paths });
@@ -558,13 +618,27 @@ function hideStrip() {
 // ── Messages from extension ───────────────────────────────────────────────
 window.addEventListener('message', function(e) {
   var msg = e.data;
-  if (msg.type === 'done')     { hideStrip(); }
   if (msg.type === 'progress') { showStrip(msg.text); }
   if (msg.type === 'decision') { setDecision(msg.id, msg.decision); }
   if (msg.type === 'fileDeleted') {
-    // Remove the specific dup-row for the trashed file/folder
     var row = document.querySelector('[data-path="' + msg.filePath + '"]');
-    if (row) { row.style.opacity = '0.3'; row.style.textDecoration = 'line-through'; }
+    if (row) {
+      row.style.transition = 'opacity 0.3s';
+      row.style.opacity = '0.25';
+      row.style.textDecoration = 'line-through';
+      row.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+    }
+  }
+  if (msg.type === 'done') {
+    // Re-enable any stuck trash buttons (e.g. user cancelled the modal)
+    document.querySelectorAll('.di-file-btn.danger[disabled]').forEach(function(b) {
+      var row = b.closest('[data-path]');
+      if (row && row.style.opacity !== '0.25') {
+        b.disabled = false;
+        b.textContent = '🗑 Trash';
+      }
+    });
+    hideStrip();
   }
 });
 
@@ -592,13 +666,18 @@ function buildFileTable(f: Finding): string {
 
     // Per-file rows
     const fileRows = f.paths.map((p, i) => {
-        const label     = `File ${i + 1}`;
-        const pathJson  = esc(JSON.stringify([p]));
-        return `<div class="di-file-row">
+        const label    = `File ${i + 1}`;
+        const pathJson = esc(JSON.stringify([p]));
+        const delJson  = esc(JSON.stringify({ findingId: f.id, filePath: p }));
+        return `<div class="di-file-row" data-path="${esc(p)}">
   <span class="di-file-label">${label}</span>
   <span class="di-file-path" title="${esc(p)}">${esc(p)}</span>
   <div class="di-file-btns">
-    <button class="di-file-btn" data-di-action="open-file" data-paths="${pathJson}" title="Open in editor">↗ Open</button>
+    <button class="di-file-btn" data-di-action="open-file"   data-paths="${pathJson}" title="Open in editor">↗ Open</button>
+    <button class="di-file-btn" data-di-action="open-folder" data-paths="${pathJson}" title="Open containing folder">📂 Folder</button>
+    <button class="di-file-btn danger" data-di-action="delete-one" data-payload="${delJson}" title="Move to trash">🗑 Trash</button>
+    <button class="di-file-btn" data-di-action="copy-path"   data-paths="${pathJson}" title="Copy path to clipboard">📋 Copy</button>
+    <button class="di-file-btn" data-di-action="copy-chat"   data-paths="${pathJson}" title="Send path to Copilot Chat">💬 Chat</button>
   </div>
 </div>`;
     }).join('');
@@ -709,10 +788,66 @@ function buildFolderDuplicateCard(f: Finding): string {
         + '</div></div></div>';
 }
 
+function buildSubjectMismatchCard(f: Finding): string {
+    const decClass = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
+    let rows: Array<{ filePath: string; fileName: string; projectName: string; dewey: string; category: string; proposed: string }> = [];
+    try { rows = JSON.parse(String(f.meta?.mismatches ?? '[]')); } catch { rows = []; }
+
+    const tableRows = rows.map(r => {
+        const catNum     = (r.category.match(/^(\d+)/) ?? ['','0'])[1];
+        const subDecimal = r.dewey.includes('.') ? r.dewey.split('.').slice(1).join('.') : '1';
+        const fixedSubj  = `${catNum}.${subDecimal}`;
+        const fixJson    = esc(JSON.stringify({ findingId: f.id, filePath: r.filePath, field: 'subject', value: fixedSubj }));
+
+        return `<tr data-sm-path="${esc(r.filePath)}">
+  <td class="sm-proj">${esc(r.projectName)}</td>
+  <td class="sm-file" title="${esc(r.filePath)}">${esc(r.fileName)}</td>
+  <td class="sm-cur">${esc(r.dewey)}</td>
+  <td class="sm-prop">${esc(fixedSubj)}</td>
+  <td class="sm-act">
+    <button class="di-dup-btn" data-di-action="fix-one-mismatch" data-payload="${fixJson}" title="Fix subject to ${esc(fixedSubj)}">✓ Fix</button>
+    <button class="di-dup-btn" data-di-action="open-file" data-paths="${esc(JSON.stringify([r.filePath]))}" title="Open file">↗</button>
+  </td>
+</tr>`;
+    }).join('');
+
+    const fixAllJson = esc(JSON.stringify({ findingId: f.id, fixes: rows.map(r => {
+        const catNum     = (r.category.match(/^(\d+)/) ?? ['','0'])[1];
+        const subDecimal = r.dewey.includes('.') ? r.dewey.split('.').slice(1).join('.') : '1';
+        return { filePath: r.filePath, field: 'subject', value: `${catNum}.${subDecimal}` };
+    })}));
+
+    return `<div class="di-cluster${decClass}" data-id="${esc(f.id)}" data-severity="${esc(f.severity)}" data-kind="subject-mismatch">
+  <div class="di-cluster-hd">
+    <span class="di-cluster-badge" style="background:#cf222e">🔢 Subject Mismatch</span>
+    <span class="di-cluster-title">${esc(f.title)}</span>
+    ${f.decision === 'accepted' ? '<span style="font-size:11px;color:#3fb950;font-weight:700">✅ Fixed</span>' : ''}
+    ${f.decision === 'skipped'  ? '<span style="font-size:11px;color:var(--vscode-descriptionForeground)">⏭ Skipped</span>' : ''}
+  </div>
+  <div class="di-cluster-body">
+    <p style="font-size:12px;margin-bottom:10px;color:var(--vscode-descriptionForeground)">
+      The subject number must fall inside the category's assigned range. Each row shows the current mismatch and the proposed fix.
+    </p>
+    <table class="sm-table">
+      <thead><tr>
+        <th>Project</th><th>File</th><th>Current Dewey</th><th>Correct Dewey</th><th></th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <div class="di-cluster-cta" style="margin-top:12px">
+      <button class="di-cta-primary" data-di-action="fix-mismatches" data-payload="${fixAllJson}">✓ Fix All ${rows.length} Subjects</button>
+      <button class="di-cta-skip" data-di-action="skip">⏭ Skip</button>
+      ${f.decision && f.decision !== 'pending' ? '<button class="di-dup-btn" data-di-action="undo">↩ Undo</button>' : ''}
+    </div>
+  </div>
+</div>`;
+}
+
 function buildCard(f: Finding, scanDate: string): string {
-    // Route exact-duplicate and folder-duplicate to dedicated card builders
-    if (f.kind === 'exact-duplicate') { return buildExactDuplicateCard(f); }
+    // Route cluster-style cards to dedicated builders
+    if (f.kind === 'exact-duplicate')  { return buildExactDuplicateCard(f); }
     if (f.kind === 'folder-duplicate') { return buildFolderDuplicateCard(f); }
+    if (f.kind === 'subject-mismatch') { return buildSubjectMismatchCard(f); }
 
     const pathsJson     = esc(JSON.stringify(f.paths));
     const decisionClass = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';

@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: todo-updated
 title: TODO UPDATED
 project: cielovista-tools
 description: Monolith src/features/readme-compliance.ts is still fully active (~600 lines). Folder has 6 modules already. Method: Create html.ts, commands.ts, a…
 status: active
 tags: [todo, updated, audited]
-category: 700 — Project Docs
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

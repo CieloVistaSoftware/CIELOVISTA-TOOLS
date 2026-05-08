@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: cielovista-docs-audit-report
 title: CieloVista Docs Audit Report
 project: cielovista-tools
 description: - C:\Users\jwpmi\Downloads\CieloVistaStandards\copilot-rules.md (global, 1471 bytes) - C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\co…
 status: active
 tags: [audit, full, 2026]
-category: 900 — Audit & Reports
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

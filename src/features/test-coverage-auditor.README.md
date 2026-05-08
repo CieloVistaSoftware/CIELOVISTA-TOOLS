@@ -1,12 +1,13 @@
 ---
-subject: 150.3
+docid: 150.3
+dewey: 150.3
 id: feature-test-coverage-auditorts-test-coverage-audi
 title: feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard
 project: cielovista-tools
 description: The test coverage auditor integrates the tiered testing strategy directly into CieloVista Tools as an interactive webview panel. It provides: - Aud…
 status: active
 tags: [test, coverage, auditor]
-category: 400 — Testing & Quality
+category: 150.3 — Testing
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
@@ -231,6 +232,6 @@ Catches and displays error to user
 
 ## Related Files
 
-- [audit-test-coverage.js](../scripts/audit-test-coverage.js) — The core audit script
-- [audit-test-coverage.README.md](../scripts/audit-test-coverage.README.md) — Audit command-line documentation
-- [testing-strategy.md](../../../CieloVistaStandards/testing-strategy.md) — Tier definitions
+- [audit-test-coverage.js](../../scripts/audit-test-coverage.js) — The core audit script
+- [audit-test-coverage.README.md](../../scripts/audit-test-coverage.README.md) — Audit command-line documentation
+- [testing-strategy.md](../../../../../CieloVistaStandards/testing-strategy.md) — Tier definitions

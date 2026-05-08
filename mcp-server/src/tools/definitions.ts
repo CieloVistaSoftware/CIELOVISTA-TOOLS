@@ -101,7 +101,7 @@ export const NormalizeDocToolSchema = z.object({
 });
 
 export const GetDocByIdentityToolSchema = z.object({
-  identity: z.string().describe("Full stable identity string in the form '{subject}.{id}', e.g. '150.3.testing-strategy'. Checks aliases table first."),
+  identity: z.string().describe("Full stable identity string in the form '{docid}.{id}', e.g. '150.3.testing-strategy'. Checks aliases table first."),
 });
 
 export const RefreshDocLedgerToolSchema = z.object({
@@ -114,7 +114,7 @@ export const ListOldDeweyToolSchema = z.object({
 
 export const MigrateDeweyToolSchema = z.object({
   filePath: z.string().describe("Absolute path to the .md file with an old Dewey identifier to migrate."),
-  proposedSubject: z.string().optional().describe("Override subject for the proposed new identity (e.g. '150.3'). If omitted, tool will suggest one."),
+  proposedDocId: z.string().optional().describe("Override docid for the proposed new identity (e.g. '150.3'). If omitted, tool will suggest one."),
   proposedId: z.string().optional().describe("Override id slug for the proposed identity. If omitted, tool will derive from title or filename."),
 });
 

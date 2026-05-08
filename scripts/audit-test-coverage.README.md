@@ -1,12 +1,13 @@
 ---
-subject: 150.3
+docid: 150.3
+dewey: 150.3
 id: feature-test-coverage-audit-tool
 title: feature: Test Coverage Audit Tool
 project: cielovista-tools
 description: The audit-test-coverage.js script analyzes your test suite against the tiered testing strategy defined in the CieloVista Standards (testing-strateg…
 status: active
 tags: [audit, test, coverage]
-category: 900 — Audit & Reports
+category: 150.3 — Testing
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
@@ -285,8 +286,8 @@ Check the output in `docs/_today/test-coverage-audit-YYYY-MM-DD.md` for the full
 
 ## Related Documents
 
-- [Testing Strategy](./../../downloads/CieloVistaStandards/testing-strategy.md) — Tier definitions and best practices
-- [Doc Auditor](../features/doc-auditor.README.md) — Similar audit tool for documentation
+- [Testing Strategy](../../../../CieloVistaStandards/testing-strategy.md) — Tier definitions and best practices
+- [Doc Auditor](../src/features/doc-auditor.README.md) — Similar audit tool for documentation
 - [Run Audit Script](./run-audit.js) — General-purpose audit runner
 
 ---

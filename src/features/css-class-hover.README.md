@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: feature-css-class-hoverts
 title: feature: css-class-hover.ts
 project: cielovista-tools
 description: Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…
 status: active
 tags: [css, class, hover]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

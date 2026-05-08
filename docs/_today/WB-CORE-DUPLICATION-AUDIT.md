@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: wb-core-duplication-audit-cielovista-tools
 title: WB-Core Duplication Audit — cielovista-tools
 project: cielovista-tools
 description: Date: 2026-04-02 Completed: 2026-04-03 Scope: src/ (all features, shared, and UI code) Objective: Identify and reduce all logic and style duplicati…
 status: active
 tags: [core, duplication, audit]
-category: 700 — Project Docs
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

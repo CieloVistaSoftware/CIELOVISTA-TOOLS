@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: keeper-utils-migration-research-2026-04-10
 title: Keeper Utils Migration Research — 2026-04-10
 project: cielovista-tools
 description: Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.
 status: active
 tags: [keeper, utils, migration]
-category: 700 — Project Docs
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

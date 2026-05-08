@@ -6,10 +6,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { loadRegistry } from '../shared/registry';
 import { log } from '../shared/output-channel';
+import { sendToCopilotChat } from './terminal-copy-output';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.vscode', '.vscode-test', 'dist', 'out',
-  'test-results', 'playwright-report', 'reports'
+  'test-results', 'playwright-report', 'reports', '.claude', 'CommandHelp', 'image-reader-assets'
 ]);
 
 interface Finding {
@@ -34,6 +35,7 @@ interface ProjectRollup {
 
 let panel: vscode.WebviewPanel | undefined;
 let isScanRunning = false;
+let latestReportText = '';
 
 function walkMdFiles(rootPath: string, maxDepth = 8): string[] {
   const files: string[] = [];
@@ -103,18 +105,31 @@ function lineFromOffset(content: string, offset: number): number {
 
 function normalizeTarget(raw: string): string {
   const trimmed = raw.trim().replace(/^<|>$/g, '');
-  const q = trimmed.indexOf('?');
-  const h = trimmed.indexOf('#');
-  let end = trimmed.length;
+  const withNoTitle = trimmed.replace(/^([^\s]+)\s+(?:"[^"]*"|'[^']*')$/, '$1');
+  const q = withNoTitle.indexOf('?');
+  const h = withNoTitle.indexOf('#');
+  let end = withNoTitle.length;
   if (q >= 0) { end = Math.min(end, q); }
   if (h >= 0) { end = Math.min(end, h); }
-  const noFrag = trimmed.slice(0, end);
+  const noFrag = withNoTitle.slice(0, end);
   try { return decodeURI(noFrag); } catch { return noFrag; }
 }
 
 function isExternalTarget(target: string): boolean {
   const t = target.toLowerCase();
-  return t.startsWith('http://') || t.startsWith('https://') || t.startsWith('mailto:') || t.startsWith('tel:') || t.startsWith('#');
+  return (
+    t.startsWith('http://') ||
+    t.startsWith('https://') ||
+    t.startsWith('mailto:') ||
+    t.startsWith('tel:') ||
+    t.startsWith('#') ||
+    t.startsWith('command:') ||
+    t.startsWith('vscode:') ||
+    t.startsWith('vscode-insiders:') ||
+    t.startsWith('ms-vscode:') ||
+    t.startsWith('file:') ||
+    t.startsWith('data:')
+  );
 }
 
 function parseRefs(content: string): Array<{ kind: 'image' | 'link'; target: string; line: number }> {
@@ -135,12 +150,40 @@ function parseRefs(content: string): Array<{ kind: 'image' | 'link'; target: str
   return refs;
 }
 
-function fileNameCandidates(targetPath: string, files: string[]): string[] {
+/**
+ * Find candidate files for a broken reference.
+ * Ranks by proximity to the source file — same directory > same project root > cross-project.
+ * Cross-project candidates are only returned when the project has zero matches.
+ */
+function fileNameCandidates(
+  targetPath: string,
+  sourceFile: string,
+  projectFiles: string[],
+  allFiles: string[]
+): string[] {
   const name = path.basename(targetPath).toLowerCase();
-  if (!name) {
-    return [];
+  if (!name) { return []; }
+
+  const sourceDir = path.dirname(sourceFile);
+
+  // Same-project matches, ranked: same dir first, then everything else in project
+  const projectMatches = projectFiles.filter(f => path.basename(f).toLowerCase() === name);
+  if (projectMatches.length > 0) {
+    projectMatches.sort((a, b) => {
+      const aNear = a.startsWith(sourceDir) ? 0 : 1;
+      const bNear = b.startsWith(sourceDir) ? 0 : 1;
+      return aNear - bNear;
+    });
+    return projectMatches.slice(0, 5);
   }
-  return files.filter((f) => path.basename(f).toLowerCase() === name).slice(0, 5);
+
+  // Cross-project only as last resort — filter out files that share the same project root
+  const projectRoot = projectFiles[0] ? projectFiles[0].split(path.sep).slice(0, 6).join(path.sep) : '';
+  const crossProject = allFiles.filter(f =>
+    path.basename(f).toLowerCase() === name &&
+    (projectRoot ? !f.startsWith(projectRoot) : true)
+  );
+  return crossProject.slice(0, 3);
 }
 
 function esc(text: string): string {
@@ -324,6 +367,9 @@ function buildViewerHtml(findings: Finding[], totalDocsScanned: number, rollups:
   return `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"><style>
 body{font-family:var(--vscode-font-family);color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);margin:16px}
 h1{margin:0 0 8px 0;font-size:20px}
+.actions{display:flex;gap:8px;margin:0 0 12px 0}
+.actions button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:6px 10px;cursor:pointer;font-size:12px}
+.actions button:hover{background:var(--vscode-button-secondaryHoverBackground);border-color:var(--vscode-focusBorder)}
 .meta{color:var(--vscode-descriptionForeground);margin-bottom:16px}
 h2.pass{margin:16px 0 8px 0;font-size:15px}
 .pass-panel{border:1px solid var(--vscode-panel-border);border-radius:8px;padding:10px 12px;margin-bottom:12px}
@@ -349,6 +395,10 @@ code{font-family:var(--vscode-editor-font-family)}
 .none{color:var(--vscode-descriptionForeground)}
 </style></head><body>
 <h1>Broken References</h1>
+<div class="actions">
+  <button id="btn-copy-clip" title="Copy this report to clipboard">Copy to Clipboard</button>
+  <button id="btn-copy-chat" title="Send this report to Copilot Chat">Copy to Chat</button>
+</div>
 <div class="meta">Scanned docs: ${totalDocsScanned} | Broken references: ${findings.length}</div>
 
 <h2 class="pass">Pass 1 - Discovery (What and Where)</h2>
@@ -382,10 +432,60 @@ code{font-family:var(--vscode-editor-font-family)}
 ${sections || '<p>No broken references found.</p>'}
 <script>
 const vscode = acquireVsCodeApi();
+const btnCopyClip = document.getElementById('btn-copy-clip');
+const btnCopyChat = document.getElementById('btn-copy-chat');
+if (btnCopyClip) { btnCopyClip.addEventListener('click',()=>vscode.postMessage({type:'copy-report-clipboard'})); }
+if (btnCopyChat) { btnCopyChat.addEventListener('click',()=>vscode.postMessage({type:'copy-report-chat'})); }
 document.querySelectorAll('button.src').forEach((btn)=>btn.addEventListener('click',()=>vscode.postMessage({type:'open',path:btn.dataset.path})));
 document.querySelectorAll('button.cand').forEach((btn)=>btn.addEventListener('click',()=>vscode.postMessage({type:'open',path:btn.dataset.path})));
 </script>
 </body></html>`;
+}
+
+function buildPlainReportText(findings: Finding[], totalDocsScanned: number, rollups: ProjectRollup[]): string {
+  const lines: string[] = [];
+  lines.push('Broken References');
+  lines.push(`Scanned docs: ${totalDocsScanned} | Broken references: ${findings.length}`);
+  lines.push('');
+
+  lines.push('Pass 1 - Discovery');
+  for (const r of rollups.slice().sort((a, b) => b.brokenTotal - a.brokenTotal)) {
+    lines.push(`- ${r.projectName}: docs=${r.docsScanned}, broken=${r.brokenTotal}, links=${r.byKind.link}, images=${r.byKind.image}, doc-ids=${r.byKind['doc-id']}`);
+  }
+  lines.push('');
+
+  lines.push('Pass 2 - Prioritization');
+  const prioritized = rollups
+    .slice()
+    .sort((a, b) => b.brokenTotal - a.brokenTotal)
+    .filter((r) => r.brokenTotal > 0);
+  for (const r of prioritized) {
+    const tops = r.sourceFileCounts.slice(0, 5).map((f) => `${path.basename(f.filePath)} (${f.count})`).join(', ');
+    lines.push(`- ${r.projectName}: broken=${r.brokenTotal}, withCandidates=${r.withCandidates}, withoutCandidates=${r.withoutCandidates}, topFiles=${tops || '-'}`);
+  }
+  lines.push('');
+
+  lines.push('Detailed Findings');
+  const grouped = new Map<string, Finding[]>();
+  for (const finding of findings) {
+    if (!grouped.has(finding.projectName)) { grouped.set(finding.projectName, []); }
+    grouped.get(finding.projectName)!.push(finding);
+  }
+
+  for (const [projectName, items] of [...grouped.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    lines.push(`${projectName} (${items.length})`);
+    for (const item of items) {
+      lines.push(`${path.basename(item.filePath)}:${item.line} | ${item.kind} | ${item.target}`);
+      if (item.candidates.length > 0) {
+        lines.push(`  candidates: ${item.candidates.join(' | ')}`);
+      } else {
+        lines.push('  candidates: none');
+      }
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }
 
 async function scanBrokenRefs(): Promise<void> {
@@ -455,8 +555,7 @@ async function scanBrokenRefs(): Promise<void> {
           continue;
         }
 
-        const localCandidates = fileNameCandidates(resolved, projectFiles);
-        const candidates = localCandidates.length ? localCandidates : fileNameCandidates(resolved, allFiles);
+        const candidates = fileNameCandidates(resolved, docPath, projectFiles, allFiles);
 
         findings.push({
           projectName: proj.projectName,
@@ -486,6 +585,20 @@ async function scanBrokenRefs(): Promise<void> {
     });
     panel.onDidDispose(() => { panel = undefined; });
     panel.webview.onDidReceiveMessage(async (msg) => {
+      if (msg?.type === 'copy-report-clipboard') {
+        await vscode.env.clipboard.writeText(latestReportText || '');
+        vscode.window.showInformationMessage('Broken references report copied to clipboard.');
+        return;
+      }
+      if (msg?.type === 'copy-report-chat') {
+        const sent = await sendToCopilotChat(latestReportText || '');
+        if (sent) {
+          vscode.window.showInformationMessage('Broken references report sent to Copilot Chat.');
+        } else {
+          vscode.window.showInformationMessage('Broken references report is on clipboard. Press Ctrl+V in Copilot Chat.');
+        }
+        return;
+      }
       if (msg?.type !== 'open' || !msg.path) {
         return;
       }
@@ -504,6 +617,7 @@ async function scanBrokenRefs(): Promise<void> {
     });
   }
 
+  latestReportText = buildPlainReportText(findings, totalDocsScanned, rollups);
   panel.webview.html = buildViewerHtml(findings, totalDocsScanned, rollups);
   panel.reveal(vscode.ViewColumn.One);
 

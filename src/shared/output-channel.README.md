@@ -1,12 +1,13 @@
 ---
-subject: 150.7
+docid: 150.1
+dewey: 150.1
 id: feature-sharedoutput-channelts
 title: feature: shared/output-channel.ts
 project: cielovista-tools
 description: Single shared OutputChannel for the entire CieloVista Tools extension. Every feature writes here. Nobody creates their own channel. Why one channel…
 status: active
 tags: [output, channel, readme]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

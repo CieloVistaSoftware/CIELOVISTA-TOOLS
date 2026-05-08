@@ -1,10 +1,13 @@
 ---
-subject: 150.9
+dewey: 150.9
+category: 150.9 — Meta
+docid: 150.9
 id: cielovista-docs-audit-report
 title: CieloVista Docs Audit Report
 project: cielovista-tools
 description: - C:\Users\jwpmi\Downloads\CieloVistaStandards\CLAUDE.md (global, 1099 bytes) - C:\dev\vscode-claude\CLAUDE.md (vscode-claude, 1537 bytes) - C:\dev\wb-core\CLAUDE.md (wb-core, 1353 bytes)
 status: draft
+relativePath: docs/audit-full-2026-05-05.md
 ---
 # CieloVista Docs Audit Report
 

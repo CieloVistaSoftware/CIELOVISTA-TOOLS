@@ -1,12 +1,13 @@
 ---
-subject: 150.3
+docid: 150.9
+dewey: 150.9
 id: view-a-doc-manual-test-procedure
 title: View a Doc — Manual Test Procedure
 project: cielovista-tools
 description: Objective: Verify that View a Doc opens a browser and all links are clickable.
 status: active
 tags: [test, view, doc]
-category: 400 — Testing & Quality
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

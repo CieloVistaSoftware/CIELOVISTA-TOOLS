@@ -1,12 +1,13 @@
 ---
-subject: 150.6
+docid: 150.6
+dewey: 150.6
 id: changelog-cielovista-tools
 title: Changelog — cielovista-tools
 project: cielovista-tools
 description: All notable changes to this project are documented here.
 status: active
 tags: [changelog, cielovistatools, unreleased]
-category: 300 — Dev Workflow & Process
+category: 150.6 — Release & Deployment
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

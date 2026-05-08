@@ -1,12 +1,13 @@
 ---
-subject: 150.5
+docid: 150.1
+dewey: 150.1
 id: feature-terminal-prompt-shortenerts
 title: feature: terminal-prompt-shortener.ts
 project: cielovista-tools
 description: Toggles the PowerShell terminal prompt between its full path form (PS C:\very\long\nested\path>) and a minimal single-character form (>). Useful wh…
 status: active
 tags: [terminal, prompt, shortener]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

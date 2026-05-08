@@ -54,9 +54,36 @@ function parseFrontmatter(lines: string[]): { block: string; startAt: number } {
         .map(l => l.match(/^([^:]+):\s*(.*)$/))
         .filter(Boolean) as RegExpMatchArray[];
     if (pairs.length === 0) { return { block: '', startAt: end + 1 }; }
-    const rows = pairs.map(([, k, v]) => {
-        const label = k.trim().replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        return `<div class="fm-row"><span class="fm-label">${esc(label)}</span><span class="fm-value">${esc(v.trim())}</span></div>`;
+
+    const fields = pairs.map(([, k, v]) => ({ key: k.trim().toLowerCase(), value: v.trim() }));
+
+    const docIdIdx = fields.findIndex((f) => f.key === 'docid' || f.key === 'subject');
+    const categoryIdx = fields.findIndex((f) => f.key === 'category');
+    if (docIdIdx >= 0 && categoryIdx >= 0 && categoryIdx !== docIdIdx + 1) {
+        const [categoryField] = fields.splice(categoryIdx, 1);
+        const insertAt = Math.min(docIdIdx + 1, fields.length);
+        fields.splice(insertAt, 0, categoryField);
+    }
+
+    const hasType = fields.some((f) => f.key === 'type' || f.key === 'doctype' || f.key === 'kind');
+    if (!hasType) {
+        const insertAt = docIdIdx >= 0 ? Math.min(docIdIdx + 1, fields.length) : 0;
+        fields.splice(insertAt, 0, { key: 'type', value: 'FEATURE' });
+    }
+
+    const projectIdx = fields.findIndex((f) => f.key === 'project');
+    const relPathIdx = fields.findIndex((f) => f.key === 'relativepath');
+    if (projectIdx >= 0 && relPathIdx >= 0 && relPathIdx !== projectIdx + 1) {
+        const [relativePathField] = fields.splice(relPathIdx, 1);
+        const insertAt = Math.min(projectIdx + 1, fields.length);
+        fields.splice(insertAt, 0, relativePathField);
+    }
+
+    const rows = fields.map((field) => {
+        const labelCore = (field.key === 'docid' || field.key === 'subject')
+            ? 'Doc Id'
+            : field.key.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `<div class="fm-row"><span class="fm-label">${esc(labelCore)}:</span><span class="fm-value">${esc(field.value)}</span></div>`;
     }).join('');
     const block = `<div class="fm-block">${rows}</div>`;
     return { block, startAt: end + 1 };

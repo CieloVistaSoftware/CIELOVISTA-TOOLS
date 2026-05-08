@@ -364,6 +364,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 async function showPanel(): Promise<void> {
+    const startedAt = Date.now();
+    log(FEATURE, 'Code highlight audit started.');
     await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'Scanning docs for untagged code blocks…', cancellable: false },
         async () => {
@@ -410,7 +412,8 @@ async function showPanel(): Promise<void> {
                 });
             }
 
-            log(FEATURE, `Code highlight audit: ${blocks.length} untagged blocks in ${scannedFiles} files`);
+            const elapsedMs = Date.now() - startedAt;
+            log(FEATURE, `Code highlight audit complete: ${blocks.length} untagged blocks in ${scannedFiles} files (${elapsedMs}ms)`);
         }
     );
 }

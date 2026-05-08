@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: feature-docs-broken-refsts
 title: feature: docs-broken-refs.ts
 project: cielovista-tools
 description: Scans markdown docs across all registered projects and reports broken image and markdown links. The report includes likely candidate files by filen…
 status: active
 tags: [docs, broken, refs]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-24
 updated: 2026-04-27
 version: 1.0.0

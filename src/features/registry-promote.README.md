@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: registry-promote
 title: registry-promote
 project: cielovista-tools
 description: Register a folder as a CieloVista product. One-click alternative to hand-editing project-registry.json.
 status: active
 tags: [registry, promote, readme]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

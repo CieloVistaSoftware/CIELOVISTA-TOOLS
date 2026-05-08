@@ -1,12 +1,13 @@
 ---
-subject: 150.3
+docid: 150.3
+dewey: 150.3
 id: test-coverage-audit
 title: Test Coverage Audit
 project: cielovista-tools
 description: Date: 2026-03-31 11:57:20 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)
 status: active
 tags: [test, coverage, audit]
-category: 400 — Testing & Quality
+category: 150.3 — Testing
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

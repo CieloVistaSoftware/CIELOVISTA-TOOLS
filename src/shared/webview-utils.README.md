@@ -1,12 +1,13 @@
 ---
-subject: 150.7
+docid: 150.1
+dewey: 150.1
 id: feature-sharedwebview-utilsts
 title: feature: shared/webview-utils.ts
 project: cielovista-tools
 description: Shared helpers for building VS Code Webview panel HTML. Any feature that opens a Webview imports from here. No feature rolls its own HTML boilerpla…
 status: active
 tags: [webview, utils, readme]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

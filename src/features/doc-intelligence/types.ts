@@ -6,15 +6,20 @@
  */
 
 export type FindingKind =
-    | 'exact-duplicate'  // byte-for-byte identical content (hash match)
-    | 'folder-duplicate' // entire folder is an exact copy of another folder
-    | 'duplicate'        // same filename, ≥50% similar content
-    | 'similar'          // different name, ≥65% Jaccard overlap
-    | 'misplaced'        // project doc that belongs in global standards
-    | 'orphan'           // no other doc links to this file
+    | 'exact-duplicate'   // byte-for-byte identical content (hash match)
+    | 'folder-duplicate'  // entire folder is an exact copy of another folder
+    | 'duplicate'         // same filename, ≥50% similar content
+    | 'similar'           // different name, ≥65% Jaccard overlap
+    | 'misplaced'         // project doc that belongs in global standards
+    | 'orphan'            // no other doc links to this file
     | 'missing-readme'
     | 'missing-claude'
-    | 'missing-changelog';
+    | 'missing-changelog'
+    | 'subject-mismatch'  // subject: hundreds digit ≠ project's Dewey prefix
+    | 'test-artifact'     // test-results / playwright-report folder — safe to delete
+    | 'stale-doc'         // status:active, not modified in 90+ days
+    | 'draft-rot'         // status:draft, not updated in 30+ days
+    | 'thin-description'; // description missing, < 20 chars, or identical to title
 
 export type FindingSeverity = 'red' | 'yellow' | 'info';
 
@@ -77,6 +82,15 @@ export interface ProjectEntry {
     path:        string;
     type:        string;
     description: string;
+    dewey?:      number;
+}
+
+export interface ArtifactFolder {
+    folderPath:  string;
+    folderName:  string;
+    projectName: string;
+    fileCount:   number;
+    sizeBytes:   number;
 }
 
 export interface ProjectRegistry {
@@ -94,4 +108,10 @@ export interface DocFile {
     normalized:  string;
     hash:        string;
     mtime:       number;
+    // parsed from frontmatter
+    fmStatus?:      string;
+    fmDescription?: string;
+    fmDewey?:       string;
+    fmTitle?:       string;
+    fmCategory?:    string;
 }

@@ -65,7 +65,7 @@ function toRelativePath(filePath: string, projectRoot: string): string {
     return path.relative(projectRoot, filePath).replace(/\\/g, '/');
 }
 const REQUIRED_FIELDS = ['title', 'description', 'project', 'category', 'relativePath', 'created', 'updated', 'author', 'status', 'tags'];
-const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', 'reports', '.vscode']);
+const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', 'reports', '.vscode', '.vscode-test', '.claude', 'CommandHelp', 'image-reader-assets']);
 function scanDirectory(rootPath: string, projectName: string, projectRoot: string, maxDepth = 4): DocHeaderReport[] {
     const results: DocHeaderReport[] = [];
     function walk(dir: string, depth: number): void {

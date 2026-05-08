@@ -34,11 +34,11 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../../shared/output-channel';
-import { collectDocs }   from './scanner';
+import { collectArtifactFolders, collectDocs } from './scanner';
 import { analyze }       from './analyzer';
 import { buildDashboardHtml } from './html';
 import type {
-    Finding, IntelligenceReport,
+    ArtifactFolder, Finding, IntelligenceReport,
     ProjectRegistry,
 } from './types';
 
@@ -81,16 +81,18 @@ async function runScan(): Promise<IntelligenceReport | undefined> {
 
             progress.report({ message: 'Collecting global docs…' });
             const allDocs = collectDocs(registry.globalDocsPath, 'global');
+            const artifactFolders: ArtifactFolder[] = [];
 
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}…` });
                 if (fs.existsSync(project.path)) {
                     allDocs.push(...collectDocs(project.path, project.name));
+                    artifactFolders.push(...collectArtifactFolders(project.path, project.name));
                 }
             }
 
             progress.report({ message: 'Analyzing…' });
-            const findings = analyze({ allDocs, projects: registry.projects, globalDocsPath: registry.globalDocsPath });
+            const findings = analyze({ allDocs, projects: registry.projects, globalDocsPath: registry.globalDocsPath, artifactFolders });
 
             const summary = {
                 red:    findings.filter(f => f.severity === 'red').length,
@@ -382,6 +384,28 @@ function showPanel(report: IntelligenceReport): void {
                 break;
             }
 
+            case 'openFolder': {
+                const fp = msg.paths?.[0];
+                if (fp) {
+                    const folder = fs.existsSync(fp) && fs.statSync(fp).isDirectory() ? fp : path.dirname(fp);
+                    await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(folder));
+                }
+                _panel?.webview.postMessage({ type: 'done' });
+                break;
+            }
+
+            case 'copyChat': {
+                const paths: string[] = msg.paths ?? [];
+                if (!paths.length) { break; }
+                const text = paths.join('\n');
+                await vscode.env.clipboard.writeText(text);
+                try {
+                    await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+                } catch { /* Copilot not available — clipboard fallback is enough */ }
+                _panel?.webview.postMessage({ type: 'done' });
+                break;
+            }
+
             case 'diffPair': {
                 const [a, b] = msg.paths ?? [];
                 if (a && b && fs.existsSync(a) && fs.existsSync(b)) {
@@ -437,6 +461,37 @@ function showPanel(report: IntelligenceReport): void {
                     void vscode.window.showErrorMessage(`Failed to delete duplicates: ${String(err)}`);
                 }
                 _panel?.webview.postMessage({ type: 'done' });
+                break;
+            }
+
+            case 'fixMismatches': {
+                const { findingId: fmid, fixes } = msg as { findingId: string; fixes: Array<{ filePath: string; field: 'subject' | 'category'; value: string }> };
+                if (!fixes?.length) { _panel?.webview.postMessage({ type: 'done' }); break; }
+                let fixed = 0;
+                for (const fix of fixes) {
+                    try {
+                        if (!fs.existsSync(fix.filePath)) { continue; }
+                        const original = fs.readFileSync(fix.filePath, 'utf8');
+                        // support both dewey: (new) and subject: (old) field names
+                        const fieldName = fix.field === 'subject'
+                            ? (original.match(/^dewey:/m) ? 'dewey' : 'subject')
+                            : fix.field;
+                        const pattern  = new RegExp(`^(${fieldName}:\\s*).*$`, 'm');
+                        const updated  = original.replace(pattern, `$1${fix.value}`);
+                        if (updated !== original) {
+                            fs.writeFileSync(fix.filePath, updated, 'utf8');
+                            log(FEATURE, `Fixed ${fix.field} in: ${fix.filePath} → ${fix.value}`);
+                            fixed++;
+                        }
+                    } catch (err) {
+                        logError(`Failed to fix ${fix.field} in ${fix.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                    }
+                }
+                const finding = _report?.findings.find(f => f.id === fmid);
+                if (finding) { finding.decision = 'accepted'; }
+                _panel?.webview.postMessage({ type: 'decision', id: fmid, decision: 'accepted' });
+                _panel?.webview.postMessage({ type: 'done' });
+                vscode.window.showInformationMessage(`Updated ${fixed} doc${fixed !== 1 ? 's' : ''}.`);
                 break;
             }
 

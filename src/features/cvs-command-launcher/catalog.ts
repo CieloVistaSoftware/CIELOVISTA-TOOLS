@@ -121,6 +121,11 @@ const RAW_CATALOG: CmdEntry[] = [
         'Dewey: 700.003'
     ].join('\n') },
 
+    { id: 'cvs.tools.cleanWorktrees',    title: 'Tools: Clean Claude Worktrees',  description: 'List and remove stale Claude Code worktrees (.claude/worktrees/).', tags: ['tools', 'claude', 'worktrees', 'clean', 'git'], group: 'Other Tools', groupIcon: '🧰', dewey: '700.021', scope: 'global', location: 'features/worktree-cleaner.ts' },
+    { id: 'cvs.playwright.run',          title: 'Playwright: Run Tests',          description: 'Select and run Playwright test files in headed mode.',               tags: ['playwright', 'test', 'run', 'e2e'],                    group: 'Other Tools', groupIcon: '🧰', dewey: '700.022', scope: 'global', location: 'features/playwright-runner.ts' },
+    { id: 'cvs.playwright.stop',         title: 'Playwright: Stop Tests',         description: 'Kill the running Playwright test process.',                          tags: ['playwright', 'test', 'stop', 'kill'],                  group: 'Other Tools', groupIcon: '🧰', dewey: '700.023', scope: 'global', location: 'features/playwright-runner.ts' },
+    { id: 'cvs.playwright.cleanResults', title: 'Playwright: Clean Test Results', description: 'Delete all test-results and playwright-report folders across registered projects.', tags: ['playwright', 'clean', 'results', 'artifacts'], group: 'Other Tools', groupIcon: '🧰', dewey: '700.024', scope: 'global', location: 'features/playwright-runner.ts' },
+
     { id: 'cvs.tools.regressionLog', title: 'Tools: Regression Log Viewer',         description: 'Open the regression log viewer - review regressions, file each as a GitHub issue, mark fixed with release version.', tags: ['regression', 'log', 'viewer', 'tests', 'qa', 'issue'],  group: 'Other Tools', groupIcon: '🧰', dewey: '700.004', scope: 'global',     location: 'features/regression-log-viewer.ts', runTooltip: [
         'What happens when you run this:',
         '- Opens the Regression Log Viewer webview panel.',

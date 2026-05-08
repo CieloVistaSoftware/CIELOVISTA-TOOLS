@@ -17,7 +17,7 @@
 import * as crypto from 'crypto';
 import * as fs     from 'fs';
 import * as path   from 'path';
-import type { DocFile, Finding, ProjectEntry } from './types';
+import type { ArtifactFolder, DocFile, Finding, ProjectEntry } from './types';
 
 let _findingSeq = 0;
 function nextId(): string { return `fi-${++_findingSeq}`; }
@@ -142,12 +142,13 @@ const ROOT_STANDARD_FILES = new Set([
 // ─── Main analysis ────────────────────────────────────────────────────────────
 
 export interface AnalysisInput {
-    allDocs:         DocFile[];
-    projects:        ProjectEntry[];
-    globalDocsPath?: string;
+    allDocs:          DocFile[];
+    projects:         ProjectEntry[];
+    globalDocsPath?:  string;
+    artifactFolders?: ArtifactFolder[];
 }
 
-export function analyze({ allDocs, projects, globalDocsPath }: AnalysisInput): Finding[] {
+export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: AnalysisInput): Finding[] {
     _findingSeq = 0;
     const findings: Finding[] = [];
     const projectRoots = new Set<string>(projects.map(p => p.path));
@@ -253,11 +254,11 @@ export function analyze({ allDocs, projects, globalDocsPath }: AnalysisInput): F
             if (nestedCopies.length > 0 && rootCopies.length > 0) {
                 findings.push({
                     id: nextId(), kind: 'duplicate', severity: 'yellow',
-                    title: `Duplicate: ${fn} — nested copy outside project root`,
-                    reason: `Root-level copies are expected. Nested copies found in: ${nestedCopies.map(f => f.projectName).join(', ')}`,
-                    recommendation: `Root-level ${fn} files are intentional. Review and remove the nested copies.`,
-                    action: 'merge', paths: [...rootCopies, ...nestedCopies].map(f => f.filePath),
-                    projects: [...new Set(files.map(f => f.projectName))], priority: 50, meta: { copies: files.length },
+                    title: `Nested ${fn} — ${nestedCopies.length} cop${nestedCopies.length === 1 ? 'y' : 'ies'} outside project root`,
+                    reason: `Root-level ${fn} files are intentional. Found ${nestedCopies.length} nested cop${nestedCopies.length === 1 ? 'y' : 'ies'} in: ${nestedCopies.map(f => f.projectName).join(', ')}`,
+                    recommendation: `Delete the nested cop${nestedCopies.length === 1 ? 'y' : 'ies'} — root-level ${fn} files are the canonical source.`,
+                    action: 'delete-file', paths: nestedCopies.map(f => f.filePath),
+                    projects: [...new Set(nestedCopies.map(f => f.projectName))], priority: 50, meta: { copies: nestedCopies.length },
                 });
                 continue;
             }
@@ -367,6 +368,112 @@ export function analyze({ allDocs, projects, globalDocsPath }: AnalysisInput): F
                 recommendation: `Run "Fix All Marketplace Issues" to auto-generate a CHANGELOG.`,
                 action: 'create', paths: [path.join(project.path, 'CHANGELOG.md')], projects: [project.name], priority: 55 });
         }
+    }
+
+    // ── 8. Test artifact folders ──────────────────────────────────────────────
+    for (const af of artifactFolders ?? []) {
+        const fmtSize = fmtBytes(af.sizeBytes);
+        findings.push({
+            id: nextId(), kind: 'test-artifact', severity: 'info',
+            title: `Test artifacts: ${af.projectName}/${af.folderName} — ${af.fileCount} file${af.fileCount !== 1 ? 's' : ''}`,
+            reason: `${af.folderPath} is a generated Playwright output folder (${fmtSize}). Not real documentation.`,
+            recommendation: `Safe to delete after reviewing any test failures. Run "Playwright: Clean Test Results" to remove all at once.`,
+            action: 'delete-folder',
+            paths: [af.folderPath],
+            projects: [af.projectName],
+            priority: 30,
+            wastedBytes: af.sizeBytes,
+            meta: { files: af.fileCount, wastedBytes: af.sizeBytes, wastedFmt: fmtSize },
+        });
+    }
+
+    // ── 9. Subject/category misalignment ─────────────────────────────────────
+    // category: "700 — Project Docs" → leading number 700
+    // subject:  "300.9"              → hundreds 300
+    // Rule: the subject number must live inside the category's assigned range.
+
+    const mismatches: Array<{ filePath: string; fileName: string; projectName: string; dewey: string; category: string; proposed: string }> = [];
+
+    for (const doc of allDocs) {
+        if (!doc.fmDewey || !doc.fmCategory) { continue; }
+        const subjectNum = parseFloat(doc.fmDewey);
+        if (isNaN(subjectNum)) { continue; }
+        const subjectHundreds = Math.floor(subjectNum / 100) * 100;
+        const catMatch = doc.fmCategory.match(/^(\d+)/);
+        if (!catMatch) { continue; }
+        const categoryNum = parseInt(catMatch[1], 10);
+        if (subjectHundreds === categoryNum) { continue; }
+        const label    = doc.fmCategory.replace(/^\d+\s*[—\-]\s*/, '');
+        const proposed = `${subjectHundreds} — ${label}`;
+        mismatches.push({ filePath: doc.filePath, fileName: doc.fileName, projectName: doc.projectName, dewey: doc.fmDewey, category: doc.fmCategory, proposed });
+    }
+
+    if (mismatches.length > 0) {
+        findings.push({
+            id:             nextId(),
+            kind:           'subject-mismatch',
+            severity:       'red',
+            title:          `Subject/category mismatch — ${mismatches.length} doc${mismatches.length !== 1 ? 's' : ''}`,
+            reason:         `${mismatches.length} doc${mismatches.length !== 1 ? 's have' : ' has'} a category number that doesn't match the subject prefix`,
+            recommendation: `Update each category field to start with the subject's hundreds digit.`,
+            action:         'none',
+            paths:          mismatches.map(m => m.filePath),
+            projects:       [...new Set(mismatches.map(m => m.projectName))],
+            priority:       80,
+            meta:           { count: mismatches.length, mismatches: JSON.stringify(mismatches) },
+        });
+    }
+
+    // ── 10. Stale docs (status:active, untouched 90+ days) ───────────────────
+    const STALE_MS  = 90 * 24 * 60 * 60 * 1000;
+    const DRAFT_MS  = 30 * 24 * 60 * 60 * 1000;
+    const now       = Date.now();
+
+    for (const doc of allDocs) {
+        const age = now - doc.mtime;
+        if (doc.fmStatus === 'active' && age > STALE_MS) {
+            const days = Math.floor(age / (24 * 60 * 60 * 1000));
+            findings.push({
+                id: nextId(), kind: 'stale-doc', severity: 'yellow',
+                title: `Stale doc: ${doc.projectName}/${doc.fileName} — ${days} days`,
+                reason: `Marked status:active but not modified in ${days} days`,
+                recommendation: `Review and update, or change status to draft or archived if no longer relevant.`,
+                action: 'open', paths: [doc.filePath], projects: [doc.projectName], priority: 22,
+            });
+        }
+    }
+
+    // ── 11. Draft rot (status:draft, untouched 30+ days) ─────────────────────
+    for (const doc of allDocs) {
+        const age = now - doc.mtime;
+        if (doc.fmStatus === 'draft' && age > DRAFT_MS) {
+            const days = Math.floor(age / (24 * 60 * 60 * 1000));
+            findings.push({
+                id: nextId(), kind: 'draft-rot', severity: 'yellow',
+                title: `Draft rot: ${doc.projectName}/${doc.fileName} — ${days} days`,
+                reason: `Stuck in draft for ${days} days — never promoted to active`,
+                recommendation: `Either finish and promote to status:active, or archive it if no longer needed.`,
+                action: 'open', paths: [doc.filePath], projects: [doc.projectName], priority: 18,
+            });
+        }
+    }
+
+    // ── 12. Thin/missing description ──────────────────────────────────────────
+    for (const doc of allDocs) {
+        const desc  = (doc.fmDescription ?? '').trim();
+        const title = (doc.fmTitle ?? '').trim().toLowerCase();
+        const isThin = !desc || desc.length < 20 || desc.toLowerCase() === title;
+        if (!isThin) { continue; }
+        const reason = !desc ? 'description field is missing'
+                     : desc.length < 20 ? `description is too short (${desc.length} chars)`
+                     : 'description is identical to the title';
+        findings.push({
+            id: nextId(), kind: 'thin-description', severity: 'yellow',
+            title: `Thin description: ${doc.projectName}/${doc.fileName}`,
+            reason,
+            recommendation: `Add a meaningful one-line description (20–200 chars) explaining what this doc covers.`,
+            action: 'open', paths: [doc.filePath], projects: [doc.projectName], priority: 15,
+        });
     }
 
     findings.sort((a, b) => b.priority - a.priority);

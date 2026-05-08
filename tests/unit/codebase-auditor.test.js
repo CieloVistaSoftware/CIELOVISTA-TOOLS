@@ -331,6 +331,48 @@ test('shared/ files are not checked for inline patterns', () => {
     eq(t.checkSharedUtilUsage([f]).length, 0);
 });
 
+// ═══════════════════════════════════════════════════════════
+// checkFolderDuplicateCode()
+// ═══════════════════════════════════════════════════════════
+console.log('\n-- checkFolderDuplicateCode() --');
+
+test('duplicate blocks in same folder are flagged', () => {
+    const block = [
+        'function computeUserSummary(user, stats) {',
+        'const base = user.name + "-" + user.id;',
+        'const score = stats.a + stats.b + stats.c + stats.d;',
+        'const normalized = String(score).trim().toLowerCase();',
+        'const decorated = base + ":" + normalized + ":" + user.team;',
+        'return decorated.replace(/\\s+/g, "-");',
+        '}',
+    ].join('\n');
+
+    const a = makeFile('features/doc-intelligence/a.ts', block + '\nexport function a(){ return 1; }');
+    const b = makeFile('features/doc-intelligence/b.ts', block + '\nexport function b(){ return 2; }');
+    const findings = t.checkFolderDuplicateCode([a, b]);
+
+    ok(findings.length >= 1, 'Expected duplicate folder finding');
+    ok(findings.some((f) => f.category === 'Folder Duplicate Code'));
+});
+
+test('same block in different folders is not flagged', () => {
+    const block = [
+        'function normalizePayload(payload) {',
+        'const one = payload.one + payload.two + payload.three;',
+        'const two = payload.four + payload.five + payload.six;',
+        'const all = String(one + two).toLowerCase().trim();',
+        'const tag = payload.kind + ":" + payload.group + ":" + all;',
+        'return tag.replace(/\\s+/g, "-");',
+        '}',
+    ].join('\n');
+
+    const a = makeFile('features/doc-intelligence/a.ts', block + '\nexport function a(){ return 1; }');
+    const b = makeFile('shared/utility/b.ts', block + '\nexport function b(){ return 2; }');
+    const findings = t.checkFolderDuplicateCode([a, b]);
+
+    eq(findings.length, 0, 'Cross-folder duplicates should not trigger folder-level finding');
+});
+
 // Cleanup
 fs.rmSync(TMP, { recursive: true, force: true });
 

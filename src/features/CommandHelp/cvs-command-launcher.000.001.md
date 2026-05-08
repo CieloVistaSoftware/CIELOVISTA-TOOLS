@@ -1,12 +1,13 @@
 ---
-subject: 150.1
+docid: 150.1
+dewey: 150.1
 id: 000001-cielovista-tools-home
 title: 000.001 — CieloVista Tools — Home
 project: cielovista-tools
 description: Command ID: cvs.tools.home
 status: active
 tags: [cvs, command, launcher]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

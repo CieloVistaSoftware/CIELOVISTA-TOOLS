@@ -276,6 +276,7 @@ function buildRequiredFrontmatter(
 const REQUIRED_FIELDS = ['title', 'description', 'project', 'category', 'relativePath', 'created', 'updated', 'author', 'status', 'tags'];
 const SKIP_DIRS = new Set([
     'node_modules', '.git', 'out', 'dist', 'reports', '.vscode',
+    '.claude', '.vscode-test',
     'bin', 'obj', 'build', 'coverage', 'test-results', 'playwright-report',
     '.next', '.nuxt', '.cache', 'tmp', 'temp', '.venv', 'venv', '__pycache__',
 ]);

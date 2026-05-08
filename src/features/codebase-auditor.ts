@@ -14,6 +14,7 @@
  *      (loadRegistry, esc(), REGISTRY_PATH constants, etc.)
  *   7. SHARED UTILS USAGE — code that should use shared/ helpers but doesn't
  *   8. DEAD FILES        — .ts files that are never imported anywhere
+ *   9. FOLDER DUPLICATES — duplicated code blocks across files in the same folder
  *
  * Command: cvs.audit.codebase
  */
@@ -22,6 +23,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
+import { sendToCopilotChat } from './terminal-copy-output';
 
 const FEATURE      = 'codebase-auditor';
 const FEATURES_DIR = path.join(__dirname, '..', 'src', 'features');
@@ -373,6 +375,80 @@ function checkDeadFiles(files: FileInfo[]): Finding[] {
     return findings;
 }
 
+/** 9. Folder-level duplicate code blocks across files */
+function checkFolderDuplicateCode(files: FileInfo[]): Finding[] {
+    const findings: Finding[] = [];
+    const MIN_WINDOW_LINES = 6;
+    const MIN_WINDOW_CHARS = 120;
+
+    const byFolder = new Map<string, FileInfo[]>();
+    for (const f of files) {
+        const folder = path.dirname(f.rel).replace(/\\/g, '/');
+        if (!byFolder.has(folder)) { byFolder.set(folder, []); }
+        byFolder.get(folder)!.push(f);
+    }
+
+    for (const [folder, folderFiles] of byFolder) {
+        if (folderFiles.length < 2) { continue; }
+
+        const blockMap = new Map<string, Array<{ file: string; line: number }>>();
+
+        for (const f of folderFiles) {
+            const normalized: Array<{ text: string; line: number }> = [];
+            for (let i = 0; i < f.lineArr.length; i++) {
+                const raw = f.lineArr[i]
+                    .replace(/\/\/.*$/, '')
+                    .replace(/^\s*export\s+/, '')
+                    .trim();
+                if (!raw) { continue; }
+                if (raw.startsWith('import ')) { continue; }
+                if (raw === '{' || raw === '}' || raw === '};') { continue; }
+                normalized.push({ text: raw, line: i + 1 });
+            }
+
+            for (let i = 0; i + MIN_WINDOW_LINES <= normalized.length; i++) {
+                const window = normalized.slice(i, i + MIN_WINDOW_LINES);
+                const key = window.map((w) => w.text).join('\n');
+                if (key.length < MIN_WINDOW_CHARS) { continue; }
+                if (!blockMap.has(key)) { blockMap.set(key, []); }
+
+                const occ = blockMap.get(key)!;
+                if (!occ.some((o) => o.file === f.rel)) {
+                    occ.push({ file: f.rel, line: window[0].line });
+                }
+            }
+        }
+
+        const duplicateBlocks = [...blockMap.entries()]
+            .map(([snippet, occ]) => ({ snippet, occ, files: new Set(occ.map((o) => o.file)) }))
+            .filter((row) => row.files.size >= 2);
+
+        if (duplicateBlocks.length === 0) { continue; }
+
+        const impactedFiles = new Set<string>();
+        for (const row of duplicateBlocks) {
+            for (const o of row.occ) { impactedFiles.add(o.file); }
+        }
+
+        const sample = duplicateBlocks[0];
+        const firstOcc = sample.occ[0];
+        const sev: Severity = duplicateBlocks.length >= 5 ? 'red' : 'yellow';
+
+        findings.push({
+            id: id('FOLDER-DUP'),
+            category: 'Folder Duplicate Code',
+            severity: sev,
+            file: firstOcc.file,
+            line: firstOcc.line,
+            action: 'extract',
+            title: `Duplicate code in folder: ${folder}`,
+            detail: `${folder} has ${duplicateBlocks.length} duplicated code block(s) across ${impactedFiles.size} file(s). Files: ${[...impactedFiles].sort().join(', ')}.`,
+        });
+    }
+
+    return findings;
+}
+
 // ─── HTML ─────────────────────────────────────────────────────────────────────
 
 function esc(s: string): string {
@@ -479,6 +555,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   ${info   > 0 ? `<span class="pill pill-info">ℹ️ ${info} info</span>` : ''}
   ${findings.length === 0 ? `<span class="pill pill-ok">✅ All clear</span>` : ''}
   <button class="rescan-btn" id="btn-rescan">↺ Rescan</button>
+  <button class="rescan-btn" id="btn-copy">📋 Copy</button>
+  <button class="rescan-btn" id="btn-chat">💬 Chat</button>
   <span class="meta">${scannedFiles} files · ${totalLines.toLocaleString()} lines · ${esc(scanDate)}</span>
 </div>
 
@@ -550,6 +628,29 @@ document.getElementById('btn-rescan').addEventListener('click',function(){
   vscode.postMessage({action:'rescan'});
 });
 
+// Build plain-text summary from visible finding cards
+function buildSummaryText(){
+  var lines=['🔬 Codebase Audit Results'];
+  document.querySelectorAll('.cat-section:not(.hidden)').forEach(function(sec){
+    var heading=sec.querySelector('.cat-heading');
+    if(heading){lines.push('','## '+heading.textContent.trim());}
+    sec.querySelectorAll('.finding-card:not(.hidden)').forEach(function(card){
+      var title=card.querySelector('.finding-title');
+      var detail=card.querySelector('.finding-detail');
+      if(title){lines.push('• '+title.textContent.trim());}
+      if(detail){lines.push('  '+detail.textContent.trim());}
+    });
+  });
+  return lines.join('\n');
+}
+
+document.getElementById('btn-copy').addEventListener('click',function(){
+  vscode.postMessage({action:'copy',text:buildSummaryText()});
+});
+document.getElementById('btn-chat').addEventListener('click',function(){
+  vscode.postMessage({action:'copy-chat',text:buildSummaryText()});
+});
+
 window.addEventListener('message',function(e){
   var m=e.data;
   if(m.type==='done'){showStatus('✅ '+m.text);}
@@ -574,6 +675,7 @@ function runScan(): { findings: Finding[]; files: FileInfo[] } {
         ...checkOneTimeOnePlace(files),
         ...checkSharedUtilUsage(files),
         ...checkDeadFiles(files),
+        ...checkFolderDuplicateCode(files),
     ];
     // Sort: red first, then yellow, then info; within severity by category
     findings.sort((a, b) => {
@@ -598,6 +700,7 @@ export const _test = {
     checkOneTimeOnePlace,
     checkSharedUtilUsage,
     checkDeadFiles,
+    checkFolderDuplicateCode,
     esc,
     runScan,
     SRC_DIR,
@@ -624,6 +727,17 @@ export async function runCodebaseAudit(): Promise<void> {
                 const lines  = result.files.reduce((n, f) => n + f.lines, 0);
                 panel.webview.html = buildAuditHtml(result.findings, result.files.length, lines);
                 panel.webview.postMessage({ type: 'done', text: `${result.findings.length} finding(s)` });
+                return;
+            }
+            if (msg.action === 'copy') {
+                await vscode.env.clipboard.writeText(msg.text ?? '');
+                panel.webview.postMessage({ type: 'done', text: 'Copied to clipboard' });
+                return;
+            }
+            if (msg.action === 'copy-chat') {
+                const sent = await sendToCopilotChat(msg.text ?? '');
+                panel.webview.postMessage({ type: 'done', text: sent ? 'Sent to Copilot Chat' : 'Copied to clipboard (chat unavailable)' });
+                if (!sent) { await vscode.env.clipboard.writeText(msg.text ?? ''); }
                 return;
             }
             if (msg.action === 'open') {

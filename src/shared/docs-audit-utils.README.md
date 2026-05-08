@@ -1,12 +1,13 @@
 ---
-subject: 150.7
+docid: 150.9
+dewey: 150.9
 id: feature-docs-audit-utilsts-developer-guide
 title: feature: docs-audit-utils.ts — Developer Guide
 project: cielovista-tools
 description: Shared pure utility functions and types for scanning, analyzing, and recommending actions for documentation health across all CieloVista projects a…
 status: active
 tags: [docs, audit, utils]
-category: 700 — Project Docs
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: regression-log-cielovista-tools
 title: Regression Log — CieloVista Tools
 project: cielovista-tools
 description: Every regression that has ever happened in this project is documented here. Read this at the start of every session before touching any code.
 status: active
 tags: [regression, log, cielovista]
-category: 700 — Project Docs
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

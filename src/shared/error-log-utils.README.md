@@ -1,12 +1,13 @@
 ---
-subject: 150.7
+docid: 150.1
+dewey: 150.1
 id: feature-sharederror-log-utilsts
 title: feature: shared/error-log-utils.ts
 project: cielovista-tools
 description: Persistent error tracking to a JSON file in the workspace. Errors are stored with a unique ID derived from their message. When the same error recur…
 status: active
 tags: [error, log, utils]
-category: 700 — Project Docs
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

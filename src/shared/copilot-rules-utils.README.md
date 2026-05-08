@@ -1,12 +1,13 @@
 ---
-subject: 150.5
+docid: 150.1
+dewey: 150.1
 id: feature-sharedcopilot-rules-utilsts
 title: feature: shared/copilot-rules-utils.ts
 project: cielovista-tools
 description: All business logic for reading, applying, and removing Copilot instruction rules. Three different extensions originally duplicated this logic (Rule…
 status: active
 tags: [copilot, rules, utils]
-category: 600 — Tools & Extensions
+category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0

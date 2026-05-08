@@ -1,12 +1,13 @@
 ---
-subject: 150.9
+docid: 150.9
+dewey: 150.9
 id: view-a-doc-current-design
 title: View a Doc — Current Design
 project: cielovista-tools
 description: The "View a Doc" feature provides a searchable, interactive catalog of documentation files (primarily Markdown) across all registered projects and …
 status: active
 tags: [viewadoc, view, current]
-category: 700 — Project Docs
+category: 150.9 — Meta
 created: 2026-04-22
 updated: 2026-04-27
 version: 1.0.0
