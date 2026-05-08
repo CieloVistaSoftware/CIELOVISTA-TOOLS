@@ -629,9 +629,8 @@ function buildReportHtml(reports: ReadmeReport[]): string {
             const copyText   = `${r.filePath}\nScore: ${r.score} (${scoreLabel(r.score)}) | Type: ${r.readmeType} | Lines: ${r.lineCount}\n${issueLines}`;
             const actionBtns = [
                 r.score < 80 && fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
-                r.score < 80 ? `<button class="btn-ai-row" data-action="ai-fix" data-path="${esc(r.filePath)}" data-type="${r.readmeType}">🤖 AI Fix</button>` : '',
                 r.score < 80 ? `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>` : '',
-                `<button class="btn-copy-row" data-action="copy-row" data-copy="${esc(copyText)}" title="Copy path and issues to clipboard">📋 Copy</button>`,
+                `<button class="btn-copy-row" data-action="copy-row" data-copy="${esc(copyText)}" title="Copy filename + issues to clipboard">📋 Copy</button>`,
             ].filter(Boolean).join('');
             const rowStatus = r.score >= 80 ? 'compliant' : r.score >= 60 ? 'partial' : 'non-compliant';
             return `<tr data-status="${rowStatus}">
@@ -687,8 +686,6 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 .action-col{display:flex;flex-direction:column;gap:4px;min-width:120px}
 .btn-fix-row{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;width:100%}
 .btn-fix-row:hover{background:var(--vscode-button-hoverBackground)}
-.btn-ai-row{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;width:100%}
-.btn-ai-row:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-open-row{background:transparent;color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
 .btn-open-row:hover{border-color:var(--vscode-focusBorder)}
 .btn-copy-row{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
@@ -730,7 +727,6 @@ document.addEventListener('click', e => {
   }
   if (action === 'open')        { vscode.postMessage({ command: 'open',       data: btn.dataset.path }); }
   if (action === 'fix')         { btn.textContent = '⏳ Loading diff…'; btn.disabled = true; vscode.postMessage({ command: 'fix', data: btn.dataset.path }); }
-  if (action === 'ai-fix')      { btn.textContent = '⏳ AI fixing…';    btn.disabled = true; vscode.postMessage({ command: 'aiFix', data: btn.dataset.path, readmeType: btn.dataset.type }); }
   if (action === 'fix-project') { vscode.postMessage({ command: 'fixProject', project: btn.dataset.proj }); }
   if (action === 'fix-all')     { vscode.postMessage({ command: 'fixAll' }); }
   if (action === 'rerun')       { vscode.postMessage({ command: 'rerun' }); }
@@ -773,7 +769,6 @@ window.addEventListener('message', e => {
   // Restore disabled buttons after fix completes
   if (msg.type === 'done' || msg.type === 'error') {
     document.querySelectorAll('.btn-fix-row').forEach(b => { b.textContent = '🔧 Review Fix'; b.disabled = false; });
-    document.querySelectorAll('.btn-ai-row') .forEach(b => { b.textContent = '🤖 AI Fix';    b.disabled = false; });
   }
 });
 function showStatus(text) {
