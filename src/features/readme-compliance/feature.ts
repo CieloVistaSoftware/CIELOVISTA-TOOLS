@@ -437,10 +437,16 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #issues ul{padding-left:16px;display:flex;flex-wrap:wrap;gap:4px 20px}
 #issues li{list-style:none}
 #diff-wrap{flex:1;overflow-y:auto;padding:12px 16px}
-/* Override diff2html to respect VS Code theme */
+/* Override diff2html to respect VS Code theme with high-contrast diff colors */
 .d2h-wrapper{font-family:var(--vscode-editor-font-family,monospace)!important;font-size:12px!important}
 .d2h-file-header{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-editor-foreground)!important}
 .d2h-code-linenumber{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-descriptionForeground)!important}
+.d2h-del,.d2h-del td{background:#3c1f1e!important;color:#ffa0a0!important}
+.d2h-ins,.d2h-ins td{background:#1b3a24!important;color:#a0ffb0!important}
+.d2h-del .d2h-code-linenumber{background:#5a2020!important;border-color:#7a2a2a!important}
+.d2h-ins .d2h-code-linenumber{background:#1e4a2a!important;border-color:#2a6a3a!important}
+.d2h-code-line del{background:rgba(255,80,80,0.35)!important;text-decoration:none}
+.d2h-code-line ins{background:rgba(80,220,100,0.35)!important;text-decoration:none}
 </style>
 </head>
 <body>
@@ -537,26 +543,17 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
                 fs.writeFileSync(report.filePath, after, 'utf8');
                 log(FEATURE, `Approved fix: ${report.filePath}`);
                 _diffPanel?.dispose();
-
-                // Count what changed
-                const addedLines   = unifiedDiff.split('\n').filter(l => l.startsWith('+')).length;
-                const removedLines = unifiedDiff.split('\n').filter(l => l.startsWith('-')).length;
-                const fixedIssues  = report.issues.filter(i => i.fixable);
-
-                // TODO: Show per-job output in a new webview (fix approved)
-
-                // Rescan and refresh compliance panel
+                const fixedIssues = report.issues.filter(i => i.fixable).length;
+                vscode.window.showInformationMessage(`✅ Fix written — ${report.fileName} (${fixedIssues} issue${fixedIssues !== 1 ? 's' : ''} resolved)`);
                 await runScan();
-
             } catch (err) {
                 logError(`Failed to write fix for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-                // TODO: Show per-job output in a new webview (fix failed)
+                vscode.window.showErrorMessage(`❌ Failed to write fix for ${report.fileName}: ${err instanceof Error ? err.message : String(err)}`);
             }
         }
         if (msg.command === 'ignore') {
             log(FEATURE, `Fix ignored: ${report.filePath}`);
             _diffPanel?.dispose();
-            // TODO: Show per-job output in a new webview (fix ignored)
         }
     });
 }
@@ -597,13 +594,14 @@ function buildReportHtml(reports: ReadmeReport[]): string {
             const issueHtml    = r.issues.length === 0
                 ? '<span style="color:var(--vscode-testing-iconPassed)">✅ No issues</span>'
                 : r.issues.map(i => `<div class="issue">${i.severity === 'error' ? '🔴' : i.severity === 'warning' ? '🟡' : 'ℹ️'} ${esc(i.message)}</div>`).join('');
-            const actionBtns = r.score >= 80
-                ? '<span style="color:var(--vscode-testing-iconPassed);font-size:11px">✅ Compliant</span>'
-                : [
-                    fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
-                    `<button class="btn-ai-row" data-action="ai-fix" data-path="${esc(r.filePath)}" data-type="${r.readmeType}">🤖 AI Fix</button>`,
-                    `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>`,
-                  ].filter(Boolean).join('');
+            const issueLines = r.issues.map(i => `  ${i.severity === 'error' ? '🔴' : i.severity === 'warning' ? '🟡' : 'ℹ️'} ${i.message}`).join('\n');
+            const copyText   = `${r.filePath}\nScore: ${r.score} (${scoreLabel(r.score)}) | Type: ${r.readmeType} | Lines: ${r.lineCount}\n${issueLines}`;
+            const actionBtns = [
+                r.score < 80 && fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
+                r.score < 80 ? `<button class="btn-ai-row" data-action="ai-fix" data-path="${esc(r.filePath)}" data-type="${r.readmeType}">🤖 AI Fix</button>` : '',
+                r.score < 80 ? `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>` : '',
+                `<button class="btn-copy-row" data-action="copy-row" data-copy="${esc(copyText)}" title="Copy path and issues to clipboard">📋 Copy</button>`,
+            ].filter(Boolean).join('');
             const rowStatus = r.score >= 80 ? 'compliant' : r.score >= 60 ? 'partial' : 'non-compliant';
             return `<tr data-status="${rowStatus}">
   <td class="file-col">
@@ -662,6 +660,8 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 .btn-ai-row:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-open-row{background:transparent;color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
 .btn-open-row:hover{border-color:var(--vscode-focusBorder)}
+.btn-copy-row{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
+.btn-copy-row:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground)}
 .btn-fix-proj{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:auto}
 .file-col{min-width:120px}
 .file-path{font-family:var(--vscode-editor-font-family);font-size:9px;color:var(--vscode-descriptionForeground);margin-top:2px}
@@ -678,6 +678,7 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
   </div>
   <input id="search" type="text" placeholder="Filter by filename or project…">
   <button class="btn-fix-all" data-action="fix-all">🔧 Fix All Non-Compliant</button>
+  <button class="btn-fix-all" data-action="copy-all" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)" title="Copy all visible rows to clipboard">📋 Copy All</button>
   <button class="btn-fix-all" data-action="rerun" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)">🔄 Rerun Scan</button>
 </div>
 <div id="content">${projectSections}</div>
@@ -702,6 +703,23 @@ document.addEventListener('click', e => {
   if (action === 'fix-project') { vscode.postMessage({ command: 'fixProject', project: btn.dataset.proj }); }
   if (action === 'fix-all')     { vscode.postMessage({ command: 'fixAll' }); }
   if (action === 'rerun')       { vscode.postMessage({ command: 'rerun' }); }
+  if (action === 'copy-row') {
+    navigator.clipboard.writeText(btn.dataset.copy || '').then(() => {
+      const orig = btn.textContent; btn.textContent = '✅ Copied';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
+  if (action === 'copy-all') {
+    const visibleRows = [...document.querySelectorAll('tbody tr:not(.hidden)')];
+    const lines = visibleRows.map(row => {
+      const copyBtn = row.querySelector('[data-action="copy-row"]');
+      return copyBtn ? copyBtn.dataset.copy : row.textContent.trim();
+    }).filter(Boolean).join('\n\n---\n\n');
+    navigator.clipboard.writeText(lines).then(() => {
+      const orig = btn.textContent; btn.textContent = '✅ Copied All';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
 });
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase().trim();
