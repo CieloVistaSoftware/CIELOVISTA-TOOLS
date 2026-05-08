@@ -214,6 +214,90 @@ if (fs.existsSync(installedRoot)) {
     }
 }
 
+// ── Visual fix smoke tests ────────────────────────────────────────────────────
+// Verifies that key visual and behavioral fixes are present in the compiled
+// bundle. These catch regressions that the unit regression suite cannot see
+// (CSS values, webview message handlers, UI strings).
+
+const bundleSrc = fs.existsSync('out/extension.js') ? fs.readFileSync('out/extension.js', 'utf8') : '';
+
+console.log('\n-- Visual Fix Smoke Tests --\n');
+
+// #299 — README Compliance diff contrast (high-contrast red/green rows)
+ok('#299 diff high-contrast deleted-line color (#3c1f1e) is in bundle',
+    bundleSrc.includes('#3c1f1e'),
+    'CSS .d2h-del background for deleted lines');
+ok('#299 diff high-contrast inserted-line color (#1b3a24) is in bundle',
+    bundleSrc.includes('#1b3a24'),
+    'CSS .d2h-ins background for inserted lines');
+
+// #300 — Approve & Write shows success toast and closes panel
+ok('#300 Approve & Write emits success toast (Fix written)',
+    bundleSrc.includes('Fix written'),
+    'vscode.window.showInformationMessage after writing fix');
+ok('#300 Approve & Write emits error toast on failure (Failed to write fix)',
+    bundleSrc.includes('Failed to write fix'),
+    'vscode.window.showErrorMessage on write failure');
+
+// #296/#297 — Doc Catalog Rebuilt panel project rows open VS Code
+ok('#297 Rebuilt panel rows have open-project-vscode action',
+    bundleSrc.includes('open-project-vscode'),
+    'data-action on project row + onDidReceiveMessage handler');
+
+// #301 — README Compliance pill filters
+ok('#301 Compliance pill filter-status action is in bundle',
+    bundleSrc.includes('filter-status'),
+    'data-action="filter-status" on pill buttons');
+ok('#301 Compliance rows have data-status attribute',
+    bundleSrc.includes('data-status'),
+    'rows tagged with data-status for filter matching');
+
+// #302 — Smart README fixer: frontmatter-aware heading insertion
+// Function names are minified by esbuild — check source file and bundle strings instead.
+const readmeFeatureSrc = (() => {
+    const p = path.join(__dirname, '..', 'src', 'features', 'readme-compliance', 'feature.ts');
+    try { return fs.readFileSync(p, 'utf8'); } catch { return ''; }
+})();
+ok('#302 Smart fixer frontmatterEnd helper exists in source',
+    readmeFeatureSrc.includes('frontmatterEnd'),
+    'src/features/readme-compliance/feature.ts must define frontmatterEnd()');
+ok('#302 Smart fixer guessLanguage + LANG_HINTS exist in source',
+    readmeFeatureSrc.includes('guessLanguage') && readmeFeatureSrc.includes('LANG_HINTS'),
+    'src/features/readme-compliance/feature.ts must define guessLanguage() and LANG_HINTS');
+
+// #304 — Zero docid collisions across registry (structural: REG-027 inline)
+(function checkDocidCollisions() {
+    const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+    const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
+    let reg;
+    try { reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { ok('#304 Zero docid collisions (registry loads)', false, 'Could not read registry'); return; }
+    const docIdMap = new Map();
+    function walkMd(dir, depth) {
+        if (depth > 4 || !fs.existsSync(dir)) { return; }
+        let entries; try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+            if (SKIP_DIRS.has(e.name)) { continue; }
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) { walkMd(full, depth + 1); }
+            else if (e.isFile() && /\.md$/i.test(e.name)) {
+                let c; try { c = fs.readFileSync(full, 'utf8'); } catch { return; }
+                const lines = c.split('\n');
+                if (!lines[0] || lines[0].trim() !== '---') { return; }
+                for (let i = 1; i < lines.length; i++) {
+                    if (lines[i].trim() === '---') { break; }
+                    const m = lines[i].trim().match(/^docid\s*:\s*(.+?)\s*$/i);
+                    if (m) { const k = m[1].trim().toLowerCase(); if (!docIdMap.has(k)) { docIdMap.set(k, 0); } docIdMap.set(k, docIdMap.get(k) + 1); break; }
+                }
+            }
+        }
+    }
+    for (const proj of reg.projects) { if (proj.path && fs.existsSync(proj.path)) { walkMd(proj.path, 0); } }
+    const collisions = [...docIdMap.values()].filter(c => c > 1).length;
+    ok(`#304 Zero docid collisions across registry (${docIdMap.size} docids scanned)`,
+        collisions === 0,
+        collisions === 0 ? 'All docids unique' : `${collisions} collision group(s) found — run scripts/fix-docid-collisions.js`);
+})();
+
 // Summary
 console.log(`\n------------------------------------------------------------`);
 console.log(`${pass + fail} checks: ${pass} passed, ${fail} failed`);
