@@ -460,7 +460,8 @@ function buildReportHtml(reports: ReadmeReport[]): string {
                     `<button class="btn-ai-row" data-action="ai-fix" data-path="${esc(r.filePath)}" data-type="${r.readmeType}">🤖 AI Fix</button>`,
                     `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>`,
                   ].filter(Boolean).join('');
-            return `<tr>
+            const rowStatus = r.score >= 80 ? 'compliant' : r.score >= 60 ? 'partial' : 'non-compliant';
+            return `<tr data-status="${rowStatus}">
   <td class="file-col">
     <button class="open-btn" data-action="open" data-path="${esc(r.filePath)}" title="${esc(r.filePath)}">${esc(r.fileName)}</button>
     <div class="file-path">${esc(r.filePath.replace(/\\/g, '/'))}</div>
@@ -485,10 +486,12 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #toolbar{position:sticky;top:0;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:8px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;z-index:10}
 #toolbar h1{font-size:1.1em;font-weight:700}
 .summary-pills{display:flex;gap:8px;flex-wrap:wrap}
-.pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid;background:transparent;cursor:pointer;font-family:inherit}
 .pill-ok{color:var(--vscode-testing-iconPassed);border-color:var(--vscode-testing-iconPassed)}
 .pill-warn{color:var(--vscode-inputValidation-warningForeground);border-color:var(--vscode-inputValidation-warningForeground)}
 .pill-err{color:var(--vscode-inputValidation-errorForeground);border-color:var(--vscode-inputValidation-errorForeground)}
+.pill.active{opacity:1;font-weight:800}
+.pill:not(.active){opacity:0.45}
 #search{padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;font-size:12px;flex:1;min-width:140px}
 .btn-fix-all{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 12px;border-radius:2px;cursor:pointer;font-size:12px}
 .btn-fix-all:hover{background:var(--vscode-button-hoverBackground)}
@@ -525,9 +528,9 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 <div id="toolbar">
   <h1>📋 README Compliance</h1>
   <div class="summary-pills">
-    <span class="pill pill-ok">✅ ${compliant} compliant</span>
-    <span class="pill pill-warn">⚠️ ${partial} partial</span>
-    <span class="pill pill-err">🔴 ${nonCompliant} non-compliant</span>
+    <button class="pill pill-ok" data-action="filter-status" data-status="compliant">✅ ${compliant} compliant</button>
+    <button class="pill pill-warn" data-action="filter-status" data-status="partial">⚠️ ${partial} partial</button>
+    <button class="pill pill-err" data-action="filter-status" data-status="non-compliant">🔴 ${nonCompliant} non-compliant</button>
   </div>
   <input id="search" type="text" placeholder="Filter by filename or project…">
   <button class="btn-fix-all" data-action="fix-all">🔧 Fix All Non-Compliant</button>
@@ -536,11 +539,19 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 <div id="content">${projectSections}</div>
 <script>
 const vscode = acquireVsCodeApi();
+const activePills = new Set();
 document.getElementById('search').addEventListener('input', applyFilter);
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) { return; }
   const action = btn.dataset.action;
+  if (action === 'filter-status') {
+    const status = btn.dataset.status;
+    if (activePills.has(status)) { activePills.delete(status); btn.classList.remove('active'); }
+    else { activePills.add(status); btn.classList.add('active'); }
+    applyFilter();
+    return;
+  }
   if (action === 'open')        { vscode.postMessage({ command: 'open',       data: btn.dataset.path }); }
   if (action === 'fix')         { btn.textContent = '⏳ Loading diff…'; btn.disabled = true; vscode.postMessage({ command: 'fix', data: btn.dataset.path }); }
   if (action === 'ai-fix')      { btn.textContent = '⏳ AI fixing…';    btn.disabled = true; vscode.postMessage({ command: 'aiFix', data: btn.dataset.path, readmeType: btn.dataset.type }); }
@@ -550,7 +561,16 @@ document.addEventListener('click', e => {
 });
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase().trim();
-  document.querySelectorAll('tbody tr').forEach(row => { row.classList.toggle('hidden', !!q && !row.textContent.toLowerCase().includes(q)); });
+  const hasPill = activePills.size > 0;
+  document.querySelectorAll('tbody tr').forEach(row => {
+    const textMatch = !q || row.textContent.toLowerCase().includes(q);
+    const pillMatch = !hasPill || activePills.has(row.dataset.status);
+    row.classList.toggle('hidden', !(textMatch && pillMatch));
+  });
+  document.querySelectorAll('.proj-section').forEach(sec => {
+    const anyVisible = sec.querySelector('tbody tr:not(.hidden)');
+    sec.style.display = anyVisible ? '' : 'none';
+  });
 }
 window.addEventListener('message', e => {
   const msg = e.data;

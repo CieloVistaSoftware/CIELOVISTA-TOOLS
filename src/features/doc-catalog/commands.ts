@@ -111,7 +111,7 @@ function _rbEsc(s: string): string {
 function buildRebuildSummaryHtml(
     cards: CatalogCard[],
     elapsedMs: number,
-    projectCounts: Array<{ name: string; count: number; dewey: string }>,
+    projectCounts: Array<{ name: string; count: number; dewey: string; path: string }>,
     rebuiltAt: string
 ): string {
     const nonce = getNonce();
@@ -119,7 +119,7 @@ function buildRebuildSummaryHtml(
     const totalProjects = projectCounts.length;
     const elapsedSec    = (elapsedMs / 1000).toFixed(2);
     const projectRows   = projectCounts.map(p =>
-        `<tr><td class="rb-dw">${_rbEsc(p.dewey)}</td><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
+        `<tr class="rb-proj-row" data-action="open-project-vscode" data-path="${_rbEsc(p.path)}" title="Open ${_rbEsc(p.name)} in VS Code" style="cursor:pointer"><td class="rb-dw">${_rbEsc(p.dewey)}</td><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
     ).join('');
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';"><style>
@@ -166,6 +166,11 @@ tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{
 var vs=acquireVsCodeApi();
 document.getElementById('btn-open').addEventListener('click',function(){vs.postMessage({command:'open-catalog'});});
 document.getElementById('btn-again').addEventListener('click',function(){vs.postMessage({command:'rebuild-again'});});
+document.querySelectorAll('.rb-proj-row').forEach(function(row){
+  row.addEventListener('click',function(){vs.postMessage({command:'open-project-vscode',data:row.dataset.path});});
+  row.addEventListener('mouseenter',function(){row.style.background='var(--vscode-list-hoverBackground)';});
+  row.addEventListener('mouseleave',function(){row.style.background='';});
+});
 })();</script></body></html>`;
 }
 
@@ -177,16 +182,16 @@ export async function rebuildCatalog(): Promise<void> {
     const cards   = await buildCatalog(true);
     const elapsed = Date.now() - startMs;
     if (!cards?.length) { vscode.window.showWarningMessage('Rebuild found no docs.'); return; }
-    const projectMap = new Map<string, { count: number; dewey: string }>();
+    const projectMap = new Map<string, { count: number; dewey: string; path: string }>();
     for (const card of cards) {
         const existing = projectMap.get(card.projectName);
         const dewey    = String(card.categoryNum).padStart(3, '0');
         if (existing) { existing.count++; }
-        else          { projectMap.set(card.projectName, { count: 1, dewey }); }
+        else          { projectMap.set(card.projectName, { count: 1, dewey, path: card.projectPath }); }
     }
     const projectCounts = [...projectMap.entries()]
         .sort((a, b) => Number(a[1].dewey) - Number(b[1].dewey))
-        .map(([name, { count, dewey }]) => ({ name, count, dewey }));
+        .map(([name, { count, dewey, path: projPath }]) => ({ name, count, dewey, path: projPath }));
     const html  = buildRebuildSummaryHtml(cards, elapsed, projectCounts, new Date().toLocaleTimeString());
     const title = '\u{1F4CA} Catalog Rebuilt';
     if (_rebuildPanel) {
@@ -203,8 +208,9 @@ export async function rebuildCatalog(): Promise<void> {
         _rebuildPanel.onDidDispose(() => { _rebuildPanel = undefined; });
     }
     _rebuildPanel.webview.onDidReceiveMessage(async msg => {
-        if (msg.command === 'open-catalog')  { await openCatalog(false); }
-        if (msg.command === 'rebuild-again') { await rebuildCatalog(); }
+        if (msg.command === 'open-catalog')        { await openCatalog(false); }
+        if (msg.command === 'rebuild-again')       { await rebuildCatalog(); }
+        if (msg.command === 'open-project-vscode') { if (msg.data) { await openProjectFolderSmart(msg.data as string); } }
     });
     log(FEATURE, `Catalog rebuilt: ${cards.length} cards in ${elapsed}ms`);
 }

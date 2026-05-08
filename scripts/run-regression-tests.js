@@ -599,6 +599,26 @@ test('REG-026', 'NPM Output panel shows complete output for failed jobs (no sile
     `REG-026 npm output failed-jobs test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-028: Issues #296 #297 — Doc Catalog Folder button + Rebuilt panel project rows.
+test('REG-028', 'Doc Catalog "Folder" button and Rebuilt panel project rows open VS Code', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-028-catalog-open-folder-actions.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-028 catalog open-folder actions test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-029: Issue #301 — README Compliance status pills filter the row list.
+test('REG-029', 'README Compliance status pills filter the compliance row list', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-029-readme-compliance-pill-filters.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-029 readme compliance pill filters test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));
