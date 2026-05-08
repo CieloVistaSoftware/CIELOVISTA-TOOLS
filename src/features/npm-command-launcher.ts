@@ -461,12 +461,13 @@ async function openPanel(): Promise<void> {
             case 'run': {
                 const { id, script, dir, folder } = msg as { id:string; script:string; dir:string; folder:string };
                 const jobKey = `${id}::${script}`;
-                // Do NOT open the output panel yet — it opens lazily on first output line
                 const startedAt = Date.now();
 
                 const sendOut  = (type: string, payload: object) => postToOutput({ jobKey, type, ...payload });
                 const sendCard = (type: string, payload: object) => _panel?.webview.postMessage({ type, id, script, ...payload });
 
+                // Open eagerly so failed jobs with no stdout/stderr still appear in the panel
+                setupOutputPanel();
                 sendOut('job-start', { script, folder, time: new Date().toLocaleTimeString() });
                 sendOut('output', { text: `[CVT] Launching: npm run ${script}\n` });
                 sendCard('status', { state: 'running' });
@@ -495,13 +496,11 @@ async function openPanel(): Promise<void> {
 
                 proc.stdout?.on('data', (chunk: Buffer) => {
                     const text = stripAnsi(chunk.toString());
-                    setupOutputPanel(); // open lazily on first real output
                     sendOut('output', { text });
                     maybeOpenBrowser(text);
                 });
                 proc.stderr?.on('data', (chunk: Buffer) => {
                     const text = stripAnsi(chunk.toString());
-                    setupOutputPanel(); // open lazily on first real output
                     sendOut('output', { text });
                     maybeOpenBrowser(text);  // many dev servers write their URL to stderr
                 });

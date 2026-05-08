@@ -577,15 +577,26 @@ test('REG-024', 'Daily audit respects auditExcluded flag for container folders',
 
 // REG-025: Issue #283 — npm output routing + completion timing.
 // Guards that run-path output is routed through the NPM Output webview (no
-// terminal API calls in run block), the output panel opens lazily on first
-// stdout/stderr chunk, and completion status includes elapsed time.
-test('REG-025', 'NPM script output routes to webview with lazy-open and elapsed time', () => {
+// terminal API calls in run block), the panel opens eagerly before job-start,
+// and completion status includes elapsed time.
+test('REG-025', 'NPM script output routes to webview with eager-open and elapsed time', () => {
   const result = require('child_process').spawnSync(
     process.execPath, [path.join(ROOT, 'tests/regression/REG-025-npm-output-routing-and-timing.test.js')],
     { encoding: 'utf8' }
   );
   assert(result.status === 0,
     `REG-025 npm output routing/timing failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-026: Issue #293 — NPM Output panel drops failed job details.
+// Guards that zero-output failed jobs still appear in the output panel.
+test('REG-026', 'NPM Output panel shows complete output for failed jobs (no silent omission)', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-025-npm-output-failed-jobs.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-026 npm output failed-jobs test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────

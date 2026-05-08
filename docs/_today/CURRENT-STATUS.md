@@ -18,7 +18,20 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
-## 🅿️ PARKING LOT — end of session 2026-05-07
+## 🅿️ PARKING LOT — end of session 2026-05-07 (CDC alignment)
+
+**TASK:** CDC doc classification — align dewey/docid/category across all 19 registry projects
+**FILES TOUCHED:**
+- `C:\Users\jwpmi\Downloads\CieloVistaStandards\doc-contract.md` — complete rewrite; formal CDC spec with all 19 project prefixes, taxonomy, growth rules, validator checks, status → active
+- `tests\unit\doc-contract.test.ts` — new unit test; scans all registry projects; 4729 tests, 0 failures
+- All `.md` files across 19 registry projects — subject→dewey rename; docid set = dewey; category computed from dewey
+**LAST ACTION:** Committed `feat: CDC doc classification — align dewey/docid/category across all projects` (c6601b2) — 106 files, 0 test failures
+**NEXT STEP:** Run Doc Intelligence in VS Code and verify catalog shows correct dewey/category values
+**OPEN QUESTIONS:** None
+
+---
+
+## 🅿️ PARKING LOT — end of session 2026-05-07 (earlier)
 
 **TASK:** Multi-issue session — docid backfill, collision fixes, broken refs, Copy/Chat buttons
 **FILES TOUCHED:**

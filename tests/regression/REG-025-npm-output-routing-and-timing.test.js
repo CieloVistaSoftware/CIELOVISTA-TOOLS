@@ -30,41 +30,52 @@ const src = fs.readFileSync(SRC_PATH, 'utf8');
   ok('run block does not use terminal APIs');
 })();
 
-(function checkLazyOpenOnFirstOutput() {
+(function checkEagerOpenBeforeJobStart() {
+  // Fix for issue #293: setupOutputPanel() must be called BEFORE job-start so
+  // failed zero-output jobs still appear in the panel. Lazy open (in data
+  // handlers) caused the panel to never open for jobs with no stdout/stderr.
   const runStart = src.indexOf("case 'run':");
-  const runEnd = src.indexOf("case 'stop':", runStart + 1);
+  const runEnd   = src.indexOf("case 'stop':", runStart + 1);
   if (runStart < 0 || runEnd < 0) {
-    fail('Could not locate run switch block for lazy-open checks');
+    fail('Could not locate run switch block for eager-open checks');
     return;
   }
   const runBlock = src.slice(runStart, runEnd);
 
-  if (runBlock.includes('setupOutputPanel();\n\n                const sendOut')) {
-    fail('setupOutputPanel() is called at run start; panel must open lazily on first output');
+  const setupIdx    = runBlock.indexOf('setupOutputPanel()');
+  const jobStartIdx = runBlock.indexOf("sendOut('job-start'");
+  if (setupIdx < 0) {
+    fail('setupOutputPanel() not called in run handler — failed zero-output jobs will not appear in panel');
+    return;
+  }
+  if (jobStartIdx < 0) {
+    fail("sendOut('job-start') missing from run handler");
+    return;
+  }
+  if (setupIdx > jobStartIdx) {
+    fail('setupOutputPanel() called AFTER job-start — panel may not exist when first messages queue');
     return;
   }
 
-  const stdoutIdx = runBlock.indexOf("proc.stdout?.on('data'");
-  const stderrIdx = runBlock.indexOf("proc.stderr?.on('data'");
-  if (stdoutIdx < 0 || stderrIdx < 0) {
-    fail('Missing stdout/stderr data handlers');
-    return;
+  // Lazy calls inside data handlers are a regression of the fix
+  const stdoutIdx  = runBlock.indexOf("proc.stdout?.on('data'");
+  const stderrIdx  = runBlock.indexOf("proc.stderr?.on('data'");
+  if (stdoutIdx >= 0) {
+    const stdoutBody = runBlock.slice(stdoutIdx, runBlock.indexOf('});', stdoutIdx) + 3);
+    if (stdoutBody.includes('setupOutputPanel()')) {
+      fail('Lazy setupOutputPanel() call inside stdout handler — regression of issue #293 fix');
+      return;
+    }
+  }
+  if (stderrIdx >= 0) {
+    const stderrBody = runBlock.slice(stderrIdx, runBlock.indexOf('});', stderrIdx) + 3);
+    if (stderrBody.includes('setupOutputPanel()')) {
+      fail('Lazy setupOutputPanel() call inside stderr handler — regression of issue #293 fix');
+      return;
+    }
   }
 
-  const stdoutBlock = runBlock.slice(stdoutIdx, stderrIdx);
-  const closeIdx = runBlock.indexOf("let killed = false;", stderrIdx);
-  const stderrBlock = closeIdx > 0 ? runBlock.slice(stderrIdx, closeIdx) : runBlock.slice(stderrIdx);
-
-  if (!stdoutBlock.includes('setupOutputPanel();')) {
-    fail('stdout handler does not lazily open output panel');
-    return;
-  }
-  if (!stderrBlock.includes('setupOutputPanel();')) {
-    fail('stderr handler does not lazily open output panel');
-    return;
-  }
-
-  ok('output panel opens lazily in stdout/stderr handlers');
+  ok('output panel opens eagerly before job-start (zero-output failures show in panel)');
 })();
 
 (function checkElapsedTimePlumbing() {
