@@ -619,6 +619,16 @@ test('REG-029', 'README Compliance status pills filter the compliance row list',
         `REG-029 readme compliance pill filters test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-030: Issue #302 — README Compliance smart applyFix() (frontmatter-aware, section-order-aware, language-inferring).
+test('REG-030', 'README Compliance applyFix is frontmatter-aware and language-inferring', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-030-readme-compliance-smart-fixer.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-030 readme compliance smart fixer test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));

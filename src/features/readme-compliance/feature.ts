@@ -231,27 +231,171 @@ function checkCompliance(filePath: string, projectName: string, projectRoot: str
 
 // ─── Auto-fixer ───────────────────────────────────────────────────────────────
 
+// Returns the index of the line AFTER the closing `---` of YAML frontmatter,
+// or 0 if the file has no frontmatter.
+function frontmatterEnd(lines: string[]): number {
+    if (!lines[0] || lines[0].trim() !== '---') { return 0; }
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim() === '---') { return i + 1; }
+    }
+    return 0; // malformed — treat as no frontmatter
+}
+
+// Infer the best language tag for a fenced code block by scanning the lines
+// inside it for recognizable patterns.
+const LANG_HINTS: Array<[RegExp, string]> = [
+    [/^\s*(import|export|interface|type\s+\w+\s*=|const\s+\w+:\s|async\s+function)/m, 'typescript'],
+    [/^\s*(function|const|let|var|require\(|module\.exports)/m,                       'javascript'],
+    [/^\s*(def |class |import |from .+ import|if __name__)/m,                         'python'],
+    [/^\s*(<\?php|\$\w+\s*=)/m,                                                       'php'],
+    [/^\s*(<html|<div|<span|<p>|<!DOCTYPE)/im,                                        'html'],
+    [/^\s*(\{|\}|"[^"]+"\s*:)/m,                                                      'json'],
+    [/^\s*(#\s*\w|[A-Z_]+\s*=|export\s+[A-Z_])/m,                                    'bash'],
+    [/^\s*(\$\w+|Get-|Set-|New-|Remove-|Invoke-|Write-Host)/m,                        'powershell'],
+    [/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/im,                        'sql'],
+    [/^\s*(FROM |RUN |CMD |ENTRYPOINT |COPY )/m,                                      'dockerfile'],
+    [/^\s*([a-z_]+\s*:\s*$|\s+-\s+\w)/m,                                             'yaml'],
+];
+
+function guessLanguage(blockLines: string[]): string {
+    const sample = blockLines.join('\n');
+    for (const [pattern, lang] of LANG_HINTS) {
+        if (pattern.test(sample)) { return lang; }
+    }
+    return 'text';
+}
+
+// Insert `stub` into `lines` after the last existing section whose canonical
+// name appears before `sectionName` in `order`, or after frontmatter if
+// none of the prior sections exist yet.
+function insertSectionInOrder(lines: string[], stub: string, sectionName: string, order: string[], fmEnd: number): string[] {
+    // Find index of sectionName in the order list
+    const targetIdx = order.indexOf(sectionName);
+
+    // Walk backwards through the order to find the last section that already exists
+    let insertAfterLine = fmEnd; // fallback: right after frontmatter (or top of file)
+    for (let o = targetIdx - 1; o >= 0; o--) {
+        const prev = order[o];
+        // Find the ## heading line for this section
+        const lineIdx = lines.findIndex(l => normalizeHeading(l).includes(prev));
+        if (lineIdx !== -1) {
+            // Advance past the entire section block to find the next ## or end
+            let end = lineIdx + 1;
+            while (end < lines.length && !/^#{1,2}\s/.test(lines[end])) { end++; }
+            // Trim trailing blank lines
+            while (end > lineIdx + 1 && !lines[end - 1].trim()) { end--; }
+            insertAfterLine = end;
+            break;
+        }
+    }
+
+    // Also scan forward from frontmatterEnd for the FIRST section that comes
+    // AFTER sectionName in order — we must insert before it.
+    let insertBeforeLine = lines.length;
+    for (let o = targetIdx + 1; o < order.length; o++) {
+        const next = order[o];
+        const lineIdx = lines.findIndex(l => normalizeHeading(l).includes(next));
+        if (lineIdx !== -1) {
+            insertBeforeLine = lineIdx;
+            break;
+        }
+    }
+
+    const actualInsert = Math.min(insertAfterLine, insertBeforeLine);
+    const stubLines = ('\n' + stub).split('\n');
+    return [...lines.slice(0, actualInsert), ...stubLines, ...lines.slice(actualInsert)];
+}
+
 function applyFix(report: ReadmeReport): string {
     let content = fs.readFileSync(report.filePath, 'utf8');
-    const stubs = STUBS[report.readmeType];
+    const stubs  = STUBS[report.readmeType];
+    const order  = SECTION_ORDER[report.readmeType];
+    let   lines  = content.split('\n');
+    const fmEnd  = frontmatterEnd(lines);
+
     for (const issue of report.issues) {
         if (!issue.fixable) { continue; }
+
         if (issue.fixKey === 'first-heading') {
-            if (!/^#\s/.test(content.split('\n')[0])) {
-                const name = path.basename(report.filePath, '.md').replace(/\.README$/i, '');
-                content = `# ${name}\n\n${content}`;
+            // Check that no # heading exists after frontmatter
+            const bodyLines  = lines.slice(fmEnd);
+            const firstH1Idx = bodyLines.findIndex(l => /^#\s/.test(l));
+            if (firstH1Idx !== 0) {
+                const name       = path.basename(report.filePath, '.md').replace(/\.README$/i, '');
+                const heading    = [`# ${name}`, ''];
+                lines = [...lines.slice(0, fmEnd), ...heading, ...lines.slice(fmEnd)];
             }
         }
+
         if (issue.fixKey.startsWith('missing-section:')) {
-            const sec = issue.fixKey.replace('missing-section:', '');
+            const sec  = issue.fixKey.replace('missing-section:', '');
             const stub = stubs[sec];
-            if (stub && !content.toLowerCase().includes(`## ${sec}`)) { content = content.trimEnd() + '\n\n---\n\n' + stub; }
+            // Skip if section already present (case-insensitive)
+            if (!stub) { continue; }
+            const alreadyPresent = lines.some(l => normalizeHeading(l).includes(sec));
+            if (alreadyPresent) { continue; }
+            lines = insertSectionInOrder(lines, stub, sec, order, fmEnd);
         }
-        if (issue.fixKey === 'code-block-lang')     { content = content.replace(/^```\s*$/gm, '```text'); }
-        if (issue.fixKey === 'feature-prefix')      { content = content.replace(/^(#\s+)(.+)$/m, (_, hash, title) => title.toLowerCase().startsWith('feature:') ? `${hash}${title}` : `${hash}feature: ${title}`); }
-        if (issue.fixKey === 'standard-blockquote') { content = content.replace(/^(#\s+.+)$/m, (_, heading) => `${heading}\n\n> _TODO: one-line summary of what this standard covers._`); }
+
+        if (issue.fixKey === 'code-block-lang') {
+            // Only fix opening fences (lines that open a block, not close one).
+            // A bare ``` that opens a block is preceded by a non-fence line;
+            // a bare ``` that closes a block is preceded by content lines.
+            const result: string[] = [];
+            let inBlock = false;
+            for (let i = 0; i < lines.length; i++) {
+                const isFence = /^```\s*$/.test(lines[i]);
+                if (isFence && !inBlock) {
+                    // Opening fence — gather block lines to guess language
+                    const blockLines: string[] = [];
+                    let j = i + 1;
+                    while (j < lines.length && !/^```/.test(lines[j])) {
+                        blockLines.push(lines[j]);
+                        j++;
+                    }
+                    const lang = guessLanguage(blockLines);
+                    result.push(`\`\`\`${lang}`);
+                    inBlock = true;
+                } else if (isFence && inBlock) {
+                    result.push('```'); // closing fence — leave as-is
+                    inBlock = false;
+                } else {
+                    result.push(lines[i]);
+                }
+            }
+            lines = result;
+        }
+
+        if (issue.fixKey === 'feature-prefix') {
+            // Find the first H1 after frontmatter and prefix it
+            for (let i = fmEnd; i < lines.length; i++) {
+                if (/^#\s/.test(lines[i])) {
+                    const title = lines[i].replace(/^#\s+/, '');
+                    if (!title.toLowerCase().startsWith('feature:')) {
+                        lines[i] = `# feature: ${title}`;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (issue.fixKey === 'standard-blockquote') {
+            // Insert blockquote on the line after the first H1 after frontmatter
+            for (let i = fmEnd; i < lines.length; i++) {
+                if (/^#\s/.test(lines[i])) {
+                    lines = [
+                        ...lines.slice(0, i + 1),
+                        '',
+                        '> _TODO: one-line summary of what this standard covers._',
+                        ...lines.slice(i + 1),
+                    ];
+                    break;
+                }
+            }
+        }
     }
-    return content;
+
+    return lines.join('\n');
 }
 
 // ─── Diff webview (diff2html from CDN) ────────────────────────────────────────
