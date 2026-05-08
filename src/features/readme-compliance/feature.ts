@@ -910,7 +910,8 @@ async function fixAllNonCompliant(reports: ReadmeReport[]): Promise<void> {
     await runScan();
 }
 
-async function aiFixReadme(filePath: string, readmeType: ReadmeType): Promise<void> {
+async function aiFixReadme(filePath: string, readmeType: ReadmeType, statusPanel?: vscode.WebviewPanel): Promise<void> {
+    const progressTarget = statusPanel ?? _panel;
     const report = _lastReports.find(r => r.filePath === filePath)
         ?? checkCompliance(filePath, path.basename(path.dirname(filePath)), path.dirname(filePath));
     let content = '';
@@ -928,12 +929,11 @@ Rules:
 - Output ONLY the fixed markdown content, no preamble`;
 
     try {
-        _panel?.webview.postMessage({ type: 'progress', text: `AI fixing ${path.basename(filePath)}… 10–30 seconds` });
+        progressTarget?.webview.postMessage({ type: 'progress', text: `AI fixing ${path.basename(filePath)}… 10–30 seconds` });
         const fixed = await callClaude(prompt, 3000);
         if (!fixed) { throw new Error('Empty AI response'); }
 
         // Show as a diff so user can still approve/ignore
-        const tempReport: ReadmeReport = { ...report };
         const unifiedDiff = jsdiff.createPatch(report.fileName, content, fixed, 'before (original)', 'after (AI)', { context: 4 });
         const html = buildDiffHtml(report.fileName, filePath, content, fixed, unifiedDiff, report.issues);
 
@@ -948,19 +948,15 @@ Rules:
             if (msg2.command === 'approve') {
                 fs.writeFileSync(filePath, fixed, 'utf8');
                 _diffPanel?.dispose();
-                // TODO: Show per-job output in a new webview (AI fix approved)
                 await runScan();
             }
-            if (msg2.command === 'ignore') {
-                _diffPanel?.dispose();
-                // TODO: Show per-job output in a new webview (AI fix ignored)
-            }
+            if (msg2.command === 'ignore') { _diffPanel?.dispose(); }
         });
 
-        _panel?.webview.postMessage({ type: 'done', text: `AI diff ready for ${path.basename(filePath)} — approve or ignore` });
+        progressTarget?.webview.postMessage({ type: 'done', text: `AI diff ready for ${path.basename(filePath)} — approve or ignore` });
     } catch (err) {
         logError(`AI fix failed for ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-        _panel?.webview.postMessage({ type: 'error', text: `AI fix failed: ${err}` });
+        progressTarget?.webview.postMessage({ type: 'error', text: `AI fix failed: ${err}` });
     }
 }
 
@@ -974,6 +970,141 @@ async function fixProjectReadmes(projectName: string): Promise<void> {
     }
     _panel?.webview.postMessage({ type: 'done', text: `Fixed ${fixed} READMEs in ${projectName}. Rescanning…` });
     await runScan();
+}
+
+// ─── Fill TODO stubs ──────────────────────────────────────────────────────────
+
+interface TodoFile { filePath: string; projectName: string; readmeType: ReadmeType; count: number; }
+
+function scanForTodoFiles(): TodoFile[] {
+    const registry = loadRegistry();
+    if (!registry) { return []; }
+    const roots: Array<{ name: string; rootPath: string }> = [
+        { name: 'global', rootPath: registry.globalDocsPath },
+        ...registry.projects.map(p => ({ name: p.name, rootPath: p.path }))
+    ];
+    const results: TodoFile[] = [];
+    const SKIP = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports']);
+    function walkDir(dir: string, projectName: string, depth = 0): void {
+        if (depth > 4 || !fs.existsSync(dir)) { return; }
+        let entries: fs.Dirent[];
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+            if (SKIP.has(e.name)) { continue; }
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) { walkDir(full, projectName, depth + 1); }
+            else if (e.isFile() && isReadme(e.name)) {
+                let content = '';
+                try { content = fs.readFileSync(full, 'utf8'); } catch { continue; }
+                const count = (content.match(/_TODO:/g) ?? []).length + (content.match(/^# TODO/gm) ?? []).length;
+                if (count > 0) {
+                    results.push({ filePath: full, projectName, readmeType: detectType(full, dir, projectName), count });
+                }
+            }
+        }
+    }
+    for (const root of roots) { walkDir(root.rootPath, root.name); }
+    results.sort((a, b) => b.count - a.count);
+    return results;
+}
+
+let _todoPanel: vscode.WebviewPanel | undefined;
+
+function buildTodoDashboardHtml(files: TodoFile[]): string {
+    const total = files.reduce((s, f) => s + f.count, 0);
+    const rows = files.map((f, i) => `<tr>
+  <td><span title="${esc(f.filePath)}">${esc(path.basename(f.filePath))}</span></td>
+  <td>${esc(f.projectName)}</td>
+  <td>${esc(f.readmeType)}</td>
+  <td style="text-align:center"><span class="badge">${f.count}</span></td>
+  <td><button class="btn-fill" data-idx="${i}" data-path="${esc(f.filePath)}" data-type="${esc(f.readmeType)}">🤖 Fill</button></td>
+</tr>`).join('');
+
+    return `<!doctype html><html><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<style>
+body{font-family:var(--vscode-font-family);color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);margin:16px}
+h1{margin:0 0 4px;font-size:18px}
+.meta{font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:12px}
+.toolbar{display:flex;gap:8px;margin-bottom:12px}
+.btn-toolbar{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px}
+.btn-toolbar:hover{background:var(--vscode-button-hoverBackground)}
+.btn-fill{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px}
+.btn-fill:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.btn-fill:disabled{opacity:0.5;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--vscode-sideBar-background);padding:6px 8px;text-align:left;font-size:11px;color:var(--vscode-descriptionForeground)}
+td{border-top:1px solid var(--vscode-panel-border);padding:5px 8px;vertical-align:middle}
+.badge{background:rgba(248,81,73,.18);color:#f85149;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700}
+#status{font-size:12px;color:var(--vscode-descriptionForeground);min-height:20px;margin-bottom:8px}
+</style></head><body>
+<h1>📝 README TODO Dashboard</h1>
+<div class="meta">${files.length} file(s) with TODO stubs — ${total} total stub(s)</div>
+<div id="status"></div>
+<div class="toolbar">
+  <button class="btn-toolbar" id="btn-fill-all">🤖 Fill All with AI</button>
+  <button class="btn-toolbar" id="btn-rescan">↺ Rescan</button>
+</div>
+${files.length === 0 ? '<p>No TODO stubs found in any README.</p>' : `<table>
+  <thead><tr><th>File</th><th>Project</th><th>Type</th><th>TODOs</th><th></th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>`}
+<script>
+(function(){
+  var vscode = acquireVsCodeApi();
+  function status(t) { var el = document.getElementById('status'); if (el) { el.textContent = t; } }
+  document.getElementById('btn-rescan').addEventListener('click', function() { vscode.postMessage({ command: 'rescan' }); });
+  document.getElementById('btn-fill-all').addEventListener('click', function() {
+    this.disabled = true; this.textContent = '⏳ Filling…';
+    vscode.postMessage({ command: 'fill-all' });
+  });
+  document.querySelectorAll('.btn-fill').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      btn.disabled = true; btn.textContent = '⏳';
+      vscode.postMessage({ command: 'fill-one', path: btn.dataset.path, readmeType: btn.dataset.type, idx: btn.dataset.idx });
+    });
+  });
+  window.addEventListener('message', function(e) {
+    var msg = e.data;
+    if (msg.type === 'progress') { status(msg.text); }
+    if (msg.type === 'done')     { status(msg.text); document.querySelectorAll('.btn-fill').forEach(function(b) { b.disabled = false; b.textContent = '🤖 Fill'; }); document.getElementById('btn-fill-all').disabled = false; document.getElementById('btn-fill-all').textContent = '🤖 Fill All with AI'; }
+    if (msg.type === 'error')    { status('❌ ' + msg.text); document.querySelectorAll('.btn-fill').forEach(function(b) { b.disabled = false; b.textContent = '🤖 Fill'; }); document.getElementById('btn-fill-all').disabled = false; document.getElementById('btn-fill-all').textContent = '🤖 Fill All with AI'; }
+    if (msg.type === 'mark-done') { var rows = document.querySelectorAll('.btn-fill'); rows.forEach(function(b) { if (b.dataset.idx === msg.idx) { b.closest('tr').style.opacity = '0.4'; b.textContent = '✅'; } }); }
+  });
+})();
+</script>
+</body></html>`;
+}
+
+async function scanAndFillTodos(): Promise<void> {
+    const files = scanForTodoFiles();
+    if (!_todoPanel) {
+        _todoPanel = vscode.window.createWebviewPanel('readmeTodos', '📝 README TODOs', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true });
+        _todoPanel.onDidDispose(() => { _todoPanel = undefined; });
+        _todoPanel.webview.onDidReceiveMessage(async msg => {
+            if (msg.command === 'rescan') {
+                _todoPanel!.webview.html = buildTodoDashboardHtml(scanForTodoFiles());
+                return;
+            }
+            if (msg.command === 'fill-one') {
+                await aiFixReadme(msg.path, msg.readmeType as ReadmeType, _todoPanel);
+                _todoPanel?.webview.postMessage({ type: 'mark-done', idx: msg.idx });
+                return;
+            }
+            if (msg.command === 'fill-all') {
+                const latest = scanForTodoFiles();
+                for (let i = 0; i < latest.length; i++) {
+                    const f = latest[i];
+                    _todoPanel?.webview.postMessage({ type: 'progress', text: `(${i + 1}/${latest.length}) Filling ${path.basename(f.filePath)}…` });
+                    await aiFixReadme(f.filePath, f.readmeType, _todoPanel);
+                    _todoPanel?.webview.postMessage({ type: 'mark-done', idx: String(i) });
+                }
+                _todoPanel?.webview.postMessage({ type: 'done', text: `All ${latest.length} file(s) processed — approve diffs in the Fix panel` });
+            }
+        });
+    }
+    _todoPanel.webview.html = buildTodoDashboardHtml(files);
+    _todoPanel.reveal(vscode.ViewColumn.One);
 }
 
 async function createNewReadme(): Promise<void> {
@@ -1032,6 +1163,7 @@ export function activate(context: vscode.ExtensionContext): void {
             else { vscode.window.showErrorMessage(`Standard not found: ${STANDARD_PATH}`); }
         }),
         vscode.commands.registerCommand('cvs.readme.new',           createNewReadme),
+        vscode.commands.registerCommand('cvs.readme.fillTodos',     scanAndFillTodos),
     );
 }
 
@@ -1040,6 +1172,8 @@ export function deactivate(): void {
     _diffPanel = undefined;
     _panel?.dispose();
     _panel = undefined;
+    _todoPanel?.dispose();
+    _todoPanel = undefined;
     _lastReports = [];
 }
 

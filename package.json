@@ -494,6 +494,12 @@
         "description": "Use AI to generate a single missing README file."
       },
       {
+        "command": "cvs.readme.fillTodos",
+        "title": "README: Fill TODO Stubs with AI",
+        "category": "CieloVista README",
+        "description": "Scan all READMEs for _TODO: stubs and replace with AI-generated content."
+      },
+      {
         "command": "cvs.marketplace.scan",
         "title": "Marketplace: Scan Compliance",
         "category": "CieloVista Marketplace",
