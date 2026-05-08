@@ -98,6 +98,27 @@ for (const proj of registry.projects) {
   }
 }
 
+// Build a unique path slug using up to `maxLevels` ancestor directories
+// until the result is unique within the group.
+function buildUniqueSlug(filePath, allPaths, maxLevels = 4) {
+  const parts = filePath.split(path.sep);
+  const stem  = toSlug(parts[parts.length - 1].replace(/\.md$/i, ''));
+  for (let levels = 1; levels <= maxLevels; levels++) {
+    const ancestors = parts.slice(-(levels + 1), -1).map(toSlug);
+    const candidate = [...ancestors, stem].join('-');
+    const clash = allPaths.some((p, j) => {
+      if (p === filePath) { return false; }
+      const ps = p.split(path.sep);
+      const ps2 = ps.slice(-(levels + 1), -1).map(toSlug);
+      const s2 = toSlug(ps2[ps2.length - 1] || '');
+      return [...ps2, toSlug(ps[ps.length - 1].replace(/\.md$/i, ''))].join('-') === candidate;
+    });
+    if (!clash) { return candidate; }
+  }
+  // Last resort: full relative path slug
+  return toSlug(filePath.replace(/\.md$/i, ''));
+}
+
 // Fix collisions
 let fixedFiles = 0;
 let collisionGroups = 0;
@@ -106,14 +127,15 @@ for (const [docIdKey, entries] of docIdMap.entries()) {
   if (entries.length <= 1) { continue; }
   collisionGroups++;
 
-  // Generate slug for each entry using filename stem
+  const allPaths = entries.map(e => e.filePath);
+
+  // Generate slug for each entry — try stem first, escalate to ancestor path
   const stemSlugs = entries.map(e => {
-    const basename = path.basename(e.filePath);
-    const stem = basename.replace(/\.md$/i, '');
-    return toSlug(stem);
+    const stem = toSlug(path.basename(e.filePath).replace(/\.md$/i, ''));
+    return stem;
   });
 
-  // Check for slug collisions within the group — if so, prepend parent dir
+  // Check for stem-level collisions
   const slugCounts = new Map();
   for (const s of stemSlugs) {
     slugCounts.set(s, (slugCounts.get(s) ?? 0) + 1);
@@ -121,9 +143,8 @@ for (const [docIdKey, entries] of docIdMap.entries()) {
 
   const finalSlugs = stemSlugs.map((slug, i) => {
     if ((slugCounts.get(slug) ?? 0) > 1) {
-      // Disambiguate with parent directory
-      const parentDir = path.basename(path.dirname(entries[i].filePath));
-      return `${toSlug(parentDir)}-${slug}`;
+      // Build a path-based slug that is unique within this collision group
+      return buildUniqueSlug(entries[i].filePath, allPaths);
     }
     return slug;
   });
@@ -132,7 +153,12 @@ for (const [docIdKey, entries] of docIdMap.entries()) {
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     const slug  = finalSlugs[i];
-    const newDocId = `${entry.originalDocId}.${slug}`;
+    // Strip any existing slug suffix before appending the new one
+    // (handles re-runs where docid is already slugged but still colliding)
+    const bareBase = entry.originalDocId.replace(/\.[a-z0-9-]+$/, s =>
+      /^\.\d+$/.test(s) ? s : ''   // keep the numeric sub-code, drop prior slug
+    );
+    const newDocId = `${bareBase}.${slug}`;
     const newContent = patchFrontmatter(entry.content, newDocId);
 
     if (newContent === entry.content) {
