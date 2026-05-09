@@ -630,7 +630,7 @@ function buildReportHtml(reports: ReadmeReport[]): string {
             const actionBtns = [
                 r.score < 80 && fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
                 r.score < 80 ? `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>` : '',
-                `<button class="btn-copy-row" data-action="copy-row" data-copy="${esc(copyText)}" title="Copy filename + issues to clipboard">📋 Copy</button>`,
+                `<button class="btn-copy-row" data-action="copy-row" data-path="${esc(r.filePath)}" data-copy="${esc(copyText)}" title="Copy filename + issues to clipboard">📋 Copy</button>`,
             ].filter(Boolean).join('');
             const rowStatus = r.score >= 80 ? 'compliant' : r.score >= 60 ? 'partial' : 'non-compliant';
             return `<tr data-status="${rowStatus}">
@@ -731,10 +731,10 @@ document.addEventListener('click', e => {
   if (action === 'fix-all')     { vscode.postMessage({ command: 'fixAll' }); }
   if (action === 'rerun')       { vscode.postMessage({ command: 'rerun' }); }
   if (action === 'copy-row') {
-    navigator.clipboard.writeText(btn.dataset.copy || '').then(() => {
-      const orig = btn.textContent; btn.textContent = '✅ Copied';
-      setTimeout(() => { btn.textContent = orig; }, 1500);
-    });
+    const text = btn.dataset.copy || '';
+    const path = btn.dataset.path || '';
+    btn.textContent = '⏳…'; btn.disabled = true;
+    vscode.postMessage({ command: 'copy', text, path });
   }
   if (action === 'copy-all') {
     const visibleRows = [...document.querySelectorAll('tbody tr:not(.hidden)')];
@@ -742,10 +742,8 @@ document.addEventListener('click', e => {
       const copyBtn = row.querySelector('[data-action="copy-row"]');
       return copyBtn ? copyBtn.dataset.copy : row.textContent.trim();
     }).filter(Boolean).join('\n\n---\n\n');
-    navigator.clipboard.writeText(lines).then(() => {
-      const orig = btn.textContent; btn.textContent = '✅ Copied All';
-      setTimeout(() => { btn.textContent = orig; }, 1500);
-    });
+    btn.textContent = '⏳…'; btn.disabled = true;
+    vscode.postMessage({ command: 'copy', text: lines, isCopyAll: true });
   }
 });
 function applyFilter() {
@@ -769,6 +767,15 @@ window.addEventListener('message', e => {
   // Restore disabled buttons after fix completes
   if (msg.type === 'done' || msg.type === 'error') {
     document.querySelectorAll('.btn-fix-row').forEach(b => { b.textContent = '🔧 Review Fix'; b.disabled = false; });
+  }
+  if (msg.type === 'copied') {
+    if (msg.isCopyAll) {
+      const copyAllBtn = document.querySelector('[data-action="copy-all"]');
+      if (copyAllBtn) { copyAllBtn.textContent = '✅ Copied All'; copyAllBtn.disabled = false; setTimeout(() => { copyAllBtn.textContent = '📋 Copy All'; }, 1500); }
+    } else {
+      const copyBtn = Array.from(document.querySelectorAll('.btn-copy-row')).find(function(b) { return b.dataset.path === msg.path; });
+      if (copyBtn) { copyBtn.textContent = '✅ Copied'; copyBtn.disabled = false; setTimeout(function() { copyBtn.textContent = '📋 Copy'; }, 1500); }
+    }
   }
 });
 function showStatus(text) {
@@ -852,6 +859,10 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 break;
             case 'fixAll':
                 await fixAllNonCompliant(_lastReports);
+                break;
+            case 'copy':
+                await vscode.env.clipboard.writeText(msg.text || '');
+                panel.webview.postMessage({ type: 'copied', path: msg.path, isCopyAll: !!msg.isCopyAll });
                 break;
         }
     });

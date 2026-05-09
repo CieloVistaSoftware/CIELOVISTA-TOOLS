@@ -298,6 +298,18 @@ ok('#302 Smart fixer guessLanguage + LANG_HINTS exist in source',
         collisions === 0 ? 'All docids unique' : `${collisions} collision group(s) found — run scripts/fix-docid-collisions.js`);
 })();
 
+// #305 — README Compliance Copy button routes through vscode.env.clipboard (not navigator.clipboard)
+ok('#305 README Compliance Copy button uses vscode.env.clipboard (not navigator.clipboard)',
+    readmeFeatureSrc.includes('vscode.env.clipboard.writeText') &&
+    readmeFeatureSrc.includes("case 'copy':"),
+    'Extension host must handle copy command and write via vscode.env.clipboard');
+ok('#305 README Compliance Copy button data-action is copy-row',
+    readmeFeatureSrc.includes('data-action="copy-row"'),
+    'Per-row Copy button must use data-action="copy-row"');
+ok('#305 README Compliance AI Fix button removed',
+    !readmeFeatureSrc.includes('btn-ai-row') && !readmeFeatureSrc.includes("action === 'ai-fix'"),
+    'AI Fix button (btn-ai-row) must be gone from source');
+
 // Summary
 console.log(`\n------------------------------------------------------------`);
 console.log(`${pass + fail} checks: ${pass} passed, ${fail} failed`);
