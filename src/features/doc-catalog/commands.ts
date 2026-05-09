@@ -231,7 +231,10 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await vscode.commands.executeCommand('cvs.npm.showAndRunScripts');
                 break;
             case 'preview':
-                if (msg.data) { openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open'); }
+                if (msg.data) {
+                    openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open');
+                    void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(msg.data));
+                }
                 break;
             case 'open':
                 if (msg.data && fs.existsSync(msg.data)) {
