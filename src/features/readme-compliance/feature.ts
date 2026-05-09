@@ -231,15 +231,50 @@ function checkCompliance(filePath: string, projectName: string, projectRoot: str
 
 // ─── Auto-fixer ───────────────────────────────────────────────────────────────
 
+// ─── Smart fix helpers ────────────────────────────────────────────────────────
+
+function frontmatterEnd(lines: string[]): number {
+    if (!lines[0] || lines[0].trim() !== '---') { return 0; }
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim() === '---') { return i + 1; }
+    }
+    return 0;
+}
+
+const LANG_HINTS: Array<[RegExp, string]> = [
+    [/^\s*(import|export|interface|type\s+\w+\s*=|const\s+\w+:\s|async\s+function)/m, 'typescript'],
+    [/^\s*(function|const|let|var|require\(|module\.exports)/m,                        'javascript'],
+    [/^\s*(def |class |import |from .+ import|if __name__)/m,                          'python'],
+    [/^\s*(<\?php|\$\w+\s*=)/m,                                                        'php'],
+    [/^\s*(<html|<div|<span|<p>|<!DOCTYPE)/im,                                         'html'],
+    [/^\s*(\{|\}|"[^"]+"\s*:)/m,                                                       'json'],
+    [/^\s*(#\s*\w|[A-Z_]+\s*=|export\s+[A-Z_])/m,                                     'bash'],
+    [/^\s*(\$\w+|Get-|Set-|New-|Remove-|Invoke-|Write-Host)/m,                         'powershell'],
+    [/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/im,                         'sql'],
+    [/^\s*(FROM |RUN |CMD |ENTRYPOINT |COPY )/m,                                        'dockerfile'],
+    [/^\s*([a-z_]+\s*:\s*$|\s+-\s+\w)/m,                                               'yaml'],
+];
+
+function guessLanguage(blockLines: string[]): string {
+    const sample = blockLines.join('\n');
+    for (const [pattern, lang] of LANG_HINTS) {
+        if (pattern.test(sample)) { return lang; }
+    }
+    return 'text';
+}
+
 function applyFix(report: ReadmeReport): string {
     let content = fs.readFileSync(report.filePath, 'utf8');
     const stubs = STUBS[report.readmeType];
     for (const issue of report.issues) {
         if (!issue.fixable) { continue; }
         if (issue.fixKey === 'first-heading') {
-            if (!/^#\s/.test(content.split('\n')[0])) {
+            const lines = content.split('\n');
+            const fmEnd = frontmatterEnd(lines);
+            const bodyLines = lines.slice(fmEnd);
+            if (bodyLines.findIndex(l => /^#\s/.test(l)) !== 0) {
                 const name = path.basename(report.filePath, '.md').replace(/\.README$/i, '');
-                content = `# ${name}\n\n${content}`;
+                content = [...lines.slice(0, fmEnd), `# ${name}`, '', ...lines.slice(fmEnd)].join('\n');
             }
         }
         if (issue.fixKey.startsWith('missing-section:')) {
@@ -247,7 +282,25 @@ function applyFix(report: ReadmeReport): string {
             const stub = stubs[sec];
             if (stub && !content.toLowerCase().includes(`## ${sec}`)) { content = content.trimEnd() + '\n\n---\n\n' + stub; }
         }
-        if (issue.fixKey === 'code-block-lang')     { content = content.replace(/^```\s*$/gm, '```text'); }
+        if (issue.fixKey === 'code-block-lang') {
+            const lines = content.split('\n');
+            const result: string[] = [];
+            let inBlock = false;
+            for (let i = 0; i < lines.length; i++) {
+                const isFence = /^```\s*$/.test(lines[i]);
+                if (isFence && !inBlock) {
+                    inBlock = true;
+                    const blockLines: string[] = [];
+                    let j = i + 1;
+                    while (j < lines.length && !/^```/.test(lines[j])) { blockLines.push(lines[j]); j++; }
+                    result.push(`\`\`\`${guessLanguage(blockLines)}`);
+                } else {
+                    if (isFence) { inBlock = false; }
+                    result.push(lines[i]);
+                }
+            }
+            content = result.join('\n');
+        }
         if (issue.fixKey === 'feature-prefix')      { content = content.replace(/^(#\s+)(.+)$/m, (_, hash, title) => title.toLowerCase().startsWith('feature:') ? `${hash}${title}` : `${hash}feature: ${title}`); }
         if (issue.fixKey === 'standard-blockquote') { content = content.replace(/^(#\s+.+)$/m, (_, heading) => `${heading}\n\n> _TODO: one-line summary of what this standard covers._`); }
     }
@@ -298,6 +351,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .d2h-wrapper{font-family:var(--vscode-editor-font-family,monospace)!important;font-size:12px!important}
 .d2h-file-header{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-editor-foreground)!important}
 .d2h-code-linenumber{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-descriptionForeground)!important}
+/* High-contrast dark-mode diff row colors */
+.d2h-del,.d2h-del td{background:#3c1f1e!important}
+.d2h-del .d2h-code-line-ctn{color:#ffa0a0!important}
+.d2h-ins,.d2h-ins td{background:#1b3a24!important}
+.d2h-ins .d2h-code-line-ctn{color:#85e89d!important}
 </style>
 </head>
 <body>
@@ -394,20 +452,11 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
                 fs.writeFileSync(report.filePath, after, 'utf8');
                 log(FEATURE, `Approved fix: ${report.filePath}`);
                 _diffPanel?.dispose();
-
-                // Count what changed
-                const addedLines   = unifiedDiff.split('\n').filter(l => l.startsWith('+')).length;
-                const removedLines = unifiedDiff.split('\n').filter(l => l.startsWith('-')).length;
-                const fixedIssues  = report.issues.filter(i => i.fixable);
-
-                // TODO: Show per-job output in a new webview (fix approved)
-
-                // Rescan and refresh compliance panel
+                vscode.window.showInformationMessage(`Fix written — ${report.fileName} rescanning…`);
                 await runScan();
-
             } catch (err) {
                 logError(`Failed to write fix for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-                // TODO: Show per-job output in a new webview (fix failed)
+                vscode.window.showErrorMessage(`Failed to write fix for ${report.fileName}.`);
             }
         }
         if (msg.command === 'ignore') {
@@ -1101,6 +1150,9 @@ export const _test = {
     checkCompliance,
     applyFix,
     esc,
+    frontmatterEnd,
+    guessLanguage,
+    LANG_HINTS,
     REQUIRED_SECTIONS,
     SECTION_ORDER,
     LINE_LIMITS,
