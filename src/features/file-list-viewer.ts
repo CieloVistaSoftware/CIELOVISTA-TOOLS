@@ -109,6 +109,7 @@ tr.dir td.col-name{color:#9cdcfe;font-weight:600}
 tr.dir td.col-name::before{content:'\u{1F4C1}';margin-right:6px}
 tr.file td.col-name::before{content:'\u{1F4C4}';margin-right:6px;opacity:.5}
 tr.hidden td.col-name{opacity:.55}
+tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important;color:var(--vscode-list-activeSelectionForeground)!important}
 .empty{padding:30px;text-align:center;color:#858585}
 </style></head><body>
 <div id="hdr">
@@ -206,6 +207,18 @@ window.addEventListener('message', ev => {
   if (ev.data && ev.data.type === 'update') {
     state = ev.data.state;
     render();
+  }
+  if (ev.data && ev.data.type === 'select') {
+    var selName = ev.data.name;
+    document.querySelectorAll('#tbody tr.selected').forEach(function(r) { r.classList.remove('selected'); });
+    var rows = document.querySelectorAll('#tbody tr');
+    for (var ri = 0; ri < rows.length; ri++) {
+      if (rows[ri].dataset.name === selName) {
+        rows[ri].classList.add('selected');
+        rows[ri].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        break;
+      }
+    }
   }
 });
 
@@ -323,6 +336,16 @@ export function openFileListPanel(): void {
 
     _panel.webview.html = buildHtml();
     log(FEATURE, `FileList opened at ${root}`);
+}
+
+export function revealFileInPanel(filePath: string): void {
+    if (!_panel) { return; }
+    const dir  = path.dirname(filePath);
+    const name = path.basename(filePath);
+    if (_currentDir && path.resolve(_currentDir) !== path.resolve(dir)) {
+        navigateTo(dir);
+    }
+    void _panel.webview.postMessage({ type: 'select', name });
 }
 
 export function activate(context: vscode.ExtensionContext): void {
