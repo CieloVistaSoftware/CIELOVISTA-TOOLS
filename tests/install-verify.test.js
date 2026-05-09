@@ -310,6 +310,20 @@ ok('#305 README Compliance AI Fix button removed',
     !readmeFeatureSrc.includes('btn-ai-row') && !readmeFeatureSrc.includes("action === 'ai-fix'"),
     'AI Fix button (btn-ai-row) must be gone from source');
 
+// #307 — README Compliance Fix All: AI batch fix with per-file review
+ok('#307 fixAllNonCompliant uses AI batch review (not blind write)',
+    readmeFeatureSrc.includes('buildBatchReviewHtml') &&
+    readmeFeatureSrc.includes("applyBatch") &&
+    !readmeFeatureSrc.includes("'Write All'"),
+    'Fix All must use AI batch review panel, not blind stub write');
+ok('#307 fixAllNonCompliant confirmation says Run AI Fix',
+    readmeFeatureSrc.includes("'Run AI Fix'"),
+    'Confirmation dialog must say Run AI Fix so user understands AI is running');
+ok('#307 batch review panel disposed on deactivate',
+    readmeFeatureSrc.includes('_batchPanel') &&
+    readmeFeatureSrc.includes('_batchPanel?.dispose()'),
+    '_batchPanel must exist and be disposed in deactivate()');
+
 // Summary
 console.log(`\n------------------------------------------------------------`);
 console.log(`${pass + fail} checks: ${pass} passed, ${fail} failed`);

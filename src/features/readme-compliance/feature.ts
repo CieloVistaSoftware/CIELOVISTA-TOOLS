@@ -231,176 +231,33 @@ function checkCompliance(filePath: string, projectName: string, projectRoot: str
 
 // ─── Auto-fixer ───────────────────────────────────────────────────────────────
 
-// Returns the index of the line AFTER the closing `---` of YAML frontmatter,
-// or 0 if the file has no frontmatter.
-function frontmatterEnd(lines: string[]): number {
-    if (!lines[0] || lines[0].trim() !== '---') { return 0; }
-    for (let i = 1; i < lines.length; i++) {
-        if (lines[i].trim() === '---') { return i + 1; }
-    }
-    return 0; // malformed — treat as no frontmatter
-}
-
-// Infer the best language tag for a fenced code block by scanning the lines
-// inside it for recognizable patterns.
-const LANG_HINTS: Array<[RegExp, string]> = [
-    [/^\s*(import|export|interface|type\s+\w+\s*=|const\s+\w+:\s|async\s+function)/m, 'typescript'],
-    [/^\s*(function|const|let|var|require\(|module\.exports)/m,                       'javascript'],
-    [/^\s*(def |class |import |from .+ import|if __name__)/m,                         'python'],
-    [/^\s*(<\?php|\$\w+\s*=)/m,                                                       'php'],
-    [/^\s*(<html|<div|<span|<p>|<!DOCTYPE)/im,                                        'html'],
-    [/^\s*(\{|\}|"[^"]+"\s*:)/m,                                                      'json'],
-    [/^\s*(#\s*\w|[A-Z_]+\s*=|export\s+[A-Z_])/m,                                    'bash'],
-    [/^\s*(\$\w+|Get-|Set-|New-|Remove-|Invoke-|Write-Host)/m,                        'powershell'],
-    [/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/im,                        'sql'],
-    [/^\s*(FROM |RUN |CMD |ENTRYPOINT |COPY )/m,                                      'dockerfile'],
-    [/^\s*([a-z_]+\s*:\s*$|\s+-\s+\w)/m,                                             'yaml'],
-];
-
-function guessLanguage(blockLines: string[]): string {
-    const sample = blockLines.join('\n');
-    for (const [pattern, lang] of LANG_HINTS) {
-        if (pattern.test(sample)) { return lang; }
-    }
-    return 'text';
-}
-
-// Insert `stub` into `lines` after the last existing section whose canonical
-// name appears before `sectionName` in `order`, or after frontmatter if
-// none of the prior sections exist yet.
-function insertSectionInOrder(lines: string[], stub: string, sectionName: string, order: string[], fmEnd: number): string[] {
-    // Find index of sectionName in the order list
-    const targetIdx = order.indexOf(sectionName);
-
-    // Walk backwards through the order to find the last section that already exists
-    let insertAfterLine = fmEnd; // fallback: right after frontmatter (or top of file)
-    for (let o = targetIdx - 1; o >= 0; o--) {
-        const prev = order[o];
-        // Find the ## heading line for this section
-        const lineIdx = lines.findIndex(l => normalizeHeading(l).includes(prev));
-        if (lineIdx !== -1) {
-            // Advance past the entire section block to find the next ## or end
-            let end = lineIdx + 1;
-            while (end < lines.length && !/^#{1,2}\s/.test(lines[end])) { end++; }
-            // Trim trailing blank lines
-            while (end > lineIdx + 1 && !lines[end - 1].trim()) { end--; }
-            insertAfterLine = end;
-            break;
-        }
-    }
-
-    // Also scan forward from frontmatterEnd for the FIRST section that comes
-    // AFTER sectionName in order — we must insert before it.
-    let insertBeforeLine = lines.length;
-    for (let o = targetIdx + 1; o < order.length; o++) {
-        const next = order[o];
-        const lineIdx = lines.findIndex(l => normalizeHeading(l).includes(next));
-        if (lineIdx !== -1) {
-            insertBeforeLine = lineIdx;
-            break;
-        }
-    }
-
-    const actualInsert = Math.min(insertAfterLine, insertBeforeLine);
-    const stubLines = ('\n' + stub).split('\n');
-    return [...lines.slice(0, actualInsert), ...stubLines, ...lines.slice(actualInsert)];
-}
-
 function applyFix(report: ReadmeReport): string {
     let content = fs.readFileSync(report.filePath, 'utf8');
-    const stubs  = STUBS[report.readmeType];
-    const order  = SECTION_ORDER[report.readmeType];
-    let   lines  = content.split('\n');
-    const fmEnd  = frontmatterEnd(lines);
-
+    const stubs = STUBS[report.readmeType];
     for (const issue of report.issues) {
         if (!issue.fixable) { continue; }
-
         if (issue.fixKey === 'first-heading') {
-            // Check that no # heading exists after frontmatter
-            const bodyLines  = lines.slice(fmEnd);
-            const firstH1Idx = bodyLines.findIndex(l => /^#\s/.test(l));
-            if (firstH1Idx !== 0) {
-                const name       = path.basename(report.filePath, '.md').replace(/\.README$/i, '');
-                const heading    = [`# ${name}`, ''];
-                lines = [...lines.slice(0, fmEnd), ...heading, ...lines.slice(fmEnd)];
+            if (!/^#\s/.test(content.split('\n')[0])) {
+                const name = path.basename(report.filePath, '.md').replace(/\.README$/i, '');
+                content = `# ${name}\n\n${content}`;
             }
         }
-
         if (issue.fixKey.startsWith('missing-section:')) {
-            const sec  = issue.fixKey.replace('missing-section:', '');
+            const sec = issue.fixKey.replace('missing-section:', '');
             const stub = stubs[sec];
-            // Skip if section already present (case-insensitive)
-            if (!stub) { continue; }
-            const alreadyPresent = lines.some(l => normalizeHeading(l).includes(sec));
-            if (alreadyPresent) { continue; }
-            lines = insertSectionInOrder(lines, stub, sec, order, fmEnd);
+            if (stub && !content.toLowerCase().includes(`## ${sec}`)) { content = content.trimEnd() + '\n\n---\n\n' + stub; }
         }
-
-        if (issue.fixKey === 'code-block-lang') {
-            // Only fix opening fences (lines that open a block, not close one).
-            // A bare ``` that opens a block is preceded by a non-fence line;
-            // a bare ``` that closes a block is preceded by content lines.
-            const result: string[] = [];
-            let inBlock = false;
-            for (let i = 0; i < lines.length; i++) {
-                const isFence = /^```\s*$/.test(lines[i]);
-                if (isFence && !inBlock) {
-                    // Opening fence — gather block lines to guess language
-                    const blockLines: string[] = [];
-                    let j = i + 1;
-                    while (j < lines.length && !/^```/.test(lines[j])) {
-                        blockLines.push(lines[j]);
-                        j++;
-                    }
-                    const lang = guessLanguage(blockLines);
-                    result.push(`\`\`\`${lang}`);
-                    inBlock = true;
-                } else if (isFence && inBlock) {
-                    result.push('```'); // closing fence — leave as-is
-                    inBlock = false;
-                } else {
-                    result.push(lines[i]);
-                }
-            }
-            lines = result;
-        }
-
-        if (issue.fixKey === 'feature-prefix') {
-            // Find the first H1 after frontmatter and prefix it
-            for (let i = fmEnd; i < lines.length; i++) {
-                if (/^#\s/.test(lines[i])) {
-                    const title = lines[i].replace(/^#\s+/, '');
-                    if (!title.toLowerCase().startsWith('feature:')) {
-                        lines[i] = `# feature: ${title}`;
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (issue.fixKey === 'standard-blockquote') {
-            // Insert blockquote on the line after the first H1 after frontmatter
-            for (let i = fmEnd; i < lines.length; i++) {
-                if (/^#\s/.test(lines[i])) {
-                    lines = [
-                        ...lines.slice(0, i + 1),
-                        '',
-                        '> _TODO: one-line summary of what this standard covers._',
-                        ...lines.slice(i + 1),
-                    ];
-                    break;
-                }
-            }
-        }
+        if (issue.fixKey === 'code-block-lang')     { content = content.replace(/^```\s*$/gm, '```text'); }
+        if (issue.fixKey === 'feature-prefix')      { content = content.replace(/^(#\s+)(.+)$/m, (_, hash, title) => title.toLowerCase().startsWith('feature:') ? `${hash}${title}` : `${hash}feature: ${title}`); }
+        if (issue.fixKey === 'standard-blockquote') { content = content.replace(/^(#\s+.+)$/m, (_, heading) => `${heading}\n\n> _TODO: one-line summary of what this standard covers._`); }
     }
-
-    return lines.join('\n');
+    return content;
 }
 
 // ─── Diff webview (diff2html from CDN) ────────────────────────────────────────
 
-let _diffPanel: vscode.WebviewPanel | undefined;
+let _diffPanel:  vscode.WebviewPanel | undefined;
+let _batchPanel: vscode.WebviewPanel | undefined;
 
 function buildDiffHtml(
     fileName:    string,
@@ -437,16 +294,10 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #issues ul{padding-left:16px;display:flex;flex-wrap:wrap;gap:4px 20px}
 #issues li{list-style:none}
 #diff-wrap{flex:1;overflow-y:auto;padding:12px 16px}
-/* Override diff2html to respect VS Code theme with high-contrast diff colors */
+/* Override diff2html to respect VS Code theme */
 .d2h-wrapper{font-family:var(--vscode-editor-font-family,monospace)!important;font-size:12px!important}
 .d2h-file-header{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-editor-foreground)!important}
 .d2h-code-linenumber{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-descriptionForeground)!important}
-.d2h-del,.d2h-del td{background:#3c1f1e!important;color:#ffa0a0!important}
-.d2h-ins,.d2h-ins td{background:#1b3a24!important;color:#a0ffb0!important}
-.d2h-del .d2h-code-linenumber{background:#5a2020!important;border-color:#7a2a2a!important}
-.d2h-ins .d2h-code-linenumber{background:#1e4a2a!important;border-color:#2a6a3a!important}
-.d2h-code-line del{background:rgba(255,80,80,0.35)!important;text-decoration:none}
-.d2h-code-line ins{background:rgba(80,220,100,0.35)!important;text-decoration:none}
 </style>
 </head>
 <body>
@@ -494,42 +345,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 async function showFixDiff(report: ReadmeReport): Promise<void> {
     const before = fs.readFileSync(report.filePath, 'utf8');
-    let after    = applyFix(report);
+    const after  = applyFix(report);
 
     if (before === after) {
         vscode.window.showInformationMessage(`No changes needed for ${report.fileName}.`);
         return;
-    }
-
-    // If the fix introduced _TODO: stubs, replace them with AI-generated content
-    // from the companion source file (same base name, .ts or .js extension).
-    if (after.includes('_TODO:') || after.includes('# TODO')) {
-        _panel?.webview.postMessage({ type: 'progress', text: `Generating content for ${report.fileName}… 10–20s` });
-        const srcDir  = path.dirname(report.filePath);
-        const srcBase = path.basename(report.filePath).replace(/\.README\.md$/i, '').replace(/\.md$/i, '');
-        const srcTs   = path.join(srcDir, srcBase + '.ts');
-        const srcJs   = path.join(srcDir, srcBase + '.js');
-        const srcPath = fs.existsSync(srcTs) ? srcTs : fs.existsSync(srcJs) ? srcJs : null;
-        const srcContent = srcPath
-            ? (() => { try { return fs.readFileSync(srcPath, 'utf8').slice(0, 4000); } catch { return ''; } })()
-            : '';
-        const issueList = report.issues.map(i => `- ${i.message}`).join('\n');
-        const prompt =
-`You are filling in a ${report.readmeType} README.md for a CieloVista Software project.
-The structural skeleton has already been applied. Replace every _TODO: placeholder with real, specific content.
-${srcContent ? `Source file (${path.basename(srcPath!)}): use this as primary context for accurate section content.\n---\n${srcContent}\n---\n` : ''}Compliance issues:\n${issueList}
-Fixed README with stubs:\n---\n${after.slice(0, 5000)}\n---
-Rules:
-- Replace every _TODO: stub with concise, accurate content derived from the source file
-- Keep all existing valid content — do not remove sections or headings
-- Keep the file under ${LINE_LIMITS[report.readmeType]} lines
-- Output ONLY the final markdown, no preamble, no commentary`;
-        try {
-            const aiContent = await callClaude(prompt, 2000);
-            if (aiContent && aiContent.trim().length > 50) { after = aiContent; }
-        } catch (err) {
-            log(FEATURE, `AI stub fill skipped for ${report.fileName}: ${err}`);
-        }
     }
 
     // Use jsdiff (npm devDependency) to build the unified diff string
@@ -574,17 +394,26 @@ Rules:
                 fs.writeFileSync(report.filePath, after, 'utf8');
                 log(FEATURE, `Approved fix: ${report.filePath}`);
                 _diffPanel?.dispose();
-                const fixedIssues = report.issues.filter(i => i.fixable).length;
-                vscode.window.showInformationMessage(`✅ Fix written — ${report.fileName} (${fixedIssues} issue${fixedIssues !== 1 ? 's' : ''} resolved)`);
+
+                // Count what changed
+                const addedLines   = unifiedDiff.split('\n').filter(l => l.startsWith('+')).length;
+                const removedLines = unifiedDiff.split('\n').filter(l => l.startsWith('-')).length;
+                const fixedIssues  = report.issues.filter(i => i.fixable);
+
+                // TODO: Show per-job output in a new webview (fix approved)
+
+                // Rescan and refresh compliance panel
                 await runScan();
+
             } catch (err) {
                 logError(`Failed to write fix for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-                vscode.window.showErrorMessage(`❌ Failed to write fix for ${report.fileName}: ${err instanceof Error ? err.message : String(err)}`);
+                // TODO: Show per-job output in a new webview (fix failed)
             }
         }
         if (msg.command === 'ignore') {
             log(FEATURE, `Fix ignored: ${report.filePath}`);
             _diffPanel?.dispose();
+            // TODO: Show per-job output in a new webview (fix ignored)
         }
     });
 }
@@ -625,13 +454,15 @@ function buildReportHtml(reports: ReadmeReport[]): string {
             const issueHtml    = r.issues.length === 0
                 ? '<span style="color:var(--vscode-testing-iconPassed)">✅ No issues</span>'
                 : r.issues.map(i => `<div class="issue">${i.severity === 'error' ? '🔴' : i.severity === 'warning' ? '🟡' : 'ℹ️'} ${esc(i.message)}</div>`).join('');
-            const issueLines = r.issues.map(i => `  ${i.severity === 'error' ? '🔴' : i.severity === 'warning' ? '🟡' : 'ℹ️'} ${i.message}`).join('\n');
-            const copyText   = `${r.filePath}\nScore: ${r.score} (${scoreLabel(r.score)}) | Type: ${r.readmeType} | Lines: ${r.lineCount}\n${issueLines}`;
-            const actionBtns = [
-                r.score < 80 && fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
-                r.score < 80 ? `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>` : '',
-                `<button class="btn-copy-row" data-action="copy-row" data-path="${esc(r.filePath)}" data-copy="${esc(copyText)}" title="Copy filename + issues to clipboard">📋 Copy</button>`,
-            ].filter(Boolean).join('');
+            const copyText = `File: ${r.fileName}\nPath: ${r.filePath}\n\nIssues:\n${r.issues.map(i => `- [${i.severity}] ${i.message}`).join('\n')}`;
+            const escapedCopy = esc(copyText).replace(/\n/g, '&#10;');
+            const actionBtns = r.score >= 80
+                ? '<span style="color:var(--vscode-testing-iconPassed);font-size:11px">✅ Compliant</span>'
+                : [
+                    fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
+                    `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>`,
+                    `<button class="btn-copy-row" data-action="copy-row" data-path="${esc(r.filePath)}" data-copy="${escapedCopy}">📋 Copy</button>`,
+                  ].filter(Boolean).join('');
             const rowStatus = r.score >= 80 ? 'compliant' : r.score >= 60 ? 'partial' : 'non-compliant';
             return `<tr data-status="${rowStatus}">
   <td class="file-col">
@@ -658,12 +489,13 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #toolbar{position:sticky;top:0;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:8px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;z-index:10}
 #toolbar h1{font-size:1.1em;font-weight:700}
 .summary-pills{display:flex;gap:8px;flex-wrap:wrap}
-.pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid;background:transparent;cursor:pointer;font-family:inherit}
+.pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid;background:transparent;cursor:pointer}
 .pill-ok{color:var(--vscode-testing-iconPassed);border-color:var(--vscode-testing-iconPassed)}
+.pill-ok.active{background:var(--vscode-testing-iconPassed);color:#000}
 .pill-warn{color:var(--vscode-inputValidation-warningForeground);border-color:var(--vscode-inputValidation-warningForeground)}
+.pill-warn.active{background:var(--vscode-inputValidation-warningForeground);color:#000}
 .pill-err{color:var(--vscode-inputValidation-errorForeground);border-color:var(--vscode-inputValidation-errorForeground)}
-.pill.active{opacity:1;font-weight:800}
-.pill:not(.active){opacity:0.45}
+.pill-err.active{background:var(--vscode-inputValidation-errorForeground);color:#fff}
 #search{padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;font-size:12px;flex:1;min-width:140px}
 .btn-fix-all{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 12px;border-radius:2px;cursor:pointer;font-size:12px}
 .btn-fix-all:hover{background:var(--vscode-button-hoverBackground)}
@@ -688,8 +520,8 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 .btn-fix-row:hover{background:var(--vscode-button-hoverBackground)}
 .btn-open-row{background:transparent;color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
 .btn-open-row:hover{border-color:var(--vscode-focusBorder)}
-.btn-copy-row{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
-.btn-copy-row:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground)}
+.btn-copy-row{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;width:100%}
+.btn-copy-row:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-fix-proj{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:auto}
 .file-col{min-width:120px}
 .file-path{font-family:var(--vscode-editor-font-family);font-size:9px;color:var(--vscode-descriptionForeground);margin-top:2px}
@@ -706,57 +538,37 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
   </div>
   <input id="search" type="text" placeholder="Filter by filename or project…">
   <button class="btn-fix-all" data-action="fix-all">🔧 Fix All Non-Compliant</button>
-  <button class="btn-fix-all" data-action="copy-all" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)" title="Copy all visible rows to clipboard">📋 Copy All</button>
   <button class="btn-fix-all" data-action="rerun" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)">🔄 Rerun Scan</button>
 </div>
 <div id="content">${projectSections}</div>
 <script>
 const vscode = acquireVsCodeApi();
-const activePills = new Set();
 document.getElementById('search').addEventListener('input', applyFilter);
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) { return; }
   const action = btn.dataset.action;
-  if (action === 'filter-status') {
-    const status = btn.dataset.status;
-    if (activePills.has(status)) { activePills.delete(status); btn.classList.remove('active'); }
-    else { activePills.add(status); btn.classList.add('active'); }
-    applyFilter();
-    return;
-  }
   if (action === 'open')        { vscode.postMessage({ command: 'open',       data: btn.dataset.path }); }
   if (action === 'fix')         { btn.textContent = '⏳ Loading diff…'; btn.disabled = true; vscode.postMessage({ command: 'fix', data: btn.dataset.path }); }
+  if (action === 'copy-row')    { var rpath = btn.dataset.path || ''; btn.textContent = '⏳…'; btn.disabled = true; vscode.postMessage({ command: 'copy', text: btn.dataset.copy || '', path: rpath }); }
   if (action === 'fix-project') { vscode.postMessage({ command: 'fixProject', project: btn.dataset.proj }); }
   if (action === 'fix-all')     { vscode.postMessage({ command: 'fixAll' }); }
   if (action === 'rerun')       { vscode.postMessage({ command: 'rerun' }); }
-  if (action === 'copy-row') {
-    const text = btn.dataset.copy || '';
-    const path = btn.dataset.path || '';
-    btn.textContent = '⏳…'; btn.disabled = true;
-    vscode.postMessage({ command: 'copy', text, path });
-  }
-  if (action === 'copy-all') {
-    const visibleRows = [...document.querySelectorAll('tbody tr:not(.hidden)')];
-    const lines = visibleRows.map(row => {
-      const copyBtn = row.querySelector('[data-action="copy-row"]');
-      return copyBtn ? copyBtn.dataset.copy : row.textContent.trim();
-    }).filter(Boolean).join('\n\n---\n\n');
-    btn.textContent = '⏳…'; btn.disabled = true;
-    vscode.postMessage({ command: 'copy', text: lines, isCopyAll: true });
+  if (action === 'filter-status') {
+    var wasActive = btn.classList.contains('active');
+    document.querySelectorAll('[data-action="filter-status"]').forEach(function(b) { b.classList.remove('active'); });
+    if (!wasActive) { btn.classList.add('active'); }
+    applyFilter();
   }
 });
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase().trim();
-  const hasPill = activePills.size > 0;
+  var activePill = document.querySelector('[data-action="filter-status"].active');
+  var pillStatus = activePill ? activePill.dataset.status : null;
   document.querySelectorAll('tbody tr').forEach(row => {
-    const textMatch = !q || row.textContent.toLowerCase().includes(q);
-    const pillMatch = !hasPill || activePills.has(row.dataset.status);
-    row.classList.toggle('hidden', !(textMatch && pillMatch));
-  });
-  document.querySelectorAll('.proj-section').forEach(sec => {
-    const anyVisible = sec.querySelector('tbody tr:not(.hidden)');
-    sec.style.display = anyVisible ? '' : 'none';
+    var matchSearch = !q || row.textContent.toLowerCase().includes(q);
+    var matchPill   = !pillStatus || row.dataset.status === pillStatus;
+    row.classList.toggle('hidden', !matchSearch || !matchPill);
   });
 }
 window.addEventListener('message', e => {
@@ -764,18 +576,13 @@ window.addEventListener('message', e => {
   if (msg.type === 'done')     { showStatus('✅ ' + msg.text); }
   if (msg.type === 'error')    { showStatus('❌ ' + msg.text); }
   if (msg.type === 'progress') { showStatus('⏳ ' + msg.text); }
+  if (msg.type === 'copied') {
+    var copyBtn = Array.from(document.querySelectorAll('.btn-copy-row')).find(function(b) { return b.dataset.path === msg.path; });
+    if (copyBtn) { copyBtn.textContent = '✅ Copied'; copyBtn.disabled = false; setTimeout(function() { copyBtn.textContent = '📋 Copy'; }, 1500); }
+  }
   // Restore disabled buttons after fix completes
   if (msg.type === 'done' || msg.type === 'error') {
     document.querySelectorAll('.btn-fix-row').forEach(b => { b.textContent = '🔧 Review Fix'; b.disabled = false; });
-  }
-  if (msg.type === 'copied') {
-    if (msg.isCopyAll) {
-      const copyAllBtn = document.querySelector('[data-action="copy-all"]');
-      if (copyAllBtn) { copyAllBtn.textContent = '✅ Copied All'; copyAllBtn.disabled = false; setTimeout(() => { copyAllBtn.textContent = '📋 Copy All'; }, 1500); }
-    } else {
-      const copyBtn = Array.from(document.querySelectorAll('.btn-copy-row')).find(function(b) { return b.dataset.path === msg.path; });
-      if (copyBtn) { copyBtn.textContent = '✅ Copied'; copyBtn.disabled = false; setTimeout(function() { copyBtn.textContent = '📋 Copy'; }, 1500); }
-    }
   }
 });
 function showStatus(text) {
@@ -854,15 +661,15 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await fixProjectReadmes(msg.project);
                 await runScan();
                 break;
+            case 'copy':
+                await vscode.env.clipboard.writeText(msg.text || '');
+                panel.webview.postMessage({ type: 'copied', path: msg.path });
+                break;
             case 'rerun':
                 await runScan();
                 break;
             case 'fixAll':
                 await fixAllNonCompliant(_lastReports);
-                break;
-            case 'copy':
-                await vscode.env.clipboard.writeText(msg.text || '');
-                panel.webview.postMessage({ type: 'copied', path: msg.path, isCopyAll: !!msg.isCopyAll });
                 break;
         }
     });
@@ -891,33 +698,265 @@ async function pickAndFixReadme(): Promise<void> {
     await showFixDiff(picked.report);
 }
 
-async function fixAllNonCompliant(reports: ReadmeReport[]): Promise<void> {
-    const targets = reports.filter(r => r.score < 80 && r.issues.some(i => i.fixable));
-    if (!targets.length) { vscode.window.showInformationMessage('No auto-fixable issues found.'); return; }
-
-    const confirm = await vscode.window.showWarningMessage(
-        `Write fixes to ${targets.length} README(s) without individual review? Each file will have missing sections added as stubs.`,
-        { modal: true }, 'Write All', 'Cancel'
-    );
-    if (confirm !== 'Write All') { return; }
-
-    let fixed = 0;
-    const changes: Array<{ action: string; file: string }> = [];
-    for (const report of targets) {
-        try {
-            const content = applyFix(report);
-            fs.writeFileSync(report.filePath, content, 'utf8');
-            fixed++;
-            report.issues.filter(i => i.fixable).forEach(i => changes.push({ action: i.message, file: report.filePath }));
-        } catch (err) { logError(`Failed to fix ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
-    }
-
-    // TODO: Show per-job output in a new webview (fixAll)
-    await runScan();
+interface BatchItem {
+    fileName:    string;
+    filePath:    string;
+    score:       number;
+    issues:      ComplianceIssue[];
+    aiContent:   string;
+    unifiedDiff: string;
 }
 
-async function aiFixReadme(filePath: string, readmeType: ReadmeType, statusPanel?: vscode.WebviewPanel): Promise<void> {
-    const progressTarget = statusPanel ?? _panel;
+function buildBatchReviewHtml(items: BatchItem[]): string {
+    const itemsData = items.map((item, i) => ({
+        i,
+        fileName:    item.fileName,
+        filePath:    item.filePath,
+        score:       item.score,
+        aiContent:   item.aiContent,
+        unifiedDiff: item.unifiedDiff,
+    }));
+
+    const cardsHtml = items.map((item, i) => {
+        const fixable    = item.issues.filter(iss => iss.fixable);
+        const issueLines = fixable.map(iss =>
+            `<li>${iss.severity === 'error' ? '🔴' : '🟡'} ${esc(iss.message)}</li>`
+        ).join('');
+        return `<div class="batch-card" id="card-${i}" data-index="${i}">
+  <div class="batch-hd">
+    <span class="batch-fname">${esc(item.fileName)}</span>
+    <span class="batch-score">Score: ${item.score}/100</span>
+    <div style="flex:1"></div>
+    <button class="btn-approve-one" data-index="${i}">☑ Approve</button>
+    <button class="btn-skip-one"   data-index="${i}">✕ Skip</button>
+  </div>
+  <div class="batch-path">${esc(item.filePath)}</div>
+  ${issueLines ? `<div class="batch-issues"><ul>${issueLines}</ul></div>` : ''}
+  <div class="batch-diff-wrap"><div id="diff-${i}"></div></div>
+</div>`;
+    }).join('');
+
+    const itemsJson = JSON.stringify(itemsData);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html@3.4.56/bundles/css/diff2html.min.css">
+<script src="https://cdn.jsdelivr.net/npm/diff2html@3.4.56/bundles/js/diff2html-ui.min.js"><\/script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
+#toolbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}
+#toolbar h1{font-size:0.95em;font-weight:700;flex:1}
+.btn-primary{background:#3fb950;color:#000;border:none;padding:6px 16px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700}
+.btn-primary:hover{opacity:.85}.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-sec{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 12px;border-radius:3px;cursor:pointer;font-size:12px}
+.btn-sec:hover{background:var(--vscode-button-secondaryHoverBackground)}
+#cards{padding:14px 16px 60px}
+.batch-card{border:1px solid var(--vscode-panel-border);border-radius:5px;margin-bottom:16px;overflow:hidden;transition:border-color 0.12s}
+.batch-card.approved{border-color:#3fb950}
+.batch-card.skipped{opacity:.4}
+.batch-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--vscode-textCodeBlock-background)}
+.batch-fname{font-weight:700;font-size:0.92em}.batch-score{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
+.batch-path{font-size:10px;color:var(--vscode-descriptionForeground);padding:4px 14px;background:var(--vscode-textCodeBlock-background);border-bottom:1px solid var(--vscode-panel-border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family)}
+.batch-issues{padding:6px 14px;font-size:11px;background:var(--vscode-textCodeBlock-background);border-bottom:1px solid var(--vscode-panel-border)}
+.batch-issues ul{padding-left:16px;display:flex;flex-wrap:wrap;gap:3px 16px}
+.batch-issues li{list-style:none}
+.batch-diff-wrap{padding:8px 14px}
+.btn-approve-one{background:transparent;color:#3fb950;border:1px solid #3fb950;padding:3px 12px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap}
+.btn-approve-one.active{background:#3fb950;color:#000}
+.btn-approve-one:hover{background:rgba(63,185,80,.15)}
+.btn-skip-one{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px}
+.btn-skip-one:hover{border-color:var(--vscode-focusBorder)}
+.d2h-wrapper{font-family:var(--vscode-editor-font-family,monospace)!important;font-size:12px!important}
+.d2h-file-header{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-editor-foreground)!important}
+.d2h-code-linenumber{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-descriptionForeground)!important}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <h1>📝 AI Batch Fix Review — ${items.length} file${items.length !== 1 ? 's' : ''}</h1>
+  <button class="btn-primary" id="btn-apply" disabled>✅ Apply Approved (0)</button>
+  <button class="btn-sec" id="btn-approve-all">✓ Approve All</button>
+  <button class="btn-sec" id="btn-skip-all">✕ Skip All</button>
+</div>
+<div id="cards">
+${cardsHtml}
+</div>
+<script>
+(function(){
+'use strict';
+const vscode = acquireVsCodeApi();
+const ITEMS = ${itemsJson};
+var approved = {};
+
+function updateCta() {
+  var count = Object.keys(approved).filter(function(k) { return approved[k]; }).length;
+  var btn = document.getElementById('btn-apply');
+  btn.textContent = '\\u2705 Apply Approved (' + count + ')';
+  btn.disabled = count === 0;
+}
+
+function setApprove(idx, val) {
+  var card = document.getElementById('card-' + idx);
+  if (!card) { return; }
+  var appBtn = card.querySelector('.btn-approve-one');
+  if (val) {
+    approved[idx] = true;
+    card.classList.add('approved');
+    card.classList.remove('skipped');
+    appBtn.textContent = '\\u2705 Approved';
+    appBtn.classList.add('active');
+  } else {
+    delete approved[idx];
+    card.classList.remove('approved', 'skipped');
+    appBtn.textContent = '\\u2611 Approve';
+    appBtn.classList.remove('active');
+  }
+  updateCta();
+}
+
+document.querySelectorAll('.btn-approve-one').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var idx = parseInt(btn.dataset.index, 10);
+    setApprove(idx, !approved[idx]);
+  });
+});
+
+document.querySelectorAll('.btn-skip-one').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var idx = parseInt(btn.dataset.index, 10);
+    delete approved[idx];
+    var card = document.getElementById('card-' + idx);
+    card.classList.remove('approved');
+    card.classList.add('skipped');
+    card.querySelector('.btn-approve-one').textContent = '\\u2611 Approve';
+    card.querySelector('.btn-approve-one').classList.remove('active');
+    updateCta();
+  });
+});
+
+document.getElementById('btn-approve-all').addEventListener('click', function() {
+  ITEMS.forEach(function(item) { setApprove(item.i, true); });
+});
+
+document.getElementById('btn-skip-all').addEventListener('click', function() {
+  ITEMS.forEach(function(item) {
+    delete approved[item.i];
+    var card = document.getElementById('card-' + item.i);
+    card.classList.remove('approved');
+    card.classList.add('skipped');
+    var appBtn = card.querySelector('.btn-approve-one');
+    appBtn.textContent = '\\u2611 Approve';
+    appBtn.classList.remove('active');
+  });
+  updateCta();
+});
+
+document.getElementById('btn-apply').addEventListener('click', function() {
+  var toWrite = ITEMS
+    .filter(function(item) { return !!approved[item.i]; })
+    .map(function(item) { return { filePath: item.filePath, content: item.aiContent }; });
+  if (!toWrite.length) { return; }
+  vscode.postMessage({ command: 'applyBatch', approved: toWrite });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  ITEMS.forEach(function(item) {
+    var target = document.getElementById('diff-' + item.i);
+    if (!target || !item.unifiedDiff) { return; }
+    var ui = new Diff2HtmlUI(target, item.unifiedDiff, {
+      drawFileList: false, matching: 'lines', outputFormat: 'line-by-line',
+      highlight: true, renderNothingWhenEmpty: false,
+    });
+    ui.draw();
+    ui.highlightCode();
+  });
+});
+
+updateCta();
+})();
+<\/script>
+</body>
+</html>`;
+}
+
+async function fixAllNonCompliant(reports: ReadmeReport[]): Promise<void> {
+    const targets = reports.filter(r => r.score < 80 && r.issues.some(i => i.fixable));
+    if (!targets.length) { vscode.window.showInformationMessage('No fixable issues found.'); return; }
+
+    const go = await vscode.window.showWarningMessage(
+        `Run AI fix on ${targets.length} README${targets.length !== 1 ? 's' : ''}? You'll review each diff before anything is written.`,
+        { modal: true }, 'Run AI Fix'
+    );
+    if (go !== 'Run AI Fix') { return; }
+
+    const items: BatchItem[] = [];
+    for (const report of targets) {
+        _panel?.webview.postMessage({ type: 'progress', text: `AI fixing ${path.basename(report.filePath)} (${items.length + 1}/${targets.length})…` });
+        let content = '';
+        try { content = fs.readFileSync(report.filePath, 'utf8'); } catch { continue; }
+
+        const issueList = report.issues.map(i => `- ${i.message}`).join('\n');
+        const prompt = `You are fixing a ${report.readmeType} README.md file for a CieloVista Software project.
+The file has these compliance issues:\n${issueList}
+Required sections for a ${report.readmeType} README: ${REQUIRED_SECTIONS[report.readmeType].join(', ')}
+Here is the current file content:\n---\n${content.slice(0, 6000)}\n---
+Rules:
+- Keep all existing content that is valid — only add/fix what is needed
+- Keep the file under ${LINE_LIMITS[report.readmeType]} lines
+- First line must be a # heading — all code blocks must have a language tag
+- Output ONLY the fixed markdown content, no preamble`;
+
+        try {
+            const aiContent = await callClaude(prompt, 3000);
+            if (!aiContent) { continue; }
+            const unifiedDiff = jsdiff.createPatch(report.fileName, content, aiContent, 'before (original)', 'after (AI)', { context: 4 });
+            items.push({ fileName: report.fileName, filePath: report.filePath, score: report.score, issues: report.issues, aiContent, unifiedDiff });
+        } catch (err) {
+            logError(`AI fix failed for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
+    }
+
+    if (!items.length) {
+        _panel?.webview.postMessage({ type: 'error', text: 'AI fix returned no results — check the output channel.' });
+        return;
+    }
+
+    const batchHtml = buildBatchReviewHtml(items);
+    if (_batchPanel) {
+        _batchPanel.title        = '📝 AI Batch Fix Review';
+        _batchPanel.webview.html = batchHtml;
+        _batchPanel.reveal(vscode.ViewColumn.Beside);
+    } else {
+        _batchPanel = vscode.window.createWebviewPanel(
+            'readmeBatchFix',
+            '📝 AI Batch Fix Review',
+            vscode.ViewColumn.Beside,
+            { enableScripts: true, retainContextWhenHidden: true }
+        );
+        _batchPanel.webview.html = batchHtml;
+        _batchPanel.onDidDispose(() => { _batchPanel = undefined; });
+    }
+
+    _batchPanel.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.command !== 'applyBatch') { return; }
+        const approved: Array<{ filePath: string; content: string }> = msg.approved;
+        let written = 0;
+        for (const item of approved) {
+            try { fs.writeFileSync(item.filePath, item.content, 'utf8'); written++; }
+            catch (err) { logError(`Failed to write ${item.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
+        }
+        _batchPanel?.dispose();
+        _panel?.webview.postMessage({ type: 'done', text: `Applied ${written} AI fix${written !== 1 ? 'es' : ''}. Rescanning…` });
+        await runScan();
+    });
+
+    _panel?.webview.postMessage({ type: 'done', text: `Review ${items.length} AI fix${items.length !== 1 ? 'es' : ''} in the side panel` });
+}
+
+async function aiFixReadme(filePath: string, readmeType: ReadmeType): Promise<void> {
     const report = _lastReports.find(r => r.filePath === filePath)
         ?? checkCompliance(filePath, path.basename(path.dirname(filePath)), path.dirname(filePath));
     let content = '';
@@ -935,11 +974,12 @@ Rules:
 - Output ONLY the fixed markdown content, no preamble`;
 
     try {
-        progressTarget?.webview.postMessage({ type: 'progress', text: `AI fixing ${path.basename(filePath)}… 10–30 seconds` });
+        _panel?.webview.postMessage({ type: 'progress', text: `AI fixing ${path.basename(filePath)}… 10–30 seconds` });
         const fixed = await callClaude(prompt, 3000);
         if (!fixed) { throw new Error('Empty AI response'); }
 
         // Show as a diff so user can still approve/ignore
+        const tempReport: ReadmeReport = { ...report };
         const unifiedDiff = jsdiff.createPatch(report.fileName, content, fixed, 'before (original)', 'after (AI)', { context: 4 });
         const html = buildDiffHtml(report.fileName, filePath, content, fixed, unifiedDiff, report.issues);
 
@@ -954,15 +994,19 @@ Rules:
             if (msg2.command === 'approve') {
                 fs.writeFileSync(filePath, fixed, 'utf8');
                 _diffPanel?.dispose();
+                // TODO: Show per-job output in a new webview (AI fix approved)
                 await runScan();
             }
-            if (msg2.command === 'ignore') { _diffPanel?.dispose(); }
+            if (msg2.command === 'ignore') {
+                _diffPanel?.dispose();
+                // TODO: Show per-job output in a new webview (AI fix ignored)
+            }
         });
 
-        progressTarget?.webview.postMessage({ type: 'done', text: `AI diff ready for ${path.basename(filePath)} — approve or ignore` });
+        _panel?.webview.postMessage({ type: 'done', text: `AI diff ready for ${path.basename(filePath)} — approve or ignore` });
     } catch (err) {
         logError(`AI fix failed for ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-        progressTarget?.webview.postMessage({ type: 'error', text: `AI fix failed: ${err}` });
+        _panel?.webview.postMessage({ type: 'error', text: `AI fix failed: ${err}` });
     }
 }
 
@@ -976,141 +1020,6 @@ async function fixProjectReadmes(projectName: string): Promise<void> {
     }
     _panel?.webview.postMessage({ type: 'done', text: `Fixed ${fixed} READMEs in ${projectName}. Rescanning…` });
     await runScan();
-}
-
-// ─── Fill TODO stubs ──────────────────────────────────────────────────────────
-
-interface TodoFile { filePath: string; projectName: string; readmeType: ReadmeType; count: number; }
-
-function scanForTodoFiles(): TodoFile[] {
-    const registry = loadRegistry();
-    if (!registry) { return []; }
-    const roots: Array<{ name: string; rootPath: string }> = [
-        { name: 'global', rootPath: registry.globalDocsPath },
-        ...registry.projects.map(p => ({ name: p.name, rootPath: p.path }))
-    ];
-    const results: TodoFile[] = [];
-    const SKIP = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports']);
-    function walkDir(dir: string, projectName: string, depth = 0): void {
-        if (depth > 4 || !fs.existsSync(dir)) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of entries) {
-            if (SKIP.has(e.name)) { continue; }
-            const full = path.join(dir, e.name);
-            if (e.isDirectory()) { walkDir(full, projectName, depth + 1); }
-            else if (e.isFile() && isReadme(e.name)) {
-                let content = '';
-                try { content = fs.readFileSync(full, 'utf8'); } catch { continue; }
-                const count = (content.match(/_TODO:/g) ?? []).length + (content.match(/^# TODO/gm) ?? []).length;
-                if (count > 0) {
-                    results.push({ filePath: full, projectName, readmeType: detectType(full, dir, projectName), count });
-                }
-            }
-        }
-    }
-    for (const root of roots) { walkDir(root.rootPath, root.name); }
-    results.sort((a, b) => b.count - a.count);
-    return results;
-}
-
-let _todoPanel: vscode.WebviewPanel | undefined;
-
-function buildTodoDashboardHtml(files: TodoFile[]): string {
-    const total = files.reduce((s, f) => s + f.count, 0);
-    const rows = files.map((f, i) => `<tr>
-  <td><span title="${esc(f.filePath)}">${esc(path.basename(f.filePath))}</span></td>
-  <td>${esc(f.projectName)}</td>
-  <td>${esc(f.readmeType)}</td>
-  <td style="text-align:center"><span class="badge">${f.count}</span></td>
-  <td><button class="btn-fill" data-idx="${i}" data-path="${esc(f.filePath)}" data-type="${esc(f.readmeType)}">🤖 Fill</button></td>
-</tr>`).join('');
-
-    return `<!doctype html><html><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-<style>
-body{font-family:var(--vscode-font-family);color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);margin:16px}
-h1{margin:0 0 4px;font-size:18px}
-.meta{font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:12px}
-.toolbar{display:flex;gap:8px;margin-bottom:12px}
-.btn-toolbar{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px}
-.btn-toolbar:hover{background:var(--vscode-button-hoverBackground)}
-.btn-fill{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px}
-.btn-fill:hover{background:var(--vscode-button-secondaryHoverBackground)}
-.btn-fill:disabled{opacity:0.5;cursor:default}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{background:var(--vscode-sideBar-background);padding:6px 8px;text-align:left;font-size:11px;color:var(--vscode-descriptionForeground)}
-td{border-top:1px solid var(--vscode-panel-border);padding:5px 8px;vertical-align:middle}
-.badge{background:rgba(248,81,73,.18);color:#f85149;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700}
-#status{font-size:12px;color:var(--vscode-descriptionForeground);min-height:20px;margin-bottom:8px}
-</style></head><body>
-<h1>📝 README TODO Dashboard</h1>
-<div class="meta">${files.length} file(s) with TODO stubs — ${total} total stub(s)</div>
-<div id="status"></div>
-<div class="toolbar">
-  <button class="btn-toolbar" id="btn-fill-all">🤖 Fill All with AI</button>
-  <button class="btn-toolbar" id="btn-rescan">↺ Rescan</button>
-</div>
-${files.length === 0 ? '<p>No TODO stubs found in any README.</p>' : `<table>
-  <thead><tr><th>File</th><th>Project</th><th>Type</th><th>TODOs</th><th></th></tr></thead>
-  <tbody>${rows}</tbody>
-</table>`}
-<script>
-(function(){
-  var vscode = acquireVsCodeApi();
-  function status(t) { var el = document.getElementById('status'); if (el) { el.textContent = t; } }
-  document.getElementById('btn-rescan').addEventListener('click', function() { vscode.postMessage({ command: 'rescan' }); });
-  document.getElementById('btn-fill-all').addEventListener('click', function() {
-    this.disabled = true; this.textContent = '⏳ Filling…';
-    vscode.postMessage({ command: 'fill-all' });
-  });
-  document.querySelectorAll('.btn-fill').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      btn.disabled = true; btn.textContent = '⏳';
-      vscode.postMessage({ command: 'fill-one', path: btn.dataset.path, readmeType: btn.dataset.type, idx: btn.dataset.idx });
-    });
-  });
-  window.addEventListener('message', function(e) {
-    var msg = e.data;
-    if (msg.type === 'progress') { status(msg.text); }
-    if (msg.type === 'done')     { status(msg.text); document.querySelectorAll('.btn-fill').forEach(function(b) { b.disabled = false; b.textContent = '🤖 Fill'; }); document.getElementById('btn-fill-all').disabled = false; document.getElementById('btn-fill-all').textContent = '🤖 Fill All with AI'; }
-    if (msg.type === 'error')    { status('❌ ' + msg.text); document.querySelectorAll('.btn-fill').forEach(function(b) { b.disabled = false; b.textContent = '🤖 Fill'; }); document.getElementById('btn-fill-all').disabled = false; document.getElementById('btn-fill-all').textContent = '🤖 Fill All with AI'; }
-    if (msg.type === 'mark-done') { var rows = document.querySelectorAll('.btn-fill'); rows.forEach(function(b) { if (b.dataset.idx === msg.idx) { b.closest('tr').style.opacity = '0.4'; b.textContent = '✅'; } }); }
-  });
-})();
-</script>
-</body></html>`;
-}
-
-async function scanAndFillTodos(): Promise<void> {
-    const files = scanForTodoFiles();
-    if (!_todoPanel) {
-        _todoPanel = vscode.window.createWebviewPanel('readmeTodos', '📝 README TODOs', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true });
-        _todoPanel.onDidDispose(() => { _todoPanel = undefined; });
-        _todoPanel.webview.onDidReceiveMessage(async msg => {
-            if (msg.command === 'rescan') {
-                _todoPanel!.webview.html = buildTodoDashboardHtml(scanForTodoFiles());
-                return;
-            }
-            if (msg.command === 'fill-one') {
-                await aiFixReadme(msg.path, msg.readmeType as ReadmeType, _todoPanel);
-                _todoPanel?.webview.postMessage({ type: 'mark-done', idx: msg.idx });
-                return;
-            }
-            if (msg.command === 'fill-all') {
-                const latest = scanForTodoFiles();
-                for (let i = 0; i < latest.length; i++) {
-                    const f = latest[i];
-                    _todoPanel?.webview.postMessage({ type: 'progress', text: `(${i + 1}/${latest.length}) Filling ${path.basename(f.filePath)}…` });
-                    await aiFixReadme(f.filePath, f.readmeType, _todoPanel);
-                    _todoPanel?.webview.postMessage({ type: 'mark-done', idx: String(i) });
-                }
-                _todoPanel?.webview.postMessage({ type: 'done', text: `All ${latest.length} file(s) processed — approve diffs in the Fix panel` });
-            }
-        });
-    }
-    _todoPanel.webview.html = buildTodoDashboardHtml(files);
-    _todoPanel.reveal(vscode.ViewColumn.One);
 }
 
 async function createNewReadme(): Promise<void> {
@@ -1169,17 +1078,17 @@ export function activate(context: vscode.ExtensionContext): void {
             else { vscode.window.showErrorMessage(`Standard not found: ${STANDARD_PATH}`); }
         }),
         vscode.commands.registerCommand('cvs.readme.new',           createNewReadme),
-        vscode.commands.registerCommand('cvs.readme.fillTodos',     scanAndFillTodos),
+        vscode.commands.registerCommand('cvs.readme.fillTodos',     () => { vscode.window.showInformationMessage('Fill README TODO Stubs: not yet implemented.'); }),
     );
 }
 
 export function deactivate(): void {
+    _batchPanel?.dispose();
+    _batchPanel = undefined;
     _diffPanel?.dispose();
     _diffPanel = undefined;
     _panel?.dispose();
     _panel = undefined;
-    _todoPanel?.dispose();
-    _todoPanel = undefined;
     _lastReports = [];
 }
 
