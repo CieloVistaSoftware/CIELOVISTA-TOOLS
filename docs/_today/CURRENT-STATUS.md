@@ -18,6 +18,26 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-09 (REG-031–035, #310)
+
+**TASK:** Write unit tests for all 2026-05-08 changes; fix #306 regression and #310 bug; commit+push+close issues
+**FILES TOUCHED:**
+- `tests/regression/REG-031-doc-catalog-card-path-link.test.js` — NEW: 4 checks for #309 card-path-link
+- `tests/regression/REG-032-broken-refs-progressive-scan.test.js` — NEW: 6 checks for #290 progressive scan
+- `tests/regression/REG-033-readme-compliance-ai-todo-fill.test.js` — NEW: 5 checks for #306 AI TODO fill
+- `tests/regression/REG-034-readme-compliance-batch-fix-and-fill-todos.test.js` — NEW: 8 checks for #307 #308
+- `tests/regression/REG-035-mcp-viewer-catalog-filter.test.js` — NEW: 5 checks for #310 catalog filter
+- `scripts/run-regression-tests.js` — registered REG-031–035 (35 total regression tests now)
+- `src/features/readme-compliance/feature.ts` — restored AI _TODO: stub fill in showFixDiff (lost in cf533cc); commit 2f76480
+- `src/features/mcp-viewer/html.ts` — fixed #310: selectTab get_catalog branch reads pEl.value not null
+**LAST ACTION:** git push origin claude/dreamy-shaw-bde8a6; closed GitHub issues #290 #294 #301 #305 #306 #307 #308 #309 #310 with in-depth root-cause comments; commit 2f76480
+**NEXT STEP:** DiskCleanUp dashboard — add "Add Issue" button to Extension Finder component (screenshot provided 2026-05-09); also still need to finish REG-031–034 registration in main branch (branch not yet merged)
+**OPEN QUESTIONS:**
+- Branch `claude/dreamy-shaw-bde8a6` needs PR + merge to main
+- DiskCleanUp "Add Issue" button task not yet started
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-08 (issues #309 #290 #306 #308 #294)
 
 **TASK:** Work through next 5 open issues
