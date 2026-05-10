@@ -18,6 +18,27 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-09 (WS auto-recovery, CieloVistaStandards git repo)
+
+**TASK:** DiskCleanUp WebSocket auto-recovery + make CieloVistaStandards a git repo
+**FILES TOUCHED:**
+- `C:\Users\jwpmi\source\repos\DiskCleanUp\DiskCleanUp.Service\wwwroot\js\websocket.ts` — diagram-informed overlay: 3 failure cases (A: WS broken/HTTP up → Restart Service; B: port mismatch → Switch to :PORT; C: service down → tray guidance); onopen clears overlay + resets _fatalShown; Dismiss resets _fatalShown; wsConnect sets "Connecting…" at start
+- `C:\Users\jwpmi\source\repos\DiskCleanUp\DiskCleanUp.Service\wwwroot\js\websocket.js` — compiled counterpart, same changes
+- `C:\Users\jwpmi\source\repos\DiskCleanUp\DiskCleanUp.Service\Services\WsManager.cs` — ILogger<WsManager> injection; outer catch now LogWarning instead of bare catch{}
+- `C:\Users\jwpmi\source\repos\DiskCleanUp\DiskCleanUp.Service\Program.cs` — KeepAliveInterval = TimeSpan.FromSeconds(30) (was Zero)
+- `C:\Users\jwpmi\source\repos\DiskCleanUp\tests\ws-auto-recovery-test.mjs` — NEW: 13 source-level checks, all pass
+- `C:\Users\jwpmi\Downloads\CieloVistaStandards\` — git init + initial commit (24 files) + pushed to GitHub
+- `CLAUDE.md` (this worktree) — updated Global Standards table: added repo URL + issue-filing-rules.md entry
+- `C:\Users\jwpmi\source\repos\DiskCleanUp\CLAUDE.md` — same update (not yet committed — DiskCleanUp has no git)
+**LAST ACTION:** Pushed CieloVistaStandards to https://github.com/CieloVistaSoftware/CieloVistaStandards; pushed cielovista-tools CLAUDE.md update to claude/dreamy-shaw-bde8a6 (commit 7629cbe)
+**NEXT STEP:** Verify DiskCleanUp WS recovery live — `npm run restart`, kill port 5100, confirm overlay appears with correct case, confirm auto-dismiss when service comes back. Then: branch claude/dreamy-shaw-bde8a6 still needs PR + merge to main.
+**OPEN QUESTIONS:**
+- Branch `claude/dreamy-shaw-bde8a6` needs PR + merge to main (no PR created yet)
+- DiskCleanUp "Add Issue" button in Extension Finder — not started
+- DiskCleanUp has no git repo — ws-auto-recovery changes are local only, not version-controlled
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-09 (REG-031–035, #310)
 
 **TASK:** Write unit tests for all 2026-05-08 changes; fix #306 regression and #310 bug; commit+push+close issues
