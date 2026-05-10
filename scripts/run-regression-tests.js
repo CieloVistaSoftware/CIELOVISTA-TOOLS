@@ -629,6 +629,56 @@ test('REG-030', 'README Compliance applyFix is frontmatter-aware and language-in
         `REG-030 readme compliance smart fixer test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-031: Issue #309 — Doc Catalog card file-path is a clickable open link.
+test('REG-031', 'Doc Catalog card file path is a clickable link (card-path-link)', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-031-doc-catalog-card-path-link.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-031 doc catalog card-path-link test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-032: Issue #290 — Broken Refs scan opens panel immediately with progress bar + ETA.
+test('REG-032', 'Broken Refs scan opens panel immediately with progress bar and ETA', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-032-broken-refs-progressive-scan.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-032 broken refs progressive scan test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-033: Issue #306 — Review Fix uses AI to fill _TODO: stubs from companion source file.
+test('REG-033', 'README Compliance showFixDiff fills _TODO: stubs with AI before showing diff', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-033-readme-compliance-ai-todo-fill.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-033 readme compliance AI TODO fill test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-034: Issues #307 #308 — AI batch fix review panel + fillTodos command registered.
+test('REG-034', 'README Compliance AI batch fix and fillTodos command are fully wired', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-034-readme-compliance-batch-fix-and-fill-todos.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-034 readme compliance batch fix + fillTodos test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-035: Issue #310 — get_catalog project filter respected on tab init and Run.
+test('REG-035', 'MCP Viewer get_catalog project filter respected on init and Run', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-035-mcp-viewer-catalog-filter.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-035 mcp viewer catalog filter test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));
