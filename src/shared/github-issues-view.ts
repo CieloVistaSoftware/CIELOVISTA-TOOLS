@@ -18,7 +18,9 @@
 import * as vscode from 'vscode';
 import * as https  from 'https';
 import { execFile } from 'child_process';
+import * as path from 'path';
 import * as fs from 'fs';
+import { getChannel } from './output-channel';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
@@ -125,7 +127,7 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     };
     activeRefresh = refresh;
 
-    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number }) => {
+    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number; testRef?: string }) => {
         if (!msg?.type) { return; }
         if (msg.type === 'refresh') {
             void refresh();
@@ -141,6 +143,8 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void vscode.env.clipboard.writeText(formatIssuesForClipboard(latestIssues));
         } else if (msg.type === 'claim' && msg.number) {
             void claimIssue(msg.number, panel);
+        } else if (msg.type === 'runTest' && msg.testRef) {
+            void runLinkedTest(String(msg.testRef));
         }
     });
 
@@ -162,6 +166,38 @@ async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<v
         const msg = err instanceof Error ? err.message : String(err);
         void vscode.window.showErrorMessage(`Failed to claim issue #${number}: ${msg}`);
     }
+}
+
+// ─── Run Linked Test ─────────────────────────────────────────────────────────
+
+async function runLinkedTest(testRef: string): Promise<void> {
+    const ch = getChannel();
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+    let testFile = '';
+
+    if (testRef === 'install-verify') {
+        testFile = path.join(workspaceRoot, 'tests', 'install-verify.test.js');
+    } else {
+        const regNum = testRef.replace(/^REG-/i, '').padStart(3, '0');
+        const regDir = path.join(workspaceRoot, 'tests', 'regression');
+        if (fs.existsSync(regDir)) {
+            const found = fs.readdirSync(regDir).find((e) => e.startsWith(`REG-${regNum}`));
+            if (found) { testFile = path.join(regDir, found); }
+        }
+    }
+
+    if (!testFile || !fs.existsSync(testFile)) {
+        void vscode.window.showWarningMessage(`Test file not found for ${testRef}`);
+        return;
+    }
+
+    ch.show(true);
+    ch.appendLine(`\n▶ Running ${path.basename(testFile)}…`);
+    execFile('node', [testFile], { cwd: workspaceRoot, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+        if (stdout) { ch.appendLine(stdout.trimEnd()); }
+        if (stderr) { ch.appendLine(stderr.trimEnd()); }
+        ch.appendLine(err ? `\n❌ Test failed (exit ${err.code ?? 1})` : `\n✅ Test passed`);
+    });
 }
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
@@ -364,6 +400,16 @@ function contrastText(hex: string): string {
     return lum > 0.6 ? '#000' : '#fff';
 }
 
+// ─── Test ref extraction ────────────────────────────────────────────────────
+
+function extractTestRef(body: string | null): string {
+    if (!body) { return ''; }
+    const regMatch = body.match(/\bREG-(\d+)\b/i);
+    if (regMatch) { return `REG-${regMatch[1].padStart(3, '0')}`; }
+    if (/install-verify/i.test(body)) { return 'install-verify'; }
+    return '';
+}
+
 // ─── HTML ───────────────────────────────────────────────────────────────────
 
 function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null, viewState: IssueState = 'open'): string {
@@ -411,6 +457,10 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .claim-btn:hover{background:rgba(88,166,255,.28)}
 .claim-btn:disabled{opacity:.5;cursor:wait}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
+.proj-missing{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.5);white-space:nowrap}
+.run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
+.run-test-btn:hover{background:rgba(63,185,80,.28)}
+.run-test-btn:disabled{opacity:.4;cursor:default}
 #proj-filter,#state-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
 
@@ -436,6 +486,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                 const projectOptions = allProjects.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
                 const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="state-filter" aria-label="Filter by issue state"><option value="open"${viewState === 'open' ? ' selected' : ''}>open</option><option value="closed"${viewState === 'closed' ? ' selected' : ''}>closed</option></select><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
                 const rows = issues.map((iss) => {
+            const testRef   = extractTestRef(iss.body);
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
@@ -461,7 +512,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-priority="3"
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
-    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="muted">-</span>`}</td>
+    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="proj-missing">⚠ No project</span>`}</td>
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
@@ -474,6 +525,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
+    <td>${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}</td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
@@ -489,6 +541,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 <th><button type="button" data-sort="created">created_at <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="updated">updated_at <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="closed">closed_at <span class="sort-ind"></span></button></th>
+<th>actions</th>
 </tr></thead><tbody id="issueRows">${rows}</tbody></table></div>`;
                 bodyHtml = summary + controls + table;
     }
@@ -679,6 +732,17 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                         if (href) { vsc.postMessage({ type: 'open', url: href }); }
                 });
         }
+    document.querySelectorAll('.run-test-btn:not(:disabled)').forEach(function(b){
+        b.addEventListener('click', function(){
+            var num = Number(b.getAttribute('data-number'));
+            var ref = String(b.getAttribute('data-testref') || '');
+            if (!ref) { return; }
+            b.disabled = true;
+            b.textContent = '…';
+            vsc.postMessage({ type: 'runTest', number: num, testRef: ref });
+            setTimeout(function(){ b.disabled = false; b.textContent = '\u25B6 Run Test'; }, 3000);
+        });
+    });
     document.querySelectorAll('.claim-btn').forEach(function(b){
         b.addEventListener('click', function(){
             var num = Number(b.getAttribute('data-number'));
