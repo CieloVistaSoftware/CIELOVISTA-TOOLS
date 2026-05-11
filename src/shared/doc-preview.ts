@@ -107,6 +107,7 @@ img{max-width:100%;height:auto}
     <span id="topbar-title">&#128196; ${esc(title)}</span>
     ${hasSource ? '<button class="btn-action" id="btn-back-source" title="Back to source view">&larr; Back</button>' : ''}
     <button class="btn-action" id="btn-vscode">&#128195; Open in VS Code</button>
+    <button class="btn-action" id="btn-terminal">&#128190; Terminal</button>
     <button class="btn-action" id="btn-explorer">&#128193; Folder</button>
     <button class="btn-action" id="btn-edit">&#9998; Edit</button>
   </div>
@@ -148,6 +149,7 @@ let _pendingScrollY = 0;
     safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'edit-file',      path: '${jsPath}' }));
     safeAddListener('btn-back-source', 'click', () => vscode.postMessage({ command: 'navigate-source' }));
     safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', path: '${jsPath}', dir: '${jsDir}' }));
+    safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal', dir: '${jsDir}' }));
     safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
     const bc = document.getElementById('breadcrumb');
     if (bc) {
@@ -341,6 +343,12 @@ export function openDocPreview(
                     if (choice === 'Add') { vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri: folderUri, name: path.basename(msg.dir) }); }
                 }
                 vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(true);
+                break;
+            }
+            case 'open-terminal': {
+                if (!msg.dir) { break; }
+                const dirPath = path.normalize(String(msg.dir));
+                vscode.window.createTerminal({ name: path.basename(dirPath), cwd: dirPath }).show(true);
                 break;
             }
             case 'reveal-folder-os': {
