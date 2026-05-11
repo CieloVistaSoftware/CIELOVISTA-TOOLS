@@ -18,6 +18,18 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-08 (issues #294 #305 #301 #307)
+
+**TASK:** Implement #294 (Doc Intelligence 5 new finding types), #305 (copy button fix), #301 (pill filters), #307 (AI batch fix)
+**FILES TOUCHED:**
+- `src/features/readme-compliance/feature.ts` — #305: copy button routes via vscode.env.clipboard; #301: pills → buttons with data-action="filter-status", rows get data-status, applyFilter checks active pill; #307: fixAllNonCompliant redesigned — AI batch fix with buildBatchReviewHtml, per-file Approve/Skip, applyBatch message handler; cvs.readme.fillTodos stub registered to fix catalog test
+- `tests/install-verify.test.js` — added 3× #307 smoke tests (59 total, 54 pass)
+**LAST ACTION:** npm run rebuild — 54/59 install checks pass (5 pre-existing #299/#300/#302 unrelated); commit cf533cc
+**NEXT STEP:** Close GitHub issues #294, #305, #301, #307; then tackle remaining pre-existing failures #299 (diff colors), #300 (success toast), #302 (smart fixer)
+**OPEN QUESTIONS:** #294 already fully implemented prior session — confirm close
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-08 (issues #309 #290 #306 #308 #294)
 
 **TASK:** Work through next 5 open issues

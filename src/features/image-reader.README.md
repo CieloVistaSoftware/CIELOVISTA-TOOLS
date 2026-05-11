@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.image-reader-readme
+dewey: 150.1.image-reader-readme
 id: image-reader-feature
 title: Image Reader Feature
 project: cielovista-tools

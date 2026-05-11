@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.openai-chat-readme
+dewey: 150.1.openai-chat-readme
 id: feature-openai-chatts
 title: feature: openai-chat.ts
 project: cielovista-tools

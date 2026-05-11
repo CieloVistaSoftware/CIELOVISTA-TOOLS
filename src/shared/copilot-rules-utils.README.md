@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.copilot-rules-utils-readme
+dewey: 150.1.copilot-rules-utils-readme
 id: feature-sharedcopilot-rules-utilsts
 title: feature: shared/copilot-rules-utils.ts
 project: cielovista-tools

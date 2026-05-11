@@ -107,8 +107,7 @@ img{max-width:100%;height:auto}
     <span id="topbar-title">&#128196; ${esc(title)}</span>
     ${hasSource ? '<button class="btn-action" id="btn-back-source" title="Back to source view">&larr; Back</button>' : ''}
     <button class="btn-action" id="btn-vscode">&#128195; Open in VS Code</button>
-    <button class="btn-action" id="btn-terminal">&#8250;_ Change Working Directory</button>
-    <button class="btn-action" id="btn-explorer">&#128193; Explorer</button>
+    <button class="btn-action" id="btn-explorer">&#128193; Folder</button>
     <button class="btn-action" id="btn-edit">&#9998; Edit</button>
   </div>
   <div id="breadcrumb">${bcHtml}</div>
@@ -148,8 +147,7 @@ let _pendingScrollY = 0;
     }
     safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'edit-file',      path: '${jsPath}' }));
     safeAddListener('btn-back-source', 'click', () => vscode.postMessage({ command: 'navigate-source' }));
-    safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
-    safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
+    safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', path: '${jsPath}', dir: '${jsDir}' }));
     safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
     const bc = document.getElementById('breadcrumb');
     if (bc) {
@@ -321,18 +319,15 @@ export function openDocPreview(
                 break;
             }
             case 'open-in-vscode': {
-                if (!msg.dir) { break; }
-                const markers = ['package.json', '.git', '.sln', '.csproj', 'CLAUDE.md'];
-                let root = msg.dir as string, cand = msg.dir as string;
-                for (let i = 0; i < 8; i++) {
-                    const parent = path.dirname(cand);
-                    if (parent === cand) { break; }
-                    let files: string[] = [];
-                    try { files = fs.readdirSync(cand); } catch { /* skip */ }
-                    if (markers.some(m => files.includes(m))) { root = cand; break; }
-                    cand = parent;
+                const filePath = msg.path ? path.normalize(String(msg.path)) : undefined;
+                const dirPath  = msg.dir  ? path.normalize(String(msg.dir))  : undefined;
+                if (filePath && fs.existsSync(filePath)) {
+                    const doc = await vscode.workspace.openTextDocument(filePath);
+                    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                    await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(filePath));
+                } else if (dirPath) {
+                    await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(dirPath));
                 }
-                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(root), { forceNewWindow: true });
                 break;
             }
             case 'open-folder-full': {
@@ -348,9 +343,6 @@ export function openDocPreview(
                 vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(true);
                 break;
             }
-            case 'open-terminal':
-                if (msg.dir) { vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(); }
-                break;
             case 'reveal-folder-os': {
                 if (!msg.dir) { break; }
                 const dirUri = vscode.Uri.file(msg.dir as string);

@@ -1,6 +1,6 @@
 ---
-docid: 150.5
-dewey: 150.5
+docid: 150.5.claude
+dewey: 150.5.claude
 id: claudemd-cielovista-tools
 title: CLAUDE.md — cielovista-tools
 project: cielovista-tools

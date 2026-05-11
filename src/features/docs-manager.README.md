@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.docs-manager-readme
+dewey: 150.1.docs-manager-readme
 id: feature-docs-managerts-advanced-developer-guide
 title: feature: docs-manager.ts — Advanced Developer Guide
 project: cielovista-tools

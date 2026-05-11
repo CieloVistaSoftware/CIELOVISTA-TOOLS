@@ -1,6 +1,6 @@
 ---
-docid: 150.3
-dewey: 150.3
+docid: 150.3.test-coverage-audit-2026-04-04
+dewey: 150.3.test-coverage-audit-2026-04-04
 id: test-coverage-audit
 title: Test Coverage Audit
 project: cielovista-tools

@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.output-channel-readme
+dewey: 150.1.output-channel-readme
 id: feature-sharedoutput-channelts
 title: feature: shared/output-channel.ts
 project: cielovista-tools

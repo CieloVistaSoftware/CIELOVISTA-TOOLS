@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.doc-auditor-readme
+dewey: 150.1.doc-auditor-readme
 id: feature-doc-auditorts-advanced-developer-guide
 title: feature: doc-auditor.ts — Advanced Developer Guide
 project: cielovista-tools

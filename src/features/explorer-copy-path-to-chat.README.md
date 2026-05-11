@@ -1,6 +1,9 @@
+```markdown
+# feature: Explorer Copy Path to Copilot Chat
+
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.explorer-copy-path-to-chat-readme
+dewey: 150.1.explorer-copy-path-to-chat-readme
 id: explorer-copy-path-to-copilot-chat
 title: Explorer Copy Path to Copilot Chat
 project: cielovista-tools
@@ -14,24 +17,30 @@ version: 1.0.0
 author: CieloVista Software
 relativepath: src/features/explorer-copy-path-to-chat.README.md
 ---
-# Explorer Copy Path to Copilot Chat
 
-## Purpose
+## What It Does
 
-Add an Explorer context-menu command for files that sends the selected file's absolute path into the GitHub Copilot Chat input.
+This feature adds an Explorer context-menu command for files that sends the selected file's absolute path into the GitHub Copilot Chat input. It enhances developer productivity by streamlining the process of sharing file paths in Copilot Chat.
 
-## Command
+## Internal Architecture
 
-- `cvs.explorer.copyPathToCopilotChat`
+The feature is implemented as a VS Code extension command:
 
-## Menu Contribution
+- **Command ID**: `cvs.explorer.copyPathToCopilotChat`
+- **Activation**: Triggered via the Explorer context menu for files.
+- **Behavior**:
+  - If direct insertion into Copilot Chat is supported, the file path is sent directly.
+  - If not, the file path is copied to the clipboard for manual pasting.
 
-- `explorer/context` (shown only for files)
+The command uses the VS Code API to interact with the Explorer context menu and the clipboard.
 
-## Test Steps
+## Manual Test
 
 1. Reload the extension host.
 2. In Explorer, right-click any file.
 3. Click **Explorer: Copy File Path to Copilot Chat**.
 4. Confirm Copilot Chat opens with the absolute file path prefilled.
-5. If direct insertion is unavailable in the current VS Code/Copilot build, confirm the path is copied to clipboard and paste works with `Ctrl+V`.
+5. If direct insertion is unavailable in the current VS Code/Copilot build:
+   - Confirm the path is copied to the clipboard.
+   - Paste the path into Copilot Chat using `Ctrl+V`.
+```

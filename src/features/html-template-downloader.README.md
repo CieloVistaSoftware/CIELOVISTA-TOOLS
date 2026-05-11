@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.html-template-downloader-readme
+dewey: 150.1.html-template-downloader-readme
 id: feature-html-template-downloaderts
 title: feature: html-template-downloader.ts
 project: cielovista-tools

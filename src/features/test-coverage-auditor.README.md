@@ -1,6 +1,6 @@
 ---
-docid: 150.3
-dewey: 150.3
+docid: 150.3.test-coverage-auditor-readme
+dewey: 150.3.test-coverage-auditor-readme
 id: feature-test-coverage-auditorts-test-coverage-audi
 title: feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard
 project: cielovista-tools
@@ -14,6 +14,11 @@ version: 1.0.0
 author: CieloVista Software
 relativepath: src/features/test-coverage-auditor.README.md
 ---
+
+## What it does
+
+_TODO: one paragraph describing the single responsibility of this file._
+
 # feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard
 
 ## Overview
@@ -92,6 +97,14 @@ The tool analyzes your test suite against Tiers 1–5 as defined in the tiered t
 
 ---
 
+## Internal architecture
+
+```text
+activate()
+  └── TODO: describe call flow
+```
+
+
 ## UI Components
 
 ### Metrics Section
@@ -105,7 +118,7 @@ Displays key numbers at a glance:
 ### Tier Breakdown
 Shows the status and counts for each tier:
 
-```
+```text
 ✅ Unit Tests
    Isolated functions, business logic, edge cases
    2 files • 65 test cases
@@ -128,7 +141,7 @@ Lists specific problems:
 ### Recommendations
 Prioritized action items with context:
 
-```
+```text
 [HIGH] Coverage is 3%. Prioritize adding Tier 2 (unit) tests for each feature.
 
 [MEDIUM] Create Tier 1 compliance tests (type checking, linting, coverage).
@@ -159,7 +172,7 @@ interface AuditReport {
   bugsUntested: number;                       // From bug registry
   bugsTotal: number;                          // From bug registry
 }
-```
+```text
 
 ### TierData
 ```typescript

@@ -1,6 +1,6 @@
 ---
-docid: 150.9
-dewey: 150.9
+docid: 150.9.audit-duplicates-2026-04-02
+dewey: 150.9.audit-duplicates-2026-04-02
 id: duplicate-filenames-audit
 title: Duplicate Filenames Audit
 project: cielovista-tools

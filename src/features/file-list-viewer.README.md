@@ -44,7 +44,7 @@ When the FileList panel is open, clicking **View** on any Doc Catalog card autom
 | Document location | VS Code Explorer | FileList panel |
 |---|---|---|
 | Inside CVT workspace | ✅ Highlighted | ✅ Highlighted |
-| Outside workspace (e.g. DiskCleanUp, wb-core) | ❌ No change | ✅ Navigates + highlights |
+| Outside workspace (e.g. DiskCleanUp, wb-core) | ❌ Will not show | ✅ Navigates + highlights |
 
 If the document is in a different directory than the one currently shown, the FileList panel navigates to that directory first, then selects the row. This makes the FileList the primary cross-project locator when working with the Doc Catalog across multiple registered projects.
 

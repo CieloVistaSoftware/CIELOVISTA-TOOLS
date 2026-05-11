@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.terminal-folder-tracker-readme
+dewey: 150.1.terminal-folder-tracker-readme
 id: feature-terminal-folder-trackerts
 title: feature: terminal-folder-tracker.ts
 project: cielovista-tools

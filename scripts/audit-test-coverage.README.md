@@ -1,6 +1,6 @@
 ---
-docid: 150.3
-dewey: 150.3
+docid: 150.3.audit-test-coverage-readme
+dewey: 150.3.audit-test-coverage-readme
 id: feature-test-coverage-audit-tool
 title: feature: Test Coverage Audit Tool
 project: cielovista-tools
