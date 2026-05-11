@@ -231,15 +231,50 @@ function checkCompliance(filePath: string, projectName: string, projectRoot: str
 
 // ─── Auto-fixer ───────────────────────────────────────────────────────────────
 
+// ─── Smart fix helpers ────────────────────────────────────────────────────────
+
+function frontmatterEnd(lines: string[]): number {
+    if (!lines[0] || lines[0].trim() !== '---') { return 0; }
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim() === '---') { return i + 1; }
+    }
+    return 0;
+}
+
+const LANG_HINTS: Array<[RegExp, string]> = [
+    [/^\s*(import|export|interface|type\s+\w+\s*=|const\s+\w+:\s|async\s+function)/m, 'typescript'],
+    [/^\s*(function|const|let|var|require\(|module\.exports)/m,                        'javascript'],
+    [/^\s*(def |class |import |from .+ import|if __name__)/m,                          'python'],
+    [/^\s*(<\?php|\$\w+\s*=)/m,                                                        'php'],
+    [/^\s*(<html|<div|<span|<p>|<!DOCTYPE)/im,                                         'html'],
+    [/^\s*(\{|\}|"[^"]+"\s*:)/m,                                                       'json'],
+    [/^\s*(#\s*\w|[A-Z_]+\s*=|export\s+[A-Z_])/m,                                     'bash'],
+    [/^\s*(\$\w+|Get-|Set-|New-|Remove-|Invoke-|Write-Host)/m,                         'powershell'],
+    [/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b/im,                         'sql'],
+    [/^\s*(FROM |RUN |CMD |ENTRYPOINT |COPY )/m,                                        'dockerfile'],
+    [/^\s*([a-z_]+\s*:\s*$|\s+-\s+\w)/m,                                               'yaml'],
+];
+
+function guessLanguage(blockLines: string[]): string {
+    const sample = blockLines.join('\n');
+    for (const [pattern, lang] of LANG_HINTS) {
+        if (pattern.test(sample)) { return lang; }
+    }
+    return 'text';
+}
+
 function applyFix(report: ReadmeReport): string {
     let content = fs.readFileSync(report.filePath, 'utf8');
     const stubs = STUBS[report.readmeType];
     for (const issue of report.issues) {
         if (!issue.fixable) { continue; }
         if (issue.fixKey === 'first-heading') {
-            if (!/^#\s/.test(content.split('\n')[0])) {
+            const lines = content.split('\n');
+            const fmEnd = frontmatterEnd(lines);
+            const bodyLines = lines.slice(fmEnd);
+            if (bodyLines.findIndex(l => /^#\s/.test(l)) !== 0) {
                 const name = path.basename(report.filePath, '.md').replace(/\.README$/i, '');
-                content = `# ${name}\n\n${content}`;
+                content = [...lines.slice(0, fmEnd), `# ${name}`, '', ...lines.slice(fmEnd)].join('\n');
             }
         }
         if (issue.fixKey.startsWith('missing-section:')) {
@@ -247,7 +282,25 @@ function applyFix(report: ReadmeReport): string {
             const stub = stubs[sec];
             if (stub && !content.toLowerCase().includes(`## ${sec}`)) { content = content.trimEnd() + '\n\n---\n\n' + stub; }
         }
-        if (issue.fixKey === 'code-block-lang')     { content = content.replace(/^```\s*$/gm, '```text'); }
+        if (issue.fixKey === 'code-block-lang') {
+            const lines = content.split('\n');
+            const result: string[] = [];
+            let inBlock = false;
+            for (let i = 0; i < lines.length; i++) {
+                const isFence = /^```\s*$/.test(lines[i]);
+                if (isFence && !inBlock) {
+                    inBlock = true;
+                    const blockLines: string[] = [];
+                    let j = i + 1;
+                    while (j < lines.length && !/^```/.test(lines[j])) { blockLines.push(lines[j]); j++; }
+                    result.push(`\`\`\`${guessLanguage(blockLines)}`);
+                } else {
+                    if (isFence) { inBlock = false; }
+                    result.push(lines[i]);
+                }
+            }
+            content = result.join('\n');
+        }
         if (issue.fixKey === 'feature-prefix')      { content = content.replace(/^(#\s+)(.+)$/m, (_, hash, title) => title.toLowerCase().startsWith('feature:') ? `${hash}${title}` : `${hash}feature: ${title}`); }
         if (issue.fixKey === 'standard-blockquote') { content = content.replace(/^(#\s+.+)$/m, (_, heading) => `${heading}\n\n> _TODO: one-line summary of what this standard covers._`); }
     }
@@ -256,7 +309,8 @@ function applyFix(report: ReadmeReport): string {
 
 // ─── Diff webview (diff2html from CDN) ────────────────────────────────────────
 
-let _diffPanel: vscode.WebviewPanel | undefined;
+let _diffPanel:  vscode.WebviewPanel | undefined;
+let _batchPanel: vscode.WebviewPanel | undefined;
 
 function buildDiffHtml(
     fileName:    string,
@@ -297,6 +351,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .d2h-wrapper{font-family:var(--vscode-editor-font-family,monospace)!important;font-size:12px!important}
 .d2h-file-header{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-editor-foreground)!important}
 .d2h-code-linenumber{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-descriptionForeground)!important}
+/* High-contrast dark-mode diff row colors */
+.d2h-del,.d2h-del td{background:#3c1f1e!important}
+.d2h-del .d2h-code-line-ctn{color:#ffa0a0!important}
+.d2h-ins,.d2h-ins td{background:#1b3a24!important}
+.d2h-ins .d2h-code-line-ctn{color:#85e89d!important}
 </style>
 </head>
 <body>
@@ -393,20 +452,11 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
                 fs.writeFileSync(report.filePath, after, 'utf8');
                 log(FEATURE, `Approved fix: ${report.filePath}`);
                 _diffPanel?.dispose();
-
-                // Count what changed
-                const addedLines   = unifiedDiff.split('\n').filter(l => l.startsWith('+')).length;
-                const removedLines = unifiedDiff.split('\n').filter(l => l.startsWith('-')).length;
-                const fixedIssues  = report.issues.filter(i => i.fixable);
-
-                // TODO: Show per-job output in a new webview (fix approved)
-
-                // Rescan and refresh compliance panel
+                vscode.window.showInformationMessage(`Fix written — ${report.fileName} rescanning…`);
                 await runScan();
-
             } catch (err) {
                 logError(`Failed to write fix for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-                // TODO: Show per-job output in a new webview (fix failed)
+                vscode.window.showErrorMessage(`Failed to write fix for ${report.fileName}.`);
             }
         }
         if (msg.command === 'ignore') {
@@ -453,12 +503,14 @@ function buildReportHtml(reports: ReadmeReport[]): string {
             const issueHtml    = r.issues.length === 0
                 ? '<span style="color:var(--vscode-testing-iconPassed)">✅ No issues</span>'
                 : r.issues.map(i => `<div class="issue">${i.severity === 'error' ? '🔴' : i.severity === 'warning' ? '🟡' : 'ℹ️'} ${esc(i.message)}</div>`).join('');
+            const copyText = `File: ${r.fileName}\nPath: ${r.filePath}\n\nIssues:\n${r.issues.map(i => `- [${i.severity}] ${i.message}`).join('\n')}`;
+            const escapedCopy = esc(copyText).replace(/\n/g, '&#10;');
             const actionBtns = r.score >= 80
                 ? '<span style="color:var(--vscode-testing-iconPassed);font-size:11px">✅ Compliant</span>'
                 : [
                     fixableCount > 0 ? `<button class="btn-fix-row" data-action="fix" data-path="${esc(r.filePath)}">🔧 Review Fix (${fixableCount})</button>` : '',
-                    `<button class="btn-ai-row" data-action="ai-fix" data-path="${esc(r.filePath)}" data-type="${r.readmeType}">🤖 AI Fix</button>`,
                     `<button class="btn-open-row" data-action="open" data-path="${esc(r.filePath)}">↗ Open</button>`,
+                    `<button class="btn-copy-row" data-action="copy-row" data-path="${esc(r.filePath)}" data-copy="${escapedCopy}">📋 Copy</button>`,
                   ].filter(Boolean).join('');
             const rowStatus = r.score >= 80 ? 'compliant' : r.score >= 60 ? 'partial' : 'non-compliant';
             return `<tr data-status="${rowStatus}">
@@ -486,12 +538,13 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #toolbar{position:sticky;top:0;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:8px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;z-index:10}
 #toolbar h1{font-size:1.1em;font-weight:700}
 .summary-pills{display:flex;gap:8px;flex-wrap:wrap}
-.pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid;background:transparent;cursor:pointer;font-family:inherit}
+.pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid;background:transparent;cursor:pointer}
 .pill-ok{color:var(--vscode-testing-iconPassed);border-color:var(--vscode-testing-iconPassed)}
+.pill-ok.active{background:var(--vscode-testing-iconPassed);color:#000}
 .pill-warn{color:var(--vscode-inputValidation-warningForeground);border-color:var(--vscode-inputValidation-warningForeground)}
+.pill-warn.active{background:var(--vscode-inputValidation-warningForeground);color:#000}
 .pill-err{color:var(--vscode-inputValidation-errorForeground);border-color:var(--vscode-inputValidation-errorForeground)}
-.pill.active{opacity:1;font-weight:800}
-.pill:not(.active){opacity:0.45}
+.pill-err.active{background:var(--vscode-inputValidation-errorForeground);color:#fff}
 #search{padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:2px;font-size:12px;flex:1;min-width:140px}
 .btn-fix-all{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 12px;border-radius:2px;cursor:pointer;font-size:12px}
 .btn-fix-all:hover{background:var(--vscode-button-hoverBackground)}
@@ -514,10 +567,10 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 .action-col{display:flex;flex-direction:column;gap:4px;min-width:120px}
 .btn-fix-row{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;width:100%}
 .btn-fix-row:hover{background:var(--vscode-button-hoverBackground)}
-.btn-ai-row{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;width:100%}
-.btn-ai-row:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-open-row{background:transparent;color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;width:100%}
 .btn-open-row:hover{border-color:var(--vscode-focusBorder)}
+.btn-copy-row{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;width:100%}
+.btn-copy-row:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-fix-proj{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;margin-left:auto}
 .file-col{min-width:120px}
 .file-path{font-family:var(--vscode-editor-font-family);font-size:9px;color:var(--vscode-descriptionForeground);margin-top:2px}
@@ -539,37 +592,32 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 <div id="content">${projectSections}</div>
 <script>
 const vscode = acquireVsCodeApi();
-const activePills = new Set();
 document.getElementById('search').addEventListener('input', applyFilter);
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) { return; }
   const action = btn.dataset.action;
-  if (action === 'filter-status') {
-    const status = btn.dataset.status;
-    if (activePills.has(status)) { activePills.delete(status); btn.classList.remove('active'); }
-    else { activePills.add(status); btn.classList.add('active'); }
-    applyFilter();
-    return;
-  }
   if (action === 'open')        { vscode.postMessage({ command: 'open',       data: btn.dataset.path }); }
   if (action === 'fix')         { btn.textContent = '⏳ Loading diff…'; btn.disabled = true; vscode.postMessage({ command: 'fix', data: btn.dataset.path }); }
-  if (action === 'ai-fix')      { btn.textContent = '⏳ AI fixing…';    btn.disabled = true; vscode.postMessage({ command: 'aiFix', data: btn.dataset.path, readmeType: btn.dataset.type }); }
+  if (action === 'copy-row')    { var rpath = btn.dataset.path || ''; btn.textContent = '⏳…'; btn.disabled = true; vscode.postMessage({ command: 'copy', text: btn.dataset.copy || '', path: rpath }); }
   if (action === 'fix-project') { vscode.postMessage({ command: 'fixProject', project: btn.dataset.proj }); }
   if (action === 'fix-all')     { vscode.postMessage({ command: 'fixAll' }); }
   if (action === 'rerun')       { vscode.postMessage({ command: 'rerun' }); }
+  if (action === 'filter-status') {
+    var wasActive = btn.classList.contains('active');
+    document.querySelectorAll('[data-action="filter-status"]').forEach(function(b) { b.classList.remove('active'); });
+    if (!wasActive) { btn.classList.add('active'); }
+    applyFilter();
+  }
 });
 function applyFilter() {
   const q = document.getElementById('search').value.toLowerCase().trim();
-  const hasPill = activePills.size > 0;
+  var activePill = document.querySelector('[data-action="filter-status"].active');
+  var pillStatus = activePill ? activePill.dataset.status : null;
   document.querySelectorAll('tbody tr').forEach(row => {
-    const textMatch = !q || row.textContent.toLowerCase().includes(q);
-    const pillMatch = !hasPill || activePills.has(row.dataset.status);
-    row.classList.toggle('hidden', !(textMatch && pillMatch));
-  });
-  document.querySelectorAll('.proj-section').forEach(sec => {
-    const anyVisible = sec.querySelector('tbody tr:not(.hidden)');
-    sec.style.display = anyVisible ? '' : 'none';
+    var matchSearch = !q || row.textContent.toLowerCase().includes(q);
+    var matchPill   = !pillStatus || row.dataset.status === pillStatus;
+    row.classList.toggle('hidden', !matchSearch || !matchPill);
   });
 }
 window.addEventListener('message', e => {
@@ -577,10 +625,13 @@ window.addEventListener('message', e => {
   if (msg.type === 'done')     { showStatus('✅ ' + msg.text); }
   if (msg.type === 'error')    { showStatus('❌ ' + msg.text); }
   if (msg.type === 'progress') { showStatus('⏳ ' + msg.text); }
+  if (msg.type === 'copied') {
+    var copyBtn = Array.from(document.querySelectorAll('.btn-copy-row')).find(function(b) { return b.dataset.path === msg.path; });
+    if (copyBtn) { copyBtn.textContent = '✅ Copied'; copyBtn.disabled = false; setTimeout(function() { copyBtn.textContent = '📋 Copy'; }, 1500); }
+  }
   // Restore disabled buttons after fix completes
   if (msg.type === 'done' || msg.type === 'error') {
     document.querySelectorAll('.btn-fix-row').forEach(b => { b.textContent = '🔧 Review Fix'; b.disabled = false; });
-    document.querySelectorAll('.btn-ai-row') .forEach(b => { b.textContent = '🤖 AI Fix';    b.disabled = false; });
   }
 });
 function showStatus(text) {
@@ -659,6 +710,10 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await fixProjectReadmes(msg.project);
                 await runScan();
                 break;
+            case 'copy':
+                await vscode.env.clipboard.writeText(msg.text || '');
+                panel.webview.postMessage({ type: 'copied', path: msg.path });
+                break;
             case 'rerun':
                 await runScan();
                 break;
@@ -692,29 +747,262 @@ async function pickAndFixReadme(): Promise<void> {
     await showFixDiff(picked.report);
 }
 
+interface BatchItem {
+    fileName:    string;
+    filePath:    string;
+    score:       number;
+    issues:      ComplianceIssue[];
+    aiContent:   string;
+    unifiedDiff: string;
+}
+
+function buildBatchReviewHtml(items: BatchItem[]): string {
+    const itemsData = items.map((item, i) => ({
+        i,
+        fileName:    item.fileName,
+        filePath:    item.filePath,
+        score:       item.score,
+        aiContent:   item.aiContent,
+        unifiedDiff: item.unifiedDiff,
+    }));
+
+    const cardsHtml = items.map((item, i) => {
+        const fixable    = item.issues.filter(iss => iss.fixable);
+        const issueLines = fixable.map(iss =>
+            `<li>${iss.severity === 'error' ? '🔴' : '🟡'} ${esc(iss.message)}</li>`
+        ).join('');
+        return `<div class="batch-card" id="card-${i}" data-index="${i}">
+  <div class="batch-hd">
+    <span class="batch-fname">${esc(item.fileName)}</span>
+    <span class="batch-score">Score: ${item.score}/100</span>
+    <div style="flex:1"></div>
+    <button class="btn-approve-one" data-index="${i}">☑ Approve</button>
+    <button class="btn-skip-one"   data-index="${i}">✕ Skip</button>
+  </div>
+  <div class="batch-path">${esc(item.filePath)}</div>
+  ${issueLines ? `<div class="batch-issues"><ul>${issueLines}</ul></div>` : ''}
+  <div class="batch-diff-wrap"><div id="diff-${i}"></div></div>
+</div>`;
+    }).join('');
+
+    const itemsJson = JSON.stringify(itemsData);
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html@3.4.56/bundles/css/diff2html.min.css">
+<script src="https://cdn.jsdelivr.net/npm/diff2html@3.4.56/bundles/js/diff2html-ui.min.js"><\/script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
+#toolbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editor-background)}
+#toolbar h1{font-size:0.95em;font-weight:700;flex:1}
+.btn-primary{background:#3fb950;color:#000;border:none;padding:6px 16px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700}
+.btn-primary:hover{opacity:.85}.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-sec{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 12px;border-radius:3px;cursor:pointer;font-size:12px}
+.btn-sec:hover{background:var(--vscode-button-secondaryHoverBackground)}
+#cards{padding:14px 16px 60px}
+.batch-card{border:1px solid var(--vscode-panel-border);border-radius:5px;margin-bottom:16px;overflow:hidden;transition:border-color 0.12s}
+.batch-card.approved{border-color:#3fb950}
+.batch-card.skipped{opacity:.4}
+.batch-hd{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--vscode-textCodeBlock-background)}
+.batch-fname{font-weight:700;font-size:0.92em}.batch-score{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
+.batch-path{font-size:10px;color:var(--vscode-descriptionForeground);padding:4px 14px;background:var(--vscode-textCodeBlock-background);border-bottom:1px solid var(--vscode-panel-border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family)}
+.batch-issues{padding:6px 14px;font-size:11px;background:var(--vscode-textCodeBlock-background);border-bottom:1px solid var(--vscode-panel-border)}
+.batch-issues ul{padding-left:16px;display:flex;flex-wrap:wrap;gap:3px 16px}
+.batch-issues li{list-style:none}
+.batch-diff-wrap{padding:8px 14px}
+.btn-approve-one{background:transparent;color:#3fb950;border:1px solid #3fb950;padding:3px 12px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap}
+.btn-approve-one.active{background:#3fb950;color:#000}
+.btn-approve-one:hover{background:rgba(63,185,80,.15)}
+.btn-skip-one{background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-panel-border);padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px}
+.btn-skip-one:hover{border-color:var(--vscode-focusBorder)}
+.d2h-wrapper{font-family:var(--vscode-editor-font-family,monospace)!important;font-size:12px!important}
+.d2h-file-header{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-editor-foreground)!important}
+.d2h-code-linenumber{background:var(--vscode-textCodeBlock-background)!important;border-color:var(--vscode-panel-border)!important;color:var(--vscode-descriptionForeground)!important}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <h1>📝 AI Batch Fix Review — ${items.length} file${items.length !== 1 ? 's' : ''}</h1>
+  <button class="btn-primary" id="btn-apply" disabled>✅ Apply Approved (0)</button>
+  <button class="btn-sec" id="btn-approve-all">✓ Approve All</button>
+  <button class="btn-sec" id="btn-skip-all">✕ Skip All</button>
+</div>
+<div id="cards">
+${cardsHtml}
+</div>
+<script>
+(function(){
+'use strict';
+const vscode = acquireVsCodeApi();
+const ITEMS = ${itemsJson};
+var approved = {};
+
+function updateCta() {
+  var count = Object.keys(approved).filter(function(k) { return approved[k]; }).length;
+  var btn = document.getElementById('btn-apply');
+  btn.textContent = '\\u2705 Apply Approved (' + count + ')';
+  btn.disabled = count === 0;
+}
+
+function setApprove(idx, val) {
+  var card = document.getElementById('card-' + idx);
+  if (!card) { return; }
+  var appBtn = card.querySelector('.btn-approve-one');
+  if (val) {
+    approved[idx] = true;
+    card.classList.add('approved');
+    card.classList.remove('skipped');
+    appBtn.textContent = '\\u2705 Approved';
+    appBtn.classList.add('active');
+  } else {
+    delete approved[idx];
+    card.classList.remove('approved', 'skipped');
+    appBtn.textContent = '\\u2611 Approve';
+    appBtn.classList.remove('active');
+  }
+  updateCta();
+}
+
+document.querySelectorAll('.btn-approve-one').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var idx = parseInt(btn.dataset.index, 10);
+    setApprove(idx, !approved[idx]);
+  });
+});
+
+document.querySelectorAll('.btn-skip-one').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var idx = parseInt(btn.dataset.index, 10);
+    delete approved[idx];
+    var card = document.getElementById('card-' + idx);
+    card.classList.remove('approved');
+    card.classList.add('skipped');
+    card.querySelector('.btn-approve-one').textContent = '\\u2611 Approve';
+    card.querySelector('.btn-approve-one').classList.remove('active');
+    updateCta();
+  });
+});
+
+document.getElementById('btn-approve-all').addEventListener('click', function() {
+  ITEMS.forEach(function(item) { setApprove(item.i, true); });
+});
+
+document.getElementById('btn-skip-all').addEventListener('click', function() {
+  ITEMS.forEach(function(item) {
+    delete approved[item.i];
+    var card = document.getElementById('card-' + item.i);
+    card.classList.remove('approved');
+    card.classList.add('skipped');
+    var appBtn = card.querySelector('.btn-approve-one');
+    appBtn.textContent = '\\u2611 Approve';
+    appBtn.classList.remove('active');
+  });
+  updateCta();
+});
+
+document.getElementById('btn-apply').addEventListener('click', function() {
+  var toWrite = ITEMS
+    .filter(function(item) { return !!approved[item.i]; })
+    .map(function(item) { return { filePath: item.filePath, content: item.aiContent }; });
+  if (!toWrite.length) { return; }
+  vscode.postMessage({ command: 'applyBatch', approved: toWrite });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  ITEMS.forEach(function(item) {
+    var target = document.getElementById('diff-' + item.i);
+    if (!target || !item.unifiedDiff) { return; }
+    var ui = new Diff2HtmlUI(target, item.unifiedDiff, {
+      drawFileList: false, matching: 'lines', outputFormat: 'line-by-line',
+      highlight: true, renderNothingWhenEmpty: false,
+    });
+    ui.draw();
+    ui.highlightCode();
+  });
+});
+
+updateCta();
+})();
+<\/script>
+</body>
+</html>`;
+}
+
 async function fixAllNonCompliant(reports: ReadmeReport[]): Promise<void> {
     const targets = reports.filter(r => r.score < 80 && r.issues.some(i => i.fixable));
-    if (!targets.length) { vscode.window.showInformationMessage('No auto-fixable issues found.'); return; }
+    if (!targets.length) { vscode.window.showInformationMessage('No fixable issues found.'); return; }
 
-    const confirm = await vscode.window.showWarningMessage(
-        `Write fixes to ${targets.length} README(s) without individual review? Each file will have missing sections added as stubs.`,
-        { modal: true }, 'Write All', 'Cancel'
+    const go = await vscode.window.showWarningMessage(
+        `Run AI fix on ${targets.length} README${targets.length !== 1 ? 's' : ''}? You'll review each diff before anything is written.`,
+        { modal: true }, 'Run AI Fix'
     );
-    if (confirm !== 'Write All') { return; }
+    if (go !== 'Run AI Fix') { return; }
 
-    let fixed = 0;
-    const changes: Array<{ action: string; file: string }> = [];
+    const items: BatchItem[] = [];
     for (const report of targets) {
+        _panel?.webview.postMessage({ type: 'progress', text: `AI fixing ${path.basename(report.filePath)} (${items.length + 1}/${targets.length})…` });
+        let content = '';
+        try { content = fs.readFileSync(report.filePath, 'utf8'); } catch { continue; }
+
+        const issueList = report.issues.map(i => `- ${i.message}`).join('\n');
+        const prompt = `You are fixing a ${report.readmeType} README.md file for a CieloVista Software project.
+The file has these compliance issues:\n${issueList}
+Required sections for a ${report.readmeType} README: ${REQUIRED_SECTIONS[report.readmeType].join(', ')}
+Here is the current file content:\n---\n${content.slice(0, 6000)}\n---
+Rules:
+- Keep all existing content that is valid — only add/fix what is needed
+- Keep the file under ${LINE_LIMITS[report.readmeType]} lines
+- First line must be a # heading — all code blocks must have a language tag
+- Output ONLY the fixed markdown content, no preamble`;
+
         try {
-            const content = applyFix(report);
-            fs.writeFileSync(report.filePath, content, 'utf8');
-            fixed++;
-            report.issues.filter(i => i.fixable).forEach(i => changes.push({ action: i.message, file: report.filePath }));
-        } catch (err) { logError(`Failed to fix ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
+            const aiContent = await callClaude(prompt, 3000);
+            if (!aiContent) { continue; }
+            const unifiedDiff = jsdiff.createPatch(report.fileName, content, aiContent, 'before (original)', 'after (AI)', { context: 4 });
+            items.push({ fileName: report.fileName, filePath: report.filePath, score: report.score, issues: report.issues, aiContent, unifiedDiff });
+        } catch (err) {
+            logError(`AI fix failed for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
     }
 
-    // TODO: Show per-job output in a new webview (fixAll)
-    await runScan();
+    if (!items.length) {
+        _panel?.webview.postMessage({ type: 'error', text: 'AI fix returned no results — check the output channel.' });
+        return;
+    }
+
+    const batchHtml = buildBatchReviewHtml(items);
+    if (_batchPanel) {
+        _batchPanel.title        = '📝 AI Batch Fix Review';
+        _batchPanel.webview.html = batchHtml;
+        _batchPanel.reveal(vscode.ViewColumn.Beside);
+    } else {
+        _batchPanel = vscode.window.createWebviewPanel(
+            'readmeBatchFix',
+            '📝 AI Batch Fix Review',
+            vscode.ViewColumn.Beside,
+            { enableScripts: true, retainContextWhenHidden: true }
+        );
+        _batchPanel.webview.html = batchHtml;
+        _batchPanel.onDidDispose(() => { _batchPanel = undefined; });
+    }
+
+    _batchPanel.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.command !== 'applyBatch') { return; }
+        const approved: Array<{ filePath: string; content: string }> = msg.approved;
+        let written = 0;
+        for (const item of approved) {
+            try { fs.writeFileSync(item.filePath, item.content, 'utf8'); written++; }
+            catch (err) { logError(`Failed to write ${item.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
+        }
+        _batchPanel?.dispose();
+        _panel?.webview.postMessage({ type: 'done', text: `Applied ${written} AI fix${written !== 1 ? 'es' : ''}. Rescanning…` });
+        await runScan();
+    });
+
+    _panel?.webview.postMessage({ type: 'done', text: `Review ${items.length} AI fix${items.length !== 1 ? 'es' : ''} in the side panel` });
 }
 
 async function aiFixReadme(filePath: string, readmeType: ReadmeType): Promise<void> {
@@ -839,10 +1127,13 @@ export function activate(context: vscode.ExtensionContext): void {
             else { vscode.window.showErrorMessage(`Standard not found: ${STANDARD_PATH}`); }
         }),
         vscode.commands.registerCommand('cvs.readme.new',           createNewReadme),
+        vscode.commands.registerCommand('cvs.readme.fillTodos',     () => { vscode.window.showInformationMessage('Fill README TODO Stubs: not yet implemented.'); }),
     );
 }
 
 export function deactivate(): void {
+    _batchPanel?.dispose();
+    _batchPanel = undefined;
     _diffPanel?.dispose();
     _diffPanel = undefined;
     _panel?.dispose();
@@ -859,6 +1150,9 @@ export const _test = {
     checkCompliance,
     applyFix,
     esc,
+    frontmatterEnd,
+    guessLanguage,
+    LANG_HINTS,
     REQUIRED_SECTIONS,
     SECTION_ORDER,
     LINE_LIMITS,

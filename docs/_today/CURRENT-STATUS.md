@@ -1,6 +1,6 @@
 ---
-docid: 150.9
-dewey: 150.9
+docid: 150.9.current-status
+dewey: 150.9.current-status
 id: current-statusmd-cielovista-tools
 title: CURRENT-STATUS.md — cielovista-tools
 project: cielovista-tools
@@ -15,6 +15,36 @@ author: CieloVista Software
 relativepath: docs/_today/CURRENT-STATUS.md
 ---
 # CURRENT-STATUS.md — cielovista-tools
+
+---
+
+## 🅿️ PARKING LOT — end of session 2026-05-08 (issues #309 #290 #306 #308 #294)
+
+**TASK:** Work through next 5 open issues
+**FILES TOUCHED:**
+- `src/features/doc-catalog/html.ts` — #309: `card-path` relPath wrapped in `<span class="card-path-link" data-action="open">` — clickable link
+- `src/features/doc-catalog/catalog.html` — #309: added `.card-path-link` CSS
+- `src/features/docs-broken-refs.ts` — #290: `buildScanningHtml()` + `attachPanelHandlers()` extracted; panel opens immediately with progress bar + ETA; yields between projects via `setTimeout(0)`
+- `src/features/readme-compliance/feature.ts` — #306: `showFixDiff()` now calls Claude when `applyFix()` produces `_TODO:` stubs, replacing them with content from companion `.ts` source file; `aiFixReadme()` refactored to accept optional `statusPanel`; `scanAndFillTodos()` + `buildTodoDashboardHtml()` + `scanForTodoFiles()` added for #308; `_todoPanel` added to deactivate
+- `src/features/cvs-command-launcher/catalog.ts` — added `cvs.readme.fillTodos` (dewey 400.108)
+- `package.json` — added `cvs.readme.fillTodos` command contribution
+**LAST ACTION:** Full `npm run rebuild` green — 53/53 install checks, 31/31 regression tests, 13/13 catalog checks, 110 commands
+**NEXT STEP:** Close issues #309 #290 #306 #308 on GitHub; issue #294 (Doc Intelligence 5 finding types) was already fully implemented in prior session — verify and close
+**OPEN QUESTIONS:** None
+
+---
+
+## 🅿️ PARKING LOT — end of session 2026-05-07 (issue #293)
+
+**TASK:** Fix NPM Output panel dropping failed job details (issues #291 #292 #293 — all duplicates)
+**FILES TOUCHED:**
+- `src/features/npm-command-launcher.ts` — moved `setupOutputPanel()` to top of `run` handler (before `job-start`); removed two lazy calls from stdout/stderr data handlers
+- `tests/regression/REG-025-npm-output-routing-and-timing.test.js` — updated lazy-open check → eager-open check
+- `tests/regression/REG-025-npm-output-failed-jobs.test.js` — new REG-026 test; 4 checks, 0 failures
+- `scripts/run-regression-tests.js` — added REG-026 entry
+**LAST ACTION:** Committed `fix: #293 NPM Output panel drops failed job details` (94f2d0e); issues #291 #292 #293 closed
+**NEXT STEP:** Continue with open issues — #290 (Broken Refs Scan progress/ETA), #289 (4 catalog commands not registered), #294 (Doc Intelligence stale docs)
+**OPEN QUESTIONS:** None
 
 ---
 

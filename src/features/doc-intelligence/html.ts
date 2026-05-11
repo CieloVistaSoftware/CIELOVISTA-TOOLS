@@ -87,7 +87,7 @@ export function buildDashboardHtml(report: IntelligenceReport): string {
     for (const f of findings) { byKind[f.kind] = (byKind[f.kind] ?? 0) + 1; }
 
     const pillsHtml = Object.entries(byKind).map(([k, n]) =>
-        `<span class="di-pill">${KIND_ICON[k] ?? '•'} ${n} ${esc(kindLabel(k))}</span>`
+        `<button class="di-filter-btn" data-filter="kind:${esc(k)}">${KIND_ICON[k] ?? '•'} ${n} ${esc(kindLabel(k))}</button>`
     ).join('');
 
     const scanDate    = new Date(scannedAt).toLocaleString();
@@ -472,10 +472,13 @@ function setFilter(f) {
   document.querySelectorAll('.di-filter-btn').forEach(function(b) {
     b.classList.toggle('active', b.dataset.filter === f);
   });
+  var kindTarget = f.startsWith('kind:') ? f.slice(5) : null;
   document.querySelectorAll('.di-card, .di-cluster').forEach(function(card) {
     var sev      = card.dataset.severity;
+    var kind     = card.dataset.kind;
     var decision = decisions[card.dataset.id] || 'pending';
     var show = f === 'all'
+      || (kindTarget   !== null && kind === kindTarget)
       || (f === 'red'      && sev === 'red')
       || (f === 'yellow'   && sev === 'yellow')
       || (f === 'info'     && sev === 'info')

@@ -247,22 +247,10 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
         const fn    = files[0].fileName;
         const fnKey = fn.toLowerCase();
 
-        if (ROOT_STANDARD_FILES.has(fnKey)) {
-            const rootCopies   = files.filter(f =>  isAtRoot(f.filePath, projectRoots));
-            const nestedCopies = files.filter(f => !isAtRoot(f.filePath, projectRoots));
-            if (nestedCopies.length === 0 && new Set(rootCopies.map(f => path.dirname(f.filePath))).size === rootCopies.length) { continue; }
-            if (nestedCopies.length > 0 && rootCopies.length > 0) {
-                findings.push({
-                    id: nextId(), kind: 'duplicate', severity: 'yellow',
-                    title: `Nested ${fn} — ${nestedCopies.length} cop${nestedCopies.length === 1 ? 'y' : 'ies'} outside project root`,
-                    reason: `Root-level ${fn} files are intentional. Found ${nestedCopies.length} nested cop${nestedCopies.length === 1 ? 'y' : 'ies'} in: ${nestedCopies.map(f => f.projectName).join(', ')}`,
-                    recommendation: `Delete the nested cop${nestedCopies.length === 1 ? 'y' : 'ies'} — root-level ${fn} files are the canonical source.`,
-                    action: 'delete-file', paths: nestedCopies.map(f => f.filePath),
-                    projects: [...new Set(nestedCopies.map(f => f.projectName))], priority: 50, meta: { copies: nestedCopies.length },
-                });
-                continue;
-            }
-        }
+        // Standard root files (README.md, CLAUDE.md, etc.) are intentionally present in
+        // every project. A duplicate is same content — already caught by check #1 (hash).
+        // Sharing a filename with different content is not a duplicate.
+        if (ROOT_STANDARD_FILES.has(fnKey)) { continue; }
 
         const groups: DocFile[][] = [];
         const used = new Set<number>();

@@ -488,6 +488,93 @@ function buildPlainReportText(findings: Finding[], totalDocsScanned: number, rol
   return lines.join('\n');
 }
 
+function buildScanningHtml(totalProjects: number): string {
+  return `<!doctype html><html><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<style>
+body{font-family:var(--vscode-font-family);color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);margin:0;display:flex;align-items:flex-start;justify-content:center;padding-top:80px}
+.scan-card{border:1px solid var(--vscode-panel-border);border-radius:8px;padding:28px 36px;min-width:400px;max-width:520px}
+.scan-title{font-size:17px;font-weight:700;margin-bottom:4px}
+.scan-sub{font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:18px}
+.scan-status{font-size:12px;color:var(--vscode-descriptionForeground);margin-bottom:10px;min-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prog-bg{background:var(--vscode-input-background);border-radius:4px;height:6px;overflow:hidden;margin-bottom:6px}
+.prog-fill{background:var(--vscode-progressBar-background,#0e70c0);height:6px;width:0%;transition:width 0.25s ease;border-radius:4px}
+.prog-row{display:flex;justify-content:space-between;font-size:11px;color:var(--vscode-descriptionForeground)}
+</style></head><body>
+<div class="scan-card">
+  <div class="scan-title">&#128269; Scanning for Broken References</div>
+  <div class="scan-sub">${totalProjects} project(s) to scan</div>
+  <div class="scan-status" id="scan-status">Initializing&hellip;</div>
+  <div class="prog-bg"><div class="prog-fill" id="prog-fill"></div></div>
+  <div class="prog-row">
+    <span id="prog-count">0 / ${totalProjects}</span>
+    <span id="prog-eta"></span>
+  </div>
+</div>
+<script>
+(function(){
+  var total = ${totalProjects};
+  var done = 0;
+  var startMs = Date.now();
+  var timer = setInterval(function(){
+    var el = document.getElementById('prog-eta');
+    if (!el || done === 0) { return; }
+    var elSec = (Date.now() - startMs) / 1000;
+    var rate = done / elSec;
+    var rem = rate > 0 ? (total - done) / rate : 0;
+    el.textContent = rem > 0.5 ? ('ETA: ' + rem.toFixed(0) + 's') : (done >= total ? '' : '<1s');
+  }, 500);
+  window.addEventListener('message', function(e) {
+    var msg = e.data;
+    if (!msg || msg.type !== 'progress') { return; }
+    done++;
+    var pct = total > 0 ? Math.round(done / total * 100) : 0;
+    var fill = document.getElementById('prog-fill');
+    var count = document.getElementById('prog-count');
+    var status = document.getElementById('scan-status');
+    if (fill)  { fill.style.width = pct + '%'; }
+    if (count) { count.textContent = done + ' / ' + total; }
+    if (status){ status.textContent = 'Scanning: ' + (msg.projectName || ''); }
+    if (done >= total) { clearInterval(timer); }
+  });
+})();
+</script>
+</body></html>`;
+}
+
+function attachPanelHandlers(p: vscode.WebviewPanel): void {
+  p.onDidDispose(() => { panel = undefined; });
+  p.webview.onDidReceiveMessage(async (msg) => {
+    if (msg?.type === 'copy-report-clipboard') {
+      await vscode.env.clipboard.writeText(latestReportText || '');
+      vscode.window.showInformationMessage('Broken references report copied to clipboard.');
+      return;
+    }
+    if (msg?.type === 'copy-report-chat') {
+      const sent = await sendToCopilotChat(latestReportText || '');
+      if (sent) {
+        vscode.window.showInformationMessage('Broken references report sent to Copilot Chat.');
+      } else {
+        vscode.window.showInformationMessage('Broken references report is on clipboard. Press Ctrl+V in Copilot Chat.');
+      }
+      return;
+    }
+    if (msg?.type !== 'open' || !msg.path) { return; }
+    const target = String(msg.path);
+    if (!fs.existsSync(target)) {
+      vscode.window.showWarningMessage(`Path does not exist: ${target}`);
+      return;
+    }
+    const stat = fs.statSync(target);
+    if (stat.isDirectory()) {
+      await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), false);
+    } else {
+      const doc = await vscode.workspace.openTextDocument(target);
+      await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+    }
+  });
+}
+
 async function scanBrokenRefs(): Promise<void> {
   if (isScanRunning) {
     vscode.window.showInformationMessage('Broken reference scan is already running.');
@@ -497,135 +584,95 @@ async function scanBrokenRefs(): Promise<void> {
   isScanRunning = true;
 
   try {
-  const registry = loadRegistry();
-  if (!registry) {
-    return;
-  }
+    const registry = loadRegistry();
+    if (!registry) { return; }
 
-  const projectRoots: Array<{ projectName: string; rootPath: string }> = [
-    { projectName: 'global', rootPath: registry.globalDocsPath },
-    ...registry.projects.map((p) => ({ projectName: p.name, rootPath: p.path }))
-  ];
+    const projectRoots: Array<{ projectName: string; rootPath: string }> = [
+      { projectName: 'global', rootPath: registry.globalDocsPath },
+      ...registry.projects.map((p) => ({ projectName: p.name, rootPath: p.path }))
+    ];
 
-  log('scan-broken-refs', `Scanning ${projectRoots.length} project root(s) for broken references...`);
+    // Open panel immediately with scanning placeholder
+    if (!panel) {
+      panel = vscode.window.createWebviewPanel('brokenRefs', '\u{1F50D} Scanning…', vscode.ViewColumn.One, {
+        enableScripts: true,
+        retainContextWhenHidden: true
+      });
+      attachPanelHandlers(panel);
+    }
+    panel.webview.html = buildScanningHtml(projectRoots.length);
+    panel.reveal(vscode.ViewColumn.One);
 
-  const mdByProject = new Map<string, string[]>();
-  const filesByProject = new Map<string, string[]>();
-  const allFiles: string[] = [];
+    // Yield to let the webview initialize before the first progress event
+    await new Promise<void>(resolve => setTimeout(resolve, 80));
 
-  for (const proj of projectRoots) {
-    const md = walkMdFiles(proj.rootPath);
-    const files = walkAllFiles(proj.rootPath);
-    mdByProject.set(proj.projectName, md);
-    filesByProject.set(proj.projectName, files);
-    allFiles.push(...files);
-  }
+    log('scan-broken-refs', `Scanning ${projectRoots.length} project root(s) for broken references...`);
 
-  const findings: Finding[] = [];
-  let totalDocsScanned = 0;
+    const mdByProject    = new Map<string, string[]>();
+    const filesByProject = new Map<string, string[]>();
+    const allFiles: string[] = [];
 
-  for (const proj of projectRoots) {
-    const docs = mdByProject.get(proj.projectName) ?? [];
-    totalDocsScanned += docs.length;
-    const projectFiles = filesByProject.get(proj.projectName) ?? [];
+    // Pass 1: collect file lists (fast — just directory walking)
+    for (const proj of projectRoots) {
+      mdByProject.set(proj.projectName, walkMdFiles(proj.rootPath));
+      const files = walkAllFiles(proj.rootPath);
+      filesByProject.set(proj.projectName, files);
+      allFiles.push(...files);
+    }
 
-    for (const docPath of docs) {
-      let content: string;
-      try {
-        content = fs.readFileSync(docPath, 'utf8');
-      } catch {
-        continue;
+    const findings: Finding[] = [];
+    let totalDocsScanned = 0;
+    const scanStart = Date.now();
+
+    // Pass 2: scan each project — send progress after each one
+    for (let i = 0; i < projectRoots.length; i++) {
+      const proj = projectRoots[i];
+      const docs = mdByProject.get(proj.projectName) ?? [];
+      totalDocsScanned += docs.length;
+      const projectFiles = filesByProject.get(proj.projectName) ?? [];
+
+      for (const docPath of docs) {
+        let content: string;
+        try { content = fs.readFileSync(docPath, 'utf8'); } catch { continue; }
+
+        for (const ref of parseRefs(content)) {
+          if (ref.target.startsWith('/doc/')) {
+            findings.push({ projectName: proj.projectName, filePath: docPath, line: ref.line, kind: 'doc-id', target: ref.target, candidates: [] });
+            continue;
+          }
+          const resolved = path.resolve(path.dirname(docPath), ref.target);
+          if (fs.existsSync(resolved)) { continue; }
+          findings.push({ projectName: proj.projectName, filePath: docPath, line: ref.line, kind: ref.kind, target: ref.target, candidates: fileNameCandidates(resolved, docPath, projectFiles, allFiles) });
+        }
       }
 
-      for (const ref of parseRefs(content)) {
-        if (ref.target.startsWith('/doc/')) {
-          findings.push({
-            projectName: proj.projectName,
-            filePath: docPath,
-            line: ref.line,
-            kind: 'doc-id',
-            target: ref.target,
-            candidates: []
-          });
-          continue;
-        }
+      // Send progress event and yield so the webview can update
+      void panel?.webview.postMessage({ type: 'progress', projectName: proj.projectName, done: i + 1, total: projectRoots.length });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
 
-        const resolved = path.resolve(path.dirname(docPath), ref.target);
-        if (fs.existsSync(resolved)) {
-          continue;
-        }
-
-        const candidates = fileNameCandidates(resolved, docPath, projectFiles, allFiles);
-
-        findings.push({
-          projectName: proj.projectName,
-          filePath: docPath,
-          line: ref.line,
-          kind: ref.kind,
-          target: ref.target,
-          candidates
-        });
+    const rollups = buildRollups(findings, projectRoots, mdByProject);
+    const elapsedMs = Date.now() - scanStart;
+    log('scan-broken-refs', `Scanned ${totalDocsScanned} markdown file(s) across ${projectRoots.length} project(s) in ${elapsedMs}ms.`);
+    log('scan-broken-refs', `Found ${findings.length} broken reference(s). Results shown in Broken References panel.`);
+    for (const rollup of rollups.slice().sort((a, b) => b.brokenTotal - a.brokenTotal)) {
+      if (rollup.brokenTotal > 0) {
+        log('scan-broken-refs', `  ${rollup.projectName}: ${rollup.brokenTotal} broken reference(s)`);
       }
     }
-  }
 
-  const rollups = buildRollups(findings, projectRoots, mdByProject);
-  log('scan-broken-refs', `Scanned ${totalDocsScanned} markdown file(s) across ${projectRoots.length} project(s).`);
-  log('scan-broken-refs', `Found ${findings.length} broken reference(s). Results are shown in the Broken References panel.`);
-  for (const rollup of rollups.slice().sort((a, b) => b.brokenTotal - a.brokenTotal)) {
-    if (rollup.brokenTotal > 0) {
-      log('scan-broken-refs', `  ${rollup.projectName}: ${rollup.brokenTotal} broken reference(s)`);
+    latestReportText = buildPlainReportText(findings, totalDocsScanned, rollups);
+    if (panel) {
+      panel.title = 'Broken References';
+      panel.webview.html = buildViewerHtml(findings, totalDocsScanned, rollups);
+      panel.reveal(vscode.ViewColumn.One);
     }
-  }
 
-  if (!panel) {
-    panel = vscode.window.createWebviewPanel('brokenRefs', 'Broken References', vscode.ViewColumn.One, {
-      enableScripts: true,
-      retainContextWhenHidden: true
-    });
-    panel.onDidDispose(() => { panel = undefined; });
-    panel.webview.onDidReceiveMessage(async (msg) => {
-      if (msg?.type === 'copy-report-clipboard') {
-        await vscode.env.clipboard.writeText(latestReportText || '');
-        vscode.window.showInformationMessage('Broken references report copied to clipboard.');
-        return;
-      }
-      if (msg?.type === 'copy-report-chat') {
-        const sent = await sendToCopilotChat(latestReportText || '');
-        if (sent) {
-          vscode.window.showInformationMessage('Broken references report sent to Copilot Chat.');
-        } else {
-          vscode.window.showInformationMessage('Broken references report is on clipboard. Press Ctrl+V in Copilot Chat.');
-        }
-        return;
-      }
-      if (msg?.type !== 'open' || !msg.path) {
-        return;
-      }
-      const target = String(msg.path);
-      if (!fs.existsSync(target)) {
-        vscode.window.showWarningMessage(`Path does not exist: ${target}`);
-        return;
-      }
-      const stat = fs.statSync(target);
-      if (stat.isDirectory()) {
-        await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), false);
-      } else {
-        const doc = await vscode.workspace.openTextDocument(target);
-        await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-      }
-    });
-  }
-
-  latestReportText = buildPlainReportText(findings, totalDocsScanned, rollups);
-  panel.webview.html = buildViewerHtml(findings, totalDocsScanned, rollups);
-  panel.reveal(vscode.ViewColumn.One);
-
-  if (findings.length === 0) {
-    vscode.window.showInformationMessage('Broken reference scan complete: no issues found.');
-  } else {
-    vscode.window.showWarningMessage(`Broken reference scan complete: ${findings.length} issue(s) found.`);
-  }
+    if (findings.length === 0) {
+      vscode.window.showInformationMessage('Broken reference scan complete: no issues found.');
+    } else {
+      vscode.window.showWarningMessage(`Broken reference scan complete: ${findings.length} issue(s) found.`);
+    }
   } finally {
     isScanRunning = false;
   }

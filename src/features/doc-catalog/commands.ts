@@ -12,6 +12,7 @@ import { buildProjectDeweyMap, lookupDewey } from './categories';
 import { loadProjectInfo } from './projects';
 import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
+import { revealFileInPanel } from '../file-list-viewer';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
 import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
@@ -231,7 +232,11 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await vscode.commands.executeCommand('cvs.npm.showAndRunScripts');
                 break;
             case 'preview':
-                if (msg.data) { openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open'); }
+                if (msg.data) {
+                    openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open');
+                    void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(msg.data));
+                    revealFileInPanel(msg.data);
+                }
                 break;
             case 'open':
                 if (msg.data && fs.existsSync(msg.data)) {

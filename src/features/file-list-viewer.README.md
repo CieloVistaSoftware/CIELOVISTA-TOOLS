@@ -1,6 +1,6 @@
 ---
-docid: 150.1
-dewey: 150.1
+docid: 150.1.file-list-viewer-readme
+dewey: 150.1.file-list-viewer-readme
 id: filelist-sortable-alternative-file-browser
 title: FileList — Sortable Alternative File Browser
 project: cielovista-tools
@@ -9,7 +9,7 @@ status: active
 tags: [file, list, viewer]
 category: 150.1 — Components / Features
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-05-08
 version: 1.0.0
 author: CieloVista Software
 relativepath: src/features/file-list-viewer.README.md
@@ -36,6 +36,17 @@ Two header toggles:
 
 - **.hidden** — show / hide dotfiles (default: shown, de-emphasized)
 - **excludes** — show / hide normally-excluded folders: `node_modules`, `.git`, `out`, `dist`, `.vscode-test` (default: hidden)
+
+## Doc Catalog integration
+
+When the FileList panel is open, clicking **View** on any Doc Catalog card automatically highlights the corresponding row — even if the document belongs to a different project outside the current workspace.
+
+| Document location | VS Code Explorer | FileList panel |
+|---|---|---|
+| Inside CVT workspace | ✅ Highlighted | ✅ Highlighted |
+| Outside workspace (e.g. DiskCleanUp, wb-core) | ❌ No change | ✅ Navigates + highlights |
+
+If the document is in a different directory than the one currently shown, the FileList panel navigates to that directory first, then selects the row. This makes the FileList the primary cross-project locator when working with the Doc Catalog across multiple registered projects.
 
 ## Sort behavior
 

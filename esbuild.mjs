@@ -22,6 +22,14 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   !production,
   });
+  // Standalone analyzer — no vscode dep, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-intelligence/analyzer.ts'],
+    outfile:     'out/features/doc-intelligence/analyzer.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
 }
 
 async function buildMcpServer() {
