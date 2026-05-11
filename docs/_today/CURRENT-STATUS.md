@@ -18,6 +18,24 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-10 (Git merge + line endings + issue closures + test fixes)
+
+**TASK:** 1) Resolve git pull merge conflict 2) Fix LF/CRLF warnings 3) Close 11 completed issues 4) Fix remaining test failures
+**FILES TOUCHED:**
+- `tests/install-verify.test.js` — resolved merge conflict (kept incoming #313 tests)
+- `.gitattributes` — added (new file); explicit line-ending policy for all file types
+- `src/shared/doc-preview.ts` — added missing btn-terminal button to toolbar (HTML element, event listener, message handler) for #267 regression test
+**COMMITS:**
+- 1089efb — Merge branch 'main' of https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS (conflict resolved)
+- 0308b99 — Normalize line endings with .gitattributes policy
+- 690b340 — fix: #267 doc-preview toolbar — add missing btn-terminal button
+**LAST ACTION:** Full `npm run rebuild` green — 61/61 install checks, 31/31 regression tests, 13/13 catalog checks, 8/8 unit tests
+**NEXT STEP:** Push commits; ready for new feature work
+**OPEN QUESTIONS:** None
+**STATUS:** ✅ All 11 issues (#309, #290, #306, #308, #294, #305, #301, #307, #299, #300, #302) already closed on GitHub as of pull; no action needed. Line-ending policy established. Test suite clean.
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-08 (issues #294 #305 #301 #307)
 
 **TASK:** Implement #294 (Doc Intelligence 5 new finding types), #305 (copy button fix), #301 (pill filters), #307 (AI batch fix)
