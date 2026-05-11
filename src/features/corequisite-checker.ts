@@ -212,7 +212,13 @@ export function activate(context: vscode.ExtensionContext): void {
     // 3-second delay keeps the activation phase clean.
     setTimeout(() => {
         runCheck(context.extensionPath, { autoInstall: false, silentIfClean: true })
-            .catch(err => logError('Startup corequisite check failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE, false));
+            .catch(err => {
+                // VS Code fires Canceled when the window reloads or shuts down while
+                // this check is in-flight. That is normal lifecycle noise, not an error.
+                const msg = err instanceof Error ? err.message : String(err);
+                if (msg.includes('Canceled') || msg.includes('cancelled')) { return; }
+                logError('Startup corequisite check failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE, false);
+            });
     }, 3000);
 }
 

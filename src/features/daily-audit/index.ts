@@ -109,11 +109,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.audit.runDaily', async () => {
+            let _auditResult: Awaited<ReturnType<typeof runDailyAudit>> | undefined;
             await vscode.window.withProgress(
                 { location: vscode.ProgressLocation.Notification, title: '🔍 Running daily audit…', cancellable: false },
                 async (progress) => {
                     progress.report({ message: 'Checking marketplace, README, CLAUDE.md, changelog…' });
                     const result = await runDailyAudit();
+                    _auditResult = result;
                     const r = result.report.summary;
                     const failed = !result.written || r.red > 0;
 
@@ -188,11 +190,14 @@ export function activate(context: vscode.ExtensionContext): void {
                     // Refresh the launcher panel in place so audit dots update immediately.
                     // Uses executeCommand to avoid a circular import with cvs-command-launcher.
                     vscode.commands.executeCommand('cvs.launcher.refresh');
-
-                    // Let the user immediately inspect and act on findings.
-                    await offerAuditActions(result);
                 }
             );
+
+            // Offer follow-up actions AFTER the progress notification closes so the
+            // spinner does not appear to run indefinitely while waiting for user input.
+            if (_auditResult) {
+                await offerAuditActions(_auditResult);
+            }
         })
     );
 }
