@@ -324,6 +324,13 @@ ok('#307 batch review panel disposed on deactivate',
     readmeFeatureSrc.includes('_batchPanel?.dispose()'),
     '_batchPanel must exist and be disposed in deactivate()');
 
+// #313 — Doc Intelligence kind pills filter the findings list
+ok('#313 Doc Intelligence kind pills are buttons with data-filter="kind:..."',
+    bundleSrc.includes('data-filter="kind:'),
+    'Kind pills must be <button> elements with data-filter="kind:<kind>" to enable click-filtering');
+ok('#313 Doc Intelligence setFilter handles kind: prefix',
+    bundleSrc.includes("startsWith('kind:')") || bundleSrc.includes('startsWith("kind:")'),
+    'setFilter() must branch on kind: prefix to filter by finding type');
 // Summary
 console.log(`\n------------------------------------------------------------`);
 console.log(`${pass + fail} checks: ${pass} passed, ${fail} failed`);
