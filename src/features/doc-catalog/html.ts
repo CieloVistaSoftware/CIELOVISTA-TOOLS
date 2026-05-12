@@ -17,6 +17,7 @@ import * as fs   from 'fs';
 import * as path from 'path';
 import { esc } from './content';
 import type { CatalogCard, ProjectInfo } from './types';
+import { CATALOG } from '../cvs-command-launcher/catalog';
 
 // ─── Load the static HTML shell ───────────────────────────────────────────────
 
@@ -51,38 +52,28 @@ export function buildCatalogInitPayload(
     const sortedCategories = [...byCategory.entries()]
         .sort((a, b) => (a[1][0]?.categoryNum ?? 0) - (b[1][0]?.categoryNum ?? 0));
 
-    // Extract shared prefix (text before first :, -, or . separator)
-    function docPrefix(title: string): string {
-        const m = title.match(/^([A-Za-z0-9_]+)[:\-\.]/);
-        return m ? m[1].toLowerCase() : '';
-    }
-
     const categorySections = sortedCategories.map(([catLabel, catCards]) => {
-
-        function buildCardHtml(card: CatalogCard): string {
-            const displayTitle = card.title;
+        const seqWithinCat = new Map<string, number>();
+        const cardHtml = catCards.map(card => {
             const relPath  = path.relative(card.projectPath, card.filePath).replace(/\\/g, '/');
-            const folderPath = path.dirname(card.filePath);
             const relDir   = path.relative(card.projectPath, path.dirname(card.filePath));
-            const relDirDisplay = (!relDir || relDir === '.') ? '(project root)' : relDir.replace(/\\/g, '/');
             const firstSeg = relDir.split(/[/\\]/)[0];
             const section  = (!firstSeg || firstSeg === '.') ? 'root' : firstSeg;
             const tagsHtml = card.tags.slice(0, 6).map(t =>
                 `<span class="tag" data-action="filter-tag" data-tag="${esc(t)}">${esc(t)}</span>`
             ).join('');
-            const deweyNum     = (card.dewey && card.dewey.trim()) ? card.dewey.trim() : 'missing-docid';
-            const typeChip     = card.docType ? `<span class="card-doc-type">${esc(card.docType)}</span>` : '';
-            const collisionBadge = card.docIdCollision
-                ? `<span class="card-collision-badge" title="⚠ This Doc Id is shared by multiple documents — fix by assigning a unique id">⚠ collision</span>`
-                : '';
+            const seq      = (seqWithinCat.get(catLabel) ?? 0) + 1;
+            seqWithinCat.set(catLabel, seq);
+            const deweyNum = `${card.categoryNum.toString().padStart(3,'0')}.${seq.toString().padStart(3,'0')}`;
 
+            // Build tooltip: Where, When, Why, How + Dewey
             const tooltipText = [
                 `Where: ${card.projectName} — ${relPath}`,
                 `When: Reference while working on ${card.projectName}`,
                 `Why: ${card.description}`,
                 `How: Click title or View to preview  |  Edit to open in editor`,
                 ``,
-                `Doc Id: ${deweyNum}  |  ${card.fileName}`,
+                `Dewey: ${deweyNum}  |  ${card.fileName}`,
             ].join('\n');
 
             const isWbCore = card.projectPath.toLowerCase().includes('wb-core');
@@ -90,12 +81,11 @@ export function buildCatalogInitPayload(
                 ? `<button class="btn-demo" data-action="wb-demo" data-path="${esc(card.filePath)}" data-name="${esc(card.title)}" title="Open live component demo in browser">&#9654; Demo</button>`
                 : '';
 
-            // Companion source file: strip .README.md / .md → try .ts then .js
-            const srcDir  = path.dirname(card.filePath);
-            const srcBase = path.basename(card.filePath).replace(/\.README\.md$/i, '').replace(/\.md$/i, '');
-            const srcTs   = path.join(srcDir, srcBase + '.ts');
-            const srcJs   = path.join(srcDir, srcBase + '.js');
-            const srcPath = fs.existsSync(srcTs) ? srcTs : fs.existsSync(srcJs) ? srcJs : null;
+            const catEntry = CATALOG.find(e => e.location && card.filePath.replace(/\\/g, '/').endsWith(e.location.replace(/\\/g, '/')));
+            const commandId = catEntry?.id ?? '';
+            const runBtn = commandId
+                ? `<button class="btn-run" data-action="run-command" data-command-id="${esc(commandId)}" title="Run: ${esc(catEntry!.title)}">&#9654; Run</button>`
+                : '';
 
             return `<article class="card"
   data-id="${esc(card.id)}"
@@ -109,80 +99,32 @@ export function buildCatalogInitPayload(
       data-proj-path="${esc(card.projectPath)}"
       title="Open project folder"
       style="cursor:pointer;text-decoration:underline">${esc(card.projectName)}</span>
+    <button class="btn-vscode-proj" data-action="open-project-vscode" data-proj-path="${esc(card.projectPath)}" title="Open project in VS Code">&#128203;</button>
     <span class="card-date">${esc(card.lastModified)}</span>
   </div>
   <div class="card-dewey-row">
-    <span class="card-dewey">${deweyNum}</span>${collisionBadge}
+    <span class="card-dewey">${deweyNum}</span>
     <span class="card-filename">${esc(card.fileName)}</span>
-    ${typeChip}
   </div>
-    <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(displayTitle)}</div>
-    <div class="card-project-path"><strong>Location:</strong> ${esc(folderPath)}</div>
-    <div class="card-origin" title="${esc(folderPath)}"><strong>Folder:</strong> ${esc(relDirDisplay)}</div>
+  <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(card.title)}</div>
+  <div style="font-family:monospace;font-size:10px;color:var(--vscode-descriptionForeground)">${esc(card.projectPath)}</div>
   <div class="card-desc">${esc(card.description)}</div>
-    <div class="card-path" title="${esc(card.filePath)}"><strong>File:</strong> <span class="card-path-link" data-action="open" data-path="${esc(card.filePath)}">${esc(relPath)}</span></div>
+  <div class="card-path" title="${esc(card.filePath)}">${esc(relPath)}</div>
   <div class="card-tags">${tagsHtml}</div>
   <div class="card-footer">
     <span class="card-size">${(card.sizeBytes / 1024).toFixed(1)} KB</span>
     <div class="card-btns">
       <button class="btn-view" data-action="open-preview" data-path="${esc(card.filePath)}">&#128196; View</button>
       <button class="btn-open" data-action="open"         data-path="${esc(card.filePath)}">&#9998; Edit</button>
-      ${srcPath
-          ? `<button class="btn-open" data-action="open-src-file" data-path="${esc(srcPath)}" title="Open source file: ${esc(path.basename(srcPath))}">&#128196; SRC</button>`
-          : `<button class="btn-open" data-action="open-folder"   data-path="${esc(folderPath)}">&#128194; Folder</button>`}
-      <button class="btn-archive" data-action="archive-doc" data-path="${esc(card.filePath)}" data-title="${esc(card.title)}" data-project="${esc(card.projectName)}" title="Hide this doc from the catalog (archive). Restore via View Archived.">&#128190; Archive</button>
+      <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
       ${demoBtn}
+      ${runBtn}
     </div>
   </div>
 </article>`;
-        }
+        }).join('');
 
-        // Group cards by project, then sub-group by shared title prefix within each project
-        const byProject = new Map<string, CatalogCard[]>();
-        for (const card of catCards) {
-            if (!byProject.has(card.projectName)) { byProject.set(card.projectName, []); }
-            byProject.get(card.projectName)!.push(card);
-        }
-
-        let cardHtml = '';
-        for (const [, projCards] of byProject) {
-            // Count how many cards share each prefix within this project
-            const prefixCounts = new Map<string, number>();
-            for (const card of projCards) {
-                const p = docPrefix(card.title);
-                if (p) prefixCounts.set(p, (prefixCounts.get(p) ?? 0) + 1);
-            }
-            const sharedPrefixes = new Set([...prefixCounts.entries()]
-                .filter(([, n]) => n >= 2)
-                .map(([p]) => p));
-
-            if (sharedPrefixes.size === 0) {
-                // No grouping — render flat
-                cardHtml += projCards.map(buildCardHtml).join('');
-            } else {
-                // Emit grouped sections first, then ungrouped cards
-                const grouped   = new Map<string, CatalogCard[]>();
-                const ungrouped: CatalogCard[] = [];
-                for (const card of projCards) {
-                    const p = docPrefix(card.title);
-                    if (p && sharedPrefixes.has(p)) {
-                        if (!grouped.has(p)) { grouped.set(p, []); }
-                        grouped.get(p)!.push(card);
-                    } else {
-                        ungrouped.push(card);
-                    }
-                }
-                for (const [prefix, grpCards] of grouped) {
-                    cardHtml += `<h3 class="doc-group-hd">${esc(prefix)}</h3>`;
-                    cardHtml += grpCards.map(buildCardHtml).join('');
-                }
-                cardHtml += ungrouped.map(buildCardHtml).join('');
-            }
-        }
-
-        const firstDocId = (catCards.find((c) => !!c.dewey)?.dewey ?? '').trim();
-        const docIdPrefix = firstDocId.match(/^(\d{3})\./)?.[1];
-        const baseLabel = docIdPrefix ?? (catCards[0]?.categoryNum ?? 0).toString().padStart(3,'0');
+        const baseLabel = (catCards[0]?.categoryNum ?? 0).toString().padStart(3,'0');
         return `<section class="cat-section" data-category="${esc(catLabel)}">
   <h2 class="cat-heading">
     <span class="cat-dewey">${esc(baseLabel)}</span>

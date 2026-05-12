@@ -770,9 +770,10 @@ function escHtml(s: string): string {
 
 function buildMarkdownPreviewHtml(filePath: string, markdown: string, backUrl?: string): string {
     const safePath = escHtml(filePath);
+    const safeFileName = escHtml(filePath.split(/[\\/]/).pop() ?? filePath);
     const safeBack = escHtml(backUrl || '');
     return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>${safePath}</title>
+<html lang="en"><head><meta charset="UTF-8"><title>${safeFileName}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#1e1e1e;color:#d4d4d4}
@@ -788,6 +789,10 @@ pre{background:#111;border:1px solid #2d2d2d;border-radius:6px;padding:12px;over
 blockquote{border-left:3px solid #0078d4;padding-left:10px;color:#9e9e9e}
 table{border-collapse:collapse;width:100%}
 th,td{border:1px solid #2d2d2d;padding:6px 8px}
+.fm-block{font-size:.9rem;color:#4fc3f7;margin-bottom:1.2em;display:flex;flex-direction:column;gap:2px}
+.fm-row{display:flex;gap:6px}
+.fm-label{color:#81d4fa;font-weight:600;white-space:nowrap}
+.fm-value{color:#4fc3f7;word-break:break-word}
 </style></head>
 <body>
 <header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><span class="path-label">${safePath}</span></header>
@@ -797,7 +802,33 @@ th,td{border:1px solid #2d2d2d;padding:6px 8px}
 const raw = ${JSON.stringify(markdown)};
 const backUrl = ${JSON.stringify(safeBack)};
 const content = document.getElementById('content');
-content.innerHTML = marked.parse(raw);
+
+function parseFrontmatter(src) {
+    const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+    if (!m) return { fm: null, body: src };
+    const pairs = [];
+    for (const line of m[1].split(/\r?\n/)) {
+        const idx = line.indexOf(':');
+        if (idx < 1) continue;
+        const key = line.slice(0, idx).trim();
+        const val = line.slice(idx + 1).trim();
+        if (key) pairs.push({ key, val });
+    }
+    return { fm: pairs, body: m[2] };
+}
+
+const { fm, body } = parseFrontmatter(raw);
+let html = '';
+if (fm && fm.length) {
+    html += '<div class="fm-block">';
+    for (const { key, val } of fm) {
+        html += '<div class="fm-row"><span class="fm-label">' + key + ':</span><span class="fm-value">' + val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span></div>';
+    }
+    html += '</div>';
+}
+html += marked.parse(body);
+content.innerHTML = html;
+
 document.getElementById('btn-back').addEventListener('click', function(){
     if (backUrl) {
         window.location.href = backUrl;

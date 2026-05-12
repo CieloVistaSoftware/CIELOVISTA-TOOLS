@@ -44,7 +44,7 @@ function buildFolderPathHtml(filePath: string): string {
 }
 
 // ── Preview HTML ──────────────────────────────────────────────────────────────
-function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[], hasSource: boolean): string {
+function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[]): string {
     const nonce = getNonce();
     const jsPath = filePath.replace(/\\/g, '\\\\');
     const jsDir  = path.dirname(filePath).replace(/\\/g, '\\\\');
@@ -91,24 +91,23 @@ hr{border:none;border-top:1px solid var(--vscode-panel-border);margin:18px 0}
 a{color:var(--vscode-textLink-foreground)} a:hover{text-decoration:underline}
 strong{font-weight:700} em{font-style:italic} del{opacity:0.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
-.fm-block{display:flex;flex-direction:column;gap:6px;padding:10px 14px;margin-bottom:16px;border:1px solid rgba(77,171,247,0.35);border-radius:5px;background:rgba(77,171,247,0.06);font-family:Georgia,'Times New Roman',serif}
-.fm-row{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:6px;align-items:start;width:100%}
-.fm-label{font-size:11px;font-weight:700;color:#4dabf7;font-variant:small-caps;letter-spacing:0.04em;white-space:nowrap}
-.fm-value{font-size:12px;color:#74c7ec;font-style:italic;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.fm-block{font-family:Georgia,serif;font-size:.9rem;margin-bottom:1.2em;display:flex;flex-direction:column;gap:2px}
+.fm-row{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px;align-items:baseline}
+.fm-label{color:#4dabf7;font-weight:600;white-space:nowrap}
+.fm-value{color:#74c0fc;white-space:normal;overflow-wrap:anywhere;word-break:break-word;min-width:0}
 /* ── highlight.js — github-dark theme (inline, no CDN needed) ── */
 .hljs{color:#adbac7;background:#22272e}.hljs-doctag,.hljs-keyword,.hljs-meta .hljs-keyword,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-variable.language_{color:#f47067}.hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__,.hljs-title.function_{color:#dcbdfb}.hljs-attr,.hljs-attribute,.hljs-literal,.hljs-meta,.hljs-number,.hljs-operator,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-variable{color:#6cb6ff}.hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#96d0ff}.hljs-built_in,.hljs-symbol{color:#f69d50}.hljs-code,.hljs-comment,.hljs-formula{color:#768390}.hljs-name,.hljs-quote,.hljs-selector-pseudo,.hljs-selector-tag{color:#8ddb8c}.hljs-subst{color:#adbac7}.hljs-section{color:#316dca;font-weight:700}.hljs-bullet{color:#eac55f}.hljs-emphasis{color:#adbac7;font-style:italic}.hljs-strong{color:#adbac7;font-weight:700}.hljs-addition{color:#b4f1b4;background-color:#1b4721}.hljs-deletion{color:#ffd8d3;background-color:#78191b}
 `;
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: http: vscode-webview: vscode-resource:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>${CSS}</style></head><body>
 <div id="topbar">
   <div id="topbar-row1">
     <span id="topbar-title">&#128196; ${esc(title)}</span>
-    ${hasSource ? '<button class="btn-action" id="btn-back-source" title="Back to source view">&larr; Back</button>' : ''}
     <button class="btn-action" id="btn-vscode">&#128195; Open in VS Code</button>
-    <button class="btn-action" id="btn-terminal">&#128190; Terminal</button>
-    <button class="btn-action" id="btn-explorer">&#128193; Folder</button>
+    <button class="btn-action" id="btn-terminal">&#8250;_ Change Working Directory</button>
+    <button class="btn-action" id="btn-explorer">&#128193; Explorer</button>
     <button class="btn-action" id="btn-edit">&#9998; Edit</button>
   </div>
   <div id="breadcrumb">${bcHtml}</div>
@@ -147,9 +146,8 @@ let _pendingScrollY = 0;
         }
     }
     safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'edit-file',      path: '${jsPath}' }));
-    safeAddListener('btn-back-source', 'click', () => vscode.postMessage({ command: 'navigate-source' }));
-    safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', path: '${jsPath}', dir: '${jsDir}' }));
-    safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal', dir: '${jsDir}' }));
+    safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
+    safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
     safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
     const bc = document.getElementById('breadcrumb');
     if (bc) {
@@ -245,7 +243,7 @@ export function openDocPreview(
 
     if (_previewPanel) {
         _previewPanel.title            = `\u{1F4C4} ${title}`;
-        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
+        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history);
         // preserveFocus=true keeps the catalog panel active so it doesn't scroll
         _previewPanel.reveal(vscode.ViewColumn.Beside, true);
         return;
@@ -256,7 +254,7 @@ export function openDocPreview(
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true }
     );
-    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
+    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history);
     _previewPanel.onDidDispose(() => {
         _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
         _history = [];
@@ -311,25 +309,25 @@ export function openDocPreview(
             }
             case 'edit-file': {
                 if (!msg.path) { break; }
-                const target = path.normalize(String(msg.path));
-                if (!fs.existsSync(target)) {
-                    vscode.window.showWarningMessage(`File not found: ${target}`);
-                    break;
-                }
-                const doc = await vscode.workspace.openTextDocument(target);
-                await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                const editTarget = path.isAbsolute(String(msg.path)) ? String(msg.path) : path.resolve(path.dirname(_currentFilePath ?? ''), String(msg.path));
+                if (!fs.existsSync(editTarget)) { vscode.window.showWarningMessage(`File not found: ${editTarget}`); break; }
+                const editDoc = await vscode.workspace.openTextDocument(editTarget);
+                await vscode.window.showTextDocument(editDoc, vscode.ViewColumn.Beside);
                 break;
             }
             case 'open-in-vscode': {
-                const filePath = msg.path ? path.normalize(String(msg.path)) : undefined;
-                const dirPath  = msg.dir  ? path.normalize(String(msg.dir))  : undefined;
-                if (filePath && fs.existsSync(filePath)) {
-                    const doc = await vscode.workspace.openTextDocument(filePath);
-                    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-                    await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(filePath));
-                } else if (dirPath) {
-                    await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(dirPath));
+                if (!msg.dir) { break; }
+                const markers = ['package.json', '.git', '.sln', '.csproj', 'CLAUDE.md'];
+                let root = msg.dir as string, cand = msg.dir as string;
+                for (let i = 0; i < 8; i++) {
+                    const parent = path.dirname(cand);
+                    if (parent === cand) { break; }
+                    let files: string[] = [];
+                    try { files = fs.readdirSync(cand); } catch { /* skip */ }
+                    if (markers.some(m => files.includes(m))) { root = cand; break; }
+                    cand = parent;
                 }
+                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(root), { forceNewWindow: true });
                 break;
             }
             case 'open-folder-full': {
@@ -345,12 +343,9 @@ export function openDocPreview(
                 vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(true);
                 break;
             }
-            case 'open-terminal': {
-                if (!msg.dir) { break; }
-                const dirPath = path.normalize(String(msg.dir));
-                vscode.window.createTerminal({ name: path.basename(dirPath), cwd: dirPath }).show(true);
+            case 'open-terminal':
+                if (msg.dir) { vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(); }
                 break;
-            }
             case 'reveal-folder-os': {
                 if (!msg.dir) { break; }
                 const dirUri = vscode.Uri.file(msg.dir as string);
@@ -378,3 +373,4 @@ export function disposeDocPreview(): void {
     _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
     _history = [];
 }
+// FILE REMOVED BY REQUEST

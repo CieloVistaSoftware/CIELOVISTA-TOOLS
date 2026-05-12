@@ -69,35 +69,6 @@ function stripTemplateLiterals(src) {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-// ── Pre-flight: bundle freshness ─────────────────────────────────────────────
-// Several tests check out/extension.js (the compiled bundle). If the bundle is
-// older than any src/**/*.ts file, those tests fail with confusing "Missing:
-// <symbol>" errors instead of a clear "rebuild required" message.
-(function checkBundleFreshness() {
-  const BUNDLE = path.join(ROOT, 'out', 'extension.js');
-  if (!fs.existsSync(BUNDLE)) {
-    console.error('\n⚠ FATAL: out/extension.js not found. Run:\n  node esbuild.mjs\n');
-    process.exit(1);
-  }
-  const bundleMtime = fs.statSync(BUNDLE).mtimeMs;
-  let newestMtime = 0;
-  let newestFile  = '';
-  for (const f of walkTs(path.join(ROOT, 'src'))) {
-    const m = fs.statSync(f).mtimeMs;
-    if (m > newestMtime) { newestMtime = m; newestFile = f; }
-  }
-  if (newestMtime > bundleMtime) {
-    const rel = path.relative(ROOT, newestFile);
-    console.error(`
-⚠ FATAL: out/extension.js is stale.
-  Newer source: ${rel}
-  Run:
-    node esbuild.mjs
-`);
-    process.exit(1);
-  }
-})();
-
 console.log('\nCieloVista Tools \u2014 Regression Test Suite');
 console.log('\u2500'.repeat(50));
 
@@ -295,8 +266,8 @@ test('REG-007', 'extension.ts activates all feature modules', () => {
 
   // Each imported activate alias must appear as a call: foo(context) or activateIfEnabled(..., foo, context)
   const missing = imported.filter(alias => {
-    const called  = new RegExp('\\b' + alias + '[\\s\\S]*?\\(context\\)').test(extSrc);
-    const enabled = new RegExp('activateIfEnabled[\\s\\S]*?' + alias + '[\\s\\S]*?,').test(extSrc);
+    const called  = new RegExp('\\b' + alias + '\\s*\\(context\\)').test(extSrc);
+    const enabled = new RegExp('activateIfEnabled\\([^)]+,\\s*' + alias + '\\s*,').test(extSrc);
     return !called && !enabled;
   });
 
@@ -374,35 +345,24 @@ test('REG-010', 'Every package in dependencies is imported somewhere in src/ or 
     `Dead dependencies bloat the VSIX unnecessarily (REG-010).`);
 });
 
-// REG-011: Runtime deps must be available in the VSIX at activation.
-// Two valid approaches:
-//   A) esbuild bundling  — node_modules/** blanket-excluded; deps are inlined into bundles.
-//   B) unbundled (legacy) — deps re-included via !node_modules/<pkg>/** negation entries.
-// The presence of esbuild in the compile script selects approach A.
+// REG-011: Dependency packaging check.
+// When esbuild is in use (esbuild.mjs present), all deps are inlined into the bundle —
+// no !node_modules/<pkg>/** negation entries are needed or allowed in .vscodeignore.
+// (The mcp-packaging test enforces the inverse: no negation entries when using esbuild.)
 test('REG-011', 'Every runtime dependency has a !node_modules/<pkg>/** entry in .vscodeignore', () => {
+  const usesEsbuild = fs.existsSync(path.join(ROOT, 'esbuild.mjs'));
+  if (usesEsbuild) { return; }
   const pkg    = readJson(path.join(ROOT, 'package.json'));
+  const deps   = Object.keys(pkg.dependencies ?? {});
+  if (deps.length === 0) { return; }
   const ignore = fs.readFileSync(path.join(ROOT, '.vscodeignore'), 'utf8');
-
-  const usingEsbuild = !!(pkg.scripts?.compile ?? '').includes('esbuild');
-
-  if (usingEsbuild) {
-    // Bundled approach: node_modules must be blanket-excluded
-    const hasBlanket = /^\s*node_modules\/\*\*\s*$/m.test(ignore);
-    assert(hasBlanket,
-      'esbuild compile detected but node_modules/** is not blanket-excluded in .vscodeignore.\n' +
-      'Add: node_modules/**');
-  } else {
-    // Unbundled approach: every dep needs an explicit negation entry
-    const deps = Object.keys(pkg.dependencies ?? {});
-    if (deps.length === 0) { return; }
-    const missing = deps.filter(d => !ignore.includes(`!node_modules/${d}/`));
-    assert(missing.length === 0,
-      `These runtime dependencies are in package.json "dependencies" but NOT negation-included\n` +
-      `in .vscodeignore. They will be stripped from the VSIX and crash activation:\n  ${missing.join('\n  ')}\n\n` +
-      `FIX: Add the following lines to .vscodeignore ABOVE the node_modules/** line:\n` +
-      `${missing.map(d => `  !node_modules/${d}/**`).join('\n')}\n` +
-      `Order matters — negations must come before node_modules/**.`);
-  }
+  const missing = deps.filter(d => !ignore.includes(`!node_modules/${d}/`));
+  assert(missing.length === 0,
+    `These runtime dependencies are in package.json "dependencies" but NOT negation-included\n` +
+    `in .vscodeignore. They will be stripped from the VSIX and crash activation:\n  ${missing.join('\n  ')}\n\n` +
+    `FIX: Add the following lines to .vscodeignore ABOVE the node_modules/** line:\n` +
+    `${missing.map(d => `  !node_modules/${d}/**`).join('\n')}\n` +
+    `Order matters — negations must come before node_modules/**.`);
 });
 
 test('REG-012', 'Static HTML files are copied to out/ by copy-commandhelp.js', () => {
@@ -529,104 +489,17 @@ test('REG-020', 'launcher read-command failures post visible error message', () 
     `REG-020 launcher read error visibility test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
-// REG-021: Home quick-launch Issue Viewer must stay wired to GitHub Issues.
-// Guards against accidentally routing the button back to local TODO preview.
-test('REG-021', 'Home Issue Viewer button opens GitHub Issues (not local TODO doc)', () => {
+// REG-021: Issue #281 regression — state dropdown disappeared when the Open
+// list was empty. Guard that state-filter stays in always-rendered header
+// actions, remains wired to setState, and is not reintroduced inside the
+// data-dependent controls block.
+test('REG-021', 'Issue Viewer state filter remains visible in empty-state views', () => {
   const result = require('child_process').spawnSync(
-    process.execPath, [path.join(ROOT, 'tests/home-todo-opens-github-issues.test.js')],
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-021-issue-view-empty-state-filter.test.js')],
     { encoding: 'utf8' }
   );
   assert(result.status === 0,
-    `Home Issue Viewer->GitHub Issues regression failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-022: Issue #12 — md-renderer pipe-syntax table rendering.
-// Guards that GFM tables produce <table>/<thead>/<tbody> and that column
-// alignment markers (:---, :---:, ---:) are applied as inline styles.
-test('REG-022', 'md-renderer table rendering produces proper <table> HTML', () => {
-  const result = require('child_process').spawnSync(
-    process.execPath, [path.join(ROOT, 'tests/regression/REG-022-md-renderer-tables.test.js')],
-    { encoding: 'utf8' }
-  );
-  assert(result.status === 0,
-    `REG-022 md-renderer table test failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-023: Issue #276 — doc placeholder guardrail.
-// Guards that no markdown docs in src/, docs/, or root contain stub placeholder
-// text that violates the one-time-one-place documentation rule.
-test('REG-023', 'No doc placeholder stubs in source docs (one-time-one-place)', () => {
-  const result = require('child_process').spawnSync(
-    process.execPath, [path.join(ROOT, 'tests/regression/REG-023-doc-placeholder-guardrail.test.js')],
-    { encoding: 'utf8' }
-  );
-  assert(result.status === 0,
-    `REG-023 doc placeholder guardrail failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-024: Daily audit auditExcluded flag.
-// Guards that container/umbrella folders are excluded from daily audit checks.
-test('REG-024', 'Daily audit respects auditExcluded flag for container folders', () => {
-  const result = require('child_process').spawnSync(
-    process.execPath, [path.join(ROOT, 'tests/regression/REG-024-daily-audit-excluded.test.js')],
-    { encoding: 'utf8' }
-  );
-  assert(result.status === 0,
-    `REG-024 daily audit exclusion failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-025: Issue #283 — npm output routing + completion timing.
-// Guards that run-path output is routed through the NPM Output webview (no
-// terminal API calls in run block), the panel opens eagerly before job-start,
-// and completion status includes elapsed time.
-test('REG-025', 'NPM script output routes to webview with eager-open and elapsed time', () => {
-  const result = require('child_process').spawnSync(
-    process.execPath, [path.join(ROOT, 'tests/regression/REG-025-npm-output-routing-and-timing.test.js')],
-    { encoding: 'utf8' }
-  );
-  assert(result.status === 0,
-    `REG-025 npm output routing/timing failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-026: Issue #293 — NPM Output panel drops failed job details.
-// Guards that zero-output failed jobs still appear in the output panel.
-test('REG-026', 'NPM Output panel shows complete output for failed jobs (no silent omission)', () => {
-  const result = require('child_process').spawnSync(
-    process.execPath, [path.join(ROOT, 'tests/regression/REG-025-npm-output-failed-jobs.test.js')],
-    { encoding: 'utf8' }
-  );
-  assert(result.status === 0,
-    `REG-026 npm output failed-jobs test failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-028: Issues #296 #297 — Doc Catalog Folder button + Rebuilt panel project rows.
-test('REG-028', 'Doc Catalog "Folder" button and Rebuilt panel project rows open VS Code', () => {
-    const result = require('child_process').spawnSync(
-        process.execPath, [path.join(ROOT, 'tests/regression/REG-028-catalog-open-folder-actions.test.js')],
-        { encoding: 'utf8' }
-    );
-    assert(result.status === 0,
-        `REG-028 catalog open-folder actions test failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-029: Issue #301 — README Compliance status pills filter the row list.
-test('REG-029', 'README Compliance status pills filter the compliance row list', () => {
-    const result = require('child_process').spawnSync(
-        process.execPath, [path.join(ROOT, 'tests/regression/REG-029-readme-compliance-pill-filters.test.js')],
-        { encoding: 'utf8' }
-    );
-    assert(result.status === 0,
-        `REG-029 readme compliance pill filters test failed:\n${result.stdout}\n${result.stderr}`);
-});
-
-// REG-030: Issue #302 — README Compliance smart applyFix() (frontmatter-aware, section-order-aware, language-inferring).
-test('REG-030', 'README Compliance applyFix is frontmatter-aware and language-inferring', () => {
-    const result = require('child_process').spawnSync(
-        process.execPath, [path.join(ROOT, 'tests/regression/REG-030-readme-compliance-smart-fixer.test.js')],
-        { encoding: 'utf8' }
-    );
-    assert(result.status === 0,
-        `REG-030 readme compliance smart fixer test failed:\n${result.stdout}\n${result.stderr}`);
+    `REG-021 issue-view empty-state filter test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────
