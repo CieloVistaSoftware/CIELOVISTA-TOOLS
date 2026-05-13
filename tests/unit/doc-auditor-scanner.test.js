@@ -75,6 +75,7 @@ test('SKIP_DIRS includes .git',         () => ok(SKIP_DIRS.includes('.git')));
 test('SKIP_DIRS includes out',          () => ok(SKIP_DIRS.includes('out')));
 test('SKIP_DIRS includes dist',         () => ok(SKIP_DIRS.includes('dist')));
 test('SKIP_DIRS includes .vscode',      () => ok(SKIP_DIRS.includes('.vscode')));
+test('SKIP_DIRS includes .claude (#327 — worktrees must not be scanned)', () => ok(SKIP_DIRS.includes('.claude'), '.claude must be in SKIP_DIRS to prevent worktree CLAUDE.md from being counted as a duplicate'));
 
 // ── collectDocs() ─────────────────────────────────────────────────────────────
 console.log('\n-- collectDocs() --');

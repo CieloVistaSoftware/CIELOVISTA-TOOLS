@@ -5,7 +5,7 @@ import * as fs   from 'fs';
 import * as path from 'path';
 import type { DocFile } from './types';
 
-const SKIP_DIRS = ['node_modules', '.git', 'out', 'dist', '.vscode'];
+const SKIP_DIRS = ['node_modules', '.git', 'out', 'dist', '.vscode', '.claude'];
 
 /** Returns all markdown docs under a directory tree (max 3 levels deep). */
 export function collectDocs(rootPath: string, projectName: string, maxDepth = 3): DocFile[] {

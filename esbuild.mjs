@@ -38,6 +38,22 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone doc-auditor analyzer — no vscode dep, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-auditor/analyzer.ts'],
+    outfile:     'out/features/doc-auditor/analyzer.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
+  // Standalone doc-auditor scanner — no vscode dep, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-auditor/scanner.ts'],
+    outfile:     'out/features/doc-auditor/scanner.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
 }
 
 async function buildMcpServer() {
