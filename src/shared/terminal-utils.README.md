@@ -1,6 +1,5 @@
 ---
 docid: 150.1.terminal-utils-readme
-dewey: 150.1.terminal-utils-readme
 id: feature-sharedterminal-utilsts
 title: feature: shared/terminal-utils.ts
 project: cielovista-tools

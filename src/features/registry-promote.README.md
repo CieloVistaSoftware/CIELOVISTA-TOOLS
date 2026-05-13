@@ -1,6 +1,5 @@
 ---
 docid: 150.1.registry-promote-readme
-dewey: 150.1.registry-promote-readme
 id: registry-promote
 title: registry-promote
 project: cielovista-tools

@@ -1,6 +1,5 @@
 ---
 docid: 150.1.terminal-prompt-shortener-readme
-dewey: 150.1.terminal-prompt-shortener-readme
 id: feature-terminal-prompt-shortenerts
 title: feature: terminal-prompt-shortener.ts
 project: cielovista-tools

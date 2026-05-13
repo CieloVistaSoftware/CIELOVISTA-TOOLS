@@ -1,6 +1,5 @@
 ---
 docid: 150.9.current-status
-dewey: 150.9.current-status
 id: current-statusmd-cielovista-tools
 title: CURRENT-STATUS.md — cielovista-tools
 project: cielovista-tools

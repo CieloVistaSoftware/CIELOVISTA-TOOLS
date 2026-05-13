@@ -1,6 +1,5 @@
 ---
 docid: 150.1.webview-utils-readme
-dewey: 150.1.webview-utils-readme
 id: feature-sharedwebview-utilsts
 title: feature: shared/webview-utils.ts
 project: cielovista-tools

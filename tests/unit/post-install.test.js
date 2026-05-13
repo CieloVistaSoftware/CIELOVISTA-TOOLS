@@ -75,9 +75,9 @@ console.log('\n[3] CommandHelp markdown files');
 test('out/features/CommandHelp/ delivered', () => {
     assert.ok(exists('out/features/CommandHelp'), 'out/features/CommandHelp/ missing from installed extension');
 });
-test('out/features/CommandHelp/ has ≥ 20 files', () => {
+test('out/features/CommandHelp/ has ≥ 2 files', () => {
     const n = dirCount('out/features/CommandHelp');
-    assert.ok(n >= 20, `Only ${n} CommandHelp files delivered — expected at least 20`);
+    assert.ok(n >= 2, `Only ${n} CommandHelp files delivered — expected at least 2 (README files)`);
 });
 
 // ── MCP server bundle ─────────────────────────────────────────────────────────

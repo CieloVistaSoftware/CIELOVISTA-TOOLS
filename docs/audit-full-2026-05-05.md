@@ -1,5 +1,4 @@
 ---
-dewey: 150.9.audit-full-2026-05-05
 category: 150.9 — Meta
 docid: 150.9.audit-full-2026-05-05
 id: cielovista-docs-audit-report

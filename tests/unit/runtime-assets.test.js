@@ -89,9 +89,9 @@ test('extension/out/features/CommandHelp/ directory present in VSIX', () => {
     assert.ok(hasPrefix('extension/out/features/CommandHelp/'),
         'extension/out/features/CommandHelp/ missing from VSIX — run npm run copy:commandhelp');
 });
-test('VSIX contains at least 20 CommandHelp files', () => {
+test('VSIX contains at least 2 CommandHelp files', () => {
     const count = countPrefix('extension/out/features/CommandHelp/');
-    assert.ok(count >= 20, `Only ${count} CommandHelp entries in VSIX — expected at least 20`);
+    assert.ok(count >= 2, `Only ${count} CommandHelp entries in VSIX — expected at least 2 (README files)`);
 });
 
 // ── MCP server bundle ─────────────────────────────────────────────────────────

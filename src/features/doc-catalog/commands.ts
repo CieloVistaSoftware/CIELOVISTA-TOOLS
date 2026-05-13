@@ -25,19 +25,10 @@ let _cachedCards: CatalogCard[] | undefined;
 export function getCatalogPanel(): vscode.WebviewPanel | undefined { return _catalogPanel; }
 export function clearCachedCards(): void { _cachedCards = undefined; }
 
-function isCurrentWorkspacePath(folderPath: string): boolean {
-    const target = path.resolve(folderPath).toLowerCase();
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    return folders.some((wf) => path.resolve(wf.uri.fsPath).toLowerCase() === target);
-}
 
 async function openProjectFolderSmart(folderPath: string): Promise<void> {
     const target = path.resolve(folderPath);
-    if (isCurrentWorkspacePath(target)) {
-        await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
-        return;
-    }
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), false);
+    await vscode.env.openExternal(vscode.Uri.file(target));
 }
 
 function sendCatalogInit(

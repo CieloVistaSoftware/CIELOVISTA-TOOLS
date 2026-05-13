@@ -1,0 +1,270 @@
+
+> cielovista-tools@1.0.2 rebuild
+> npm run clean && npm run clean:artifacts && npm run compile && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json
+
+
+> cielovista-tools@1.0.2 clean
+> pwsh -Command "Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue"
+
+
+> cielovista-tools@1.0.2 clean:artifacts
+> node scripts/clean-generated-artifacts.js --apply
+
+Generated artifact cleanup
+Mode: APPLY
+Targets: 5
+- missing           temp/generated-mcp-viewer-script.js
+- missing           temp/inspect-mcp-script.js
+- missing           temp/mcp-viewer-inline-script.js
+- missing           temp_script.js
+- missing           playwright-report
+
+Summary: 0 deleted, 5 missing
+
+> cielovista-tools@1.0.2 compile
+> node esbuild.mjs
+
+
+> cielovista-tools@1.0.2 copy:commandhelp
+> node scripts/copy-commandhelp.js
+
+Copied src/features/doc-catalog/catalog.html
+
+> cielovista-tools@1.0.2 test:mcp-packaging
+> node tests/unit/mcp-packaging.test.js
+
+
+mcp-packaging unit tests
+--------------------------------------------------
+  PASS esbuild.mjs build script exists
+  PASS compile script uses esbuild
+  PASS vscode:prepublish uses esbuild
+  PASS @modelcontextprotocol/sdk is declared as a dependency
+  PASS .vscodeignore blanket-excludes node_modules (bundled deps, not needed at runtime)
+  PASS .vscodeignore does not keep individual node_modules packages
+--------------------------------------------------
+PASS: 6 passed, 0 failed
+
+> cielovista-tools@1.0.2 test:mcp-viewer-runtime
+> node tests/unit/mcp-viewer-runtime-script.test.js
+
+PASS: MCP viewer page script parses as valid JavaScript.
+
+> cielovista-tools@1.0.2 test:mcp-viewer
+> node tests/unit/mcp-viewer.test.js
+
+
+mcp-viewer unit tests
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+[1] Module shape
+  PASS buildViewerHtml is exported
+  PASS buildViewerHtml accepts port and totalProjects params
+
+[2] Tab buttons ΓÇö all 13 tabs present
+  PASS tab button: list_projects
+  PASS tab button: find_project
+  PASS tab button: search_docs
+  PASS tab button: get_catalog
+  PASS tab button: list_doc_violations
+  PASS tab button: validate_doc
+  PASS tab button: normalize_doc
+  PASS tab button: get_doc_by_identity
+  PASS tab button: list_old_dewey
+  PASS tab button: list_symbols
+  PASS tab button: find_symbol
+  PASS tab button: list_cvt_commands
+  PASS tab button: lookup_dewey
+
+[3] CONTROLS entries ΓÇö each tab has control HTML
+  PASS CONTROLS entry: list_projects
+  PASS CONTROLS entry: find_project
+  PASS CONTROLS entry: search_docs
+  PASS CONTROLS entry: get_catalog
+  PASS CONTROLS entry: list_doc_violations
+  PASS CONTROLS entry: validate_doc
+  PASS CONTROLS entry: normalize_doc
+  PASS CONTROLS entry: get_doc_by_identity
+  PASS CONTROLS entry: list_old_dewey
+  PASS CONTROLS entry: list_symbols
+  PASS CONTROLS entry: find_symbol
+  PASS CONTROLS entry: list_cvt_commands
+  PASS CONTROLS entry: lookup_dewey
+  PASS find_project CONTROLS has query input
+  PASS validate_doc CONTROLS has Use Active .md button
+  PASS normalize_doc CONTROLS has Use Active .md button
+  PASS lookup_dewey CONTROLS has includeCommands checkbox
+  PASS list_symbols CONTROLS has exported-only checkbox
+  PASS get_catalog CONTROLS has sort select
+
+[4] Render functions ΓÇö one per distinct render path
+  PASS render function defined: renderProjectsTable
+  PASS render function defined: renderFindProjectTable
+  PASS render function defined: renderDocsTable
+  PASS render function defined: renderDocViolations
+  PASS render function defined: renderValidateDoc
+  PASS render function defined: renderNormalizeDoc
+  PASS render function defined: renderDocIdentity
+  PASS render function defined: renderOldDewey
+  PASS render function defined: renderSymbolsTable
+  PASS render function defined: renderCvtCommandsTable
+  PASS render function defined: renderLookupDewey
+
+[5] runFromControls ΓÇö routing branch for every tab
+  PASS runFromControls branch: list_projects
+  PASS runFromControls branch: find_project
+  PASS runFromControls branch: search_docs
+  PASS runFromControls branch: get_catalog
+  PASS runFromControls branch: list_doc_violations
+  PASS runFromControls branch: validate_doc
+  PASS runFromControls branch: normalize_doc
+  PASS runFromControls branch: get_doc_by_identity
+  PASS runFromControls branch: list_old_dewey
+  PASS runFromControls branch: list_symbols
+  PASS runFromControls branch: find_symbol
+  PASS runFromControls branch: list_cvt_commands
+  PASS runFromControls branch: lookup_dewey
+
+[6] runEndpoint dispatch ΓÇö routes to correct render function
+  PASS runEndpoint dispatches list_projects ΓåÆ renderProjectsTable
+  PASS runEndpoint dispatches find_project ΓåÆ renderFindProjectTable
+  PASS runEndpoint dispatches get_catalog ΓåÆ renderDocsTable
+  PASS runEndpoint dispatches list_doc_violations ΓåÆ renderDocViolations
+  PASS runEndpoint dispatches validate_doc ΓåÆ renderValidateDoc
+  PASS runEndpoint dispatches normalize_doc ΓåÆ renderNormalizeDoc
+  PASS runEndpoint dispatches get_doc_by_identity ΓåÆ renderDocIdentity
+  PASS runEndpoint dispatches list_old_dewey ΓåÆ renderOldDewey
+  PASS runEndpoint dispatches list_symbols ΓåÆ renderSymbolsTable
+  PASS runEndpoint dispatches list_cvt_commands ΓåÆ renderCvtCommandsTable
+  PASS runEndpoint dispatches lookup_dewey ΓåÆ renderLookupDewey
+
+[7] Helper functions
+  PASS esc() XSS-escape function exists
+  PASS esc() escapes & < > "
+  PASS countSummary() exists
+  PASS countSummary handles projectCount
+  PASS countSummary handles totalViolations
+  PASS sortDocs() exists with 4 modes
+  PASS formatStamp() converts ISO dates
+  PASS statusPill() renders lifecycle status chips
+  PASS toast() shows notification messages
+
+[8] Render output spot-checks
+  PASS renderProjectsTable emits c-name and c-path columns
+  PASS renderDocViolations renders summary byCode table
+  PASS renderValidateDoc shows ok/violations-found status
+  PASS renderNormalizeDoc shows missingFields
+  PASS renderDocIdentity shows found/not-found states
+  PASS renderOldDewey shows oldDewey column
+  PASS renderSymbolsTable groups by project and shows kind/role
+  PASS renderCvtCommandsTable groups by group name
+  PASS renderLookupDewey renders both docs and commands sections
+  PASS docs table links use /md-preview?path= for file preview
+  PASS docs table links include back= return URL parameter
+  PASS buildMdPreviewLink helper exists
+
+[9] CSS / dark theme
+  PASS dark theme background #1e1e1e is set on body
+  PASS links use yellow #FFD700 per project link-visibility rule
+  PASS active tab uses blue #0078d4 accent
+
+[10] Bundle check ΓÇö key patterns survive esbuild
+  PASS bundle contains buildViewerHtml function name
+  PASS bundle contains all 13 tab endpoint names
+  PASS bundle contains esc() XSS helper
+  PASS bundle contains /md-preview?path= link pattern
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+97 tests: 97 passed, 0 failed
+
+> cielovista-tools@1.0.2 test:mcp-status
+> node tests/unit/mcp-server-status.test.js
+
+
+> cielovista-tools@1.0.2 test:catalog
+> node tests/catalog-integrity.test.js
+
+
+-- Layer 1: Catalog structure --
+
+  PASS: No duplicate command IDs
+  PASS: No duplicate Dewey numbers
+  PASS: All scopes are valid (global|workspace|diskcleanup|tools)
+  PASS: All actions are valid (read|run)
+        (99 entries found)
+  PASS: Catalog has entries
+
+-- Layer 2: Command registration --
+
+  PASS: Every catalog ID has a registerCommand in the codebase
+  PASS: Every package.json command is in the catalog
+
+-- Layer 3: Project launcher accuracy --
+
+  PASS: No launcher command uses cmd.exe "cd /d" syntax
+  PASS: SnapIt path exists on disk
+  PASS: DiskCleanUp path exists on disk
+  PASS: SnapIt launcher commands map to real scripts
+  PASS: DiskCleanUp launcher commands map to real scripts or dotnet
+  PASS: All launcher command IDs are registered in the codebase
+
+------------------------------------------------------------
+13 tests: 13 passed, 0 failed
+
+CATALOG INTEGRITY PASSED -- all declarations match reality
+
+> cielovista-tools@1.0.2 test:regression
+> node scripts/run-regression-tests.js
+
+
+CieloVista Tools ΓÇö Regression Test Suite
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  Γ£ô REG-001a: Every package imported in src/ is listed in dependencies
+  Γ£ô REG-001b: vsce package script does not use --no-dependencies flag
+  Γ£ô REG-001c: No require() of external packages in extension host
+  Γ£ô REG-002: All logError callers match their interface contract
+  Γ£ô REG-003: TypeScript compiles with zero errors
+  Γ£ô REG-004: Every catalog command ID is wired through a registerCommand() call
+  Γ£ô REG-005: No duplicate command IDs in catalog.ts
+  Γ£ô REG-006: package.json contributes.commands covers all catalog IDs
+  Γ£ô REG-007: extension.ts activates all feature modules
+  Γ£ô REG-008: No bare console.log in extension host (warning)
+  Γ£ô REG-009: data/ is listed in .gitignore
+  Γ£ô REG-010: Every package in dependencies is imported somewhere in src/ or mcp-server/src/
+  Γ£ô REG-011: Every runtime dependency has a !node_modules/<pkg>/** entry in .vscodeignore
+  Γ£ô REG-012: Static HTML files are copied to out/ by copy-commandhelp.js
+  Γ£ô REG-013: All run commands route through cvsJobResult output webview
+  Γ£ô REG-014: Home Recent Runs shows immediate full-string hover tooltip
+  Γ£ô REG-015: package.json round-trips through JSON.parse and validator gate works
+  Γ£ô REG-016: npm output webview shows launched command and never goes blank
+  Γ£ô REG-017: launcher filters catalog against vscode.commands.getCommands()
+  Γ£ô REG-018: MCP lifecycle filter + auto-filer dedup are in source
+  Γ£ô REG-019: FileList feature (#69) is fully wired in source
+  Γ£ô REG-020: launcher read-command failures post visible error message
+  Γ£ô REG-021: Home Issue Viewer button opens GitHub Issues (not local TODO doc)
+  Γ£ô REG-022: md-renderer table rendering produces proper <table> HTML
+  Γ£ô REG-023: No doc placeholder stubs in source docs (one-time-one-place)
+  Γ£ô REG-024: Daily audit respects auditExcluded flag for container folders
+  Γ£ô REG-025: NPM script output routes to webview with eager-open and elapsed time
+  Γ£ô REG-026: NPM Output panel shows complete output for failed jobs (no silent omission)
+  Γ£ô REG-028: Doc Catalog "Folder" button and Rebuilt panel project rows open VS Code
+  Γ£ô REG-029: README Compliance status pills filter the compliance row list
+  Γ£ô REG-030: README Compliance applyFix is frontmatter-aware and language-inferring
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Γ£ô All 31 regression tests passed ΓÇö proceeding with build.
+
+
+> cielovista-tools@1.0.2 test:doc-preview-toolbar
+> node tests/unit/doc-preview-toolbar.test.js
+
+
+doc-preview toolbar regression ΓÇö #267
+--------------------------------------------------
+  PASS btn-edit posts 'edit-file' (not generic 'open')
+  PASS btn-edit does NOT post generic 'open' command
+  PASS extension host handles 'edit-file' case
+  PASS btn-vscode posts 'open-in-vscode'
+  PASS btn-explorer posts 'reveal-folder-os'
+
+--------------------------------------------------
+8 tests: 5 passed, 3 failed

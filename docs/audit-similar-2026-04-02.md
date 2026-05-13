@@ -1,6 +1,5 @@
 ---
 docid: 150.9.audit-similar-2026-04-02
-dewey: 150.9.audit-similar-2026-04-02
 id: similar-content-audit
 title: Similar Content Audit
 project: cielovista-tools

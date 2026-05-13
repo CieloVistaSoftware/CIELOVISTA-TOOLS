@@ -1,6 +1,5 @@
 ---
 docid: 150.9.viewadoc
-dewey: 150.9.viewadoc
 id: view-a-doc-current-design
 title: View a Doc — Current Design
 project: cielovista-tools

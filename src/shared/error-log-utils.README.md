@@ -1,6 +1,5 @@
 ---
 docid: 150.1.error-log-utils-readme
-dewey: 150.1.error-log-utils-readme
 id: feature-sharederror-log-utilsts
 title: feature: shared/error-log-utils.ts
 project: cielovista-tools

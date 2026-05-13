@@ -1,6 +1,5 @@
 ---
 docid: 150.9.audit-orphans-2026-04-02
-dewey: 150.9.audit-orphans-2026-04-02
 id: orphaned-docs-audit
 title: Orphaned Docs Audit
 project: cielovista-tools
