@@ -127,16 +127,25 @@ test('.fm-value has min-width:0 to prevent grid blowout', () => {
     );
 });
 
-test('.fm-row uses grid layout with fluid second column', () => {
-    const m = srcPreview.match(/\.fm-row\{[^}]+\}/);
-    assert.ok(m, '.fm-row rule missing from doc-preview.ts');
+test('.fm-block uses grid layout with fluid second column', () => {
+    const m = srcPreview.match(/\.fm-block\{[^}]+\}/);
+    assert.ok(m, '.fm-block rule missing from doc-preview.ts');
     assert.ok(
         /display\s*:\s*grid/.test(m[0]),
-        '.fm-row must use display:grid for two-column label/value layout'
+        '.fm-block must use display:grid for aligned two-column label/value layout'
     );
     assert.ok(
         /minmax\(0,\s*1fr\)/.test(m[0]),
-        '.fm-row grid-template-columns must include minmax(0,1fr) for the value cell'
+        '.fm-block grid-template-columns must include minmax(0,1fr) for the value cell'
+    );
+});
+
+test('.fm-row uses display:contents to participate in parent grid', () => {
+    const m = srcPreview.match(/\.fm-row\{[^}]+\}/);
+    assert.ok(m, '.fm-row rule missing from doc-preview.ts');
+    assert.ok(
+        /display\s*:\s*contents/.test(m[0]),
+        '.fm-row must use display:contents so children join the .fm-block grid'
     );
 });
 

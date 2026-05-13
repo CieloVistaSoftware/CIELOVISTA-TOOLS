@@ -206,7 +206,18 @@ test('REG-002', 'All logError callers match their interface contract', () => {
 
 // REG-003: TypeScript compiles clean
 test('REG-003', 'TypeScript compiles with zero errors', () => {
-  const tsc = path.join(ROOT, 'node_modules', '.bin', 'tsc');
+  // In git worktrees, node_modules live in the main project root, not the worktree.
+  // Walk up until we find node_modules/.bin/tsc.
+  let tscRoot = ROOT;
+  let tsc = path.join(tscRoot, 'node_modules', '.bin', 'tsc');
+  if (!fs.existsSync(tsc)) {
+    tscRoot = path.resolve(ROOT, '..', '..', '..'); // worktrees/<name> → <main-project>
+    tsc = path.join(tscRoot, 'node_modules', '.bin', 'tsc');
+  }
+  if (!fs.existsSync(tsc)) {
+    assert(false, 'tsc not found — run npm install in the project root');
+    return;
+  }
   let exitCode = 0, output = '';
   try {
     execSync(`"${tsc}" --noEmit`, { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' });

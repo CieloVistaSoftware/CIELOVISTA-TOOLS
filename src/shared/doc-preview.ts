@@ -91,8 +91,8 @@ hr{border:none;border-top:1px solid var(--vscode-panel-border);margin:18px 0}
 a{color:var(--vscode-textLink-foreground)} a:hover{text-decoration:underline}
 strong{font-weight:700} em{font-style:italic} del{opacity:0.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
-.fm-block{display:flex;flex-direction:column;gap:6px;padding:10px 14px;margin-bottom:16px;border:1px solid rgba(77,171,247,0.35);border-radius:5px;background:rgba(77,171,247,0.06);font-family:Georgia,'Times New Roman',serif}
-.fm-row{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:6px;align-items:start;width:100%}
+.fm-block{font-family:Georgia,'Times New Roman',serif;font-size:.9rem;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;align-items:baseline;padding:10px 14px;margin-bottom:16px;border:1px solid rgba(77,171,247,0.35);border-radius:5px;background:rgba(77,171,247,0.06)}
+.fm-row{display:contents}
 .fm-label{font-size:11px;font-weight:700;color:#4dabf7;font-variant:small-caps;letter-spacing:0.04em;white-space:nowrap}
 .fm-value{font-size:12px;color:#74c7ec;font-style:italic;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 /* ── highlight.js — github-dark theme (inline, no CDN needed) ── */
