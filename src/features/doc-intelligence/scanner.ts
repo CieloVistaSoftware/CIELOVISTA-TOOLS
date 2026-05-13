@@ -67,7 +67,7 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
                         mtime:          stat.mtimeMs,
                         fmStatus:       fm['status'],
                         fmDescription:  fm['description'],
-                        fmDewey:        fm['dewey'] ?? fm['subject'], // support old subject: field during migration
+                        fmDewey:        fm['docid'] ?? fm['dewey'] ?? fm['subject'],
                         fmTitle:        fm['title'],
                         fmCategory:     fm['category'],
                     });

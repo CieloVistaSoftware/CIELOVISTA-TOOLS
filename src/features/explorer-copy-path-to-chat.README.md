@@ -3,7 +3,6 @@
 
 ---
 docid: 150.1.explorer-copy-path-to-chat-readme
-dewey: 150.1.explorer-copy-path-to-chat-readme
 id: explorer-copy-path-to-copilot-chat
 title: Explorer Copy Path to Copilot Chat
 project: cielovista-tools
