@@ -30,6 +30,14 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone doc-auditor html builder — no vscode dep, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-auditor/html.ts'],
+    outfile:     'out/features/doc-auditor/html.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
 }
 
 async function buildMcpServer() {
