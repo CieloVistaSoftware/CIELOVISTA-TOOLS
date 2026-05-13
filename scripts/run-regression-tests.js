@@ -513,6 +513,16 @@ test('REG-021', 'Issue Viewer state filter remains visible in empty-state views'
     `REG-021 issue-view empty-state filter test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-036: Issue #343 — GitHub comment bodies must use real newlines, not \\n sequences.
+test('REG-036', 'GitHub comment bodies use real newlines (no escaped \\n)', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-036-github-comment-no-escaped-newlines.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-036 github-comment no-escaped-newlines test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));

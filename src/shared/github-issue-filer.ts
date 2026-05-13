@@ -114,6 +114,31 @@ interface CreateIssueResponse {
     message?:  string;   // present on errors
 }
 
+function normalizeGithubMarkdownBody(input: string): string {
+    const text = String(input ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (!text.includes('\\n') && !text.includes('\\r\\n')) {
+        return text;
+    }
+
+    // Decode escaped newlines only outside fenced blocks so literal examples remain intact.
+    const fencedBlock = /```[\s\S]*?```/g;
+    let out = '';
+    let last = 0;
+    let match: RegExpExecArray | null;
+    while ((match = fencedBlock.exec(text)) !== null) {
+        const outside = text.slice(last, match.index)
+            .replace(/\\r\\n/g, '\n')
+            .replace(/\\n/g, '\n');
+        out += outside + match[0];
+        last = match.index + match[0].length;
+    }
+
+    out += text.slice(last)
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n');
+    return out;
+}
+
 /**
  * Look up an existing open issue with the same title and the auto-filed
  * label. Returns null on any failure (including 4xx / network) so the
@@ -158,9 +183,11 @@ function findOpenAutoFiledIssue(token: string, title: string): Promise<{ number:
  * Post a comment on an existing issue. Used by the dedup path to bump
  * the count instead of opening a new issue with an identical title.
  */
+// body must contain real newline characters (U+000A), not the two-character sequence \n.
+// JSON.stringify handles encoding; the caller is responsible for real newlines in body.
 function postIssueComment(token: string, issueNumber: number, body: string): Promise<boolean> {
     return new Promise((resolve) => {
-        const payload = JSON.stringify({ body });
+        const payload = JSON.stringify({ body: normalizeGithubMarkdownBody(body) });
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path:     `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${issueNumber}/comments`,
@@ -187,7 +214,7 @@ function postIssueComment(token: string, issueNumber: number, body: string): Pro
 
 function postIssue(token: string, title: string, body: string, labels: string[]): Promise<CreateIssueResponse> {
     return new Promise((resolve, reject) => {
-        const payload = JSON.stringify({ title, body, labels });
+        const payload = JSON.stringify({ title, body: normalizeGithubMarkdownBody(body), labels });
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path:     `/repos/${REPO_OWNER}/${REPO_NAME}/issues`,
@@ -411,4 +438,46 @@ export async function fetchAutoFiledIssueMap(): Promise<Map<string, { number: nu
         req.on('error', () => resolve(null));
         req.end();
     });
+}
+
+export interface FrontmatterIssueInput {
+    title: string;
+    body: string;
+    labels?: string[];
+}
+
+/**
+ * File a GitHub issue for a Frontmatter Viewer violation fix request.
+ * Uses the same auth + dedup semantics as other auto-filed issues.
+ */
+export async function fileFrontmatterViolationAsIssue(input: FrontmatterIssueInput): Promise<FileIssueResult> {
+    const token = await getGithubToken();
+    if (!token) {
+        return { ok: false, error: 'GitHub authentication was canceled or failed.' };
+    }
+
+    const title = input.title.trim();
+    const body = input.body;
+    const labels = input.labels ?? ['type:bug', 'auto-filed', 'area:frontmatter'];
+
+    const existing = await findOpenAutoFiledIssue(token, title);
+    if (existing) {
+        const comment = [
+            `Recurrence reported at ${new Date().toISOString()}.`,
+            '',
+            '_Posted via dedup - title matched this open auto-filed issue._',
+        ].join('\n');
+        const ok = await postIssueComment(token, existing.number, comment);
+        return ok
+            ? { ok: true, issueUrl: existing.html_url, issueNumber: existing.number }
+            : { ok: false, error: `Matched issue #${existing.number} but comment failed to post.` };
+    }
+
+    try {
+        const res = await postIssue(token, title, body, labels);
+        return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: msg };
+    }
 }
