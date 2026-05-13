@@ -69,6 +69,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .pc-status-dot.down{display:inline-block;background:#f85149;box-shadow:0 0 4px #f85149}
 @keyframes pulse-dot{0%,100%{box-shadow:0 0 3px #3fb950}50%{box-shadow:0 0 8px #3fb950}}
 
+/* ── Port badge ── */
+.pc-port{display:none;font-family:var(--vscode-editor-font-family,monospace);font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;flex-shrink:0;cursor:default}
+.pc-port.open{display:inline-block;background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgba(63,185,80,.4);box-shadow:0 0 5px rgba(63,185,80,.3)}
+.pc-port.closed{display:inline-block;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+
 /* ── Card body ── */
 .pc-desc{font-size:11px;line-height:1.5;opacity:.85}
 .pc-path{font-family:var(--vscode-editor-font-family,monospace);font-size:9px;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -168,6 +173,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
       <span class="pc-type-icon"></span>
       <span class="pc-name"></span>
       <span class="pc-status-dot" title=""></span>
+      <span class="pc-port" title=""></span>
       <span class="pc-type"></span>
       <span class="pc-dewey"></span>
     </div>
@@ -259,6 +265,16 @@ window.addEventListener('message', function(ev) {
       if (!dot) return;
       dot.className = 'pc-status-dot ' + m.status;
       dot.title = m.status === 'up' ? 'MCP server running' : 'MCP server stopped';
+    });
+    return;
+  }
+  if (m.type === 'port-status') {
+    document.querySelectorAll('.pc').forEach(function(card) {
+      if (card.dataset.name !== m.name) return;
+      var badge = card.querySelector('.pc-port');
+      if (!badge) return;
+      badge.className = 'pc-port ' + m.status;
+      badge.title = m.status === 'open' ? 'Port ' + m.port + ' open' : 'Port ' + m.port + ' closed';
     });
     return;
   }
@@ -359,11 +375,20 @@ document.addEventListener('click', function(e) {
   var card = btn.closest('.pc');
 
   if (action === 'run') {
-    vsc.postMessage({ command:'run', id:card.dataset.cardId, script:btn.dataset.script,
+    var scriptName = btn.dataset.script || '';
+    var isStart = scriptName === 'start' || scriptName === 'dev';
+    var portBadge = card.querySelector('.pc-port');
+    var isPortOpen = portBadge && portBadge.classList.contains('open');
+    var browserUrl = card.dataset.browserUrl || '';
+    if (isStart && isPortOpen && browserUrl) {
+      vsc.postMessage({ command:'open-browser', url:browserUrl });
+      return;
+    }
+    vsc.postMessage({ command:'run', id:card.dataset.cardId, script:scriptName,
                       dir:card.dataset.path, folder:card.dataset.name });
     var light = btn.querySelector('.sc-light');
     if (light) light.className = 'sc-light green';
-    var stopBtn = card.querySelector('button[data-action="stop"][data-script="'+btn.dataset.script+'"]');
+    var stopBtn = card.querySelector('button[data-action="stop"][data-script="'+scriptName+'"]');
     if (stopBtn) stopBtn.style.display = '';
     card.classList.add('running');
   }
@@ -399,10 +424,11 @@ function buildCard(c) {
   var node = cardTmpl.content.cloneNode(true);
   var art  = node.querySelector('.pc');
   var id   = c.dewey + '::' + c.name;
-  art.dataset.cardId = id;
-  art.dataset.name   = c.name;
-  art.dataset.type   = c.type;
-  art.dataset.path   = c.rootPath;
+  art.dataset.cardId     = id;
+  art.dataset.name       = c.name;
+  art.dataset.type       = c.type;
+  art.dataset.path       = c.rootPath;
+  art.dataset.browserUrl = c.browserUrl || '';
 
   node.querySelector('.pc-type-icon').textContent = c.typeIcon + ' ';
   node.querySelector('.pc-name').textContent      = c.name;
@@ -410,6 +436,12 @@ function buildCard(c) {
   if (c.mcpStatusDot) {
     dotEl.className = 'pc-status-dot ' + c.mcpStatusDot;
     dotEl.title = c.mcpStatusDot === 'up' ? 'MCP server running' : 'MCP server stopped';
+  }
+  var portBadge = node.querySelector('.pc-port');
+  if (c.port !== undefined && portBadge) {
+    portBadge.textContent = ':' + c.port;
+    portBadge.className = 'pc-port ' + (c.portStatus || 'closed');
+    portBadge.title = c.portStatus === 'open' ? 'Port ' + c.port + ' open' : 'Port ' + c.port + ' closed';
   }
   node.querySelector('.pc-type').textContent      = c.type.toUpperCase();
   node.querySelector('.pc-dewey').textContent      = c.dewey;

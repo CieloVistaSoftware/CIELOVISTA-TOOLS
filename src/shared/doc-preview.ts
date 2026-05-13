@@ -91,10 +91,10 @@ hr{border:none;border-top:1px solid var(--vscode-panel-border);margin:18px 0}
 a{color:var(--vscode-textLink-foreground)} a:hover{text-decoration:underline}
 strong{font-weight:700} em{font-style:italic} del{opacity:0.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
-.fm-block{font-family:Georgia,serif;font-size:.9rem;margin-bottom:1.2em;display:flex;flex-direction:column;gap:2px}
-.fm-row{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px;align-items:baseline}
-.fm-label{color:#4dabf7;font-weight:600;white-space:nowrap}
-.fm-value{color:#74c0fc;white-space:normal;overflow-wrap:anywhere;word-break:break-word;min-width:0}
+.fm-block{font-family:Georgia,'Times New Roman',serif;font-size:.9rem;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;align-items:baseline;padding:10px 14px;margin-bottom:16px;border:1px solid rgba(77,171,247,0.35);border-radius:5px;background:rgba(77,171,247,0.06)}
+.fm-row{display:contents}
+.fm-label{font-size:11px;font-weight:700;color:#4dabf7;font-variant:small-caps;letter-spacing:0.04em;white-space:nowrap}
+.fm-value{font-size:12px;color:#74c7ec;font-style:italic;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 /* ── highlight.js — github-dark theme (inline, no CDN needed) ── */
 .hljs{color:#adbac7;background:#22272e}.hljs-doctag,.hljs-keyword,.hljs-meta .hljs-keyword,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-variable.language_{color:#f47067}.hljs-title,.hljs-title.class_,.hljs-title.class_.inherited__,.hljs-title.function_{color:#dcbdfb}.hljs-attr,.hljs-attribute,.hljs-literal,.hljs-meta,.hljs-number,.hljs-operator,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-variable{color:#6cb6ff}.hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#96d0ff}.hljs-built_in,.hljs-symbol{color:#f69d50}.hljs-code,.hljs-comment,.hljs-formula{color:#768390}.hljs-name,.hljs-quote,.hljs-selector-pseudo,.hljs-selector-tag{color:#8ddb8c}.hljs-subst{color:#adbac7}.hljs-section{color:#316dca;font-weight:700}.hljs-bullet{color:#eac55f}.hljs-emphasis{color:#adbac7;font-style:italic}.hljs-strong{color:#adbac7;font-weight:700}.hljs-addition{color:#b4f1b4;background-color:#1b4721}.hljs-deletion{color:#ffd8d3;background-color:#78191b}
 `;

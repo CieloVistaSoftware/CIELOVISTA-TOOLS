@@ -21,6 +21,7 @@ import { buildCardFromPackageDir  } from '../shared/project-card-builder';
 import type { ProjectCardData }     from '../shared/project-card-types';
 import { loadRegistry, saveRegistry, REGISTRY_PATH } from '../shared/registry';
 import { getMcpServerStatus, onMcpServerStatusChange, offMcpServerStatusChange } from './mcp-server-status';
+import { isPortOpen } from '../shared/port-check';
 
 const FEATURE                 = 'npm-command-launcher';
 const SHOW_AND_RUN_COMMAND    = 'cvs.npm.showAndRunScripts';
@@ -174,6 +175,67 @@ async function collectCards(): Promise<ProjectCardData[]> {
     return cards;
 }
 
+// ─── Port status polling + exponential backoff auto-restart ──────────────────
+
+let _portPollTimer: ReturnType<typeof setInterval> | undefined;
+
+// Tracks per-card retry state: name → { attempt, timer, stopped }
+const _retryState = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | undefined; stopped: boolean }>();
+
+function stopRetry(name: string): void {
+    const s = _retryState.get(name);
+    if (s) { s.stopped = true; if (s.timer) { clearTimeout(s.timer); s.timer = undefined; } }
+    _retryState.delete(name);
+}
+
+function scheduleRestart(card: ProjectCardData, dir: string): void {
+    stopRetry(card.name);
+    const state = { attempt: 0, timer: undefined as ReturnType<typeof setTimeout> | undefined, stopped: false };
+    _retryState.set(card.name, state);
+
+    const tryStart = async () => {
+        if (state.stopped || !_panel) { return; }
+        const open = await isPortOpen(card.port!, 600);
+        if (open || state.stopped) { stopRetry(card.name); return; }
+        if (state.attempt >= 10) {
+            log(FEATURE, `${card.name}: port ${card.port} still down after 10 retries — giving up`);
+            stopRetry(card.name);
+            return;
+        }
+        state.attempt++;
+        const delayMs = Math.min(Math.pow(2, state.attempt) * 1000, 60000);
+        log(FEATURE, `${card.name}: port ${card.port} down — restart attempt ${state.attempt}/10, retrying in ${delayMs / 1000}s`);
+
+        const term = vscode.window.createTerminal({ name: `restart: ${card.name} (${state.attempt})`, cwd: dir });
+        term.sendText('npm run start');
+        term.show(true);
+
+        state.timer = setTimeout(tryStart, delayMs + 3000);
+    };
+
+    state.timer = setTimeout(tryStart, 2000);
+}
+
+async function pushPortStatuses(cards: ProjectCardData[]): Promise<void> {
+    if (!_panel) { return; }
+    const portCards = cards.filter(c => c.port !== undefined);
+    await Promise.all(portCards.map(async c => {
+        const wasOpen = c.portStatus === 'open';
+        const open = await isPortOpen(c.port!, 600);
+        const newStatus: 'open' | 'closed' = open ? 'open' : 'closed';
+        if (newStatus !== c.portStatus) {
+            c.portStatus = newStatus;
+            _panel?.webview.postMessage({ type: 'port-status', name: c.name, port: c.port, status: newStatus });
+        }
+        // Port just went down — trigger backoff restart if start script exists
+        if (wasOpen && !open && c.scripts?.some(s => s.name === 'start' || s.name === 'dev') && !_retryState.has(c.name)) {
+            scheduleRestart(c, c.rootPath);
+        }
+        // Port came back up — cancel any pending retry
+        if (!wasOpen && open) { stopRetry(c.name); }
+    }));
+}
+
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 async function openPanel(): Promise<void> {
@@ -211,6 +273,8 @@ async function openPanel(): Promise<void> {
 
     _panel.onDidDispose(() => {
         offMcpServerStatusChange(mcpStatusListener);
+        if (_portPollTimer) { clearInterval(_portPollTimer); _portPollTimer = undefined; }
+        _retryState.forEach((_, name) => stopRetry(name));
         _runningTerminals.forEach(term => term.dispose());
         _runningTerminals.clear();
         _panel = undefined;
@@ -218,7 +282,12 @@ async function openPanel(): Promise<void> {
 
     // Send data once the webview is ready — 800ms gives Electron enough time
     // to load and run the shell HTML before the init message fires.
-    setTimeout(sendInit, 800);
+    setTimeout(() => {
+        sendInit();
+        void pushPortStatuses(cards);
+        if (_portPollTimer) { clearInterval(_portPollTimer); }
+        _portPollTimer = setInterval(() => { void pushPortStatuses(cards); }, 5000);
+    }, 800);
 
     _panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
@@ -256,11 +325,21 @@ async function openPanel(): Promise<void> {
                 const jobKey = `${msg.id}::${msg.script}`;
                 const term = _runningTerminals.get(jobKey);
                 if (term) { term.dispose(); _runningTerminals.delete(jobKey); }
+                // Cancel any pending backoff retry for this card
+                const cardNameForStop = (msg.id as string || '').split('::')[1] ?? '';
+                if (cardNameForStop) { stopRetry(cardNameForStop); }
                 break;
             }
             case 'stop-current': {
                 _runningTerminals.forEach(term => term.dispose());
                 _runningTerminals.clear();
+                _retryState.forEach((_, name) => stopRetry(name));
+                break;
+            }
+            case 'open-browser': {
+                if (msg.url) {
+                    vscode.env.openExternal(vscode.Uri.parse(msg.url as string));
+                }
                 break;
             }
             case 'open-folder': {
@@ -308,6 +387,9 @@ async function openPanel(): Promise<void> {
                 latestCards = cards;
                 const folderSuffix2 = latestCards.length === 1 ? '  ·  ' + latestCards[0].name : '';
                 void _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix2, cards: latestCards });
+                void pushPortStatuses(latestCards);
+                if (_portPollTimer) { clearInterval(_portPollTimer); }
+                _portPollTimer = setInterval(() => { void pushPortStatuses(latestCards); }, 5000);
                 break;
             }
             case 'browse-for-scan': {

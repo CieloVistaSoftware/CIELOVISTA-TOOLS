@@ -43,4 +43,7 @@ export interface ProjectCardData {
     needsTests:    boolean;  // no real tests found
     claudeMdPath:  string | null;  // null = does not exist (show Create button)
     mcpStatusDot?: 'up' | 'down' | null;  // only set on the mcp-server card
+    port?:       number;                  // dev server port extracted from start script
+    portStatus?: 'open' | 'closed';       // checked async after card build
+    browserUrl?: string;                  // URL to open when port is already up
 }

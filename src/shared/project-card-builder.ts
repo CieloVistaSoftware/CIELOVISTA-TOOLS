@@ -114,6 +114,39 @@ function loadScriptDoc(scriptName: string, scriptCmd: string, projectPath: strin
     return { ...synthesizeDoc(scriptCmd), where: projectPath, docFile: false, sourceLabel: '\u26A1 Synthesized' };
 }
 
+// ─── Port extraction ──────────────────────────────────────────────────────────
+
+function extractPort(scripts: Record<string, string>): number | undefined {
+    const candidates = ['start', 'dev', 'demo-server', 'serve'];
+    for (const name of candidates) {
+        const cmd = scripts[name] ?? '';
+        const m = cmd.match(/localhost[:/](\d{2,5})/i)
+               ?? cmd.match(/--port[=\s]+(\d{2,5})/i)
+               ?? cmd.match(/\bPORT=(\d{2,5})/);
+        if (m) { return parseInt(m[1], 10); }
+    }
+    return undefined;
+}
+
+function extractBrowserUrl(scripts: Record<string, string>): string | undefined {
+    const candidates = ['start', 'dev', 'serve'];
+    for (const name of candidates) {
+        const cmd = scripts[name] ?? '';
+        const m = cmd.match(/https?:\/\/localhost[:\w/]*/i)
+               ?? cmd.match(/https?:\/\/127\.0\.0\.1[:\w/]*/i);
+        if (m) { return m[0]; }
+        // No explicit URL but we have a port — construct default URL
+        const port = (() => {
+            const pm = cmd.match(/localhost[:/](\d{2,5})/i)
+                    ?? cmd.match(/--port[=\s]+(\d{2,5})/i)
+                    ?? cmd.match(/\bPORT=(\d{2,5})/);
+            return pm ? parseInt(pm[1], 10) : undefined;
+        })();
+        if (port) { return `http://localhost:${port}/`; }
+    }
+    return undefined;
+}
+
 // ─── Test detection ───────────────────────────────────────────────────────────
 
 function hasRealTests(rootPath: string): boolean {
@@ -178,6 +211,8 @@ export function buildCardFromProjectInfo(
         scripts:      scriptEntries,
         needsTests:   !hasTest || !hasRealTests(rootPath),
         claudeMdPath: fs.existsSync(claudePath) ? claudePath : null,
+        port:         extractPort(scripts),
+        browserUrl:   extractBrowserUrl(scripts),
     };
 }
 
@@ -223,5 +258,7 @@ export function buildCardFromPackageDir(
         scripts:      scriptEntries,
         needsTests:   false,
         claudeMdPath: fs.existsSync(claudePath) ? claudePath : null,
+        port:         extractPort(scripts),
+        browserUrl:   extractBrowserUrl(scripts),
     };
 }
