@@ -103,7 +103,7 @@ export function buildCatalogInitPayload(
     <span class="card-date">${esc(card.lastModified)}</span>
   </div>
   <div class="card-dewey-row">
-    <span class="card-dewey">${deweyNum}</span>
+    <span class="card-dewey" data-action="jump-to-cat" data-cat-label="${esc(catLabel)}" style="cursor:pointer" title="Jump to category">${deweyNum}</span>
     <span class="card-filename">${esc(card.fileName)}</span>
   </div>
   <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(card.title)}</div>
@@ -127,7 +127,7 @@ export function buildCatalogInitPayload(
         const baseLabel = (catCards[0]?.categoryNum ?? 0).toString().padStart(3,'0');
         return `<section class="cat-section" data-category="${esc(catLabel)}">
   <h2 class="cat-heading">
-    <span class="cat-dewey">${esc(baseLabel)}</span>
+    <span class="cat-dewey" data-action="show-cat-list" data-dewey-prefix="${esc(baseLabel)}" style="cursor:pointer" title="Show all categories">${esc(baseLabel)}</span>
     ${esc(catLabel)}
     <span class="cat-count">${catCards.length}</span>
   </h2>

@@ -190,8 +190,16 @@ function _copySelectedPaths() {
 }
 
 // ── Keyboard shortcuts (Ctrl+A, Ctrl+C, Escape) ───────────────────────────────
+document.addEventListener('click', function(e) {
+    var pop = document.getElementById('_dewey-popover');
+    if (pop && pop.style.display !== 'none' && !pop.contains(e.target) && !e.target.closest('[data-action="show-cat-list"]')) {
+        pop.style.display = 'none';
+    }
+});
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
+        var pop = document.getElementById('_dewey-popover');
+        if (pop) { pop.style.display = 'none'; }
         _clearSelection();
         return;
     }
@@ -406,6 +414,32 @@ document.addEventListener('click', function(e) {
     else if (a === 'create-claude')       { vscode.postMessage({ command: 'createClaude',        data: btn.dataset.projPath }); }
     else if (a === 'create-tests')        { vscode.postMessage({ command: 'create-tests',        data: btn.dataset.projPath, projName: btn.dataset.projName }); }
     else if (a === 'run-command')         { vscode.postMessage({ command: 'run-command',         commandId: btn.dataset.commandId }); }
+    else if (a === 'jump-to-cat') {
+        var catEl = document.querySelector('.cat-section[data-category="' + btn.dataset.catLabel + '"]');
+        if (catEl) { catEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    }
+    else if (a === 'show-cat-list') {
+        var prefix = btn.dataset.deweyPrefix;
+        var secs = Array.from(document.querySelectorAll('.cat-section:not(.hidden)'));
+        var rows = secs.map(function(s) {
+            var label = s.dataset.category || '';
+            var count = s.querySelectorAll('.card:not([style*="display:none"])').length || s.querySelectorAll('.card').length;
+            return '<div style="padding:3px 0;cursor:pointer;white-space:nowrap" data-pop-cat="' + label.replace(/"/g, '&quot;') + '">' + label + ' <span style="color:var(--vscode-descriptionForeground);font-size:10px">(' + count + ')</span></div>';
+        }).join('');
+        var pop = document.getElementById('_dewey-popover');
+        if (!pop) { pop = document.createElement('div'); pop.id = '_dewey-popover'; pop.style.cssText = 'position:fixed;z-index:9999;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:8px 12px;font-size:12px;max-height:300px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.4)'; document.body.appendChild(pop); }
+        var r = btn.getBoundingClientRect();
+        pop.style.left = r.left + 'px'; pop.style.top = (r.bottom + 4) + 'px';
+        pop.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:var(--vscode-descriptionForeground)">Categories</div>' + rows;
+        pop.style.display = 'block';
+        pop.querySelectorAll('[data-pop-cat]').forEach(function(row) {
+            row.addEventListener('click', function() {
+                var sec = document.querySelector('.cat-section[data-category="' + row.dataset.popCat + '"]');
+                if (sec) { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                pop.style.display = 'none';
+            });
+        });
+    }
     else if (a === 'archive-doc') {
         var card = btn.closest('.card');
         if (card) {
