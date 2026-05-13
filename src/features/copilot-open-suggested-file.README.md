@@ -1,6 +1,5 @@
 ---
 docid: 150.1.copilot-open-suggested-file-readme
-dewey: 150.1.copilot-open-suggested-file-readme
 id: feature-copilot-open-suggested-filets
 title: feature: copilot-open-suggested-file.ts
 project: cielovista-tools

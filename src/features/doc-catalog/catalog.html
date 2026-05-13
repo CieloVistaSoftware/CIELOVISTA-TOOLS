@@ -399,6 +399,7 @@ document.addEventListener('click', function(e) {
     else if (a === 'open-npm-scripts')    { vscode.postMessage({ command: 'open-npm-scripts' }); }
     else if (a === 'open-folder')         { vscode.postMessage({ command: 'openFolder',         data: btn.dataset.path || btn.dataset.projPath }); }
     else if (a === 'open-src-file')       { vscode.postMessage({ command: 'openSrcFile',         data: btn.dataset.path }); }
+    else if (a === 'run-ts-file')         { vscode.postMessage({ command: 'run-ts-file',          data: btn.dataset.path }); }
     else if (a === 'wb-demo')             { vscode.postMessage({ command: 'wb-demo',             data: btn.dataset.path, name: btn.dataset.name }); }
     else if (a === 'open-project-folder') { vscode.postMessage({ command: 'openProjectFolder',  data: btn.dataset.projPath }); }
     else if (a === 'open-project-vscode') { vscode.postMessage({ command: 'open-project-vscode', data: btn.dataset.projPath }); }

@@ -1,6 +1,5 @@
 ---
 docid: 150.1
-dewey: 150.1
 id: 000100-open-doc-catalog
 title: 000.100 — Open Doc Catalog
 project: cielovista-tools

@@ -2,19 +2,15 @@
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
 import * as vscode from 'vscode';
-import * as fs   from 'fs';
-import * as path from 'path';
 import { log, logError, getChannel } from '../../shared/output-channel';
 import { loadLastReport }      from '../daily-audit/runner';
 import { CATALOG }             from './catalog';
 import { buildLauncherHtml }   from './html';
 import { openHelpPanel, _helpPanel } from './help';
 import { startMcpServer, stopMcpServer, getMcpServerStatus, onMcpServerStatusChange } from '../mcp-server-status';
-import { fileHealthBugAsIssue } from '../../shared/github-issue-filer';
 import { initHistory, recordRun, getHistory } from './command-history';
 import { initRecentProjects, touchCurrentProject, getRecentProjects } from './recent-projects';
 import { sendToCopilotChat } from '../terminal-copy-output';
-import { loadRegistry } from '../../shared/registry';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -24,64 +20,9 @@ const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
 
-function isCancellationError(err: unknown): boolean {
-    const text = err instanceof Error
-        ? `${err.name} ${err.message} ${err.stack ?? ''}`
-        : String(err ?? '');
-    return /\bCanceled\b|\bCancellation\b/i.test(text);
-}
-
-function isCommandNotFoundError(err: unknown): boolean {
-    const msg = err instanceof Error ? err.message : String(err ?? '');
-    return /command .* not found/i.test(msg);
-}
-
 let _statusBar: vscode.StatusBarItem | undefined;
 let _panel:     vscode.WebviewPanel  | undefined;
 let _resultPanel: vscode.WebviewPanel | undefined; // single reused result panel
-let _panelMessageSubscription: vscode.Disposable | undefined;
-let _context: vscode.ExtensionContext | undefined;
-
-function detectWorkspaceType(wsPath: string): string {
-    if (!wsPath) { return 'generic'; }
-    try {
-        const pkg = JSON.parse(fs.readFileSync(path.join(wsPath, 'package.json'), 'utf8'));
-        if (pkg?.engines?.vscode) { return 'vscode-extension'; }
-    } catch {}
-    try {
-        const files = fs.readdirSync(wsPath);
-        if (files.some((f: string) => f.endsWith('.sln') || f.endsWith('.csproj'))) { return 'dotnet'; }
-    } catch {}
-    const lower = wsPath.toLowerCase().replace(/\\/g, '/');
-    if (lower.includes('diskcleanup')) { return 'diskcleanup'; }
-    if (lower.includes('cielovista-tools')) { return 'tools'; }
-    return 'generic';
-}
-
-function getPinnedIds(wsPath: string): string[] {
-    if (!_context) { return []; }
-    const key = `cvs.pinnedCommands.${wsPath || 'global'}`;
-    return _context.globalState.get<string[]>(key) ?? [];
-}
-
-async function setPinnedIds(wsPath: string, ids: string[]): Promise<void> {
-    if (!_context) { return; }
-    const key = `cvs.pinnedCommands.${wsPath || 'global'}`;
-    await _context.globalState.update(key, ids);
-}
-
-function safePostToWebview(panel: vscode.WebviewPanel, payload: unknown): boolean {
-    try {
-        void panel.webview.postMessage(payload);
-        return true;
-    } catch (err) {
-        const text = err instanceof Error ? `${err.name} ${err.message}` : String(err);
-        if (/Webview is disposed/i.test(text)) {
-            return false;
-        }
-        throw err;
-    }
-}
 
 // ─── Shared async channel interception ───────────────────────────────────────
 
@@ -98,8 +39,6 @@ function startInterception(): void {
     _origChannelAppend = orig;
     (ch as any).appendLine = (line: string) => {
         orig(line);
-        // Don't forward background-health-runner noise into command result panels
-        if (line.includes('[bg-health-runner]')) { return; }
         _activeStreams.forEach(fn => fn(line));
     };
     _channelIntercepted = true;
@@ -252,24 +191,11 @@ async function _executeWithOutput(
         } catch (err) {
             const elapsed = Date.now() - startMs;
             const msg = err instanceof Error ? (err.message || String(err)) : String(err);
-            const canceled = isCancellationError(err);
-            const notFound = isCommandNotFoundError(err);
-            if (canceled) {
-                log(FEATURE, `Canceled: ${commandId}`);
-                recordRun({ id: commandId, title, ok: true, elapsed });
-            } else if (notFound) {
-                log(FEATURE, `Command not found (feature may be disabled): ${commandId}`);
-                vscode.window.showInformationMessage(`"${title}" is not available — the feature may be disabled in settings (cielovistaTools.features).`);
-                recordRun({ id: commandId, title, ok: false, elapsed });
-            } else {
-                logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-                recordRun({ id: commandId, title, ok: false, elapsed });
-            }
+            logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            recordRun({ id: commandId, title, ok: false, elapsed });
             if (notifyPanel) {
-                if (!canceled && !notFound) {
-                    notifyPanel.webview.postMessage({ type: 'error', title, message: msg });
-                }
-                notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: (canceled || notFound) ? 'ok' : 'error' });
+                notifyPanel.webview.postMessage({ type: 'error', title, message: msg });
+                notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'error' });
                 notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             }
             if (_panel) { _panel.webview.postMessage({ type: 'history-update', history: getHistory() }); }
@@ -314,15 +240,13 @@ async function _executeWithOutput(
 
     const stream: StreamFn = (line: string) => {
         for (const l of line.split(/\r?\n/)) {
-            if (l.trim() && !safePostToWebview(rp, { type: 'line', text: l })) {
-                return;
-            }
+            if (l.trim()) { rp.webview.postMessage({ type: 'line', text: l }); }
         }
     };
 
     const finish = (ok: boolean, elapsed: number, stack?: string) => {
         rp.title = ok ? `\u2705 ${title}` : `\u274c ${title}`;
-        safePostToWebview(rp, { type: 'done', ok, elapsed, stack });
+        rp.webview.postMessage({ type: 'done', ok, elapsed, stack });
         recordRun({ id: commandId, title, ok, elapsed });
         if (notifyPanel) {
             notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: ok ? 'ok' : 'error' });
@@ -365,17 +289,8 @@ async function _executeWithOutput(
     } catch (err) {
         const elapsed = Date.now() - startMs;
         const stack   = err instanceof Error ? err.stack ?? String(err) : String(err);
-        if (isCancellationError(err)) {
-            log(FEATURE, `Canceled: ${commandId}`);
-            finish(true, elapsed);
-        } else if (isCommandNotFoundError(err)) {
-            log(FEATURE, `Command not found (feature may be disabled): ${commandId}`);
-            vscode.window.showInformationMessage(`"${title}" is not available — the feature may be disabled in settings (cielovistaTools.features).`);
-            finish(false, elapsed);
-        } else {
-            logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-            finish(false, elapsed, stack);
-        }
+        logError(`Failed: ${commandId}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        finish(false, elapsed, stack);
     } finally {
         _activeStreams.delete(runId);
         stopInterceptionIfIdle();
@@ -385,8 +300,7 @@ async function _executeWithOutput(
 // ─── Message handler ──────────────────────────────────────────────────────────
 
 function attachMessageHandler(panel: vscode.WebviewPanel): void {
-    _panelMessageSubscription?.dispose();
-    _panelMessageSubscription = panel.webview.onDidReceiveMessage(async msg => {
+    panel.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'help' && msg.doc)  { openHelpPanel(msg.doc, panel); return; }
         if (msg.command === 'back')              { panel.reveal(); return; }
         if (msg.command === 'openFolder' && msg.path) {
@@ -406,58 +320,6 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             // a second click re-focuses the launcher panel so the user can toggle between the two.
             const ch = getChannel();
             ch.show(true); // preserveFocus so launcher stays primary
-        }
-        if (msg.command === 'toggle-pin' && msg.id) {
-            const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-            const pins = getPinnedIds(wsPath);
-            const idx = pins.indexOf(msg.id as string);
-            if (idx >= 0) { pins.splice(idx, 1); } else { pins.push(msg.id as string); }
-            await setPinnedIds(wsPath, pins);
-            if (_panel) {
-                const cvtPaths2 = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
-                _panel.webview.html = buildLauncherHtml(
-                    loadLastReport(), wsPath, getHistory(), getRecentProjects(),
-                    await getRegisteredCommandSet(), cvtPaths2,
-                    detectWorkspaceType(wsPath), getPinnedIds(wsPath)
-                );
-            }
-            return;
-        }
-        if (msg.command === 'file-audit-issue') {
-            const checkId: string = msg.checkId ?? '';
-            const summary: string = msg.summary ?? 'Audit check failed.';
-            const status: string  = msg.status  ?? 'red';
-            const now             = new Date().toISOString();
-            try {
-                const result = await fileHealthBugAsIssue({
-                    id:             `audit-${checkId}-${Date.now()}`,
-                    title:          `[Audit] ${checkId || 'Health check'} — ${status === 'red' ? 'Red' : 'Warning'}`,
-                    detail:         summary,
-                    category:       'audit',
-                    priority:       status === 'red' ? 'high' : 'medium',
-                    checkId,
-                    detectedAt:     now,
-                    recommendation: 'Run Daily Health Check and address flagged items.',
-                });
-                const issueUrl = result.issueUrl ?? '';
-                const choice = await vscode.window.showInformationMessage(
-                    `Filed issue #${result.issueNumber}: ${issueUrl}`,
-                    'Open in Browser'
-                );
-                if (choice === 'Open in Browser' && issueUrl) {
-                    await vscode.env.openExternal(vscode.Uri.parse(issueUrl));
-                }
-            } catch (err) {
-                const body = `## Audit Diagnostic\n\n**Check:** ${checkId}\n**Status:** ${status}\n**Detected:** ${now}\n\n${summary}`;
-                const action = await vscode.window.showErrorMessage(
-                    `Failed to file GitHub issue: ${err instanceof Error ? err.message : String(err)}`,
-                    'Copy Markdown'
-                );
-                if (action === 'Copy Markdown') {
-                    await vscode.env.clipboard.writeText(body);
-                }
-                logError('Failed to file audit issue', err instanceof Error ? err.stack ?? String(err) : String(err), 'cvs-command-launcher');
-            }
         }
     });
 }
@@ -482,41 +344,26 @@ async function showLauncherPanel(): Promise<void> {
     const wsPath  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     const wsName  = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
     touchCurrentProject();
-    const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
-    const html = buildLauncherHtml(
-        loadLastReport(), wsPath, getHistory(), getRecentProjects(),
-        await getRegisteredCommandSet(), cvtPaths,
-        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
-    );
+    const html = buildLauncherHtml(loadLastReport(), wsPath, getHistory(), getRecentProjects(), await getRegisteredCommandSet());
     if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.One, true); return; }
     _panel = vscode.window.createWebviewPanel(
         'cvsLauncher', `\u26a1 ${wsName}`, vscode.ViewColumn.One,
         { enableScripts: true, retainContextWhenHidden: true }
     );
     _panel.webview.html = html;
-    _panel.onDidDispose(() => {
-        _panelMessageSubscription?.dispose();
-        _panelMessageSubscription = undefined;
-        _panel = undefined;
-    });
+    _panel.onDidDispose(() => { _panel = undefined; });
     attachMessageHandler(_panel);
 }
 
 async function refreshLauncherPanel(): Promise<void> {
     if (!_panel) { return; }
     const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
-    _panel.webview.html = buildLauncherHtml(
-        loadLastReport(), wsPath, getHistory(), getRecentProjects(),
-        await getRegisteredCommandSet(), cvtPaths,
-        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
-    );
+    _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath, [], [], await getRegisteredCommandSet());
 }
 
 // ─── Activate / Deactivate ────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
-    _context = context;
     initHistory(context);
     initRecentProjects(context);
     onMcpServerStatusChange((status) => {
@@ -547,11 +394,7 @@ export function activate(context: vscode.ExtensionContext): void {
             const wsName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
             _panel.title = `\u26a1 ${wsName}`;
             _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath, [], [], await getRegisteredCommandSet());
-            _panel.onDidDispose(() => {
-                _panelMessageSubscription?.dispose();
-                _panelMessageSubscription = undefined;
-                _panel = undefined;
-            });
+            _panel.onDidDispose(() => { _panel = undefined; });
             attachMessageHandler(_panel);
             log(FEATURE, 'Panel restored after reload');
         }
@@ -559,8 +402,6 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-    _panelMessageSubscription?.dispose();
-    _panelMessageSubscription = undefined;
     _helpPanel?.dispose();
     _panel?.dispose();
     _panel     = undefined;

@@ -87,6 +87,12 @@ export function buildCatalogInitPayload(
                 ? `<button class="btn-run" data-action="run-command" data-command-id="${esc(commandId)}" title="Run: ${esc(catEntry!.title)}">&#9654; Run</button>`
                 : '';
 
+            const tsName = card.title.endsWith('.ts') ? card.title : '';
+            const tsPath = tsName ? path.join(path.dirname(card.filePath), tsName) : '';
+            const runTsBtn = (tsPath && fs.existsSync(tsPath))
+                ? `<button class="btn-run-ts" data-action="run-ts-file" data-path="${esc(tsPath)}" title="Compile &amp; run ${esc(tsName)}">&#9654; Run .ts</button>`
+                : '';
+
             return `<article class="card"
   data-id="${esc(card.id)}"
   data-project="${esc(card.projectName)}"
@@ -119,6 +125,7 @@ export function buildCatalogInitPayload(
       <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
       ${demoBtn}
       ${runBtn}
+      ${runTsBtn}
     </div>
   </div>
 </article>`;

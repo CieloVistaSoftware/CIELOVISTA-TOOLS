@@ -1,6 +1,5 @@
 ---
 docid: 150.1.terminal-copy-output-readme
-dewey: 150.1.terminal-copy-output-readme
 id: feature-terminal-copy-outputts
 title: feature: terminal-copy-output.ts
 project: cielovista-tools

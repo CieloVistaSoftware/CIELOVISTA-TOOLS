@@ -1,6 +1,5 @@
 ---
 docid: 150.9.regression-log
-dewey: 150.9.regression-log
 id: regression-log-cielovista-tools
 title: Regression Log — CieloVista Tools
 project: cielovista-tools
@@ -9,7 +8,7 @@ status: active
 tags: [regression, log, cielovista]
 category: 150.9 — Meta
 created: 2026-04-22
-updated: 2026-04-27
+updated: 2026-05-12
 version: 1.0.0
 author: CieloVista Software
 relativepath: docs/REGRESSION-LOG.md
@@ -152,6 +151,27 @@ Checklist when adding a new runtime npm dependency:
 
 ---
 
+## REG-021 — Issue state dropdown hidden on empty Issue Viewer
+**Date:** 2026-05-12  
+**Severity:** Medium — blocks switching to Closed issues when Open list is empty  
+**Status:** Fixed + automated test added (REG-021)
+
+### What broke
+Issue Viewer only rendered the open/closed state dropdown inside the table controls block, which is built only when at least one issue row exists. When the Open list was empty, the panel showed “No open issues.” with no state selector, so users could not switch to Closed issues.
+
+### Root cause
+The state filter control (`state-filter`) was conditionally rendered in the non-empty table branch of `buildHtml(...)` in `src/shared/github-issues-view.ts`.
+
+### Fix
+- Moved `state-filter` into the always-visible header action area
+- Kept default state selection behavior (`open` by default, `closed` when selected)
+- Added unit coverage asserting the selector appears in both empty Open and empty Closed views
+
+### The rule this establishes
+**Primary view-state controls (Open/Closed toggles) must be rendered outside data-dependent branches so users can recover from empty result sets.**
+
+---
+
 ## How to add a new regression entry
 
 When a bug is found and fixed:
@@ -181,3 +201,4 @@ These run automatically before every `npm run rebuild` — the build will abort 
 | REG-009  | `data/` is in `.gitignore` |
 | REG-010  | All packages in `devDependencies`, not `dependencies` |
 | REG-011  | Every `dependencies` package has `!node_modules/<pkg>/**` in `.vscodeignore` |
+| REG-021  | Issue Viewer state dropdown remains visible in empty-state views |

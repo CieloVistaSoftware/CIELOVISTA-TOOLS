@@ -1,6 +1,5 @@
 ---
 docid: 150.9.current-status
-dewey: 150.9.current-status
 id: current-statusmd-cielovista-tools
 title: CURRENT-STATUS.md — cielovista-tools
 project: cielovista-tools
@@ -15,6 +14,39 @@ author: CieloVista Software
 relativepath: docs/_today/CURRENT-STATUS.md
 ---
 # CURRENT-STATUS.md — cielovista-tools
+
+---
+
+## 🅿️ PARKING LOT — end of session 2026-05-12
+
+**TASK:** md-preview frontmatter styling + pre-existing build fixes
+**STATUS:** ✅ Committed `0de484f` — 61/61 install checks green
+
+**CHANGES THIS SESSION:**
+- md-preview: frontmatter now renders as blue key:value list (.9rem font, Georgia)
+- md-preview: `<title>` shows filename only (e.g. `mcp-lifecycle-issue.md`)
+- `viewArchivedCatalog` added to `doc-catalog/commands.ts` (was blocking compile)
+- Doc Catalog Run button: resolves commandId via CATALOG, dispatches `run-command`
+- `open-project-vscode` button + handler on catalog cards
+- `btn-edit` in doc-preview now posts `edit-file` (was `open` — re-opened preview)
+- `case 'edit-file':` handler opens file in text editor beside
+- `.fm-block/.fm-row/.fm-label/.fm-value` CSS added to `doc-preview.ts`
+- REG-011: skip negation-entry check when esbuild is in use
+- REG-012: corrected expected path to `out/catalog.html`
+- GitHub issue [#323](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/323) created — all .md files must have docid
+
+**FILES TOUCHED:**
+- `src/features/mcp-viewer/index.ts`
+- `src/features/doc-catalog/commands.ts`
+- `src/features/doc-catalog/html.ts`
+- `src/features/doc-catalog/catalog.html`
+- `src/shared/doc-preview.ts`
+- `scripts/run-regression-tests.js`
+- `scripts/copy-commandhelp.js`
+- `tests/unit/doc-catalog-run-button.test.js` (new)
+
+**NEXT STEP:** Reload VS Code Insiders to pick up new build; verify md-preview frontmatter renders correctly in browser
+**OPEN QUESTIONS:** None
 
 ---
 

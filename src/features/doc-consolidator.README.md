@@ -1,6 +1,5 @@
 ---
 docid: 150.1.doc-consolidator-readme
-dewey: 150.1.doc-consolidator-readme
 id: feature-doc-consolidatorts-advanced-developer-guid
 title: feature: doc-consolidator.ts — Advanced Developer Guide
 project: cielovista-tools

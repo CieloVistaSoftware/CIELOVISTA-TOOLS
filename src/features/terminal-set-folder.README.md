@@ -1,6 +1,5 @@
 ---
 docid: 150.1.terminal-set-folder-readme
-dewey: 150.1.terminal-set-folder-readme
 id: feature-terminal-set-folderts
 title: feature: terminal-set-folder.ts
 project: cielovista-tools

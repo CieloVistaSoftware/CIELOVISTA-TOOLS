@@ -789,10 +789,10 @@ pre{background:#111;border:1px solid #2d2d2d;border-radius:6px;padding:12px;over
 blockquote{border-left:3px solid #0078d4;padding-left:10px;color:#9e9e9e}
 table{border-collapse:collapse;width:100%}
 th,td{border:1px solid #2d2d2d;padding:6px 8px}
-.fm-block{font-size:.9rem;color:#4fc3f7;margin-bottom:1.2em;display:flex;flex-direction:column;gap:2px}
-.fm-row{display:flex;gap:6px}
+.fm-block{font-size:.9rem;margin-bottom:1.2em;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;align-items:baseline}
+.fm-row{display:contents}
 .fm-label{color:#81d4fa;font-weight:600;white-space:nowrap}
-.fm-value{color:#4fc3f7;word-break:break-word}
+.fm-value{color:#4fc3f7;word-break:break-word;min-width:0}
 </style></head>
 <body>
 <header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><span class="path-label">${safePath}</span></header>

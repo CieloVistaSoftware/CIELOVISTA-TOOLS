@@ -118,6 +118,25 @@ it('source exports scanFile', () => {
     assert.ok(src.includes('export function scanFile'), 'scanFile must be exported');
 });
 
+it('rescan path uses terminal session and reruns the same command', () => {
+    const src = fs.readFileSync(
+        path.join(__dirname, '../../src/features/code-highlight-audit.ts'), 'utf8');
+    assert.ok(src.includes("getActiveOrCreateTerminal('Code Highlight Audit')"),
+        'Rescan should open/reuse the Code Highlight Audit terminal session');
+    assert.ok(src.includes("await vscode.commands.executeCommand('cvs.audit.codeHighlight')"),
+        'Rescan should rerun the same command id');
+    assert.ok(src.includes('if (msg.command === \'rescan\') {'),
+        'Rescan message handler must exist');
+});
+
+it('rescan handler no longer calls showPanel directly', () => {
+    const src = fs.readFileSync(
+        path.join(__dirname, '../../src/features/code-highlight-audit.ts'), 'utf8');
+    const hasDirectRescanCall = src.includes("if (msg.command === 'rescan') {\n                        await showPanel();");
+    assert.strictEqual(hasDirectRescanCall, false,
+        'Rescan should route through terminal-backed rescan path, not direct showPanel()');
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 cleanup();
 console.log('\nResult: ' + passed + ' passed, ' + failed + ' failed');

@@ -1,6 +1,5 @@
 ---
 docid: 150.1.npm-command-launcher-readme
-dewey: 150.1.npm-command-launcher-readme
 id: feature-npm-command-launcher
 title: Feature: NPM Command Launcher
 project: cielovista-tools

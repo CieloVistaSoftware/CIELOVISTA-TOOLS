@@ -90,5 +90,21 @@
       "scripts/verify-registry-promote.js — NEW: headless integration test with vscode module stub; creates temp folder, double-promotes, asserts all properties, cleans up registry and disk",
       "scripts/check-registry-state.js — NEW: quick registry health probe (entry count, JesusFamilyTree present, leftover test entries, distinct status values)"
     ]
+  },
+  {
+    "id": "FIX-006",
+    "title": "REGRESSION: Issue Viewer state dropdown missing when open list is empty (REG-021)",
+    "category": "regression",
+    "severity": "major",
+    "completedDate": "2026-05-12",
+    "session": "Session 2026-05-12 Issue Viewer state filter",
+    "description": "Issue Viewer rendered the open/closed state selector inside the data controls block that only exists when there are issue rows. On an empty open-issues response, the panel showed 'No open issues.' with no state selector, trapping users in the open view and hiding closed issues. Fix moved state-filter into always-rendered header actions, preserved open default behavior, and added UI + regression tests to lock empty-state visibility.",
+    "filesChanged": [
+      "src/shared/github-issues-view.ts — moved state-filter to always-visible header actions; removed duplicate state filter from row-dependent controls",
+      "tests/unit/github-issues-view-ui.test.js — added empty open/closed assertions for state-filter visibility + selected option",
+      "tests/regression/REG-021-issue-view-empty-state-filter.test.js — NEW static regression guard for empty-state state-filter visibility",
+      "scripts/run-regression-tests.js — wired REG-021 into the regression suite",
+      "docs/REGRESSION-LOG.md — added REG-021 incident entry and automated test table row"
+    ]
   }
 ]

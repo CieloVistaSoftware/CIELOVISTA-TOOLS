@@ -91,8 +91,8 @@ hr{border:none;border-top:1px solid var(--vscode-panel-border);margin:18px 0}
 a{color:var(--vscode-textLink-foreground)} a:hover{text-decoration:underline}
 strong{font-weight:700} em{font-style:italic} del{opacity:0.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
-.fm-block{font-family:Georgia,serif;font-size:.9rem;margin-bottom:1.2em;display:flex;flex-direction:column;gap:2px}
-.fm-row{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px;align-items:baseline}
+.fm-block{font-family:Georgia,serif;font-size:.9rem;margin-bottom:1.2em;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;align-items:baseline}
+.fm-row{display:contents}
 .fm-label{color:#4dabf7;font-weight:600;white-space:nowrap}
 .fm-value{color:#74c0fc;white-space:normal;overflow-wrap:anywhere;word-break:break-word;min-width:0}
 /* ── highlight.js — github-dark theme (inline, no CDN needed) ── */

@@ -1,6 +1,5 @@
 ---
 docid: 150.1.project-home-opener-readme
-dewey: 150.1.project-home-opener-readme
 id: feature-project-home-opener
 title: Feature: Project Home Opener
 project: cielovista-tools

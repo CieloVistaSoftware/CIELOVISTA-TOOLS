@@ -357,6 +357,18 @@ body{
 .di-cluster.accepted .di-cluster-body{opacity:.5}
 .di-cluster.skipped{opacity:.35}
 .di-cluster.hidden{display:none}
+
+/* ── Exact-dup checkbox rows ── */
+.di-dup-controls{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;color:var(--vscode-descriptionForeground)}
+.di-dup-controls-label{flex:1;font-weight:600}
+.di-check-toggle{background:transparent;border:1px solid var(--vscode-panel-border);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:10px;color:var(--vscode-descriptionForeground)}
+.di-check-toggle:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground)}
+.di-dup-check-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;border:1px solid var(--vscode-panel-border);background:var(--vscode-textCodeBlock-background);margin-bottom:4px;transition:opacity 0.15s}
+.di-dup-check-row.unchecked{opacity:0.4}
+.di-dup-checkbox{width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:#3fb950}
+.di-delete-checked-btn{background:#3fb950;color:#fff;border:none;padding:6px 16px;border-radius:3px;cursor:pointer;font-size:12px;font-weight:700}
+.di-delete-checked-btn:hover{opacity:.85}
+.di-delete-checked-btn:disabled{opacity:.35;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -416,6 +428,10 @@ body{
 (function(){
 'use strict';
 const vscode = acquireVsCodeApi();
+
+// ── Rescan countdown ──────────────────────────────────────────────────────
+var lastScanMs = ${report.durationMs};
+var _countdownTimer = null;
 
 // ── Decision tracking ─────────────────────────────────────────────────────
 var decisions = {}; // id -> 'accepted' | 'skipped' | 'pending'
@@ -512,7 +528,22 @@ function executeAll() {
 }
 
 function rescan() {
-  showStrip('Rescanning…');
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+  if (lastScanMs > 0) {
+    var remaining = Math.ceil(lastScanMs / 1000);
+    showStrip('Rescanning… ~' + remaining + 's');
+    _countdownTimer = setInterval(function() {
+      remaining--;
+      if (remaining > 0) {
+        showStrip('Rescanning… ~' + remaining + 's');
+      } else {
+        clearInterval(_countdownTimer); _countdownTimer = null;
+        showStrip('Rescanning… almost done…');
+      }
+    }, 1000);
+  } else {
+    showStrip('Rescanning…');
+  }
   vscode.postMessage({ command: 'rescan' });
 }
 
@@ -633,7 +664,7 @@ window.addEventListener('message', function(e) {
     }
   }
   if (msg.type === 'done') {
-    // Re-enable any stuck trash buttons (e.g. user cancelled the modal)
+    // Re-enable stuck trash buttons (cancelled modal)
     document.querySelectorAll('.di-file-btn.danger[disabled]').forEach(function(b) {
       var row = b.closest('[data-path]');
       if (row && row.style.opacity !== '0.25') {
@@ -641,8 +672,71 @@ window.addEventListener('message', function(e) {
         b.textContent = '🗑 Trash';
       }
     });
+    // Re-enable stuck Fix buttons (fix-one-mismatch, fix-mismatches)
+    document.querySelectorAll('.di-dup-btn[disabled]').forEach(function(b) {
+      if (b.dataset.diAction === 'fix-one-mismatch') {
+        b.disabled = false;
+        b.textContent = '✓ Fix';
+      }
+    });
+    document.querySelectorAll('.di-cta-primary[disabled]').forEach(function(b) {
+      if (b.dataset.diAction === 'fix-mismatches') {
+        b.disabled = false;
+        b.textContent = '✓ Fix All';
+      }
+    });
     hideStrip();
   }
+});
+
+// ── Exact-duplicate checkbox UI ──────────────────────────────────────────────
+
+function updateCheckedCount(clusterId) {
+  var boxes    = document.querySelectorAll('.di-dup-checkbox[data-cluster-id="' + clusterId + '"]');
+  var checked  = Array.from(boxes).filter(function(b) { return b.checked; }).length;
+  var countEl  = document.querySelector('.di-checked-count[data-cluster-id="' + clusterId + '"]');
+  if (countEl) { countEl.textContent = checked; }
+  var btn = document.querySelector('.di-delete-checked-btn[data-cluster-id="' + clusterId + '"]');
+  if (btn) {
+    btn.textContent = '✓ Delete Checked (' + checked + ')';
+    btn.disabled    = checked === 0;
+  }
+}
+
+document.querySelectorAll('.di-dup-checkbox').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var row = cb.closest('.di-dup-check-row');
+    if (row) { row.classList.toggle('unchecked', !cb.checked); }
+    updateCheckedCount(cb.dataset.clusterId);
+  });
+});
+
+document.querySelectorAll('.di-check-toggle').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var cid   = btn.dataset.clusterId;
+    var state = btn.dataset.check === 'all';
+    document.querySelectorAll('.di-dup-checkbox[data-cluster-id="' + cid + '"]').forEach(function(cb) {
+      cb.checked = state;
+      var row = cb.closest('.di-dup-check-row');
+      if (row) { row.classList.toggle('unchecked', !state); }
+    });
+    updateCheckedCount(cid);
+  });
+});
+
+document.querySelectorAll('.di-delete-checked-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var cid       = btn.dataset.clusterId;
+    var findingId = btn.dataset.findingId;
+    var keepPath  = btn.dataset.keepPath;
+    var checked   = Array.from(document.querySelectorAll('.di-dup-checkbox[data-cluster-id="' + cid + '"]:checked'))
+                        .map(function(cb) { return cb.dataset.path; });
+    if (!checked.length) { return; }
+    btn.disabled    = true;
+    btn.textContent = '⏳ Deleting…';
+    showStrip('Deleting ' + checked.length + ' duplicate(s)…');
+    vscode.postMessage({ command: 'keepAndDeleteRest', id: findingId, keepPath: keepPath, deletePaths: checked });
+  });
 });
 
 updateProgress();
@@ -712,6 +806,7 @@ function buildExactDuplicateCard(f: Finding): string {
     const delPaths  = f.paths.filter(p => p !== keeper);
     const wasted    = f.meta?.wastedFmt as string | undefined;
     const decClass  = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
+    const cid       = esc(f.id);
 
     const keeperRow = '<div class="di-keeper">'
         + '<span class="di-keeper-badge">✓ KEEP</span>'
@@ -723,19 +818,16 @@ function buildExactDuplicateCard(f: Finding): string {
     const dupRows = delPaths.map(p => {
         const segs    = p.replace(/\\/g, '/').split('/');
         const projSeg = segs.length >= 3 ? segs[segs.length - 3] : '';
-        const delJson = esc(JSON.stringify({ findingId: f.id, filePath: p }));
-        return '<div class="di-dup-row" data-path="' + esc(p) + '">'
+        return '<div class="di-dup-check-row" data-path="' + esc(p) + '" data-cluster-id="' + cid + '">'
+            + '<input type="checkbox" class="di-dup-checkbox" checked data-cluster-id="' + cid + '" data-path="' + esc(p) + '">'
             + '<span class="di-dup-proj">' + esc(projSeg) + '</span>'
             + '<span class="di-dup-path" title="' + esc(p) + '">' + esc(p) + '</span>'
             + '<div class="di-dup-btns">'
             + '<button class="di-dup-btn" data-di-action="open-file" data-paths="' + esc(JSON.stringify([p])) + '" title="Open">↗ Open</button>'
-            + '<button class="di-dup-btn danger" data-di-action="delete-one" data-payload="' + delJson + '" title="Move to trash">🗑 Trash</button>'
             + '</div></div>';
     }).join('');
 
-    const ctaPayload = esc(JSON.stringify({ id: f.id, keepPath: keeper, deletePaths: delPaths }));
-
-    return '<div class="di-cluster' + decClass + '" data-id="' + esc(f.id) + '" data-severity="' + esc(f.severity) + '" data-kind="exact-duplicate">'
+    return '<div class="di-cluster' + decClass + '" data-id="' + cid + '" data-severity="' + esc(f.severity) + '" data-kind="exact-duplicate">'
         + '<div class="di-cluster-hd">'
         + '<span class="di-cluster-badge">⚡ Exact Duplicate</span>'
         + '<span class="di-cluster-title">' + esc(f.title) + '</span>'
@@ -745,11 +837,15 @@ function buildExactDuplicateCard(f: Finding): string {
         + '</div>'
         + '<div class="di-cluster-body">'
         + keeperRow
-        + '<div style="font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:6px">Delete ' + delPaths.length + ' duplicate' + (delPaths.length !== 1 ? 's' : '') + ':</div>'
+        + '<div class="di-dup-controls">'
+        + '<span class="di-dup-controls-label">Delete <span class="di-checked-count" data-cluster-id="' + cid + '">' + delPaths.length + '</span> of ' + delPaths.length + ' duplicate' + (delPaths.length !== 1 ? 's' : '') + '</span>'
+        + '<button class="di-check-toggle" data-cluster-id="' + cid + '" data-check="all" title="Check all duplicates">☑ Check All</button>'
+        + '<button class="di-check-toggle" data-cluster-id="' + cid + '" data-check="none" title="Uncheck all duplicates">☐ Uncheck All</button>'
+        + '</div>'
         + dupRows
         + '<div class="di-cluster-cta">'
-        + '<button class="di-cta-primary" data-di-action="keep-and-delete-rest" data-payload="' + ctaPayload + '" title="Keep recommended and trash all others">✓ Keep Recommended &amp; Delete Rest</button>'
-        + '<button class="di-cta-skip" data-di-action="skip" title="Skip">⏭ Skip</button>'
+        + '<button class="di-delete-checked-btn" data-cluster-id="' + cid + '" data-finding-id="' + cid + '" data-keep-path="' + esc(keeper) + '" title="Delete all checked duplicates and keep the recommended copy">✓ Delete Checked (' + delPaths.length + ')</button>'
+        + '<button class="di-cta-skip" data-di-action="skip" title="Skip this finding">⏭ Skip</button>'
         + (f.decision && f.decision !== 'pending' ? '<button class="di-dup-btn" data-di-action="undo">↩ Undo</button>' : '')
         + '</div></div></div>';
 }

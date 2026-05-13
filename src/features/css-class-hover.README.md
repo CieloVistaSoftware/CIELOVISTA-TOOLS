@@ -1,6 +1,5 @@
 ---
 docid: 150.1.css-class-hover-readme
-dewey: 150.1.css-class-hover-readme
 id: feature-css-class-hoverts
 title: feature: css-class-hover.ts
 project: cielovista-tools

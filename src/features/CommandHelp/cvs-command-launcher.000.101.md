@@ -1,6 +1,5 @@
 ---
 docid: 150.1
-dewey: 150.1
 id: cvs-command-launcher-000-101
 title: cvs command launcher 000 101
 project: cielovista-tools

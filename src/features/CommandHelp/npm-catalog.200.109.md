@@ -1,6 +1,5 @@
 ---
 docid: 150.1
-dewey: 150.1
 id: npm-catalog-200-109
 title: npm catalog 200 109
 project: cielovista-tools

@@ -1,5 +1,4 @@
 ---
-dewey: 150.3.test-coverage-audit-2026-04-29
 category: 150.3 — Testing
 docid: 150.3.test-coverage-audit-2026-04-29
 id: test-coverage-audit

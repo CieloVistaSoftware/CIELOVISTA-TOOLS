@@ -1,6 +1,5 @@
 ---
 docid: 150.3.test-coverage-auditor-readme
-dewey: 150.3.test-coverage-auditor-readme
 id: feature-test-coverage-auditorts-test-coverage-audi
 title: feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard
 project: cielovista-tools

@@ -1,6 +1,5 @@
 ---
 docid: 150.1.file-list-viewer-readme
-dewey: 150.1.file-list-viewer-readme
 id: filelist-sortable-alternative-file-browser
 title: FileList — Sortable Alternative File Browser
 project: cielovista-tools

@@ -386,13 +386,13 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
         if (!doc.fmDewey || !doc.fmCategory) { continue; }
         const subjectNum = parseFloat(doc.fmDewey);
         if (isNaN(subjectNum)) { continue; }
-        const subjectHundreds = Math.floor(subjectNum / 100) * 100;
+        const subjectInt = Math.floor(subjectNum);
         const catMatch = doc.fmCategory.match(/^(\d+)/);
         if (!catMatch) { continue; }
         const categoryNum = parseInt(catMatch[1], 10);
-        if (subjectHundreds === categoryNum) { continue; }
+        if (subjectInt === categoryNum) { continue; }
         const label    = doc.fmCategory.replace(/^\d+\s*[—\-]\s*/, '');
-        const proposed = `${subjectHundreds} — ${label}`;
+        const proposed = `${subjectInt} — ${label}`;
         mismatches.push({ filePath: doc.filePath, fileName: doc.fileName, projectName: doc.projectName, dewey: doc.fmDewey, category: doc.fmCategory, proposed });
     }
 

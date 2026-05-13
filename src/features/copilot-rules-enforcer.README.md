@@ -1,6 +1,5 @@
 ---
 docid: 150.1.copilot-rules-enforcer-readme
-dewey: 150.1.copilot-rules-enforcer-readme
 id: feature-copilot-rules-enforcerts
 title: feature: copilot-rules-enforcer.ts
 project: cielovista-tools

@@ -317,6 +317,17 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 if (cmdId) { await vscode.commands.executeCommand(cmdId); }
                 break;
             }
+            case 'run-ts-file': {
+                if (!msg.data) { break; }
+                const tsFilePath = msg.data as string;
+                const tsNode = path.join(path.dirname(tsFilePath), '..', '..', 'node_modules', '.bin', 'ts-node');
+                const cmd = `node "${tsNode}" "${tsFilePath}"`;
+                const term = vscode.window.createTerminal({ name: path.basename(tsFilePath), cwd: path.dirname(tsFilePath) });
+                term.show();
+                term.sendText(cmd);
+                log(FEATURE, `run-ts-file: ${cmd}`);
+                break;
+            }
             case 'open-project-vscode': {
                 if (!msg.data) { break; }
                 await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data as string), { forceNewWindow: true });

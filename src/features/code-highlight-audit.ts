@@ -18,6 +18,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { getActiveOrCreateTerminal } from '../shared/terminal-utils';
 
 const FEATURE = 'code-highlight-audit';
 
@@ -327,6 +328,15 @@ function findMarkdownFiles(dir: string, depth = 0): string[] {
 let _panel: vscode.WebviewPanel | undefined;
 let _lastBlocks: UntaggedBlock[] = [];
 
+async function rescanFromTerminal(): Promise<void> {
+    const terminal = getActiveOrCreateTerminal('Code Highlight Audit');
+    // Keep focus in the current webview/editor while still surfacing the terminal session.
+    terminal.show(true);
+    terminal.sendText('Write-Host "[cvs.audit.codeHighlight] Rescan requested from Code Highlight Audit panel."');
+    terminal.sendText('Write-Host "[cvs.audit.codeHighlight] Running in the current VS Code window..."');
+    await vscode.commands.executeCommand('cvs.audit.codeHighlight');
+}
+
 async function fixAllBlocks(blocks: UntaggedBlock[]): Promise<{ fixed: number; skipped: number }> {
     const byFile = new Map<string, UntaggedBlock[]>();
     for (const b of blocks) {
@@ -397,7 +407,7 @@ async function showPanel(): Promise<void> {
                         }
                     }
                     if (msg.command === 'rescan') {
-                        await showPanel();
+                        await rescanFromTerminal();
                     }
                     if (msg.command === 'fix-all') {
                         try {

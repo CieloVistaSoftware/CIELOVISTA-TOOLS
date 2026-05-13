@@ -118,19 +118,25 @@ test('issue rows render clickable title buttons with URLs', () => {
 test('empty state renders explicit no-open-issues message', () => {
     const html = buildHtml(false, [], null);
     has(html, 'No open issues.', 'empty-state text missing');
+    has(html, 'id="state-open"', 'open toggle button must remain visible in empty state');
+    has(html, 'state-active', 'open button must be active in open view');
 });
 
 test('closed view empty state renders no-closed-issues message', () => {
     const html = buildHtml(false, [], null, 'closed');
     has(html, 'No closed issues.', 'closed empty-state text missing');
+    has(html, 'id="state-closed"', 'closed toggle button must remain visible in empty closed view');
+    has(html, 'id="state-closed" class="state-toggle-btn state-active"', 'closed button must be active in closed view');
 });
 
-test('controls include issue state filter and setState postMessage', () => {
+test('controls include issue state toggle and setState postMessage', () => {
     const html = buildHtml(false, sampleIssues, null);
-    has(html, 'id="state-filter"', 'state filter dropdown missing');
-    has(html, '<option value="open" selected>open</option>', 'open option should be selected by default');
-    has(html, "var stateFilter = document.getElementById('state-filter');", 'state-filter JS lookup missing');
-    has(html, "vsc.postMessage({ type: 'setState', state: state === 'closed' ? 'closed' : 'open' });", 'setState postMessage missing');
+    has(html, 'id="state-open"', 'open toggle button missing');
+    has(html, 'id="state-closed"', 'closed toggle button missing');
+    has(html, "document.getElementById('state-open')", 'state-open JS lookup missing');
+    has(html, "document.getElementById('state-closed')", 'state-closed JS lookup missing');
+    has(html, "vsc.postMessage({ type: 'setState', state: 'open' })", 'open setState postMessage missing');
+    has(html, "vsc.postMessage({ type: 'setState', state: 'closed' })", 'closed setState postMessage missing');
 });
 
 test('table renders closed_at sortable column', () => {

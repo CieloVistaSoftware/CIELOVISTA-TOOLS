@@ -1,6 +1,5 @@
 ---
 docid: 150.6
-dewey: 150.6
 id: changelog-cielovista-tools
 title: Changelog — cielovista-tools
 project: cielovista-tools

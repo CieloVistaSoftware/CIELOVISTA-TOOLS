@@ -1,6 +1,5 @@
 ---
 docid: 150.1.docs-broken-refs-readme
-dewey: 150.1.docs-broken-refs-readme
 id: feature-docs-broken-refsts
 title: feature: docs-broken-refs.ts
 project: cielovista-tools
