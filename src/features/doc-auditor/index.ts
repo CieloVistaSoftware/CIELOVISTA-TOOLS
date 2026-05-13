@@ -139,12 +139,24 @@ async function quickFindDuplicates(): Promise<void> {
     if (!results.duplicates.length) { vscode.window.showInformationMessage('No duplicate filenames found.'); return; }
     try {
         const p = path.join(getReportDir(), reportFileName('duplicates'));
-        const lines = [`# Duplicate Filenames Audit`, ``, `> **Date:** ${new Date().toLocaleString()}`, ``, `---`, ``];
+        const lines = [
+            `# Duplicate Filenames Audit`,
+            ``,
+            `**Date:** ${new Date().toLocaleString()} — **${results.duplicates.length} duplicate filename group${results.duplicates.length === 1 ? '' : 's'} found**`,
+            ``,
+            `| Filename | Project | Size | Path |`,
+            `|----------|---------|------|------|`,
+        ];
+        const actionLines: string[] = [];
         for (const g of results.duplicates) {
-            lines.push(`## ${g.fileName}`, `<!-- AUDIT-ACTION:merge:${g.files.map(f=>f.filePath).join('::')} -->`);
-            for (const f of g.files) { lines.push(`- \`${f.filePath}\` (${f.projectName}, ${f.sizeBytes} bytes)`, `  <!-- AUDIT-ACTION:open:${f.filePath} -->`); }
-            lines.push(``);
+            actionLines.push(`<!-- AUDIT-ACTION:merge:${g.files.map(f=>f.filePath).join('::')} -->`);
+            for (const f of g.files) {
+                const kb = (f.sizeBytes / 1024).toFixed(1);
+                lines.push(`| ${g.fileName} | ${f.projectName} | ${kb} KB | \`${f.filePath}\` |`);
+                actionLines.push(`<!-- AUDIT-ACTION:open:${f.filePath} -->`);
+            }
         }
+        lines.push(``, ...actionLines);
         fs.writeFileSync(p, lines.join('\n'), 'utf8');
         vscode.window.showInformationMessage(`Found ${results.duplicates.length} duplicates.`, 'Act on Report').then(c => { if(c==='Act on Report'){ actOnReport(); } });
     } catch (err) { logError('Failed to save duplicates report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }

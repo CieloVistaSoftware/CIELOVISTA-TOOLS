@@ -99,6 +99,9 @@ export function mdToHtml(input: string): string {
     while (i < lines.length) {
         const line = lines[i];
 
+        // ── HTML comment lines — invisible metadata, skip rendering ────────────
+        if (/^\s*<!--[\s\S]*?-->\s*$/.test(line)) { i++; continue; }
+
         // ── Fenced code blocks ────────────────────────────────────────────────
         const fenceMatch = line.match(/^(`{3,}|~{3,})(\w*).*$/);
         if (fenceMatch) {

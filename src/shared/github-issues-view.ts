@@ -461,7 +461,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
 .run-test-btn:hover{background:rgba(63,185,80,.28)}
 .run-test-btn:disabled{opacity:.4;cursor:default}
-#proj-filter,#state-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
+#proj-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
 
     const copyDisabled = loading || !!error || !issues || issues.length === 0 ? ' disabled' : '';
@@ -484,7 +484,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 
                 const summary = `<div class="summary"><span><strong id="countShown">${issues.length}</strong> / <strong id="countTotal">${issues.length}</strong> ${viewState} ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sticky field headers + sortable columns</span><span>\u2022</span><span>priority 1 = highest</span></div>`;
                 const projectOptions = allProjects.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="state-filter" aria-label="Filter by issue state"><option value="open"${viewState === 'open' ? ' selected' : ''}>open</option><option value="closed"${viewState === 'closed' ? ' selected' : ''}>closed</option></select><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
+                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
                 const rows = issues.map((iss) => {
             const testRef   = extractTestRef(iss.body);
             const labels = iss.labels.map((l) => {
@@ -676,11 +676,16 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     if (projFilter) {
         projFilter.addEventListener('change', applyFilter);
     }
-    var stateFilter = document.getElementById('state-filter');
-    if (stateFilter) {
-        stateFilter.addEventListener('change', function(){
-            var state = String(stateFilter.value || 'open').toLowerCase();
-            vsc.postMessage({ type: 'setState', state: state === 'closed' ? 'closed' : 'open' });
+    var stateOpenBtn = document.getElementById('state-open');
+    if (stateOpenBtn) {
+        stateOpenBtn.addEventListener('click', function(){
+            vsc.postMessage({ type: 'setState', state: 'open' });
+        });
+    }
+    var stateClosedBtn = document.getElementById('state-closed');
+    if (stateClosedBtn) {
+        stateClosedBtn.addEventListener('click', function(){
+            vsc.postMessage({ type: 'setState', state: 'closed' });
         });
     }
     document.querySelectorAll('th button[data-sort]').forEach(function(btn){
@@ -775,6 +780,8 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${REPO_OWNER}/${REPO_NAME}" class="repo-link" title="Open repository on GitHub">github.com/${REPO_OWNER}/${REPO_NAME}</a></div>
   </div>
     <div id="hd-actions">
+        <button id="state-open" class="action-btn" type="button" title="Show open issues"${viewState === 'open' ? ' style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)"' : ''}>Open</button>
+        <button id="state-closed" class="action-btn" type="button" title="Show closed issues"${viewState === 'closed' ? ' style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)"' : ''}>Closed</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
     </div>

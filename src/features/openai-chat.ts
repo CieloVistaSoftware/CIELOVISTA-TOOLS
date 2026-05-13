@@ -93,8 +93,11 @@ function getSelectedText(): string | undefined {
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 async function explainCode(): Promise<void> {
-    const code = getSelectedText();
-    if (!code) { vscode.window.showWarningMessage('Select some code first.'); return; }
+    let code = getSelectedText();
+    if (!code) {
+        code = await vscode.window.showInputBox({ prompt: 'Paste code to explain (or select it in the editor first)', placeHolder: 'Enter code…', ignoreFocusOut: true });
+        if (!code?.trim()) { return; }
+    }
     await runWithProgress('Explaining…', [
         { role: 'system', content: 'You are a helpful coding assistant. Explain the code clearly and concisely.' },
         { role: 'user',   content: `Explain this code:\n\n\`\`\`\n${code}\n\`\`\`` },
@@ -102,8 +105,11 @@ async function explainCode(): Promise<void> {
 }
 
 async function refactorCode(): Promise<void> {
-    const code = getSelectedText();
-    if (!code) { vscode.window.showWarningMessage('Select some code first.'); return; }
+    let code = getSelectedText();
+    if (!code) {
+        code = await vscode.window.showInputBox({ prompt: 'Paste code to refactor (or select it in the editor first)', placeHolder: 'Enter code…', ignoreFocusOut: true });
+        if (!code?.trim()) { return; }
+    }
     await runWithProgress('Refactoring…', [
         { role: 'system', content: 'You are a senior engineer. Suggest clean, idiomatic refactoring.' },
         { role: 'user',   content: `Suggest refactoring for:\n\n\`\`\`\n${code}\n\`\`\`` },
