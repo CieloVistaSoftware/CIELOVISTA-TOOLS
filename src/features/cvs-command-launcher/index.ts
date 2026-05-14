@@ -24,6 +24,13 @@ const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
 
+// Commands that already render their own first-class panels should execute
+// directly to avoid the launcher's secondary "Completed in ..." result pane.
+const DIRECT_PANEL_COMMANDS = new Set<string>([
+    'cvs.headers.frontmatterViewer',
+    'cvs.tools.errorLog',
+]);
+
 function isCancellationError(err: unknown): boolean {
     const text = err instanceof Error
         ? `${err.name} ${err.message} ${err.stack ?? ''}`
@@ -233,9 +240,9 @@ async function _executeWithOutput(
         return;
     }
 
-    // Read-only commands should execute directly so they can open in the
-    // immediate adjacent editor group without an intermediate result panel.
-    if (entry?.action === 'read') {
+    // Read-only and direct-panel commands execute directly so they can open
+    // their intended UI without an intermediate launcher result panel.
+    if (entry?.action === 'read' || DIRECT_PANEL_COMMANDS.has(commandId)) {
         if (notifyPanel) {
             notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'running' });
         }
@@ -279,11 +286,17 @@ async function _executeWithOutput(
 
     const rp = (() => {
         if (_resultPanel) {
-            // Reuse the existing panel — reset its content for the new run
-            _resultPanel.title = `\u23f3 ${title}`;
-            _resultPanel.webview.html = buildResultPanelHtml(title);
-            _resultPanel.reveal(vscode.ViewColumn.Beside, true);
-            return _resultPanel;
+            try {
+                // Reuse the existing panel — reset its content for the new run
+                _resultPanel.title = `\u23f3 ${title}`;
+                _resultPanel.webview.html = buildResultPanelHtml(title);
+                _resultPanel.reveal(vscode.ViewColumn.Beside, true);
+                return _resultPanel;
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                if (!/Webview is disposed/i.test(msg)) { throw err; }
+                _resultPanel = undefined;
+            }
         }
         const p = vscode.window.createWebviewPanel(
             'cvsJobResult',

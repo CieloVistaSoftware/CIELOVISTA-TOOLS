@@ -523,6 +523,16 @@ test('REG-036', 'GitHub comment bodies use real newlines (no escaped \\n)', () =
     `REG-036 github-comment no-escaped-newlines test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-037: Issue #344 — Error Log Viewer must not open a duplicate completion pane.
+test('REG-037', 'Error Log Viewer skips result pane (DIRECT_PANEL_COMMANDS)', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-037-error-log-no-duplicate-pane.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-037 error-log no-duplicate-pane test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));
