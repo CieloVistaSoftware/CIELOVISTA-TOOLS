@@ -178,6 +178,7 @@ async function collectCards(): Promise<ProjectCardData[]> {
 // ─── Port status polling + exponential backoff auto-restart ──────────────────
 
 let _portPollTimer: ReturnType<typeof setInterval> | undefined;
+let _latestCards: ProjectCardData[] = [];
 
 // Tracks per-card retry state: name → { attempt, timer, stopped }
 const _retryState = new Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | undefined; stopped: boolean }>();
@@ -245,14 +246,13 @@ async function openPanel(): Promise<void> {
         return;
     }
 
-    let latestCards = cards;
+    _latestCards = cards;
     const sendInit = () => {
-        const folderSuffix = cards.length === 1 ? '  ·  ' + cards[0].name : '';
-        _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix, cards });
+        const folderSuffix = _latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : '';
+        _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix, cards: _latestCards });
     };
 
     if (_panel) {
-        latestCards = cards;
         sendInit();
         _panel.reveal(vscode.ViewColumn.One, false);
         return;
@@ -284,9 +284,9 @@ async function openPanel(): Promise<void> {
     // to load and run the shell HTML before the init message fires.
     setTimeout(() => {
         sendInit();
-        void pushPortStatuses(cards);
+        void pushPortStatuses(_latestCards);
         if (_portPollTimer) { clearInterval(_portPollTimer); }
-        _portPollTimer = setInterval(() => { void pushPortStatuses(cards); }, 5000);
+        _portPollTimer = setInterval(() => { void pushPortStatuses(_latestCards); }, 5000);
     }, 800);
 
     _panel.webview.onDidReceiveMessage(async msg => {
@@ -384,12 +384,11 @@ async function openPanel(): Promise<void> {
                 postRegistryToPanel();
                 break;
             case 'ready': {
-                latestCards = cards;
-                const folderSuffix2 = latestCards.length === 1 ? '  ·  ' + latestCards[0].name : '';
-                void _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix2, cards: latestCards });
-                void pushPortStatuses(latestCards);
+                const folderSuffix2 = _latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : '';
+                void _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix2, cards: _latestCards });
+                void pushPortStatuses(_latestCards);
                 if (_portPollTimer) { clearInterval(_portPollTimer); }
-                _portPollTimer = setInterval(() => { void pushPortStatuses(latestCards); }, 5000);
+                _portPollTimer = setInterval(() => { void pushPortStatuses(_latestCards); }, 5000);
                 break;
             }
             case 'browse-for-scan': {

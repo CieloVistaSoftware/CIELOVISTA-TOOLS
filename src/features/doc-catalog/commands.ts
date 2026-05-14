@@ -15,15 +15,37 @@ import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
+import { isPortOpen } from '../../shared/port-check';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
 
 let _catalogPanel: vscode.WebviewPanel | undefined;
 let _cachedCards: CatalogCard[] | undefined;
+let _pendingInitCards: CatalogCard[] | undefined;
+let _pendingInitProjectInfos: ReturnType<typeof loadProjectInfo>[] | undefined;
+let _pendingInitRegistryEntries: Array<{ name: string; path: string; type: string; description: string }> | undefined;
 
 export function getCatalogPanel(): vscode.WebviewPanel | undefined { return _catalogPanel; }
 export function clearCachedCards(): void { _cachedCards = undefined; }
+
+function queueCatalogInit(
+    cards: CatalogCard[],
+    projectInfos: ReturnType<typeof loadProjectInfo>[],
+    registryEntries: Array<{ name: string; path: string; type: string; description: string }>
+): void {
+    _pendingInitCards = cards;
+    _pendingInitProjectInfos = projectInfos;
+    _pendingInitRegistryEntries = registryEntries;
+}
+
+function trySendPendingCatalogInit(panel: vscode.WebviewPanel): void {
+    if (!_pendingInitCards || !_pendingInitProjectInfos || !_pendingInitRegistryEntries) { return; }
+    sendCatalogInit(panel, _pendingInitCards, _pendingInitProjectInfos, _pendingInitRegistryEntries);
+    _pendingInitCards = undefined;
+    _pendingInitProjectInfos = undefined;
+    _pendingInitRegistryEntries = undefined;
+}
 
 
 async function openProjectFolderSmart(folderPath: string): Promise<void> {
@@ -195,6 +217,9 @@ export async function rebuildCatalog(): Promise<void> {
 function attachMessageHandler(panel: vscode.WebviewPanel): void {
     panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
+            case 'ready':
+                trySendPendingCatalogInit(panel);
+                break;
             case 'openProjectFolder':
                 if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
@@ -271,27 +296,21 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             }
             case 'wb-demo': {
                 // Ensure the wb-core demo server is running, then open the harness in the browser.
-                // The harness at http://localhost:3000/wb-harness.html?md=<path>&name=<name>
-                // fetches the markdown file, extracts HTML blocks, and runs WB.init live.
-                const demoPort = 3000;
-                const mdPath   = msg.data as string;
-                const compName = (msg.name as string) || path.basename(mdPath, '.md');
+                const demoPort   = 3000;
+                const mdPath     = msg.data as string;
+                const compName   = (msg.name as string) || path.basename(mdPath, '.md');
                 const harnessUrl = `http://localhost:${demoPort}/wb-harness.html?md=${encodeURIComponent(mdPath)}&name=${encodeURIComponent(compName)}`;
 
-                // Check if the demo server is already up; if not, start it
-                const net = require('net') as typeof import('net');
-                const checkPort = (port: number): Promise<boolean> => new Promise(resolve => {
-                    const sock = new net.Socket();
-                    sock.setTimeout(500);
-                    sock.once('connect', () => { sock.destroy(); resolve(true); });
-                    sock.once('error',   () => { sock.destroy(); resolve(false); });
-                    sock.once('timeout', () => { sock.destroy(); resolve(false); });
-                    sock.connect(port, '127.0.0.1');
-                });
+                const pollUntilUp = async (port: number, attempts: number, intervalMs: number): Promise<boolean> => {
+                    for (let i = 0; i < attempts; i++) {
+                        if (await isPortOpen(port, 500)) { return true; }
+                        await new Promise(r => setTimeout(r, intervalMs));
+                    }
+                    return false;
+                };
 
-                const serverUp = await checkPort(demoPort);
+                let serverUp = await isPortOpen(demoPort, 500);
                 if (!serverUp) {
-                    // Start the demo server as a background process
                     const cp = require('child_process') as typeof import('child_process');
                     const wbCorePath = 'C:\\dev\\wb-core';
                     cp.spawn('node', ['demo-server.js'], {
@@ -299,8 +318,29 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                         detached: true,
                         stdio: 'ignore',
                     }).unref();
-                    // Give it a moment to start
-                    await new Promise(r => setTimeout(r, 1200));
+                    log(FEATURE, `Demo server not running — starting from ${wbCorePath}`);
+                    // Poll up to 5 seconds (10 × 500 ms) for the server to come up
+                    serverUp = await pollUntilUp(demoPort, 10, 500);
+                }
+
+                if (!serverUp) {
+                    const retry = await vscode.window.showErrorMessage(
+                        `Demo server did not start on port ${demoPort}. ` +
+                        `Make sure wb-core is at C:\\dev\\wb-core and run \`node demo-server.js\` manually.`,
+                        'Retry', 'Cancel'
+                    );
+                    if (retry === 'Retry') {
+                        // Re-poll once more (user may have manually started it)
+                        serverUp = await pollUntilUp(demoPort, 6, 500);
+                        if (!serverUp) {
+                            vscode.window.showErrorMessage(`Demo server still not reachable on port ${demoPort}.`);
+                            log(FEATURE, `Demo aborted — server unreachable on port ${demoPort}`);
+                            break;
+                        }
+                    } else {
+                        log(FEATURE, `Demo cancelled — server not running on port ${demoPort}`);
+                        break;
+                    }
                 }
 
                 await vscode.env.openExternal(vscode.Uri.parse(harnessUrl));
@@ -332,11 +372,13 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
     const projectInfos = registry ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo) : [];
     const cards = await buildCatalog(forceRebuild);
     if (!cards?.length) { vscode.window.showWarningMessage('No docs found to catalog.'); return; }
+    queueCatalogInit(cards, projectInfos, registry?.projects ?? []);
     const html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
     const hadPanel = Boolean(_catalogPanel);
     if (_catalogPanel) {
         _catalogPanel.webview.html = html;
         _catalogPanel.reveal(vscode.ViewColumn.Beside);
+        trySendPendingCatalogInit(_catalogPanel);
     } else {
         _catalogPanel = vscode.window.createWebviewPanel('docCatalog', '\u{1F4DA} Doc Catalog', vscode.ViewColumn.Beside,
             { enableScripts: true, retainContextWhenHidden: true });
@@ -344,7 +386,6 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
         _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
         attachMessageHandler(_catalogPanel);
     }
-    sendCatalogInit(_catalogPanel, cards, projectInfos, registry?.projects ?? []);
     if (hadPanel) {
         log(FEATURE, 'Catalog revealed');
     } else {
@@ -851,8 +892,11 @@ export function deserializeCatalogPanel(panel: vscode.WebviewPanel): void {
         if (!cards?.length) { return; }
         const registry     = loadRegistry();
         const projectInfos = registry ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo) : [];
+        _pendingInitCards           = cards;
+        _pendingInitProjectInfos    = projectInfos;
+        _pendingInitRegistryEntries = registry?.projects ?? [];
         _catalogPanel!.webview.html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
-        sendCatalogInit(_catalogPanel!, cards, projectInfos, registry?.projects ?? []);
+        trySendPendingCatalogInit(_catalogPanel!);
     });
     _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
     attachMessageHandler(_catalogPanel);
