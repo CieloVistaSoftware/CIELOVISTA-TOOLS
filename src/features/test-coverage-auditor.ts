@@ -210,6 +210,44 @@ async function runAudit(): Promise<AuditReport> {
   return formatAuditReport(metricsJson);
 }
 
+function generateMarkdownFromReport(report: AuditReport): string {
+    const date = new Date(report.timestamp).toLocaleString();
+    const tierRows = report.tiers.map(t =>
+        `| ${t.tier} | ${t.name} | ${t.present ? '✅' : '❌'} | ${t.files} | ${t.testCases} |`
+    ).join('\n');
+    const gapLines  = report.gaps.map(g => `- ${g}`).join('\n') || '_None_';
+    const recLines  = report.recommendations.map(r => `- **[${r.priority}]** ${r.text}`).join('\n') || '_None_';
+    return [
+        `# Test Coverage Audit`,
+        ``,
+        `**Date:** ${date}  **Project:** cielovista-tools  **Strategy:** Tiered Testing (Tiers 1–5)`,
+        ``,
+        `## Summary`,
+        ``,
+        `| Metric | Count |`,
+        `|--------|-------|`,
+        `| Test Files | ${report.totalTestFiles} |`,
+        `| Test Cases | ${report.totalTestCases} |`,
+        `| Features Covered | ${report.featuresCovered}/${report.featuresTotal} |`,
+        `| Coverage % | ${report.coveragePercent}% |`,
+        report.bugsTotal > 0 ? `| Bugs (Untested) | ${report.bugsUntested}/${report.bugsTotal} |` : '',
+        ``,
+        `## Tier Breakdown`,
+        ``,
+        `| Tier | Name | Present | Files | Test Cases |`,
+        `|------|------|---------|-------|------------|`,
+        tierRows,
+        ``,
+        `## Coverage Gaps`,
+        ``,
+        gapLines,
+        ``,
+        `## Recommendations`,
+        ``,
+        recLines,
+    ].filter(l => l !== undefined).join('\n');
+}
+
 /**
  * Convert raw metrics JSON to AuditReport format
  */
@@ -311,7 +349,7 @@ function formatAuditReport(metricsJson: any): AuditReport {
 /**
  * Generate HTML content for the webview panel
  */
-function getWebviewHtml(webview: vscode.Webview, report: AuditReport): string {
+function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent: string): string {
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'resources', 'webview.css'));
 
   // Determine coverage color
@@ -530,8 +568,11 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport): string {
 <div class="button-group">
   <button id="btn-refresh">🔄 Refresh Audit</button>
   <button id="btn-export" class="secondary">📄 Export as Markdown</button>
+  <button id="btn-copy-md" class="secondary">📋 Copy to Clipboard</button>
+  <button id="btn-copy-chat" class="secondary">💬 Copy to GitHub Chat</button>
   <button id="btn-generate" style="background: #F44336;">📝 Generate Unit Tests</button>
 </div>
+<div id="copy-toast" style="display:none;position:fixed;bottom:20px;right:20px;background:#4CAF50;color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;z-index:999">✅ Copied!</div>
 
 <h2>📈 Metrics</h2>
 <div>
@@ -609,6 +650,7 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
 
 <script>
   const vscode = acquireVsCodeApi();
+  const MD_CONTENT = ${JSON.stringify(mdContent)};
 
   function refresh() { vscode.postMessage({ command: 'refresh' }); }
   function exportReport() { vscode.postMessage({ command: 'export' }); }
@@ -617,9 +659,31 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
     if (confirmed) { vscode.postMessage({ command: 'generate' }); }
   }
 
+  function showToast(msg) {
+    var t = document.getElementById('copy-toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(function(){ t.style.display = 'none'; }, 2000);
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function(){
+      showToast('✅ Copied to clipboard!');
+    }).catch(function(){
+      vscode.postMessage({ command: 'copyFallback', text: text });
+    });
+  }
+
   document.getElementById('btn-refresh').addEventListener('click', refresh);
   document.getElementById('btn-export').addEventListener('click', exportReport);
   document.getElementById('btn-generate').addEventListener('click', generateTests);
+  document.getElementById('btn-copy-md').addEventListener('click', function(){
+    copyToClipboard(MD_CONTENT);
+  });
+  document.getElementById('btn-copy-chat').addEventListener('click', function(){
+    copyToClipboard('@workspace Here is the current test coverage audit for cielovista-tools:\\n\\n' + MD_CONTENT);
+    showToast('✅ Copied for GitHub Chat!');
+  });
 </script>
 
 </body>
@@ -778,9 +842,11 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
       const report = await runAudit();
       currentReport = report;
 
+      const mdContent = generateMarkdownFromReport(report);
+
       if (currentWebviewPanel) {
         // Panel exists, update it
-        currentWebviewPanel.webview.html = getWebviewHtml(currentWebviewPanel.webview, report);
+        currentWebviewPanel.webview.html = getWebviewHtml(currentWebviewPanel.webview, report, mdContent);
         currentWebviewPanel.reveal(vscode.ViewColumn.One);
         vscode.window.showInformationMessage('Test Coverage Dashboard updated.');
       } else {
@@ -796,10 +862,11 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
           enableForms: true,
         });
 
-        currentWebviewPanel.webview.html = getWebviewHtml(currentWebviewPanel.webview, report);
+        currentWebviewPanel.webview.html = getWebviewHtml(currentWebviewPanel.webview, report, mdContent);
         vscode.window.showInformationMessage('Test Coverage Dashboard opened.');
 
-        // Handle webview messages
+        // Register message handler once at panel creation — survives HTML replacements.
+        // Do NOT re-register in the refresh/update path or messages will be dropped.
         currentWebviewPanel.webview.onDidReceiveMessage(async (message) => {
           try {
             switch (message.command) {
@@ -813,16 +880,20 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
                 await generateMissingTests();
                 await openAuditPanel(context);
                 break;
+              case 'copyFallback':
+                await vscode.env.clipboard.writeText(message.text ?? '');
+                vscode.window.showInformationMessage('✅ Copied to clipboard!');
+                break;
             }
           } catch (err: any) {
             vscode.window.showErrorMessage(`Test Coverage Dashboard error: ${err.message}`);
           }
-        });
+        }, undefined, context.subscriptions);
 
         // Clean up on close
         currentWebviewPanel.onDidDispose(() => {
           currentWebviewPanel = undefined;
-        });
+        }, undefined, context.subscriptions);
       }
     } catch (err: any) {
       vscode.window.showErrorMessage(`Audit failed: ${err && err.message ? err.message : err}`);
