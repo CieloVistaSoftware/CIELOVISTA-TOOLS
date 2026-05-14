@@ -543,6 +543,26 @@ test('REG-038', 'Error Log Viewer has Refresh button that reloads entries', () =
     `REG-038 error-log refresh button test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-039: Issue #341 — Error Log active count must exclude filed/resolved items.
+test('REG-039', 'Error Log active count excludes filed/resolved items', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-039-error-log-active-count.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-039 error-log active-count test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
+// REG-040: Issue #350 — UI-visible titles must use proper case, not repo slug.
+test('REG-040', 'UI-visible titles use "CieloVista Tools" proper case (not repo slug)', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-040-proper-case-panel-titles.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-040 proper-case panel titles test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));

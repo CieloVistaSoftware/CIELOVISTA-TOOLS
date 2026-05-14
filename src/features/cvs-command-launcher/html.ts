@@ -7,6 +7,27 @@ import type { RecentProject } from './recent-projects';
 import { CATALOG, esc } from './catalog';
 import type { CmdEntry } from './types';
 
+type CardStatusTone = 'good' | 'warn' | 'bad' | 'neutral';
+
+interface CardStatusInfo {
+  label: string;
+  title: string;
+  tone: CardStatusTone;
+}
+
+function auditStatusInfo(status: AuditStatus | undefined, summary: string): CardStatusInfo {
+  if (!status || status === 'green') {
+    return {
+      label: status === 'green' ? 'Clean' : 'Ready',
+      title: status === 'green' ? 'All checks passed' : 'No audit data — ready to run',
+      tone: status === 'green' ? 'good' : 'neutral',
+    };
+  }
+  return status === 'red'
+    ? { label: 'Needs attention', title: summary, tone: 'bad' }
+    : { label: 'Warnings', title: summary, tone: 'warn' };
+}
+
 function statusDotHtml(status: AuditStatus | undefined, checkId: string | undefined, summary: string): string {
     if (!status || status === 'green') {
         const color = status === 'green' ? '#3fb950' : '#555';
@@ -22,7 +43,7 @@ const SCOPE_META: Record<string, { label: string; color: string; title: string }
     global:      { label: 'Global',      color: '#3fb950', title: 'Works from any workspace — reads the CieloVista registry' },
     workspace:   { label: 'Workspace',   color: '#58a6ff', title: 'Operates on whatever VS Code workspace is currently open' },
     diskcleanup: { label: 'DiskCleanUp', color: '#cca700', title: 'DiskCleanUp project only' },
-    tools:       { label: 'Tools',       color: '#bc8cff', title: 'cielovista-tools project only (internal self-audit)' },
+    tools:       { label: 'Tools',       color: '#bc8cff', title: 'CieloVista Tools project only (internal self-audit)' },
 };
 
 // SVG icons — no emoji, clean and consistent
@@ -30,12 +51,19 @@ const ICON_PLAY = `<svg width="11" height="11" viewBox="0 0 11 11" fill="current
 const ICON_READ = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1.5" width="9" height="8" rx="1"/><line x1="3" y1="4" x2="8" y2="4"/><line x1="3" y1="6" x2="8" y2="6"/><line x1="3" y1="8" x2="6" y2="8"/></svg>`;
 const ICON_F1   = `<span style="font-family:var(--vscode-editor-font-family,monospace);font-size:9px;font-weight:700;letter-spacing:-0.5px">F1</span>`;
 
-function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summary: string }>, group: string, pinned = false): string {
+function buildCard(
+  cmd: CmdEntry,
+  auditMap: Map<string, { status: string; summary: string }>,
+  statusMap: Map<string, CardStatusInfo>,
+  group: string,
+  pinned = false
+): string {
     const tagBadges   = cmd.tags.map(t => `<span class="tag" data-tag="${esc(t)}">${esc(t)}</span>`).join('');
     const auditData   = cmd.auditCheckId ? auditMap.get(cmd.auditCheckId) : undefined;
     const status      = auditData?.status as AuditStatus | undefined;
     const liveSummary = auditData?.summary ?? cmd.description;
     const dot         = statusDotHtml(status, cmd.auditCheckId, liveSummary);
+    const statusInfo  = statusMap.get(cmd.id) ?? auditStatusInfo(status, liveSummary);
     const scopeMeta   = SCOPE_META[cmd.scope] ?? SCOPE_META['global'];
     const scopeBadge  = `<span class="scope-badge" style="border-color:${scopeMeta.color};color:${scopeMeta.color}" title="${esc(scopeMeta.title)}">${esc(scopeMeta.label)}</span>`;
     const breadcrumb  = `<div class="cmd-breadcrumb"><button class="bc-root bc-btn" data-action="bc-root" title="Go to root — show all commands">CieloVista Tools</button><span class="bc-s">\\</span><button class="bc-group bc-btn" data-action="bc-group" data-group="${esc(group)}" title="Filter to ${esc(group)} only">${esc(group)}</button><span class="bc-s">\\</span><span class="bc-leaf">${esc(cmd.title)}</span></div>`;
@@ -82,6 +110,10 @@ function buildCard(cmd: CmdEntry, auditMap: Map<string, { status: string; summar
     <span class="cmd-dewey" title="Dewey catalogue number: ${esc(cmd.dewey)}">${esc(cmd.dewey)}</span>
   </div>
   <p class="cmd-desc">${esc(liveSummary)}</p>
+  <div class="cmd-status">
+    <span class="cmd-status-label">Status</span>
+    <span class="cmd-status-value cmd-status-value--${statusInfo.tone}" data-default-label="${esc(statusInfo.label)}" data-default-tone="${esc(statusInfo.tone)}" data-default-title="${esc(statusInfo.title)}" title="${esc(statusInfo.title)}">${esc(statusInfo.label)}</span>
+  </div>
   <div class="cmd-footer">
     <div class="cmd-tags">${scopeBadge}${tagBadges}</div>
     <div class="cmd-actions">
@@ -129,10 +161,12 @@ export function buildLauncherHtml(
     registeredCommands?: Set<string>,
     cvtPaths?: Set<string>,
     wsType?: string,
-    pinnedIds?: string[]
+  pinnedIds?: string[],
+  statusById?: Map<string, CardStatusInfo>
 ): string {
     const auditMap = new Map<string, { status: string; summary: string }>();
     if (report) { for (const c of report.checks) { auditMap.set(c.checkId, { status: c.status, summary: c.summary }); } }
+  const statusMap = statusById ?? new Map<string, CardStatusInfo>();
 
     const auditAge    = report ? Math.round((Date.now() - new Date(report.generatedAt).getTime()) / 60000) : -1;
     const auditAgeStr = auditAge < 0 ? '' : auditAge < 60 ? `${auditAge}min ago` : auditAge < 1440 ? `${Math.round(auditAge/60)}hr ago` : `${Math.round(auditAge/1440)}d ago`;
@@ -171,14 +205,14 @@ export function buildLauncherHtml(
     const pinnedSection = pinnedCmds.length > 0
         ? `<section class="group-section pinned-section" data-group="__pinned__">
   <h2 class="group-heading" style="color:var(--vscode-focusBorder)">★ Pinned <span class="group-count">${pinnedCmds.length}</span></h2>
-  <div class="cmd-grid">${pinnedCmds.map(cmd => buildCard(cmd, auditMap, cmd.group, true)).join('')}</div>
+  <div class="cmd-grid">${pinnedCmds.map(cmd => buildCard(cmd, auditMap, statusMap, cmd.group, true)).join('')}</div>
 </section>`
         : '';
 
     let groupSections = [...byGroup.entries()].map(([group, cmds]) =>
         `<section class="group-section" data-group="${esc(group)}">
   <h2 class="group-heading">${esc(group)} <span class="group-count">${cmds.length}</span></h2>
-  <div class="cmd-grid">${cmds.map(cmd => buildCard(cmd, auditMap, group, pinnedSet.has(cmd.id))).join('')}</div>
+  <div class="cmd-grid">${cmds.map(cmd => buildCard(cmd, auditMap, statusMap, group, pinnedSet.has(cmd.id))).join('')}</div>
 </section>`
     ).join('');
 
@@ -186,7 +220,7 @@ export function buildLauncherHtml(
     if (testCmds.length > 0) {
         groupSections += `<section class="group-section" data-group="Tests">
   <h2 class="group-heading">Tests <span class="group-count">${testCmds.length}</span></h2>
-  <div class="cmd-grid">${testCmds.map(cmd => buildCard(cmd, auditMap, 'Tests', pinnedSet.has(cmd.id))).join('')}</div>
+  <div class="cmd-grid">${testCmds.map(cmd => buildCard(cmd, auditMap, statusMap, 'Tests', pinnedSet.has(cmd.id))).join('')}</div>
 </section>`;
     }
 
@@ -269,6 +303,13 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .cmd-title{font-weight:700;font-size:0.92em;flex:1;margin:0;line-height:1.3}
 .cmd-dewey{font-family:var(--vscode-editor-font-family,'monospace');font-size:9px;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:1px 5px;white-space:nowrap;opacity:0.75;letter-spacing:0.03em}
 .cmd-desc{font-size:11px;line-height:1.5;opacity:0.85;flex:1}
+.cmd-status{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cmd-status-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--vscode-descriptionForeground)}
+.cmd-status-value{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.cmd-status-value--good{color:#3fb950;border-color:#3fb95033;background:#3fb9501a}
+.cmd-status-value--warn{color:#cca700;border-color:#cca70033;background:#cca7001a}
+.cmd-status-value--bad{color:#f48771;border-color:#f4877133;background:#f487711a}
+.cmd-status-value--neutral{color:var(--vscode-descriptionForeground);border-color:var(--vscode-panel-border);background:var(--vscode-editor-background)}
 .cmd-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:6px;flex-wrap:wrap}
 .cmd-tags{display:flex;flex-wrap:wrap;gap:3px;flex:1}
 .tag{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);cursor:pointer}
@@ -401,6 +442,27 @@ const topicDd      = document.getElementById('topic-dropdown');
 const topicArrow   = document.getElementById('topic-arrow');
 const topicBadge   = document.getElementById('topic-badge');
 const topicSummary = document.getElementById('topic-summary');
+
+function setCardStatus(card, label, tone, title) {
+  if (!card) { return; }
+  var statusEl = card.querySelector('.cmd-status-value');
+  if (!statusEl) { return; }
+  statusEl.textContent = label;
+  statusEl.className = 'cmd-status-value cmd-status-value--' + (tone || 'neutral');
+  if (title) { statusEl.title = title; }
+}
+
+function resetCardStatus(card) {
+  if (!card) { return; }
+  var statusEl = card.querySelector('.cmd-status-value');
+  if (!statusEl) { return; }
+  setCardStatus(
+    card,
+    statusEl.dataset.defaultLabel || 'Idle',
+    statusEl.dataset.defaultTone || 'neutral',
+    statusEl.dataset.defaultTitle || 'Idle'
+  );
+}
 
 searchEl.addEventListener('input', function() {
   _searchQ = searchEl.value.toLowerCase().trim();
@@ -565,6 +627,7 @@ document.addEventListener('click', function(e) {
     runStatusTxt.textContent = 'Running:';
     runStatusCmd.textContent = title;
     runStatus.classList.add('visible');
+    setCardStatus(btn.closest('.cmd-card'), 'Running', 'warn', 'Command is running');
     setTimeout(function() {
 
 
@@ -644,6 +707,7 @@ window.addEventListener('message', function(e) {
         dot.style.background = '#3fb950';
         dot.style.boxShadow  = '0 0 6px #3fb950';
         dot.title = 'Running\u2026';
+        setCardStatus(card, 'Running', 'warn', 'Command is running');
         // Reset after 30s safety timeout
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
         dot._runTimeout = setTimeout(function(){ dot.style.background=''; dot.style.boxShadow=''; }, 30000);
@@ -651,11 +715,17 @@ window.addEventListener('message', function(e) {
         dot.style.background = '#3fb950';
         dot.style.boxShadow  = 'none';
         dot.title = '\u2705 Last run succeeded';
+        if (msg.id === 'cvs.tools.errorLog') {
+          resetCardStatus(card);
+        } else {
+          setCardStatus(card, 'Completed', 'good', 'Last run succeeded');
+        }
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
       } else if (msg.state === 'error') {
         dot.style.background = '#f85149';
         dot.style.boxShadow  = '0 0 6px #f85149';
         dot.title = '\u274c Last run failed';
+        setCardStatus(card, 'Error', 'bad', 'Last run failed');
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
       }
     }
@@ -677,10 +747,12 @@ window.addEventListener('message', function(e) {
         mcpCard.style.background = '#3fb950';
         mcpCard.style.boxShadow = 'none';
         mcpCard.title = 'MCP server is running';
+        setCardStatus(mcpWrap, 'Running', 'good', 'MCP server is running');
       } else {
         mcpCard.style.background = '#f48771';
         mcpCard.style.boxShadow = 'none';
         mcpCard.title = 'MCP server is stopped';
+        setCardStatus(mcpWrap, 'Stopped', 'bad', 'MCP server is stopped');
       }
     }
   }

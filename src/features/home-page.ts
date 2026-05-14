@@ -41,6 +41,16 @@ import {
 
 let homePanel: vscode.WebviewPanel | undefined;
 
+function normalizeWorkspaceDisplayName(name: string): string {
+  const raw = String(name ?? '').trim();
+  if (!raw) { return 'No Workspace'; }
+  const lower = raw.toLowerCase();
+  if (lower === 'cielovista-tools') { return 'CieloVista Tools'; }
+  return raw
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+}
+
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.tools.home', () => showHomePage(context))
@@ -88,7 +98,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
   homePanel = panel;
 
   const wsFolder = vscode.workspace.workspaceFolders?.[0];
-  const wsName   = wsFolder?.name ?? 'No Workspace';
+  const wsName   = normalizeWorkspaceDisplayName(wsFolder?.name ?? 'No Workspace');
   const wsPath   = wsFolder?.uri.fsPath ?? '';
 
   startMcpServer();
@@ -229,7 +239,7 @@ function buildDashboardHtml(
 
     // ── Quick Launch buttons ──────────────────────────────────────────────────
     const quickLaunch = [
-      { icon: '\uD83D\uDCCB', label: 'Issue Viewer',    desc: 'Live GitHub issues for cielovista-tools', cmd: '__openIssues__',                      primary: true },
+      { icon: '\uD83D\uDCCB', label: 'Issue Viewer',    desc: 'Live GitHub issues for CieloVista Tools', cmd: '__openIssues__',                      primary: true },
       { icon: '\u26a1', label: 'Guided Launcher', desc: 'Search & run all 81 commands', cmd: 'cvs.commands.showAll',        primary: false  },
         { icon: '\uD83D\uDCDA', label: 'Doc Catalog',     desc: 'Browse project documentation',    cmd: 'cvs.catalog.open',           primary: false },
         { icon: '\uD83D\uDCE6', label: 'NPM Scripts',     desc: 'Run scripts across all projects', cmd: 'cvs.npm.showAndRunScripts',   primary: false },
@@ -309,6 +319,18 @@ function buildDashboardHtml(
     }).join('');
 
     const totalCmds = Object.values(grouped).reduce((n, a) => n + a.length, 0);
+
+    // Flat list for home search — every command with its group label
+    const allCmdsJson = JSON.stringify(
+        Object.entries(grouped).flatMap(([prefix, cmds]) =>
+            cmds.map(cmd => ({
+                label: cmd.title.includes(':') ? cmd.title.slice(cmd.title.indexOf(':') + 1).trim() : cmd.title,
+                group: prefix.replace(/:$/, ''),
+                desc:  cmd.description ?? '',
+                cmd:   cmd.command,
+            }))
+        )
+    );
 
     // ── CSS ───────────────────────────────────────────────────────────────────
     const css = `
@@ -439,6 +461,21 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .browse-link:hover{text-decoration:underline}
 .browse-desc{font-size:10px;color:var(--vscode-descriptionForeground)}
 
+/* Home search bar */
+#home-search-wrap{padding:10px 20px 0;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border)}
+#home-search{width:100%;padding:7px 12px;border:1px solid var(--vscode-panel-border);border-radius:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box}
+#home-search:focus{border-color:var(--vscode-focusBorder)}
+#home-search::placeholder{color:var(--vscode-input-placeholderForeground)}
+#home-results{position:relative;z-index:200}
+#home-results-list{display:none;position:absolute;left:20px;right:20px;top:0;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-focusBorder);border-radius:0 0 6px 6px;box-shadow:0 6px 24px rgba(0,0,0,.45);max-height:340px;overflow-y:auto}
+.hr-item{display:flex;align-items:baseline;gap:8px;padding:7px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--vscode-panel-border)}
+.hr-item:last-child{border-bottom:none}
+.hr-item:hover,.hr-item.active{background:var(--vscode-list-hoverBackground)}
+.hr-label{font-weight:600;color:var(--vscode-editor-foreground);flex-shrink:0}
+.hr-group{font-size:10px;color:var(--vscode-descriptionForeground);flex-shrink:0}
+.hr-desc{font-size:10px;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#home-results-none{display:none;padding:10px 14px;font-size:12px;color:var(--vscode-descriptionForeground)}
+
 /* Config overlay */
 #cfg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center}
 #cfg-dialog{background:var(--vscode-editor-background);border:1px solid var(--vscode-focusBorder);border-radius:6px;min-width:300px;max-width:420px;width:90vw;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 4px 24px rgba(0,0,0,.6)}
@@ -465,6 +502,77 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
     // ── JS ────────────────────────────────────────────────────────────────────
     const js = `
 (function(){
+var ALL_CMDS = ${allCmdsJson};
+
+// Home search
+var homeSearch   = document.getElementById('home-search');
+var resultsList  = document.getElementById('home-results-list');
+var resultsNone  = document.getElementById('home-results-none');
+var activeIdx    = -1;
+
+function renderResults(q) {
+  q = q.toLowerCase().trim();
+  resultsList.querySelectorAll('.hr-item').forEach(function(el) { el.remove(); });
+  resultsNone.style.display = 'none';
+  if (!q) { resultsList.style.display = 'none'; activeIdx = -1; return; }
+  var matches = ALL_CMDS.filter(function(c) {
+    return c.label.toLowerCase().includes(q) || c.group.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q);
+  }).slice(0, 18);
+  if (matches.length === 0) {
+    resultsNone.style.display = 'block';
+    resultsList.style.display = 'block';
+    activeIdx = -1;
+    return;
+  }
+  matches.forEach(function(c, i) {
+    var div = document.createElement('div');
+    div.className = 'hr-item';
+    div.dataset.cmd = c.cmd;
+    div.dataset.idx = i;
+    div.innerHTML = '<span class="hr-label">' + esc(c.label) + '</span>'
+      + '<span class="hr-group">' + esc(c.group) + '</span>'
+      + (c.desc ? '<span class="hr-desc">' + esc(c.desc) + '</span>' : '');
+    div.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      runSearchResult(c.cmd);
+    });
+    resultsList.insertBefore(div, resultsNone);
+  });
+  resultsList.style.display = 'block';
+  activeIdx = -1;
+}
+
+function setActive(idx) {
+  var items = resultsList.querySelectorAll('.hr-item');
+  items.forEach(function(el, i) { el.classList.toggle('active', i === idx); });
+  activeIdx = idx;
+}
+
+function runSearchResult(cmd) {
+  homeSearch.value = '';
+  resultsList.style.display = 'none';
+  activeIdx = -1;
+  vsc.postMessage({ type:'runCommand', command:cmd });
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+homeSearch.addEventListener('input', function() { renderResults(homeSearch.value); });
+homeSearch.addEventListener('blur',  function() { setTimeout(function(){ resultsList.style.display='none'; activeIdx=-1; },150); });
+homeSearch.addEventListener('focus', function() { if (homeSearch.value.trim()) renderResults(homeSearch.value); });
+homeSearch.addEventListener('keydown', function(e) {
+  var items = resultsList.querySelectorAll('.hr-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIdx+1, items.length-1)); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIdx-1, 0)); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (activeIdx >= 0 && items[activeIdx]) { runSearchResult(items[activeIdx].dataset.cmd); }
+    else if (items.length > 0) { runSearchResult(items[0].dataset.cmd); }
+  }
+  else if (e.key === 'Escape') { resultsList.style.display='none'; homeSearch.value=''; activeIdx=-1; }
+});
+
 // Live MCP badge updates pushed from the extension host.
 function updateBadgeInteractivity(badge) {
   var isOff = badge.classList.contains('mcp-off');
@@ -701,6 +809,15 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   </div>
   <button id="btn-reload" title="Reload VS Code window">\uD83D\uDD04 Reload Window</button>
   <button id="btn-configure">\u2699\ufe0f Configure</button>
+</div>
+
+<div id="home-search-wrap">
+  <input id="home-search" type="text" placeholder="Search commands and plugins… (e.g. ErrorLog Viewer)" autocomplete="off" spellcheck="false">
+</div>
+<div id="home-results">
+  <div id="home-results-list">
+    <div id="home-results-none">No commands match.</div>
+  </div>
 </div>
 
 <div id="body">

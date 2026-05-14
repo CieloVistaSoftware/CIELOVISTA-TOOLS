@@ -92,7 +92,7 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
 
     const panel = vscode.window.createWebviewPanel(
         'cvtIssues',
-        'cielovista-tools \u2014 Open Issues',
+        'CieloVista Tools \u2014 Open Issues',
         viewColumn,
         { enableScripts: true }
     );
@@ -106,7 +106,7 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     let currentState: IssueState = 'open';
 
     function panelTitleFor(state: IssueState): string {
-        return `cielovista-tools \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
+        return `CieloVista Tools \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
     }
 
     const setHtml = (loading: boolean, issues: GHIssue[] | null, error: string | null): void => {
@@ -145,6 +145,8 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void claimIssue(msg.number, panel);
         } else if (msg.type === 'runTest' && msg.testRef) {
             void runLinkedTest(String(msg.testRef));
+        } else if (msg.type === 'newIssue') {
+            void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new`));
         }
     });
 
@@ -650,6 +652,10 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
   if (refresh) {
     refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
   }
+    var newIssue = document.getElementById('new-issue');
+    if (newIssue) {
+        newIssue.addEventListener('click', function(){ vsc.postMessage({ type: 'newIssue' }); });
+    }
         var copyAll = document.getElementById('copy-all');
         if (copyAll) {
                 copyAll.addEventListener('click', function(){
@@ -784,6 +790,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <button id="state-closed" class="action-btn" type="button" title="Show closed issues"${viewState === 'closed' ? ' style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)"' : ''}>Closed</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
+        <button id="new-issue" class="action-btn" type="button" title="Create a new GitHub issue" style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)">+ New Issue</button>
     </div>
 </div>
 <div id="body">${bodyHtml}</div>
