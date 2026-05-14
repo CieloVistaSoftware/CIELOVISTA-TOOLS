@@ -119,8 +119,8 @@ test('REG-053-2B: multiple workspace folders with scripts', async () => {
     Object.keys(ws.scripts).forEach(name => allScriptNames.add(`${ws.name}::${name}`));
   });
 
-  assert.strictEqual(totalScripts, 12, 'Total scripts across all workspaces (4 + 4 + 5)');
-  assert.strictEqual(allScriptNames.size, 12, 'No duplicate script names across workspaces');
+  assert.strictEqual(totalScripts, 13, 'Total scripts across all workspaces (4 + 4 + 5)');
+  assert.strictEqual(allScriptNames.size, 13, 'No duplicate script names across workspaces');
   console.log(`✓ ${workspaces.length} workspaces with ${totalScripts} total scripts, all unique`);
 });
 
