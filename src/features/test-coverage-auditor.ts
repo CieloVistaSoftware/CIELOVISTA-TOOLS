@@ -486,10 +486,15 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
     border-left-color: #4CAF50;
     background: rgba(76, 175, 80, 0.1);
   }
-  
+
   .tier.missing {
     border-left-color: #F44336;
     background: rgba(244, 67, 54, 0.1);
+  }
+
+  .tier.present.active,
+  .tier.missing.active {
+    border-left-color: #64B5F6;
   }
   
   .tier-left {

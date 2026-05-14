@@ -107,6 +107,46 @@ test('onDidReceiveMessage registered once at panel creation, not in refresh path
     assert(block.includes('context.subscriptions'), 'onDidReceiveMessage must pass context.subscriptions as the third argument for proper disposal');
 });
 
+test('tier details panel DOM elements exist in the HTML template', () => {
+    assert(SRC.includes('id="tier-details-panel"'),  'tier-details-panel container missing');
+    assert(SRC.includes('id="tier-details-title"'),  'tier-details-title element missing');
+    assert(SRC.includes('id="tier-details-body"'),   'tier-details-body element missing');
+});
+
+test('tier rows carry data-tier attribute for click dispatch', () => {
+    assert(SRC.includes('data-tier="${tier.tier}"'), 'data-tier attribute missing from .tier divs');
+});
+
+test('renderTierDetails function exists and reads from tier-details DOM elements', () => {
+    assert(SRC.includes('function renderTierDetails(tierKey)'), 'renderTierDetails function missing');
+    assert(SRC.includes("document.getElementById('tier-details-title')"), 'tier-details-title lookup missing from renderTierDetails');
+    assert(SRC.includes("document.getElementById('tier-details-body')"), 'tier-details-body lookup missing from renderTierDetails');
+});
+
+test('querySelectorAll(".tier") click listener calls renderTierDetails', () => {
+    // The click-registration loop uses 'rowEl' as the parameter; the active-class loop
+    // inside renderTierDetails uses 'el'. Search for the click-registration variant.
+    const clickLoop = "document.querySelectorAll('.tier').forEach(function(rowEl)";
+    assert(SRC.includes(clickLoop), 'querySelectorAll tier click-registration loop missing');
+    const idx = SRC.indexOf(clickLoop);
+    const block = SRC.slice(idx, idx + 300);
+    assert(block.includes('renderTierDetails'), 'querySelectorAll tier listener must call renderTierDetails');
+});
+
+test('CSS active state uses higher specificity than present/missing to show visual feedback', () => {
+    // Root cause of invisible click feedback: .tier.present comes after .tier.active in CSS,
+    // so border-left-color from .tier.present overrides .tier.active on present tiers.
+    // Fix: .tier.present.active (3-class selector) must override .tier.present (2-class).
+    assert(
+        SRC.includes('.tier.present.active') || SRC.includes('.tier.active.present'),
+        '.tier.present.active rule must exist to override .tier.present border color when a present tier is selected'
+    );
+    assert(
+        SRC.includes('.tier.missing.active') || SRC.includes('.tier.active.missing'),
+        '.tier.missing.active rule must exist to override .tier.missing border color when a missing tier is selected'
+    );
+});
+
 console.log('-'.repeat(64));
 if (failed === 0) {
     console.log(`\u2713 REG-045 passed (${passed} checks).\n`);
