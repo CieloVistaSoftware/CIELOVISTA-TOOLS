@@ -15,6 +15,7 @@ import { initHistory, recordRun, getHistory } from './command-history';
 import { initRecentProjects, touchCurrentProject, getRecentProjects } from './recent-projects';
 import { sendToCopilotChat } from '../terminal-copy-output';
 import { loadRegistry } from '../../shared/registry';
+import { getErrors } from '../../shared/error-log-adapter';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -24,11 +25,24 @@ const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
 
+function normalizeWorkspaceDisplayName(name: string): string {
+    const raw = String(name ?? '').trim();
+    if (!raw) { return 'CieloVista Tools'; }
+    const lower = raw.toLowerCase();
+    if (lower === 'cielovista-tools') { return 'CieloVista Tools'; }
+    return raw
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+}
+
 // Commands that already render their own first-class panels should execute
 // directly to avoid the launcher's secondary "Completed in ..." result pane.
 const DIRECT_PANEL_COMMANDS = new Set<string>([
     'cvs.headers.frontmatterViewer',
     'cvs.tools.errorLog',
+    'cvs.audit.testCoverage',
+    'cvs.audit.testCoverage.refresh',
+    'cvs.audit.testCoverage.export',
 ]);
 
 function isCancellationError(err: unknown): boolean {
@@ -88,6 +102,25 @@ function safePostToWebview(panel: vscode.WebviewPanel, payload: unknown): boolea
         }
         throw err;
     }
+}
+
+function buildStatusMap(): Map<string, { label: string; title: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }> {
+    const statusMap = new Map<string, { label: string; title: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }>();
+    const errors = getErrors();
+    const unresolvedCount = errors.filter((entry) => !entry.githubIssueNumber).length;
+    statusMap.set('cvs.tools.errorLog', unresolvedCount > 0
+        ? {
+            label: `${unresolvedCount} active error${unresolvedCount === 1 ? '' : 's'}`,
+            title: 'Open the error log to review active extension failures',
+            tone: 'bad',
+        }
+        : {
+            label: 'No Log Output',
+            title: 'No active errors logged',
+            tone: 'good',
+        }
+    );
+    return statusMap;
 }
 
 // ─── Shared async channel interception ───────────────────────────────────────
@@ -431,7 +464,7 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 _panel.webview.html = buildLauncherHtml(
                     loadLastReport(), wsPath, getHistory(), getRecentProjects(),
                     await getRegisteredCommandSet(), cvtPaths2,
-                    detectWorkspaceType(wsPath), getPinnedIds(wsPath)
+                    detectWorkspaceType(wsPath), getPinnedIds(wsPath), buildStatusMap()
                 );
             }
             return;
@@ -493,13 +526,13 @@ async function getRegisteredCommandSet(): Promise<Set<string>> {
 
 async function showLauncherPanel(): Promise<void> {
     const wsPath  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    const wsName  = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
+    const wsName  = normalizeWorkspaceDisplayName(vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools');
     touchCurrentProject();
     const cvtPaths = new Set((loadRegistry()?.projects ?? []).map(p => p.path.toLowerCase().replace(/\\/g, '/')));
     const html = buildLauncherHtml(
         loadLastReport(), wsPath, getHistory(), getRecentProjects(),
         await getRegisteredCommandSet(), cvtPaths,
-        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
+        detectWorkspaceType(wsPath), getPinnedIds(wsPath), buildStatusMap()
     );
     if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.One, true); return; }
     _panel = vscode.window.createWebviewPanel(
@@ -522,7 +555,7 @@ async function refreshLauncherPanel(): Promise<void> {
     _panel.webview.html = buildLauncherHtml(
         loadLastReport(), wsPath, getHistory(), getRecentProjects(),
         await getRegisteredCommandSet(), cvtPaths,
-        detectWorkspaceType(wsPath), getPinnedIds(wsPath)
+        detectWorkspaceType(wsPath), getPinnedIds(wsPath), buildStatusMap()
     );
 }
 
@@ -557,9 +590,9 @@ export function activate(context: vscode.ExtensionContext): void {
             _panel = panel;
             _panel.webview.options = { enableScripts: true };
             const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-            const wsName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools';
+            const wsName = normalizeWorkspaceDisplayName(vscode.workspace.workspaceFolders?.[0]?.name ?? 'CieloVista Tools');
             _panel.title = `\u26a1 ${wsName}`;
-            _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath, [], [], await getRegisteredCommandSet());
+            _panel.webview.html = buildLauncherHtml(loadLastReport(), wsPath, [], [], await getRegisteredCommandSet(), undefined, undefined, undefined, buildStatusMap());
             _panel.onDidDispose(() => {
                 _panelMessageSubscription?.dispose();
                 _panelMessageSubscription = undefined;

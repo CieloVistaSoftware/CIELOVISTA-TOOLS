@@ -31,11 +31,12 @@
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
     "package": "vsce package",
-    "rebuild": "npm run clean && npm run clean:artifacts && npm run compile && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:doc-contract && npm run test:doc-auditor-html && npm run test:doc-auditor-duplicates && npm run test:mcp-viewer-path-links && npm run test:md-preview-no-cdn && npm run test:daily-audit-progress && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
+    "rebuild": "npm run clean && npm run clean:artifacts && npm run compile && npm run test:preflight && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:doc-contract && npm run test:doc-auditor-html && npm run test:doc-auditor-duplicates && npm run test:mcp-viewer-path-links && npm run test:md-preview-no-cdn && npm run test:daily-audit-progress && npm run test:test-coverage-auditor && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
     "copy:commandhelp": "node scripts/copy-commandhelp.js",
     "validate:package-json": "node scripts/validate-package-json.js",
     "test:catalog": "node tests/catalog-integrity.test.js",
     "test:commands": "node tests/command-validation.test.js",
+    "test:preflight": "node scripts/run-preflight-regressions.js",
     "test:regression": "node scripts/run-regression-tests.js",
     "test:activation": "node tests/activation.test.js",
     "test:vscode": "node tests/vscode/runTests.js",
@@ -65,6 +66,7 @@
     "test:doc-auditor-duplicates": "node tests/unit/doc-auditor-duplicates.test.js",
     "test:mcp-viewer-path-links": "node tests/unit/mcp-viewer-path-links.test.js",
     "test:daily-audit-progress": "node tests/unit/daily-audit-progress.test.js",
+    "test:test-coverage-auditor": "node tests/unit/test-coverage-auditor.test.js",
     "test:pick": "node tests/unit/pick-list.test.js",
     "test:post-install": "node tests/unit/post-install.test.js",
     "test:assets": "node tests/unit/runtime-assets.test.js",
@@ -79,6 +81,7 @@
     "audit:coverage": "node scripts/audit-test-coverage.js",
     "audit:coverage:detailed": "node scripts/audit-test-coverage.js --detailed",
     "audit:coverage:json": "node scripts/audit-test-coverage.js --json",
+    "repair:frontmatter-filed-issues": "node scripts/repair-frontmatter-filed-issues.js",
     "clean:artifacts:dry": "node scripts/clean-generated-artifacts.js",
     "clean:artifacts": "node scripts/clean-generated-artifacts.js --apply",
     "clean:artifacts:with-audit-docs": "node scripts/clean-generated-artifacts.js --apply --include-audit-docs",
@@ -688,6 +691,12 @@
         "title": "Tools: Error Log Viewer",
         "category": "CieloVista",
         "description": "Open the error log viewer for CieloVista Tools."
+      },
+      {
+        "command": "cvs.tools.codeAuditor",
+        "title": "Tools: Code Auditor",
+        "category": "CieloVista",
+        "description": "Scan registered projects for duplicate code clusters and abstraction opportunities."
       },
       {
         "command": "cvs.tools.cleanWorktrees",
