@@ -217,6 +217,35 @@ export async function rebuildCatalog(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Demo server helpers
+// ---------------------------------------------------------------------------
+
+/** Returns true if a TCP listener is accepting on the given port. */
+function checkDemoPort(port: number): Promise<boolean> {
+    const net = require('net') as typeof import('net');
+    return new Promise(resolve => {
+        const sock = new net.Socket();
+        sock.setTimeout(500);
+        sock.once('connect', () => { sock.destroy(); resolve(true); });
+        sock.once('error',   () => { sock.destroy(); resolve(false); });
+        sock.once('timeout', () => { sock.destroy(); resolve(false); });
+        sock.connect(port, '127.0.0.1');
+    });
+}
+
+/**
+ * Polls the port until it is ready or all attempts are exhausted.
+ * Each attempt waits `intervalMs` before probing.
+ */
+async function pollUntilDemoReady(port: number, maxAttempts: number, intervalMs: number): Promise<boolean> {
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, intervalMs));
+        if (await checkDemoPort(port)) { return true; }
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // attachMessageHandler
 // ---------------------------------------------------------------------------
 function attachMessageHandler(panel: vscode.WebviewPanel): void {
@@ -318,20 +347,9 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 const compName = (msg.name as string) || path.basename(mdPath, '.md');
                 const harnessUrl = `http://localhost:${demoPort}/wb-harness.html?md=${encodeURIComponent(mdPath)}&name=${encodeURIComponent(compName)}`;
 
-                // Check if the demo server is already up; if not, start it
-                const net = require('net') as typeof import('net');
-                const checkPort = (port: number): Promise<boolean> => new Promise(resolve => {
-                    const sock = new net.Socket();
-                    sock.setTimeout(500);
-                    sock.once('connect', () => { sock.destroy(); resolve(true); });
-                    sock.once('error',   () => { sock.destroy(); resolve(false); });
-                    sock.once('timeout', () => { sock.destroy(); resolve(false); });
-                    sock.connect(port, '127.0.0.1');
-                });
-
-                const serverUp = await checkPort(demoPort);
-                if (!serverUp) {
-                    // Start the demo server as a background process
+                // Check if the demo server is already up; if not, start it and poll
+                let serverReady = await checkDemoPort(demoPort);
+                if (!serverReady) {
                     const cp = require('child_process') as typeof import('child_process');
                     const wbCorePath = 'C:\\dev\\wb-core';
                     cp.spawn('node', ['demo-server.js'], {
@@ -339,8 +357,34 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                         detached: true,
                         stdio: 'ignore',
                     }).unref();
-                    // Give it a moment to start
-                    await new Promise(r => setTimeout(r, 1200));
+                    // Poll for up to 5 seconds (10 x 500 ms) instead of a fixed sleep
+                    serverReady = await pollUntilDemoReady(demoPort, 10, 500);
+                }
+
+                if (!serverReady) {
+                    // Server could not be reached — never open a browser URL that will fail.
+                    // Instead, present a recovery choice so the user is never left stranded.
+                    log(FEATURE, `Demo server unavailable on port ${demoPort}`);
+                    const choice = await vscode.window.showErrorMessage(
+                        `Demo server at localhost:${demoPort} did not start. ` +
+                        `Start it manually (cd C:\\dev\\wb-core && node demo-server.js), then click Retry.`,
+                        'Retry',
+                        'Dismiss'
+                    );
+                    if (choice === 'Retry') {
+                        const nowReady = await checkDemoPort(demoPort);
+                        if (nowReady) {
+                            await vscode.env.openExternal(vscode.Uri.parse(harnessUrl));
+                            log(FEATURE, `Demo opened on retry: ${harnessUrl}`);
+                        } else {
+                            vscode.window.showErrorMessage(
+                                `Demo server at localhost:${demoPort} is still not available. ` +
+                                `Please ensure it is running and try the demo again.`
+                            );
+                            log(FEATURE, `Demo server still unavailable on retry, port ${demoPort}`);
+                        }
+                    }
+                    break;
                 }
 
                 await vscode.env.openExternal(vscode.Uri.parse(harnessUrl));
