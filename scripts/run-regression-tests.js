@@ -273,18 +273,25 @@ async function main() {
   }));
 
   // REG-008: No bare console.log (warning only).
+  // stripTemplateLiterals() is applied first so console.* inside webview script
+  // template literals (which run in the browser, not the extension host) are ignored.
   all.push(check('REG-008', 'No bare console.log in extension host (warning)', () => {
     const violations = [];
     for (const { file, src } of srcContents()) {
       if (file.includes('scripts') || file.includes('tests') || file.includes('mcp-server')) { continue; }
-      src.split('\n').forEach((line, i) => {
-        if (/console\.(log|warn|error)\s*\(/.test(line) && !line.trim().startsWith('//')) {
+      const stripped = stripTemplateLiterals(src);
+      stripped.split('\n').forEach((line, i) => {
+        const t = line.trim();
+        // Skip comment lines and lines where console.* is inside a string literal
+        // (e.g. generated test source stored as a quoted string value).
+        if (/console\.(log|warn|error)\s*\(/.test(t) &&
+            !t.startsWith('//') && !t.startsWith('"') && !t.startsWith("'")) {
           violations.push(`${file}:${i + 1}`);
         }
       });
     }
     if (violations.length > 0) {
-      console.warn(`    ⚠  ${violations.length} console.log/warn/error in source (use log() from output-channel)`);
+      console.warn(`    ⚠  ${violations.length} console.log/warn/error in extension host (use log() from output-channel)`);
     }
   }));
 
