@@ -19,6 +19,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { getHistory }        from './cvs-command-launcher/command-history';
+import { CATALOG }          from './cvs-command-launcher/catalog';
 import {
     getDisplayProjects,
     addPinnedProject,
@@ -258,18 +259,22 @@ function buildDashboardHtml(
 </button>`).join('');
 
     // ── Command history ───────────────────────────────────────────────────────
+    const _previewCmds = new Set(CATALOG.filter(c => c.action === 'read').map(c => c.id));
     const histHtml = history.length === 0
         ? `<div class="empty-state">No commands run yet in this workspace.<br>Use the Guided Launcher to run your first command.</div>`
         : history.slice(0, 10).map(h => {
-            const ago  = formatAgo(h.timestamp);
-            const icon = h.ok ? '\u2705' : '\u274c';
-            const cls  = h.ok ? 'hist-ok' : 'hist-err';
+            const ago    = formatAgo(h.timestamp);
+            const icon   = h.ok ? '\u2705' : '\u274c';
+            const cls    = h.ok ? 'hist-ok' : 'hist-err';
+            const isPreview = _previewCmds.has(h.id);
+            const btnLabel  = isPreview ? 'Preview' : 'Run';
+            const btnTitle  = isPreview ? `Preview ${esc(h.title)}` : `Re-run ${esc(h.title)}`;
             return `<div class="hist-row">
   <span class="hist-icon ${cls}">${icon}</span>
   <span class="hist-title" data-tip="${esc(h.title)}" title="${esc(h.title)}">${esc(h.title)}</span>
   <span class="hist-elapsed">${h.elapsed}ms</span>
   <span class="hist-ago">${esc(ago)}</span>
-  <button class="hist-rerun" data-cmd="${esc(h.id)}" title="Re-run ${esc(h.title)}">Run</button>
+  <button class="hist-rerun" data-cmd="${esc(h.id)}" title="${btnTitle}">${btnLabel}</button>
 </div>`;
         }).join('');
 
