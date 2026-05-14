@@ -121,7 +121,7 @@ The MCP server reads `CieloVistaStandards/project-registry.json` at runtime. Eve
 cd C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools
 npm install
 npm run rebuild
-```
+```text
 
 `npm run rebuild` compiles TypeScript, packages the `.vsix`, and installs it in one shot.
 
@@ -133,7 +133,7 @@ npm run rebuild
 npm run rebuild       # compile + package + install (use this)
 npm run compile       # TypeScript only
 npm run package       # produce .vsix without installing
-```
+```text
 
 ---
 
@@ -141,7 +141,7 @@ npm run package       # produce .vsix without installing
 
 ```powershell
 code --install-extension cielovista-tools-1.0.0.vsix
-```
+```text
 
 Or in VS Code: **Extensions** → `...` menu → **Install from VSIX**.
 
@@ -185,7 +185,7 @@ cielovista-tools/
       html-template-downloader.ts
       openai-chat.ts
   mcp-server/               <- standalone MCP server for AI assistant integration
-```
+```yaml
 
 Each feature `.ts` file has a matching `.README.md` covering internals, API, and manual test steps.
 
@@ -241,3 +241,9 @@ Errors are tracked in `{workspace}/.vscode/logs/cielovista-errors.json`. Accumul
 ## License
 
 Copyright (c) 2026 CieloVista Software
+
+---
+
+## What it does
+
+_TODO: 2–5 sentences describing what problem this project solves and who uses it._

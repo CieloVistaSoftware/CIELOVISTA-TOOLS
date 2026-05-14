@@ -60,9 +60,7 @@ function sendCatalogInit(
     registryEntries: Array<{ name: string; path: string; type: string; description: string }>
 ): void {
     const payload = buildCatalogInitPayload(cards, projectInfos, new Date().toLocaleString(), registryEntries);
-    setTimeout(() => {
-        void panel.webview.postMessage({ command: 'init', ...payload });
-    }, 25);
+    void panel.webview.postMessage({ command: 'init', ...payload });
 }
 
 export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] | undefined> {
@@ -382,9 +380,10 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
     } else {
         _catalogPanel = vscode.window.createWebviewPanel('docCatalog', '\u{1F4DA} Doc Catalog', vscode.ViewColumn.Beside,
             { enableScripts: true, retainContextWhenHidden: true });
+        // Attach listener before setting HTML so an immediate webview 'ready' message is never missed.
+        attachMessageHandler(_catalogPanel);
         _catalogPanel.webview.html = html;
         _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
-        attachMessageHandler(_catalogPanel);
     }
     if (hadPanel) {
         log(FEATURE, 'Catalog revealed');

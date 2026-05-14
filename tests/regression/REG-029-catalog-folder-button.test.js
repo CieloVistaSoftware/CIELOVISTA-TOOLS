@@ -1,8 +1,8 @@
 // Copyright (c) CieloVista Software. All rights reserved.
-// REG-029: Issue #336 — Doc Catalog Folder button must open OS file manager
+// REG-029: Issue #76 — Doc Catalog Folder button should open the project in VS Code
 //
-// openProjectFolderSmart() must call vscode.env.openExternal, not revealInExplorer
-// or vscode.openFolder (which replaces the current workspace).
+// openProjectFolderSmart() must call vscode.openFolder with forceNewWindow:false,
+// not vscode.env.openExternal or revealInExplorer.
 //
 // Run: node tests/regression/REG-029-catalog-folder-button.test.js
 
@@ -22,7 +22,7 @@ function test(name, fn) {
     catch (e) { console.error(`  FAIL ${name}\n       ${e.message}`); failed++; }
 }
 
-console.log('REG-029: Doc Catalog Folder button opens OS file manager (#336)');
+console.log('REG-029: Doc Catalog Folder button opens project in VS Code (#76)');
 console.log('─'.repeat(60));
 
 test('openProjectFolderSmart is defined in commands.ts', () => {
@@ -34,7 +34,7 @@ test('Folder button handler dispatches openFolder command', () => {
     assert(SRC.includes('openProjectFolderSmart'), 'handler must call openProjectFolderSmart');
 });
 
-test('openProjectFolderSmart uses vscode.env.openExternal', () => {
+test('openProjectFolderSmart uses vscode.openFolder', () => {
     const fnStart = SRC.indexOf('function openProjectFolderSmart');
     assert(fnStart !== -1, 'openProjectFolderSmart not found');
     // Find the closing brace of the function
@@ -46,8 +46,8 @@ test('openProjectFolderSmart uses vscode.env.openExternal', () => {
     }
     const fnBody = SRC.slice(fnStart, i + 1);
     assert(
-        fnBody.includes('openExternal'),
-        'openProjectFolderSmart must call vscode.env.openExternal — revealInExplorer and vscode.openFolder are wrong for this action (#336)'
+        fnBody.includes('vscode.openFolder'),
+        'openProjectFolderSmart must call vscode.openFolder so the project opens in VS Code (#76)'
     );
 });
 
@@ -62,11 +62,11 @@ test('openProjectFolderSmart does NOT call revealInExplorer', () => {
     const fnBody = SRC.slice(fnStart, i + 1);
     assert(
         !fnBody.includes('revealInExplorer'),
-        'openProjectFolderSmart must NOT call revealInExplorer — it silently does nothing on workspace root (#336)'
+        'openProjectFolderSmart must NOT call revealInExplorer for this action (#76)'
     );
 });
 
-test('openProjectFolderSmart does NOT call vscode.openFolder', () => {
+test('openProjectFolderSmart reuses the current window', () => {
     const fnStart = SRC.indexOf('function openProjectFolderSmart');
     let depth = 0, i = fnStart;
     while (i < SRC.length) {
@@ -76,8 +76,8 @@ test('openProjectFolderSmart does NOT call vscode.openFolder', () => {
     }
     const fnBody = SRC.slice(fnStart, i + 1);
     assert(
-        !fnBody.includes("'vscode.openFolder'"),
-        'openProjectFolderSmart must NOT call vscode.openFolder — that replaces the current workspace (#336)'
+        fnBody.includes('forceNewWindow: false'),
+        'openProjectFolderSmart must reuse the current window when opening the project (#76)'
     );
 });
 

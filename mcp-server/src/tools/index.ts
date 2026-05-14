@@ -20,6 +20,7 @@ import {
   ListSymbolsToolSchema,
   FindSymbolToolSchema,
   ListCvtCommandsToolSchema,
+  AuditDuplicationToolSchema,
   NormalizeDocToolSchema,
   GetDocByIdentityToolSchema,
   RefreshDocLedgerToolSchema,
@@ -50,6 +51,7 @@ import {
 } from "../symbol-index.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execFileSync } from "node:child_process";
 
 export function registerTools(server: McpServer): void {
   server.tool(
@@ -621,6 +623,57 @@ export function registerTools(server: McpServer): void {
         const msg: string = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `Error listing CVT commands: ${msg}` }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "cvs_audit_duplication",
+    "Runs the CieloVista code duplication auditor across registered projects. Detects exact, near, and repeated-pattern duplicate code blocks and returns suggested shared abstraction paths.",
+    AuditDuplicationToolSchema.shape,
+    async ({ json, minLines, minStatements, nearThreshold, registryPath }) => {
+      try {
+        const mcpRoot = path.resolve(__dirname, "..", "..");
+        const repoRoot = path.resolve(mcpRoot, "..");
+        const scriptPath = path.resolve(repoRoot, "scripts", "code-auditor.js");
+
+        if (!fs.existsSync(scriptPath)) {
+          return {
+            content: [{ type: "text" as const, text: `Error: code auditor script not found: ${scriptPath}` }],
+          };
+        }
+
+        const args: string[] = [];
+        if (json !== false) {
+          args.push("--json");
+        }
+        if (typeof minLines === "number") {
+          args.push(`--min-lines=${minLines}`);
+        }
+        if (typeof minStatements === "number") {
+          args.push(`--min-statements=${minStatements}`);
+        }
+        if (typeof nearThreshold === "number") {
+          args.push(`--near-threshold=${nearThreshold}`);
+        }
+        if (registryPath && registryPath.trim()) {
+          args.push(`--registry=${registryPath.trim()}`);
+        }
+
+        const output = execFileSync(process.execPath, [scriptPath, ...args], {
+          cwd: repoRoot,
+          encoding: "utf8",
+          maxBuffer: 16 * 1024 * 1024,
+        });
+
+        return {
+          content: [{ type: "text" as const, text: output }],
+        };
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error running duplication audit: ${msg}` }],
         };
       }
     }

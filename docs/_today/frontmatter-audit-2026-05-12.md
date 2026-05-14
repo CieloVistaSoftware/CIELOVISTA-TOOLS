@@ -1,12 +1,12 @@
 # Frontmatter Audit (Filename-Based)
 
-Generated: 2026-05-12T19:40:02.033Z
+Generated: 2026-05-13T02:33:10.808Z
 
 ## Summary
 
-- Markdown files scanned: 75
-- With frontmatter: 72
-- Without frontmatter: 3
+- Markdown files scanned: 82
+- With frontmatter: 78
+- Without frontmatter: 4
 - Frontmatter parse errors: 0
 - Duplicate filenames: 1
 
@@ -17,6 +17,12 @@ Generated: 2026-05-12T19:40:02.033Z
 | _giv-issue.md | _giv-issue.md | yes | 8 | category, description, docid, id, project, relativePath, status, title |  |
 | _mcp-lifecycle-issue.md | _mcp-lifecycle-issue.md | yes | 8 | category, description, docid, id, project, relativePath, status, title |  |
 | _reg-log-issue.md | _reg-log-issue.md | yes | 8 | category, description, docid, id, project, relativePath, status, title |  |
+| audit-duplicates-2026-04-02.md | docs/audit-duplicates-2026-04-02.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
+| audit-full-2026-04-02.md | docs/audit-full-2026-04-02.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
+| audit-full-2026-05-05.md | docs/audit-full-2026-05-05.md | yes | 8 | category, description, docid, id, project, relativePath, status, title |  |
+| audit-orphans-2026-04-02.md | docs/audit-orphans-2026-04-02.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
+| audit-orphans-2026-05-05.md | docs/audit-orphans-2026-05-05.md | yes | 8 | category, description, docid, id, project, relativePath, status, title |  |
+| audit-similar-2026-04-02.md | docs/audit-similar-2026-04-02.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
 | audit-test-coverage.README.md | scripts/audit-test-coverage.README.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
 | CHANGELOG.md | CHANGELOG.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
 | CLAUDE.md | CLAUDE.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
@@ -44,6 +50,7 @@ Generated: 2026-05-12T19:40:02.033Z
 | error-log-utils.README.md | src/shared/error-log-utils.README.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
 | explorer-copy-path-to-chat.README.md | src/features/explorer-copy-path-to-chat.README.md | no | 0 |  |  |
 | file-list-viewer.README.md | src/features/file-list-viewer.README.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
+| frontmatter-audit-2026-05-12.md | docs/_today/frontmatter-audit-2026-05-12.md | no | 0 |  |  |
 | html-template-downloader.README.md | src/features/html-template-downloader.README.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
 | image-reader.README.md | src/features/image-reader.README.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |
 | KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md | docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md | yes | 13 | author, category, created, description, docid, id, project, relativepath, status, tags, title, updated, version |  |

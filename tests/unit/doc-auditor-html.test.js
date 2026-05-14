@@ -24,7 +24,7 @@ function test(name, fn) {
 function ok(v, msg) { assert.ok(v, msg); }
 
 function makeFile(filePath, projectName = 'test-project', fileName = 'test.md') {
-    return { filePath, fileName, projectName, sizeBytes: 1024, content: '# Test' };
+    return { filePath, fileName, projectName, sizeBytes: 1024, modifiedAt: '2026-05-13T10:00:00.000Z', content: '# Test' };
 }
 
 const RESULTS = {
@@ -54,6 +54,22 @@ function hasOpenFileForPath(h, fp) {
 
 test('rendered HTML contains data-action="open-file"', () => {
     ok(countOpenFile(html) > 0, 'Must include at least one open-file action');
+});
+
+test('findings table is rendered with expected columns', () => {
+    ok(html.includes('Findings Table'), 'Findings Table heading must render');
+    ok(html.includes('<th>Category</th>'), 'Table must include Category column');
+    ok(html.includes('<th>Filename</th>'), 'Table must include Filename column');
+    ok(html.includes('<th>Project</th>'), 'Table must include Project column');
+    ok(html.includes('<th>Location</th>'), 'Table must include Location column');
+    ok(html.includes('<th>Size (bytes)</th>'), 'Table must include Size column');
+    ok(html.includes('<th>Last updated</th>'), 'Table must include Last updated column');
+});
+
+test('copy controls are rendered for report and chat', () => {
+    ok(html.includes('data-action="copy-report"'), 'Copy button action must exist');
+    ok(html.includes('data-action="copy-chat"'), 'Copy to Chat button action must exist');
+    ok(html.includes("command: action === 'copy-chat' ? 'copy-chat' : 'copy'"), 'Webview script must post copy commands');
 });
 
 test('each file in duplicate group has an open-file action', () => {

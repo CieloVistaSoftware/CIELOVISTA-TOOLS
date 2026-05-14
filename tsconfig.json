@@ -32,6 +32,7 @@
     "test-results",
     "Tests/**/*",
     "tests/**/*",
-    "vscode-copilot-auto-continue/**"
+    "vscode-copilot-auto-continue/**",
+    "src/features/__reg015_test_feature.ts"
   ]
 }

@@ -32,6 +32,27 @@ export function isGlobalCandidate(file: DocFile): string | undefined {
     return undefined;
 }
 
+// Files expected once per project — cross-project copies are NOT duplicates.
+export const PER_PROJECT_EXEMPT = new Set([
+    'claude.md', 'readme.md', 'changelog.md', 'license.md', 'license',
+    'contributing.md', 'security.md', 'code_of_conduct.md',
+]);
+
+/** Filter a byName map into duplicate groups, respecting per-project exemptions. */
+export function filterDuplicates(byName: Map<string, DocFile[]>): Array<{ fileName: string; files: DocFile[] }> {
+    const results: Array<{ fileName: string; files: DocFile[] }> = [];
+    for (const [key, files] of byName) {
+        if (files.length < 2) { continue; }
+        if (PER_PROJECT_EXEMPT.has(key)) {
+            const projectCounts = new Map<string, number>();
+            for (const f of files) { projectCounts.set(f.projectName, (projectCounts.get(f.projectName) ?? 0) + 1); }
+            if (![...projectCounts.values()].some(n => n > 1)) { continue; }
+        }
+        results.push({ fileName: files[0].fileName, files });
+    }
+    return results;
+}
+
 const ALWAYS_REFERENCED = new Set([
     'CLAUDE.md', 'README.md', 'CHANGELOG.md', 'LICENSE.md',
     'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md',

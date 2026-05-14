@@ -70,8 +70,9 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 @keyframes pulse-dot{0%,100%{box-shadow:0 0 3px #3fb950}50%{box-shadow:0 0 8px #3fb950}}
 
 /* ── Port badge ── */
-.pc-port{display:none;font-family:var(--vscode-editor-font-family,monospace);font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;flex-shrink:0;cursor:default}
-.pc-port.open{display:inline-block;background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgba(63,185,80,.4);box-shadow:0 0 5px rgba(63,185,80,.3)}
+.pc-port{display:none;font-family:var(--vscode-editor-font-family,monospace);font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;flex-shrink:0;cursor:default;text-decoration:none}
+.pc-port.open{display:inline-block;background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgba(63,185,80,.4);box-shadow:0 0 5px rgba(63,185,80,.3);cursor:pointer}
+.pc-port.open:hover{background:rgba(63,185,80,.28);text-decoration:underline}
 .pc-port.closed{display:inline-block;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.3)}
 
 /* ── Card body ── */
@@ -223,7 +224,6 @@ var countEl = document.getElementById('count');
 var search = document.getElementById('search');
 var cardTmpl = document.getElementById('proj-card');
 var btnTmpl  = document.getElementById('script-btn');
-var _hasData = false;
 
 // ── Message listener MUST be first — before sending 'ready' ──────────────────
 // VS Code delivers the extension's 'init' reply synchronously in Electron.
@@ -231,7 +231,6 @@ var _hasData = false;
 window.addEventListener('message', function(ev) {
   var m = ev.data;
   if (m.type === 'init') {
-    _hasData = true;
     render(m.cards || [], m.title || '');
     return;
   }
@@ -274,7 +273,8 @@ window.addEventListener('message', function(ev) {
       var badge = card.querySelector('.pc-port');
       if (!badge) return;
       badge.className = 'pc-port ' + m.status;
-      badge.title = m.status === 'open' ? 'Port ' + m.port + ' open' : 'Port ' + m.port + ' closed';
+      var badgeUrl = badge.dataset.browserUrl || ('http://localhost:' + m.port + '/');
+      badge.title = m.status === 'open' ? 'Click to open ' + badgeUrl : 'Port ' + m.port + ' — server not running';
     });
     return;
   }
@@ -328,11 +328,6 @@ countEl.textContent = 'Loading\u2026';
 // Send ready — listener is already attached above so the init reply won't be missed
 vsc.postMessage({ command: 'ready' });
 
-// Retry after 1s in case the first ready was missed (e.g. panel revealed from hidden state)
-setTimeout(function() {
-  if (!_hasData) { vsc.postMessage({ command: 'ready' }); }
-}, 1000);
-
 // ── Tooltip timer ──
 var _ttTimer = null;
 document.addEventListener('mouseover', function(e) {
@@ -365,6 +360,15 @@ search.addEventListener('input', function() {
   var total = document.querySelectorAll('.pc').length;
   countEl.textContent = q ? (vis + ' of ' + total) : (total + ' projects');
   empty.style.display = vis === 0 ? 'block' : 'none';
+});
+
+// ── Port badge click — open browser when green ──
+document.addEventListener('click', function(e) {
+  var badge = e.target.closest('.pc-port.open');
+  if (badge && badge.dataset.browserUrl) {
+    vsc.postMessage({ command:'open-browser', url:badge.dataset.browserUrl });
+    return;
+  }
 });
 
 // ── Click handler ──
@@ -439,9 +443,11 @@ function buildCard(c) {
   }
   var portBadge = node.querySelector('.pc-port');
   if (c.port !== undefined && portBadge) {
-    portBadge.textContent = ':' + c.port;
+    var url = c.browserUrl || ('http://localhost:' + c.port + '/');
+    portBadge.textContent = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
     portBadge.className = 'pc-port ' + (c.portStatus || 'closed');
-    portBadge.title = c.portStatus === 'open' ? 'Port ' + c.port + ' open' : 'Port ' + c.port + ' closed';
+    portBadge.title = c.portStatus === 'open' ? 'Click to open ' + url : 'Port ' + c.port + ' — server not running';
+    portBadge.dataset.browserUrl = url;
   }
   node.querySelector('.pc-type').textContent      = c.type.toUpperCase();
   node.querySelector('.pc-dewey').textContent      = c.dewey;

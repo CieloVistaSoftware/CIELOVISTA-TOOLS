@@ -8,7 +8,7 @@ status: active
 tags: [current, status, currentstatusmd]
 category: 150.9 — Meta
 created: 2026-04-25
-updated: 2026-05-11
+updated: 2026-05-13
 version: 1.0.0
 author: CieloVista Software
 relativepath: docs/_today/CURRENT-STATUS.md
@@ -16,6 +16,72 @@ relativepath: docs/_today/CURRENT-STATUS.md
 # CURRENT-STATUS.md — cielovista-tools
 
 ---
+
+## 🅿️ PARKING LOT — end of session 2026-05-13 (async test runner rewrite + issue queue cleared)
+
+**TASK:** Async concurrent test runner rewrite + close all open GitHub issues
+**STATUS:** ✅ Complete — 57/57 regression tests passing, zero open issues
+
+**FILES TOUCHED THIS SESSION:**
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\scripts\run-regression-tests.js` — full async rewrite: `Promise.all` concurrent spawning, auto-discovery of all `REG-*.test.js` files, `check/subprocess/command/regressionFile` helpers, REG-008 false-positive fix via `stripTemplateLiterals()` + quote-line skip
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\src\features\doc-catalog\commands.ts` — REG-028 fix: project rows in Rebuild Summary are now clickable (`data-action="open-project-vscode"`)
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\src\features\test-coverage-auditor.ts` — #352 fix: `onDidReceiveMessage` now registered exactly once at panel creation with `context.subscriptions`; buttons no longer silently drop after Refresh
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-034-frontmatter-viewer-fix-workflow.test.js` — strengthened: added `data-fix-id` round-trip assertion, fix-result re-select check, open-issue `data-url` check (8 checks total)
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-039-error-log-active-count.test.js` — created (issue #350 — error log active count pill)
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-040-proper-case-panel-titles.test.js` — created (issue #350 — UI title casing)
+- `C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-045-test-coverage-webview-buttons.test.js` — strengthened: added single-registration guard + `context.subscriptions` disposal check (5 checks)
+
+**COMMITS THIS SESSION:**
+- `b0481bb` — async test runner rewrite + REG-028/034 fixes
+- `8f5094c` — fix #352 Test Coverage Audit buttons (onDidReceiveMessage single registration)
+- `8adb63f` — REG-039/040 created for issue #350
+
+**ISSUES CLOSED:**
+- #352 — Test Coverage Audit buttons silently dropped after Refresh (onDidReceiveMessage placement bug)
+- #353 — FileList Run Test context menu (already implemented — closed)
+- #351 — Code Auditor scanning projects (already implemented — closed)
+- #354–#365 — Bulk-closed as frontmatter noise on temp/generated files
+
+**LAST ACTION:** Closed #351 (Code Auditor already scanning 19 projects — verified and closed)
+**NEXT STEP:** Issue queue is empty — run `npm run rebuild` to verify full pipeline, then start fresh feature work
+**OPEN QUESTIONS:** None
+
+---
+
+## 🅿️ PARKING LOT — end of session 2026-05-13 (stability hardening + user-reported regressions)
+
+**TASK:** Stop regressions and harden FileList + Frontmatter Viewer behavior gates
+**STATUS:** ⚠️ Partial — multiple guardrails added, but user confidence is low and requires focused verification pass
+
+**FILES TOUCHED THIS SESSION:**
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\src\features\frontmatter-viewer.ts
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\src\features\file-list-viewer.ts
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\scripts\repair-frontmatter-filed-issues.js
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\scripts\run-preflight-regressions.js
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\package.json
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-046-filelist-run-test-context-menu.test.js
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-047-frontmatter-viewer-rescan-preserves-filed-issues.test.js
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-048-frontmatter-fix-all-no-new-issues.test.js
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\tests\regression\REG-049-filelist-webview-basic-render.test.js
+- C:\Users\jwpmi\Downloads\VSCode\projects\cielovista-tools\docs\_today\CURRENT-STATUS.md
+
+**LAST ACTION:** Added preflight regression gate and expanded FileList/Frontmatter regression coverage; latest reported concern is trust in test depth
+**NEXT STEP:** Run an explicit manual checklist in VS Code (FileList load, row open, folder navigate, rescan persistence, Fix All no-create) and add one behavior-level runtime test harness for webview message/render flow
+**OPEN QUESTIONS:** Which single user-visible workflow should be treated as release-blocking #1 for next session (FileList listing vs Frontmatter fix-state restoration)?
+
+## 🅿️ PARKING LOT — end of session 2026-05-13 (issue #353 — FileList run-test context menu installed)
+
+**TASK:** Implement FileList right-click "Run Test" for `.js` files under `tests/`
+**STATUS:** ✅ Implemented, regression-tested, and installed
+
+**FILES TOUCHED THIS SESSION:**
+- `src/features/file-list-viewer.ts` — added right-click context menu, test-file guard, and `run-test` handler
+- `tests/regression/REG-046-filelist-run-test-context-menu.test.js` — new source-level regression test for #353
+- `docs/_today/CURRENT-STATUS.md` — updated parking lot entry
+
+**LAST ACTION:** Full `npm run rebuild` completed successfully and installed the extension
+**NEXT STEP:** Ready for the next feature or issue
+**OPEN QUESTIONS:** None
 
 ## 🅿️ PARKING LOT — end of session 2026-05-11 (all open issues closed)
 

@@ -90,7 +90,7 @@ The doc-consolidator is a robust, interactive tool for eliminating duplicate doc
 
 ## Internal architecture
 
-```
+```text
 activate()
   └── registers 4 commands: run, byName, byContent, log
 
@@ -114,7 +114,7 @@ runConsolidationWizard(filter)
 
 updateReferences(oldPath, newPath)
   └── forEach project CLAUDE.md: replace(oldPath, newPath) both slash styles
-```
+```text
 
 ---
 
@@ -123,3 +123,9 @@ updateReferences(oldPath, newPath)
 1. Create two files with identical names in different projects (e.g. `TEST-DOC.md`). Run [`cvs.consolidate.byName`](command:cvs.consolidate.byName) — the group should appear. Select it, pick a keeper, confirm — one copy should survive, the other should be deleted.
 2. Run [`cvs.consolidate.byContent`](command:cvs.consolidate.byContent) — any docs with >70% overlapping content across different filenames should appear with a similarity percentage. Click Diff to verify before merging.
 3. Run [`cvs.consolidate.log`](command:cvs.consolidate.log) — the consolidation log should open showing the action just taken with timestamp and file paths.
+
+---
+
+## What it does
+
+_TODO: one paragraph describing the single responsibility of this file._

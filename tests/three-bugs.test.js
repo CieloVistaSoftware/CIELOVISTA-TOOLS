@@ -7,8 +7,8 @@
  * Regression tests for three original bugs, updated for current
  * implementation after multiple refactors (issue #256).
  *
- * BUG-A: Open project folder opens a new window
- *   - openProjectFolderSmart uses positional true (not named forceNewWindow)
+ * BUG-A: Open project folder opens the project in the current VS Code window
+ *   - openProjectFolderSmart uses vscode.openFolder with forceNewWindow false
  *   - HTTP /openfolder endpoint calls openProjectFolderSmart
  *   - attachMessageHandler openFolder case calls openProjectFolderSmart
  *
@@ -55,20 +55,19 @@ function test(name, fn) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// BUG-A: Open project folder → new window
+// BUG-A: Open project folder → current VS Code window
 // ═════════════════════════════════════════════════════════════════════════════
 
 test('BUG-A SOURCE: openProjectFolderSmart function exists', () => {
     assert.ok(srcCmds.includes('async function openProjectFolderSmart('));
 });
 
-test('BUG-A SOURCE: openProjectFolderSmart uses positional true (new-window)', () => {
+test('BUG-A SOURCE: openProjectFolderSmart uses vscode.openFolder with forceNewWindow false', () => {
     const idx = srcCmds.indexOf('async function openProjectFolderSmart(');
     assert.ok(idx !== -1, 'function not found');
     const slice = srcCmds.slice(idx, idx + 500);
     assert.ok(slice.includes("'vscode.openFolder'"), 'must call vscode.openFolder');
-    assert.ok(slice.includes(', true)'), 'positional true required to open in new window');
-    assert.ok(!slice.includes(', false)'), 'positional false would replace current window');
+    assert.ok(slice.includes('forceNewWindow: false'), 'must reuse current window');
 });
 
 test('BUG-A SOURCE: attachMessageHandler openFolder calls openProjectFolderSmart', () => {

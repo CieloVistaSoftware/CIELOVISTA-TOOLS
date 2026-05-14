@@ -13,6 +13,8 @@ version: 1.0.0
 author: CieloVista Software
 relativepath: src/features/test-coverage-auditor.README.md
 ---
+# feature: test-coverage-auditor
+
 
 ## What it does
 
@@ -101,7 +103,7 @@ The tool analyzes your test suite against Tiers 1–5 as defined in the tiered t
 ```text
 activate()
   └── TODO: describe call flow
-```
+```text
 
 
 ## UI Components
@@ -125,7 +127,7 @@ Shows the status and counts for each tier:
 ❌ Static Compliance
    Type checking, linting, schema validation
    No tests found
-```
+```text
 
 **Color coding:**
 - Green border + light background = Tier is present
@@ -144,7 +146,7 @@ Prioritized action items with context:
 [HIGH] Coverage is 3%. Prioritize adding Tier 2 (unit) tests for each feature.
 
 [MEDIUM] Create Tier 1 compliance tests (type checking, linting, coverage).
-```
+```text
 
 ### Action Buttons
 

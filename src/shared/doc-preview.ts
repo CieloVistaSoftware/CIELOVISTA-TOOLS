@@ -105,10 +105,10 @@ img{max-width:100%;height:auto}
 <div id="topbar">
   <div id="topbar-row1">
     <span id="topbar-title">&#128196; ${esc(title)}</span>
-    <button class="btn-action" id="btn-vscode">&#128195; Open in VS Code</button>
-    <button class="btn-action" id="btn-terminal">&#8250;_ Change Working Directory</button>
-    <button class="btn-action" id="btn-explorer">&#128193; Explorer</button>
-    <button class="btn-action" id="btn-edit">&#9998; Edit</button>
+        <button class="btn-action" id="btn-vscode" data-toolbar-action="open-in-vscode">&#128195; Open in VS Code</button>
+        <button class="btn-action" id="btn-terminal" data-toolbar-action="open-terminal">&#8250;_ Change Working Directory</button>
+        <button class="btn-action" id="btn-explorer" data-toolbar-action="reveal-folder-os">&#128193; Explorer</button>
+        <button class="btn-action" id="btn-edit" data-toolbar-action="edit-file">&#9998; Edit</button>
   </div>
   <div id="breadcrumb">${bcHtml}</div>
   <div id="folder-bar"><div id="folder-path">${fpHtml}</div></div>
@@ -137,18 +137,29 @@ let _pendingScrollY = 0;
         }
         return false;
     }
-    function safeAddListener(id, event, handler) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener(event, handler);
-        } else {
-            console.error('DocPreview: Button not found:', id);
-        }
+    const topbarRow = document.getElementById('topbar-row1');
+    if (topbarRow) {
+        topbarRow.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-toolbar-action]');
+            if (!btn) { return; }
+            const action = btn.dataset.toolbarAction;
+            if (action === 'edit-file') {
+                vscode.postMessage({ command: 'edit-file', path: '${jsPath}' });
+                return;
+            }
+            if (action === 'open-in-vscode') {
+                vscode.postMessage({ command: 'open-in-vscode', dir: '${jsDir}' });
+                return;
+            }
+            if (action === 'open-terminal') {
+                vscode.postMessage({ command: 'open-terminal', dir: '${jsDir}' });
+                return;
+            }
+            if (action === 'reveal-folder-os') {
+                vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' });
+            }
+        });
     }
-    safeAddListener('btn-edit', 'click',     () => vscode.postMessage({ command: 'edit-file',      path: '${jsPath}' }));
-    safeAddListener('btn-vscode', 'click',   () => vscode.postMessage({ command: 'open-in-vscode', dir:  '${jsDir}' }));
-    safeAddListener('btn-terminal', 'click', () => vscode.postMessage({ command: 'open-terminal',  dir:  '${jsDir}' }));
-    safeAddListener('btn-explorer', 'click', () => vscode.postMessage({ command: 'reveal-folder-os', dir: '${jsDir}' }));
     const bc = document.getElementById('breadcrumb');
     if (bc) {
         bc.addEventListener('click', e => {
@@ -373,4 +384,3 @@ export function disposeDocPreview(): void {
     _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
     _history = [];
 }
-// FILE REMOVED BY REQUEST

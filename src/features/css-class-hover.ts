@@ -123,8 +123,10 @@ export function activate(context: vscode.ExtensionContext): void {
             // to display 'CSS Class Hover is now active' — but that opened a
             // SECOND tab on top of the Guided Launcher's own result panel,
             // producing two tabs from one Run click (issue #32). Fix: do nothing
-            // visible here. The launcher's result panel already shows success.
+            // visible here. This now shows a toast since the command is marked as
+            // action:'read' and executes directly from the launcher.
             log(FEATURE, 'Enable command invoked (hover provider was registered at activate time)');
+            void vscode.window.showInformationMessage('CSS Class Hover is active.');
         })
     );
 }

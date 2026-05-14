@@ -21,6 +21,10 @@
     "/^node tests/unit/mcp-viewer\\.test\\.js$/": {
       "approve": true,
       "matchCommandLine": true
+    },
+    "/^node tests/regression/REG-047-frontmatter-viewer-rescan-preserves-filed-issues\\.test\\.js$/": {
+      "approve": true,
+      "matchCommandLine": true
     }
   }
 }

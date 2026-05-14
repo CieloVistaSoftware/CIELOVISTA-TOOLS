@@ -34,14 +34,7 @@ if (files.length === 0) {
 const latest = files[0];
 
 function getZipEntries(vsixPath) {
-    const script = [
-        "$ErrorActionPreference = 'Stop'",
-        `Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead('${vsixPath.replace(/'/g, "''")}')`,
-        "$zip.Entries | ForEach-Object { $_.FullName }",
-        '$zip.Dispose()'
-    ].join('; ');
-
-    const output = cp.execSync(`powershell -NoProfile -Command \"${script}\"`, { encoding: 'utf8' });
+    const output = cp.execFileSync('tar', ['-tf', vsixPath], { encoding: 'utf8' });
     return output
         .split(/\r?\n/)
         .map((s) => s.trim())

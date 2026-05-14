@@ -263,7 +263,6 @@ async function openPanel(): Promise<void> {
         { viewColumn: vscode.ViewColumn.One, preserveFocus: false },
         { enableScripts: true, retainContextWhenHidden: true }
     );
-    _panel.webview.html = PROJECT_CARD_SHELL_HTML;
 
     // Live MCP status dot — push updates to the webview whenever status changes
     const mcpStatusListener = (status: 'up' | 'down') => {
@@ -279,15 +278,6 @@ async function openPanel(): Promise<void> {
         _runningTerminals.clear();
         _panel = undefined;
     });
-
-    // Send data once the webview is ready — 800ms gives Electron enough time
-    // to load and run the shell HTML before the init message fires.
-    setTimeout(() => {
-        sendInit();
-        void pushPortStatuses(_latestCards);
-        if (_portPollTimer) { clearInterval(_portPollTimer); }
-        _portPollTimer = setInterval(() => { void pushPortStatuses(_latestCards); }, 5000);
-    }, 800);
 
     _panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
@@ -448,6 +438,10 @@ async function openPanel(): Promise<void> {
             }
         }
     });
+
+    // Keep init payload handshake-driven via the webview's 'ready' message.
+    // This avoids timing races where a fixed-delay postMessage can be missed.
+    _panel.webview.html = PROJECT_CARD_SHELL_HTML;
 
     log(FEATURE, `Opened with ${cards.length} project cards`);
 }

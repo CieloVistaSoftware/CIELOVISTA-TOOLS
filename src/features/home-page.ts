@@ -134,6 +134,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
   panel.webview.onDidReceiveMessage(async msg => {
     if (!msg?.type) { return; }
     if (msg.type === 'runCommand' && msg.command) {
+      const previewMode = Boolean(msg.previewMode);
       if (msg.command === '__openIssues__') {
         showGithubIssues(vscode.ViewColumn.Two);
         return;
@@ -149,7 +150,36 @@ function showHomePage(context: vscode.ExtensionContext): void {
         'cvs.tools.fileList',
         'workbench.action.reloadWindow',
       ];
-      if (OPEN_DIRECT.includes(msg.command)) {
+      if (previewMode) {
+        // For preview clicks, do not route through runWithOutput.
+        if (msg.command === 'cvs.consolidate.log') {
+          const registry = loadRegistry();
+          const globalDocs = registry?.globalDocsPath;
+          if (globalDocs) {
+            const logPath = path.join(globalDocs, 'consolidation-log.md');
+            if (fs.existsSync(logPath)) {
+              openDocPreview(logPath, '📚 Recent Runs', 'cvs.tools.home');
+              return;
+            }
+          }
+        }
+
+        if (OPEN_DIRECT.includes(msg.command)) {
+          await vscode.commands.executeCommand('workbench.action.focusSecondEditorGroup');
+          await vscode.commands.executeCommand(msg.command);
+        } else {
+          await vscode.commands.executeCommand(msg.command);
+        }
+
+        const active = vscode.window.activeTextEditor;
+        if (active) {
+          await vscode.window.showTextDocument(active.document, {
+            preview: true,
+            preserveFocus: true,
+            viewColumn: vscode.ViewColumn.Beside,
+          });
+        }
+      } else if (OPEN_DIRECT.includes(msg.command)) {
         // Focus column 2 first so commands that respect the active column open beside the Home panel
         void vscode.commands.executeCommand('workbench.action.focusSecondEditorGroup').then(() =>
           vscode.commands.executeCommand(msg.command)
@@ -274,7 +304,7 @@ function buildDashboardHtml(
   <span class="hist-title" data-tip="${esc(h.title)}" title="${esc(h.title)}">${esc(h.title)}</span>
   <span class="hist-elapsed">${h.elapsed}ms</span>
   <span class="hist-ago">${esc(ago)}</span>
-  <button class="hist-rerun" data-cmd="${esc(h.id)}" title="${btnTitle}">${btnLabel}</button>
+  <button class="hist-rerun" data-cmd="${esc(h.id)}" data-preview="${isPreview ? 'true' : 'false'}" title="${btnTitle}">${btnLabel}</button>
 </div>`;
         }).join('');
 
@@ -610,7 +640,13 @@ document.querySelectorAll('.ql-btn').forEach(function(b){
 
 // History re-run
 document.querySelectorAll('.hist-rerun').forEach(function(b){
-  b.addEventListener('click',function(){ vsc.postMessage({ type:'runCommand', command:b.dataset.cmd }); });
+  b.addEventListener('click',function(){
+    vsc.postMessage({
+      type:'runCommand',
+      command:b.dataset.cmd,
+      previewMode:b.dataset.preview === 'true'
+    });
+  });
 });
 
 // Recent project click - skip current AND skip when in edit mode

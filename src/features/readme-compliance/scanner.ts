@@ -20,7 +20,11 @@ export function detectType(filePath: string, projectRootPath: string, projectNam
     return 'FEATURE';
 }
 
-const SKIP = new Set(['node_modules', '.git', 'out', 'dist', 'reports']);
+const SKIP = new Set([
+    'node_modules', '.git', 'out', 'dist', 'reports',
+    '.vscode', '.vscode-test', '.claude', 'CommandHelp', 'image-reader-assets',
+    'test-results', 'playwright-report',
+]);
 
 export function collectReadmes(
     rootPath: string,

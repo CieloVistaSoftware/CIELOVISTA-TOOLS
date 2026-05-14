@@ -71,7 +71,7 @@ export function buildCatalogInitPayload(
                 `Where: ${card.projectName} — ${relPath}`,
                 `When: Reference while working on ${card.projectName}`,
                 `Why: ${card.description}`,
-                `How: Click title or View to preview  |  Edit to open in editor`,
+                `How: Click title or Preview to preview  |  Edit to open in editor`,
                 ``,
                 `Dewey: ${deweyNum}  |  ${card.fileName}`,
             ].join('\n');
@@ -114,7 +114,7 @@ export function buildCatalogInitPayload(
   <div class="card-footer">
     <span class="card-size">${(card.sizeBytes / 1024).toFixed(1)} KB</span>
     <div class="card-btns">
-      <button class="btn-view" data-action="open-preview" data-path="${esc(card.filePath)}">&#128196; View</button>
+            <button class="btn-view" data-action="open-preview" data-path="${esc(card.filePath)}">&#128196; Preview</button>
       <button class="btn-open" data-action="open"         data-path="${esc(card.filePath)}">&#9998; Edit</button>
       <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
       ${demoBtn}

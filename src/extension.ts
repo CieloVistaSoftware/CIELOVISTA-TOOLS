@@ -31,6 +31,7 @@ import { activate as docsBrokenRefs,          deactivate as deactivateDocsBroken
 import { activate as marketplaceCompliance,   deactivate as deactivateMarketplace      } from './features/marketplace-compliance/index';
 import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header/index';
 import { activate as docHeaderScan,           deactivate as deactivateDocHeaderScan    } from './features/doc-header-scan';
+import { activate as frontmatterViewer,       deactivate as deactivateFrontmatterViewer } from './features/frontmatter-viewer';
 import { activate as projectLauncher,         deactivate as deactivateProjectLauncher  } from './features/project-launcher';
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
 import { activate as projectHomeOpener,       deactivate as deactivateProjectHomeOpener  } from './features/project-home-opener';
@@ -50,6 +51,7 @@ import { activate as imageReaderActivate,     deactivate as imageReaderDeactivat
 import { activate as mcpViewerActivate,       deactivate as mcpViewerDeactivate            } from './features/mcp-viewer';
 import { activate as explorerCopyPathToChatActivate, deactivate as explorerCopyPathToChatDeactivate } from './features/explorer-copy-path-to-chat';
 import { activate as worktreeCleanerActivate,       deactivate as worktreeCleanerDeactivate         } from './features/worktree-cleaner';
+import { activate as codeAuditorActivate,           deactivate as codeAuditorDeactivate            } from './features/code-auditor';
 import { activate as registryPromoteActivate, deactivate as registryPromoteDeactivate      } from './features/registry-promote';
 import { activate as corequisiteCheckerActivate, deactivate as corequisiteCheckerDeactivate } from './features/corequisite-checker';
 import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeactivate       } from './features/json-copy-to-chat';
@@ -127,6 +129,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('marketplaceCompliance',   'Marketplace Compliance',        marketplaceCompliance,   context);
     activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
     activateIfEnabled('docHeaderScan',           'Doc Header Scan',               docHeaderScan,           context);
+    activateIfEnabled('frontmatterViewer',       'Frontmatter Viewer',            frontmatterViewer,       context);
     activateIfEnabled('projectLauncher',         'Project Launcher',              projectLauncher,         context);
     activateIfEnabled('cvsCommandLauncher',      'CVS Command Launcher',          cvsCommandLauncher,      context);
     activateIfEnabled('projectHomeOpener',       'Project Home Opener',           projectHomeOpener,       context);
@@ -142,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('imageReader',             'Image Reader',                  imageReaderActivate,     context);
     activateIfEnabled('mcpViewer',               'MCP Endpoint Viewer',           mcpViewerActivate,       context);
     activateIfEnabled('explorerCopyPathToChat',  'Explorer: Copy Path to Copilot Chat', explorerCopyPathToChatActivate, context);
+    activateIfEnabled('codeAuditor',             'Code Auditor',                                 codeAuditorActivate, context);
     activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate,        context);
     activateIfEnabled('corequisiteChecker',      'Corequisite Checker',                 corequisiteCheckerActivate,     context);
     activateIfEnabled('jsonCopyToChat',          'Editor: Copy JSON to Copilot Chat',   jsonCopyToChatActivate,         context);
@@ -192,10 +196,12 @@ export function deactivate(): void {
     imageReaderDeactivate();
     mcpViewerDeactivate();
     explorerCopyPathToChatDeactivate();
+    codeAuditorDeactivate();
     registryPromoteDeactivate();
     corequisiteCheckerDeactivate();
     jsonCopyToChatDeactivate();
     deactivateDocHeader();
+    deactivateFrontmatterViewer();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
     deactivateHomePage();

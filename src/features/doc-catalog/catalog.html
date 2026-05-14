@@ -83,7 +83,6 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
 (function() {
 
 var vscode = acquireVsCodeApi();
-var _hasData = false;
 
 // ── Messages from extension host — registered first so init never races ───────
 window.addEventListener('message', function(ev) {
@@ -110,7 +109,6 @@ window.addEventListener('message', function(ev) {
         return;
     }
     if (msg.command === 'init') {
-        _hasData = true;
         document.getElementById('catalog').innerHTML = msg.html;
         _totalCards    = msg.totalCards    || 0;
         _totalCats     = msg.totalCats     || 0;
@@ -138,7 +136,6 @@ window.addEventListener('message', function(ev) {
 
 // Signal extension that the message listener is in place
 vscode.postMessage({ command: 'ready' });
-setTimeout(function() { if (!_hasData) { vscode.postMessage({ command: 'ready' }); } }, 1000);
 
 var _totalCards = 0, _totalCats = 0, _totalProjects = 0;
 var _projSections = {};

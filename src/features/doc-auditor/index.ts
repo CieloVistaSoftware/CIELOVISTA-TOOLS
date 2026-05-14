@@ -7,32 +7,33 @@ import * as path   from 'path';
 import { log, logError }  from '../../shared/output-channel';
 import { loadRegistry }   from '../../shared/registry';
 import { runAudit }       from './runner';
-import { buildAuditHtml } from './html';
+import { buildAuditHtml, buildAuditLoadingHtml } from './html';
 import { mergeFiles, moveToGlobal, deleteDoc, diffFiles } from './actions';
 import { saveAuditReport, parseReportActions, getReportDir, reportFileName } from './report';
 import { walkThroughFindings } from './walkthrough';
 import { collectDocs } from './scanner';
+import { sendToCopilotChat } from '../terminal-copy-output';
 import type { DocFile } from './types';
 
 const FEATURE = 'doc-auditor';
 let _panel: vscode.WebviewPanel | undefined;
+let _auditRunId = 0;
+let _panelMessagesRegistered = false;
 
-// ─── Main panel ───────────────────────────────────────────────────────────────
+function ensurePanel(): vscode.WebviewPanel {
+    if (_panel) { return _panel; }
 
-async function runFullAudit(): Promise<void> {
-    const results = await runAudit();
-    if (!results) { return; }
+    _panel = vscode.window.createWebviewPanel('docAudit', '📋 Docs Audit', vscode.ViewColumn.One,
+        { enableScripts: true, retainContextWhenHidden: true });
+    _panel.onDidDispose(() => { _panel = undefined; });
+    _panelMessagesRegistered = false;
+    return _panel;
+}
 
-    const html = buildAuditHtml(results);
-    if (_panel) { _panel.webview.html = html; _panel.reveal(); }
-    else {
-        _panel = vscode.window.createWebviewPanel('docAudit', '📋 Docs Audit', vscode.ViewColumn.One,
-            { enableScripts: true, retainContextWhenHidden: true });
-        _panel.webview.html = html;
-        _panel.onDidDispose(() => { _panel = undefined; });
-    }
-
-    _panel.webview.onDidReceiveMessage(async msg => {
+function registerPanelMessages(panel: vscode.WebviewPanel): void {
+    if (_panelMessagesRegistered) { return; }
+    _panelMessagesRegistered = true;
+    panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
             case 'open':
                 if (msg.data && fs.existsSync(msg.data)) {
@@ -44,6 +45,21 @@ async function runFullAudit(): Promise<void> {
             case 'moveToGlobal': await moveToGlobal(msg.data); break;
             case 'delete':     await deleteDoc(msg.data); break;
             case 'diff':       await diffFiles(Array.isArray(msg.data) ? msg.data : [msg.data]); break;
+            case 'copy': {
+                const text = typeof msg.data === 'string' ? msg.data : '';
+                await vscode.env.clipboard.writeText(text);
+                vscode.window.showInformationMessage('Docs audit table copied to clipboard.');
+                break;
+            }
+            case 'copy-chat': {
+                const text = typeof msg.data === 'string' ? msg.data : '';
+                const sent = await sendToCopilotChat(text);
+                if (!sent) {
+                    await vscode.env.clipboard.writeText(text);
+                    vscode.window.showInformationMessage('Could not inject into Copilot Chat. Copied to clipboard instead.');
+                }
+                break;
+            }
             case 'walkGroup': {
                 const paths: string[] = Array.isArray(msg.data) ? msg.data : [msg.data];
                 for (const fp of paths) {
@@ -57,20 +73,47 @@ async function runFullAudit(): Promise<void> {
             }
         }
     });
+}
 
-    try {
-        const reportPath = saveAuditReport(results);
-        const total = results.duplicates.length + results.similar.length + results.moveCandidates.length + results.orphans.length;
-        if (total === 0) {
-            vscode.window.showInformationMessage('Audit complete — no issues found. ✅');
-        } else {
-            const choice = await vscode.window.showInformationMessage(`Audit found ${total} issue(s). Walk through them now?`, 'Walk Through Now', 'Open Report', 'Later');
-            if (choice === 'Walk Through Now') { await walkThroughFindings(results); }
-            else if (choice === 'Open Report') { const doc = await vscode.workspace.openTextDocument(reportPath); await vscode.window.showTextDocument(doc); }
+// ─── Main panel ───────────────────────────────────────────────────────────────
+
+async function runFullAudit(): Promise<void> {
+    const panel = ensurePanel();
+    registerPanelMessages(panel);
+    panel.webview.html = buildAuditLoadingHtml('Starting…');
+    panel.reveal(vscode.ViewColumn.One);
+
+    const runId = ++_auditRunId;
+    void (async () => {
+        try {
+            const results = await runAudit({
+                report: (message: string) => {
+                    if (_panel && runId === _auditRunId) {
+                        _panel.webview.postMessage({ type: 'progress', status: message });
+                    }
+                },
+            });
+            if (!results || !_panel || runId !== _auditRunId) { return; }
+
+            _panel.webview.html = buildAuditHtml(results);
+            const reportPath = saveAuditReport(results);
+            const total = results.duplicates.length + results.similar.length + results.moveCandidates.length + results.orphans.length;
+            if (total === 0) {
+                vscode.window.showInformationMessage('Audit complete — no issues found. ✅');
+            } else {
+                const choice = await vscode.window.showInformationMessage(`Audit found ${total} issue(s). Walk through them now?`, 'Walk Through Now', 'Open Report', 'Later');
+                if (choice === 'Walk Through Now') { await walkThroughFindings(results); }
+                else if (choice === 'Open Report') { const doc = await vscode.workspace.openTextDocument(reportPath); await vscode.window.showTextDocument(doc); }
+            }
+
+            log(FEATURE, `Audit complete — ${results.totalDocsScanned} docs, ${results.duplicates.length} dupes, ${results.similar.length} similar, ${results.moveCandidates.length} move candidates, ${results.orphans.length} orphans`);
+        } catch (err) {
+            if (_panel && runId === _auditRunId) {
+                _panel.webview.postMessage({ type: 'progress', status: 'Audit failed.' });
+            }
+            logError('Failed to run doc audit', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         }
-    } catch (err) { logError('Failed to save report', err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
-
-    log(FEATURE, `Audit complete — ${results.totalDocsScanned} docs, ${results.duplicates.length} dupes, ${results.similar.length} similar, ${results.moveCandidates.length} move candidates, ${results.orphans.length} orphans`);
+    })();
 }
 
 // ─── Past report ──────────────────────────────────────────────────────────────

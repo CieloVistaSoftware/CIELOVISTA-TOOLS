@@ -149,6 +149,14 @@ export const ListCvtCommandsToolSchema = z.object({
   group: z.string().optional().describe("Restrict to one CVT catalog group, e.g. 'Other Tools' or 'Doc Auditor'."),
 });
 
+export const AuditDuplicationToolSchema = z.object({
+  json: z.boolean().optional().describe("If true (default), returns the raw JSON report. If false, returns the human-readable text report."),
+  minLines: z.number().int().min(2).optional().describe("Minimum lines per candidate block (default 5)."),
+  minStatements: z.number().int().min(1).optional().describe("Minimum statements per candidate block (default 3)."),
+  nearThreshold: z.number().int().min(50).max(100).optional().describe("Near-duplicate threshold percentage (default 85)."),
+  registryPath: z.string().optional().describe("Optional override path to project-registry.json."),
+});
+
 export type EchoToolInput = z.infer<typeof EchoToolSchema>;
 export type ListFilesToolInput = z.infer<typeof ListFilesToolSchema>;
 export type ReadFileToolInput = z.infer<typeof ReadFileToolSchema>;
@@ -169,6 +177,7 @@ export type RepairBrokenRefsToolInput = z.infer<typeof RepairBrokenRefsToolSchem
 export type ListSymbolsToolInput = z.infer<typeof ListSymbolsToolSchema>;
 export type FindSymbolToolInput = z.infer<typeof FindSymbolToolSchema>;
 export type ListCvtCommandsToolInput = z.infer<typeof ListCvtCommandsToolSchema>;
+export type AuditDuplicationToolInput = z.infer<typeof AuditDuplicationToolSchema>;
 export type NormalizeDocToolInput = z.infer<typeof NormalizeDocToolSchema>;
 export type GetDocByIdentityToolInput = z.infer<typeof GetDocByIdentityToolSchema>;
 export type RefreshDocLedgerToolInput = z.infer<typeof RefreshDocLedgerToolSchema>;

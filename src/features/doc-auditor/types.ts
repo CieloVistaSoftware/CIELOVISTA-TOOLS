@@ -6,6 +6,7 @@ export interface DocFile {
     fileName:    string;
     projectName: string;
     sizeBytes:   number;
+    modifiedAt?: string;
     content:     string;
     normalized:  string;
 }

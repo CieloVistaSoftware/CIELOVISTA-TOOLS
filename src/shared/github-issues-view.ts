@@ -45,6 +45,11 @@ interface GHIssue {
     comments:     number;
 }
 
+interface LocalFixRef {
+    label: string;
+    relativePath: string;
+}
+
 let activePanel: vscode.WebviewPanel | undefined;
 let activeRefresh: (() => Promise<void>) | undefined;
 
@@ -145,6 +150,8 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void claimIssue(msg.number, panel);
         } else if (msg.type === 'runTest' && msg.testRef) {
             void runLinkedTest(String(msg.testRef));
+        } else if (msg.type === 'openLocal' && typeof (msg as { relativePath?: string }).relativePath === 'string') {
+            void openLocalFixPath(String((msg as { relativePath?: string }).relativePath));
         } else if (msg.type === 'newIssue') {
             void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new`));
         }
@@ -200,6 +207,26 @@ async function runLinkedTest(testRef: string): Promise<void> {
         if (stderr) { ch.appendLine(stderr.trimEnd()); }
         ch.appendLine(err ? `\n❌ Test failed (exit ${err.code ?? 1})` : `\n✅ Test passed`);
     });
+}
+
+async function openLocalFixPath(relativePath: string): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        void vscode.window.showWarningMessage('Open a workspace folder to view local fix links.');
+        return;
+    }
+
+    const normalized = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!normalized) { return; }
+
+    const fullPath = path.join(workspaceRoot, normalized);
+    if (!fs.existsSync(fullPath)) {
+        void vscode.window.showWarningMessage(`Local fix path not found: ${normalized}`);
+        return;
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(fullPath));
+    await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.One });
 }
 
 // ─── Fetch ──────────────────────────────────────────────────────────────────
@@ -412,6 +439,47 @@ function extractTestRef(body: string | null): string {
     return '';
 }
 
+function extractLocalFixRefs(issue: GHIssue): LocalFixRef[] {
+    const workspaceRoot = workspaceRootPath();
+    if (!workspaceRoot) { return []; }
+
+    const source = `${issue.title}\n${issue.body ?? ''}`;
+    const pattern = /(?:[A-Za-z]:\\[^\s`"'<>|]+|[\\/]*(?:src|tests|docs|scripts|data|resources|mcp-server(?:[\\/]src)?|out)[\\/][A-Za-z0-9._\-/\\]+(?:\.[A-Za-z0-9]+)?|[\\/]*(?:package\.json|README\.md|CHANGELOG\.md|LICENSE|tsconfig\.json|install\.js))/g;
+    const seen = new Set<string>();
+    const refs: LocalFixRef[] = [];
+
+    for (const match of source.match(pattern) || []) {
+        const normalized = normalizeIssuePath(match, workspaceRoot);
+        if (!normalized || seen.has(normalized)) { continue; }
+        seen.add(normalized);
+        refs.push({
+            label: path.posix.basename(normalized),
+            relativePath: normalized,
+        });
+    }
+
+    return refs.slice(0, 3);
+}
+
+function workspaceRootPath(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+function normalizeIssuePath(rawPath: string, workspaceRoot: string): string | undefined {
+    const trimmed = String(rawPath || '').trim().replace(/^['"`(]+|['"`),.:;]+$/g, '');
+    if (!trimmed) { return undefined; }
+
+    const slashPath = trimmed.replace(/\\/g, '/').replace(/^\/+/, '');
+    const absolutePath = path.isAbsolute(trimmed)
+        ? trimmed
+        : path.join(workspaceRoot, slashPath);
+
+    if (!fs.existsSync(absolutePath)) { return undefined; }
+    const rel = path.relative(workspaceRoot, absolutePath).replace(/\\/g, '/');
+    if (!rel || rel.startsWith('..')) { return undefined; }
+    return rel;
+}
+
 // ─── HTML ───────────────────────────────────────────────────────────────────
 
 function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null, viewState: IssueState = 'open'): string {
@@ -463,6 +531,9 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
 .run-test-btn:hover{background:rgba(63,185,80,.28)}
 .run-test-btn:disabled{opacity:.4;cursor:default}
+.fix-link-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(100,181,246,.14);color:#90caf9;border:1px solid rgba(100,181,246,.4);cursor:pointer;font-family:inherit;white-space:nowrap}
+.fix-link-btn:hover{background:rgba(100,181,246,.28)}
+.actions-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #proj-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
 
@@ -489,6 +560,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                 const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
                 const rows = issues.map((iss) => {
             const testRef   = extractTestRef(iss.body);
+            const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
@@ -501,6 +573,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                         const assigneesText = iss.assignees.map((a) => '@' + a.login).join(', ');
                         const labelsText = iss.labels.map((l) => l.name).join(' ');
                         const filterText = `${iss.number} ${iss.title} ${iss.body ?? ''} ${iss.user.login} ${labelsText} ${assigneesText}`.toLowerCase().replace(/\s+/g, ' ').trim();
+                        const fixLinksHtml = fixRefs.map((ref) => `<button class="fix-link-btn" type="button" data-local-path="${esc(ref.relativePath)}" title="Open ${esc(ref.relativePath)}">${esc(ref.label)}</button>`).join('');
                         return `<tr class="issue-row"
     data-number="${iss.number}"
     data-title="${esc(iss.title.toLowerCase())}"
@@ -527,7 +600,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
-    <td>${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}</td>
+    <td><div class="actions-cell">${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
@@ -754,6 +827,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             setTimeout(function(){ b.disabled = false; b.textContent = '\u25B6 Run Test'; }, 3000);
         });
     });
+    document.querySelectorAll('.fix-link-btn').forEach(function(b){
+        b.addEventListener('click', function(){
+            var relativePath = String(b.getAttribute('data-local-path') || '');
+            if (!relativePath) { return; }
+            vsc.postMessage({ type: 'openLocal', relativePath: relativePath });
+        });
+    });
     document.querySelectorAll('.claim-btn').forEach(function(b){
         b.addEventListener('click', function(){
             var num = Number(b.getAttribute('data-number'));
@@ -801,5 +881,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 /** @internal — exported for unit/integration test assertions only */
 export const _test = {
     buildHtml,
-        formatIssuesForClipboard,
+    formatIssuesForClipboard,
+    extractLocalFixRefs,
 };

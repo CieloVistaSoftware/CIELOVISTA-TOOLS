@@ -44,6 +44,20 @@ test('source file has copyright header', () => {
     if (!fs.existsSync(src)) return;
     assert.ok(fs.readFileSync(src, 'utf8').includes('CieloVista'));
 });
+test('source installs via VS Code command first', () => {
+    const src = path.join(__dirname, '../../src/features/corequisite-checker.ts');
+    if (!fs.existsSync(src)) return;
+    const text = fs.readFileSync(src, 'utf8');
+    assert.ok(text.includes("workbench.extensions.installExtension"));
+});
+test('source has Windows-safe CLI fallback for .cmd/.bat', () => {
+    const src = path.join(__dirname, '../../src/features/corequisite-checker.ts');
+    if (!fs.existsSync(src)) return;
+    const text = fs.readFileSync(src, 'utf8');
+    assert.ok(text.includes('spawnSync'));
+    assert.ok(text.includes('/\\.(cmd|bat)\\$/i'));
+    assert.ok(text.includes("process.env.ComSpec || 'cmd.exe'"));
+});
 test('activate does not throw synchronously', () => {
     const ctx = { subscriptions: [] };
     assert.doesNotThrow(() => mod.activate(ctx));

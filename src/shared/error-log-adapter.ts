@@ -23,6 +23,7 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { getErrors as getLegacyErrors, getLogPath as getLegacyLogPath, clearErrors as clearLegacyErrors, ensureLogFile as ensureLegacyLogFile } from './error-log';
 import type { ErrorEntry as LegacyErrorEntry, ErrorType } from './error-log';
 import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
@@ -30,20 +31,48 @@ import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
 // Re-export the legacy shape so the viewer's existing HTML keeps working.
 export type { ErrorEntry } from './error-log';
 
-// Fixed path — must match the constant in error-log-utils.ts.
-const UTILS_LOG_PATH = path.join(__dirname, '..', 'data', 'cielovista-errors.json');
+const DATA_UTILS_LOG_PATH      = path.join(__dirname, '..', 'data', 'cielovista-errors.json');
+
+function getWorkspaceUtilsLogPaths(): string[] {
+    const roots = (vscode.workspace.workspaceFolders ?? []).map(wf => wf.uri.fsPath);
+    // Keep process.cwd fallback for no-workspace and older extension host flows.
+    roots.push(process.cwd());
+    return [...new Set(roots.map(root => path.join(root, '.vscode', 'logs', 'cielovista-errors.json')))];
+}
+
+function getUtilsLogPaths(): string[] {
+    const paths = [...getWorkspaceUtilsLogPaths(), DATA_UTILS_LOG_PATH];
+    return [...new Set(paths)];
+}
+
+function countArrayEntries(p: string): number {
+    if (!fs.existsSync(p)) { return 0; }
+    try {
+        const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+        return Array.isArray(parsed) ? parsed.length : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function countLegacyEntries(): number {
+    return getLegacyErrors().length;
+}
 
 // ─── Read the utils-style log file ────────────────────────────────────────────
 
 function readUtilsLog(): UtilsErrorEntry[] {
-    const logFile = UTILS_LOG_PATH;
-    if (!fs.existsSync(logFile)) { return []; }
-    try {
-        const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8'));
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
+    const out: UtilsErrorEntry[] = [];
+    for (const logFile of getUtilsLogPaths()) {
+        if (!fs.existsSync(logFile)) { continue; }
+        try {
+            const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8'));
+            if (Array.isArray(parsed)) { out.push(...parsed); }
+        } catch {
+            // best-effort read; ignore malformed files
+        }
     }
+    return out;
 }
 
 // ─── Translate utils-shape -> viewer-shape ────────────────────────────────────
@@ -123,9 +152,28 @@ export function getErrors(): LegacyErrorEntry[] {
  * defaults to the legacy path (matches old viewer behavior).
  */
 export function getLogPath(): string {
-    const utilsCount  = readUtilsLog().length;
-    const legacyCount = getLegacyErrors().length;
-    return (utilsCount > 0 && legacyCount === 0) ? UTILS_LOG_PATH : getLegacyLogPath();
+    const legacyCount = countLegacyEntries();
+
+    const utilsWithCounts = getUtilsLogPaths().map(p => {
+        return { path: p, count: countArrayEntries(p) };
+    });
+
+    const bestUtils = utilsWithCounts.sort((a, b) => b.count - a.count)[0];
+    if (bestUtils && bestUtils.count > 0 && legacyCount === 0) {
+        return bestUtils.path;
+    }
+    return getLegacyLogPath();
+}
+
+/**
+ * Human-readable source summary for the viewer footer.
+ * Example: "legacy: 0 | workspace: 29 | data: 32"
+ */
+export function getLogSourceSummary(): string {
+    const legacy = countLegacyEntries();
+    const workspace = getWorkspaceUtilsLogPaths().reduce((sum, p) => sum + countArrayEntries(p), 0);
+    const data = countArrayEntries(DATA_UTILS_LOG_PATH);
+    return `legacy: ${legacy} | workspace: ${workspace} | data: ${data}`;
 }
 
 /**
@@ -135,8 +183,9 @@ export function getLogPath(): string {
  */
 export async function clearErrors(): Promise<void> {
     await clearLegacyErrors();
-    if (fs.existsSync(UTILS_LOG_PATH)) {
-        try { fs.writeFileSync(UTILS_LOG_PATH, '[]', 'utf8'); }
+    for (const p of getUtilsLogPaths()) {
+        if (!fs.existsSync(p)) { continue; }
+        try { fs.writeFileSync(p, '[]', 'utf8'); }
         catch { /* best-effort; not fatal */ }
     }
 }
@@ -157,17 +206,18 @@ export function ensureLogFile(): void { ensureLegacyLogFile(); }
 export function patchEntry(id: string | number, issueNumber: number, issueUrl: string): void {
     const numericId = typeof id === 'string' ? Number(id) : id;
 
-    // ── utils log (data/cielovista-errors.json) ─────────────────────────────
-    if (fs.existsSync(UTILS_LOG_PATH)) {
+    // ── utils logs (.vscode/logs + data fallback) ───────────────────────────
+    for (const p of getUtilsLogPaths()) {
+        if (!fs.existsSync(p)) { continue; }
         try {
-            const entries: UtilsErrorEntry[] = JSON.parse(fs.readFileSync(UTILS_LOG_PATH, 'utf8'));
+            const entries: UtilsErrorEntry[] = JSON.parse(fs.readFileSync(p, 'utf8'));
             const idx = entries.findIndex(
                 u => (Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0) === numericId
             );
             if (idx !== -1) {
                 entries[idx].githubIssueNumber = issueNumber;
                 entries[idx].githubIssueUrl    = issueUrl;
-                fs.writeFileSync(UTILS_LOG_PATH, JSON.stringify(entries, null, 2), 'utf8');
+                fs.writeFileSync(p, JSON.stringify(entries, null, 2), 'utf8');
             }
         } catch { /* best-effort */ }
     }

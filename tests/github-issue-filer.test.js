@@ -49,6 +49,13 @@ expect('skips empty command',            src.includes("if (e.command)") || src.i
 expect('skips empty stack',              src.includes("if (e.stack)") || src.includes('e.stack &&') || src.includes('e.stack?.'));
 expect('skips empty filename',           src.includes("if (e.filename)") || src.includes('e.filename &&') || src.includes('e.filename?'));
 
+// ── Newline normalization behavior ───────────────────────────────────────────
+console.log('\n=== newline normalization behavior ===');
+expect('normalizeGithubMarkdownBody helper exists', src.includes('function normalizeGithubMarkdownBody'));
+expect('normalizer preserves fenced blocks', src.includes('Decode escaped newlines only outside fenced blocks'));
+expect('postIssueComment normalizes body', src.includes('JSON.stringify({ body: normalizeGithubMarkdownBody(body) })'));
+expect('postIssue normalizes body', src.includes('body: normalizeGithubMarkdownBody(body)'));
+
 // ── Bundle check ──────────────────────────────────────────────────────────────
 console.log('\n=== Bundle ===');
 if (bundle.length === 0) {
