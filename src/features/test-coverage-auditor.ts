@@ -20,6 +20,7 @@ import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { getChannel, log } from '../shared/output-channel';
 import { logError } from '../shared/error-log';
+import { getNonce } from '../shared/webview-utils';
 
 // ============================================================================
 // TYPES
@@ -37,6 +38,18 @@ interface TierData {
   present: boolean;
 }
 
+interface TierTestFile {
+  file: string;
+  tests: number;
+  bugs: number;
+}
+
+interface FeatureCoverageData {
+  name: string;
+  path: string;
+  unitTests: number;
+}
+
 /**
  * Audit report structure
  */
@@ -48,6 +61,8 @@ interface AuditReport {
   featuresTotal: number;
   coveragePercent: number;
   tiers: TierData[];
+  tierDetails: Record<string, TierTestFile[]>;
+  features: FeatureCoverageData[];
   gaps: string[];
   recommendations: { priority: 'HIGH' | 'MEDIUM' | 'LOW'; text: string }[];
   bugsUntested: number;
@@ -254,6 +269,7 @@ function generateMarkdownFromReport(report: AuditReport): string {
 function formatAuditReport(metricsJson: any): AuditReport {
   const metrics = metricsJson.metrics;
   const coveragePercent = metrics.featuresTotal > 0 ? Math.round((metrics.featuresCovered / metrics.featuresTotal) * 100) : 0;
+  const tierDetails: Record<string, TierTestFile[]> = metricsJson.testsByTier || {};
 
   // Map tiers
   const tierMap: { [key: string]: string } = {
@@ -273,7 +289,7 @@ function formatAuditReport(metricsJson: any): AuditReport {
   };
 
   const tiers: TierData[] = ['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4', 'TIER_5'].map((tierKey) => {
-    const tierTests = metricsJson.testsByTier[tierKey] || [];
+    const tierTests = tierDetails[tierKey] || [];
     const testCases = tierTests.reduce((sum: number, t: any) => sum + (t.tests || 0), 0);
 
     return {
@@ -327,6 +343,22 @@ function formatAuditReport(metricsJson: any): AuditReport {
     });
   }
 
+  const features: FeatureCoverageData[] = (metricsJson.features || []).map((feature: any) => {
+    const name = String(feature.name || '');
+    const normalizedName = name.toLowerCase().replace(/[-_]/g, '');
+    const unitTests = (tierDetails.TIER_2 || []).reduce((sum: number, testFile: TierTestFile) => {
+      const filePath = String(testFile.file || '').toLowerCase();
+      const matched = filePath.includes(name.toLowerCase()) || filePath.includes(normalizedName);
+      return matched ? sum + (testFile.tests || 0) : sum;
+    }, 0);
+
+    return {
+      name,
+      path: String(feature.path || ''),
+      unitTests,
+    };
+  });
+
   return {
     timestamp: new Date().toISOString(),
     totalTestFiles: metrics.totalTestFiles,
@@ -335,6 +367,8 @@ function formatAuditReport(metricsJson: any): AuditReport {
     featuresTotal: metrics.featuresTotal,
     coveragePercent,
     tiers,
+    tierDetails,
+    features,
     gaps,
     recommendations,
     bugsUntested: metrics.bugsUntested,
@@ -350,6 +384,7 @@ function formatAuditReport(metricsJson: any): AuditReport {
  * Generate HTML content for the webview panel
  */
 function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent: string): string {
+  const nonce = getNonce();
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'resources', 'webview.css'));
 
   // Determine coverage color
@@ -360,6 +395,7 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <title>Test Coverage Audit</title>
 <style>
   body {
@@ -432,6 +468,18 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
     display: flex;
     justify-content: space-between;
     align-items: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .tier:hover {
+    border-left-color: #64B5F6;
+    background: rgba(100, 181, 246, 0.12);
+  }
+
+  .tier.active {
+    border-left-color: #64B5F6;
+    box-shadow: inset 0 0 0 1px rgba(100, 181, 246, 0.35);
   }
   
   .tier.present {
@@ -463,6 +511,12 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
     font-size: 12px;
     color: #aaa;
     margin-top: 4px;
+  }
+
+  .tier-cta {
+    font-size: 11px;
+    color: #90CAF9;
+    margin-top: 6px;
   }
   
   .tier-icon {
@@ -559,6 +613,46 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
     padding-top: 12px;
     border-top: 1px solid #333;
   }
+
+  .details-card {
+    background: #252526;
+    border: 1px solid #3E3E42;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 12px;
+  }
+
+  .details-title {
+    font-size: 13px;
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  table.details-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  table.details-table th,
+  table.details-table td {
+    border-bottom: 1px solid #333;
+    padding: 8px;
+    text-align: left;
+  }
+
+  table.details-table th {
+    color: #90CAF9;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .empty-state {
+    color: #aaa;
+    font-size: 12px;
+  }
 </style>
 </head>
 <body>
@@ -606,16 +700,49 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
 ${report.tiers
   .map(
     (tier) => `
-<div class="tier ${tier.present ? 'present' : 'missing'}">
+<div class="tier ${tier.present ? 'present' : 'missing'}" data-tier="${tier.tier}">
   <div class="tier-left">
     <div class="tier-name">${tier.present ? '✅' : '❌'} ${tier.name}</div>
     <div class="tier-desc">${tier.description}</div>
     ${tier.present ? `<div class="tier-stats">${tier.files} files • ${tier.testCases} test cases</div>` : '<div class="tier-stats">No tests found</div>'}
+    <div class="tier-cta">Click to view all test files and test-case counts</div>
   </div>
 </div>
 `
   )
   .join('')}
+
+<div class="details-card" id="tier-details-panel">
+  <div class="details-title" id="tier-details-title">Select a tier row to view all test cases.</div>
+  <div id="tier-details-body" class="empty-state">No tier selected.</div>
+</div>
+
+<h2>🧩 Features Missing Unit Tests</h2>
+<div class="details-card">
+  <table class="details-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>Path</th>
+        <th>Unit Test Cases</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${report.features
+        .filter((f) => f.unitTests === 0)
+        .map(
+          (f) => `
+      <tr>
+        <td>${f.name}</td>
+        <td>${f.path}</td>
+        <td>0</td>
+      </tr>
+      `
+        )
+        .join('') || '<tr><td colspan="3">All features currently have unit test coverage.</td></tr>'}
+    </tbody>
+  </table>
+</div>
 
 ${
   report.gaps.length > 0
@@ -648,9 +775,11 @@ ${report.recommendations
 Generated: ${new Date(report.timestamp).toLocaleString()}
 </div>
 
-<script>
+<script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const MD_CONTENT = ${JSON.stringify(mdContent)};
+  const REPORT_DATA = ${JSON.stringify(report)};
+  let selectedTierKey = '';
 
   function refresh() { vscode.postMessage({ command: 'refresh' }); }
   function exportReport() { vscode.postMessage({ command: 'export' }); }
@@ -674,6 +803,92 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
     });
   }
 
+  function escHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;');
+  }
+
+  function formatTierMarkdown(tierKey) {
+    if (!tierKey) {
+      return '';
+    }
+
+    const tier = (REPORT_DATA.tiers || []).find(function(t) { return t.tier === tierKey; });
+    const rows = (REPORT_DATA.tierDetails && REPORT_DATA.tierDetails[tierKey]) || [];
+    if (!tier) {
+      return '';
+    }
+
+    const header = '### Selected Tier: ' + tier.name + ' (' + tier.tier + ')\n\n';
+    if (!rows.length) {
+      return header + '_No test files found in this tier._';
+    }
+
+    const tableRows = rows.map(function(row) {
+      return '| ' + row.file + ' | ' + (row.tests || 0) + ' | ' + (row.bugs || 0) + ' |';
+    }).join('\n');
+
+    return header +
+      '| Test File | Test Cases | Bug Refs |\n' +
+      '|---|---:|---:|\n' +
+      tableRows;
+  }
+
+  function buildChatPayload() {
+    const tierSection = formatTierMarkdown(selectedTierKey);
+    const suffix = tierSection ? ('\n\n' + tierSection) : '';
+    return '@workspace Here is the current Test Coverage Audit dashboard for cielovista-tools:\n\n' + MD_CONTENT + suffix;
+  }
+
+  function renderTierDetails(tierKey) {
+    selectedTierKey = tierKey;
+    const tiers = REPORT_DATA.tiers || [];
+    const tier = tiers.find(function(t) { return t.tier === tierKey; });
+    const titleEl = document.getElementById('tier-details-title');
+    const bodyEl = document.getElementById('tier-details-body');
+
+    document.querySelectorAll('.tier').forEach(function(el) {
+      if (el.getAttribute('data-tier') === tierKey) {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    });
+
+    if (!tier) {
+      titleEl.textContent = 'Select a tier row to view all test cases.';
+      bodyEl.innerHTML = '<div class="empty-state">No tier selected.</div>';
+      return;
+    }
+
+    const rows = (REPORT_DATA.tierDetails && REPORT_DATA.tierDetails[tierKey]) || [];
+    titleEl.textContent = tier.name + ' (' + tier.tier + ')';
+
+    if (!rows.length) {
+      bodyEl.innerHTML = '<div class="empty-state">No tests found in this tier.</div>';
+      return;
+    }
+
+    const rowHtml = rows.map(function(row) {
+      return '<tr>' +
+        '<td>' + escHtml(row.file) + '</td>' +
+        '<td>' + (row.tests || 0) + '</td>' +
+        '<td>' + (row.bugs || 0) + '</td>' +
+      '</tr>';
+    }).join('');
+
+    bodyEl.innerHTML = '' +
+      '<table class="details-table">' +
+      '  <thead>' +
+      '    <tr><th>Test File</th><th>Test Cases</th><th>Bug Refs</th></tr>' +
+      '  </thead>' +
+      '  <tbody>' + rowHtml + '</tbody>' +
+      '</table>';
+  }
+
   document.getElementById('btn-refresh').addEventListener('click', refresh);
   document.getElementById('btn-export').addEventListener('click', exportReport);
   document.getElementById('btn-generate').addEventListener('click', generateTests);
@@ -681,9 +896,21 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
     copyToClipboard(MD_CONTENT);
   });
   document.getElementById('btn-copy-chat').addEventListener('click', function(){
-    copyToClipboard('@workspace Here is the current test coverage audit for cielovista-tools:\\n\\n' + MD_CONTENT);
+    copyToClipboard(buildChatPayload());
     showToast('✅ Copied for GitHub Chat!');
   });
+
+  document.querySelectorAll('.tier').forEach(function(rowEl){
+    rowEl.addEventListener('click', function(){
+      const tierKey = rowEl.getAttribute('data-tier') || '';
+      renderTierDetails(tierKey);
+    });
+  });
+
+  const initialTier = (REPORT_DATA.tiers || []).find(function(t) { return t.present; }) || (REPORT_DATA.tiers || [])[0];
+  if (initialTier) {
+    renderTierDetails(initialTier.tier);
+  }
 </script>
 
 </body>

@@ -67,6 +67,28 @@ test('webview messages are handled for all button commands', () => {
     assert(SRC.includes("case 'copyFallback':"), 'copyFallback message handler missing');
 });
 
+test('getWebviewHtml uses a nonce — script is not blocked by VS Code CSP', () => {
+    // Root cause of buttons-dead-on-first-open: no CSP nonce → VS Code silently blocks
+    // the inline <script> block, so acquireVsCodeApi() never runs and no click handlers
+    // are registered. Every other webview in the codebase uses getNonce() for this reason.
+    assert(
+        SRC.includes("getNonce") && SRC.includes("from '../shared/webview-utils'"),
+        'getNonce must be imported from shared/webview-utils'
+    );
+    assert(
+        SRC.includes('Content-Security-Policy'),
+        'getWebviewHtml must emit a <meta http-equiv="Content-Security-Policy"> tag'
+    );
+    assert(
+        SRC.includes("script-src 'nonce-"),
+        'CSP must include script-src nonce directive'
+    );
+    assert(
+        SRC.includes('<script nonce='),
+        '<script> tag must carry the nonce attribute'
+    );
+});
+
 test('onDidReceiveMessage registered once at panel creation, not in refresh path', () => {
     // Root cause of #352: when Refresh replaced webview.html via the
     // if (currentWebviewPanel) branch, no new listener was registered and
