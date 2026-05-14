@@ -12,7 +12,7 @@
 
 import * as vscode from 'vscode';
 import * as path   from 'path';
-import { getErrors, clearErrors, getLogPath, ensureLogFile, patchEntry } from '../shared/error-log-adapter';
+import { getErrors, clearErrors, getLogPath, getLogSourceSummary, ensureLogFile, patchEntry } from '../shared/error-log-adapter';
 import type { ErrorEntry } from '../shared/error-log-adapter';
 import { fileErrorAsIssue } from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
@@ -40,6 +40,8 @@ function typeColor(type: string): string {
 
 function buildHtml(errors: ErrorEntry[]): string {
     const sorted = [...errors].reverse(); // newest first
+  const unresolvedCount = errors.filter(e => !e.githubIssueNumber).length;
+  const filedCount = errors.length - unresolvedCount;
 
     const rows = sorted.length === 0
         ? `<div style="padding:40px;text-align:center;color:var(--vscode-descriptionForeground)">✅ No errors logged — all clean.</div>`
@@ -80,6 +82,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .btn-clear:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-open{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
 .btn-open:hover{background:var(--vscode-button-hoverBackground)}
+.btn-refresh{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
+.btn-refresh:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .content{padding:12px 16px 40px}
 .entry{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-left:4px solid #f48771;border-radius:0 4px 4px 0;padding:10px 12px;margin-bottom:8px}
 .entry-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
@@ -102,14 +106,16 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div class="toolbar">
   <h2>🪵 CieloVista Tools — Error Log</h2>
-  ${errors.length > 0
-    ? `<span class="pill pill-err">❌ ${errors.length} error${errors.length !== 1 ? 's' : ''}</span>`
+  ${unresolvedCount > 0
+    ? `<span class="pill pill-err">❌ ${unresolvedCount} active error${unresolvedCount !== 1 ? 's' : ''}</span>`
     : `<span class="pill pill-ok">✅ Clean</span>`}
+  ${filedCount > 0 ? `<span class="pill" title="Filed errors">✅ ${filedCount} filed</span>` : ''}
+  <button class="btn btn-refresh" data-action="refresh">🔄 Refresh</button>
   <button class="btn btn-open" data-action="open-file">📄 Open JSON</button>
   ${errors.length > 0 ? `<button class="btn btn-clear" data-action="clear">🗑 Clear All</button>` : ''}
 </div>
 <div class="content">${rows}</div>
-<div class="meta">Log file: <code>${esc(getLogPath())}</code></div>
+<div class="meta">Log file: <code>${esc(getLogPath())}</code><br/>Sources: <code>${esc(getLogSourceSummary())}</code></div>
 <script>
 (function(){
   const vscode = acquireVsCodeApi();
@@ -159,9 +165,15 @@ export async function openErrorLogViewer(): Promise<void> {
     const html   = buildHtml(errors);
 
     if (_panel) {
-        _panel.webview.html = html;
-        _panel.reveal();
-        return;
+    try {
+      _panel.webview.html = html;
+      _panel.reveal(vscode.ViewColumn.One, false);
+      return;
+    } catch {
+      // Stale panel handle - recreate below.
+      try { _panel.dispose(); } catch { /* ignore */ }
+      _panel = undefined;
+    }
     }
 
     _panel = vscode.window.createWebviewPanel(
@@ -172,6 +184,10 @@ export async function openErrorLogViewer(): Promise<void> {
     _panel.onDidDispose(() => { _panel = undefined; });
 
     _panel.webview.onDidReceiveMessage(async msg => {
+      if (msg.command === 'refresh') {
+        _panel!.webview.html = buildHtml(getErrors());
+        log(FEATURE, 'Error log refreshed by user');
+      }
         if (msg.command === 'clear') {
             await clearErrors();
             _panel!.webview.html = buildHtml([]);
@@ -216,6 +232,7 @@ export async function openErrorLogViewer(): Promise<void> {
                 number: result.issueNumber,
             });
             if (result.ok && result.issueUrl) {
+              _panel!.webview.html = buildHtml(getErrors());
                 const action = await vscode.window.showInformationMessage(
                     `Filed as issue #${result.issueNumber}.`,
                     'Open in browser'

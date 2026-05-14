@@ -533,6 +533,16 @@ test('REG-037', 'Error Log Viewer skips result pane (DIRECT_PANEL_COMMANDS)', ()
     `REG-037 error-log no-duplicate-pane test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-038: Issue #345 — Error Log Viewer must have a working Refresh button.
+test('REG-038', 'Error Log Viewer has Refresh button that reloads entries', () => {
+  const result = require('child_process').spawnSync(
+    process.execPath, [path.join(ROOT, 'tests/regression/REG-038-error-log-refresh-button.test.js')],
+    { encoding: 'utf8' }
+  );
+  assert(result.status === 0,
+    `REG-038 error-log refresh button test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));
