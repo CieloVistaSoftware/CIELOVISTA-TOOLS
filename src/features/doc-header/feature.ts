@@ -43,6 +43,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
+import { esc } from '../../shared/webview-utils';
 
 const FEATURE       = 'doc-header';
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -343,10 +344,6 @@ function applyHeader(filePath: string, projectName: string, projectRoot: string)
 }
 
 // ─── HTML report builder ──────────────────────────────────────────────────────
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function buildReportHtml(reports: DocHeaderReport[], registry: ProjectRegistry): string {
     const total      = reports.length;

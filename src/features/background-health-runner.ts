@@ -23,6 +23,7 @@ import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-i
 import { loadRegistry }  from '../shared/registry';
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
+import { esc }           from '../shared/webview-utils';
 
 function isPortOpen(port: number): Promise<boolean> {
     return new Promise(resolve => {
@@ -118,13 +119,6 @@ function clearBug(id: string): void {
     if (b) { b.fixed = true; }
 }
 
-function esc(s: string): string {
-    return String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
 
 function parseEvidenceLocation(line: string): { filePath: string; line: number; column: number } | null {
     const match = line.match(/^([A-Za-z]:[\\/].*?|\/.+?):(\d+)(?::(\d+))?$/);

@@ -31,6 +31,7 @@ import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, saveRegistry, ProjectRegistry, ProjectEntry } from '../shared/registry';
 import { showContentViewer } from '../shared/content-viewer';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE = 'docs-manager';
 
@@ -285,10 +286,6 @@ function buildSyncIssues(project: ProjectEntry, globalDocsPath: string): SyncIss
     }
 
     return issues;
-}
-
-function esc(s: string): string {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function buildSyncHtml(results: SyncResult[], registry: ProjectRegistry): string {

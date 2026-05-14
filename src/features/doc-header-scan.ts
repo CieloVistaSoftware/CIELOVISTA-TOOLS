@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE = 'doc-header-scan';
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -98,9 +99,6 @@ function scanDirectory(rootPath: string, projectName: string, projectRoot: strin
     }
     walk(rootPath, 0);
     return results;
-}
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');

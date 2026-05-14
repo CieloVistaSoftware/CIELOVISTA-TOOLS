@@ -28,6 +28,7 @@ import * as path   from 'path';
 import { execSync } from 'child_process';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { esc }           from '../shared/webview-utils';
 import { callClaude }    from '../shared/anthropic-client';
 
 const FEATURE = 'js-error-audit';
@@ -338,10 +339,6 @@ Rules:
 }
 
 // ─── HTML ─────────────────────────────────────────────────────────────────────
-
-function esc(s: string): string {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 function statusBadgeHtml(status: EntryStatus): string {
     const map: Record<EntryStatus, string> = {

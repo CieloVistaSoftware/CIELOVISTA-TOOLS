@@ -37,7 +37,7 @@ import * as jsdiff from 'diff';
 import { log, logError } from '../../shared/output-channel';
 import { callClaude } from '../../shared/anthropic-client';
 import { loadRegistry } from '../../shared/registry';
-
+import { esc } from '../../shared/webview-utils';
 
 const FEATURE     = 'readme-compliance';
 const GLOBAL_DOCS = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
@@ -133,7 +133,11 @@ function detectType(filePath: string, projectRootPath: string, projectName: stri
 
 // ─── Scanner ──────────────────────────────────────────────────────────────────
 
-const SKIP = new Set(['node_modules', '.git', 'out', 'dist', 'reports']);
+const SKIP = new Set([
+    'node_modules', '.git', 'out', 'dist', 'reports',
+    '.vscode', '.vscode-test', '.claude', 'CommandHelp', 'image-reader-assets',
+    'test-results', 'playwright-report',
+]);
 
 function collectReadmes(rootPath: string, projectName: string, projectRoot: string, maxDepth = 4): Array<{ filePath: string; projectName: string; projectRoot: string }> {
     const results: Array<{ filePath: string; projectName: string; projectRoot: string }> = [];
@@ -311,6 +315,8 @@ function applyFix(report: ReadmeReport): string {
 
 let _diffPanel:  vscode.WebviewPanel | undefined;
 let _batchPanel: vscode.WebviewPanel | undefined;
+let _diffPanelMessageDisposable: vscode.Disposable | undefined;
+let _batchPanelMessageDisposable: vscode.Disposable | undefined;
 
 function buildDiffHtml(
     fileName:    string,
@@ -445,8 +451,8 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
     }
 
     // Handle approve / ignore
-    const startMs = Date.now();
-    _diffPanel.webview.onDidReceiveMessage(async msg => {
+    _diffPanelMessageDisposable?.dispose();
+    _diffPanelMessageDisposable = _diffPanel.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'approve') {
             try {
                 fs.writeFileSync(report.filePath, after, 'utf8');
@@ -468,10 +474,6 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
 }
 
 // ─── HTML report builder ──────────────────────────────────────────────────────
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function scoreColor(score: number): string {
     if (score >= 80) { return 'var(--vscode-testing-iconPassed)'; }
@@ -989,7 +991,8 @@ Rules:
         _batchPanel.onDidDispose(() => { _batchPanel = undefined; });
     }
 
-    _batchPanel.webview.onDidReceiveMessage(async (msg) => {
+    _batchPanelMessageDisposable?.dispose();
+    _batchPanelMessageDisposable = _batchPanel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command !== 'applyBatch') { return; }
         const approved: Array<{ filePath: string; content: string }> = msg.approved;
         let written = 0;
@@ -1039,7 +1042,8 @@ Rules:
             _diffPanel.onDidDispose(() => { _diffPanel = undefined; });
         }
 
-        _diffPanel.webview.onDidReceiveMessage(async msg2 => {
+        _diffPanelMessageDisposable?.dispose();
+        _diffPanelMessageDisposable = _diffPanel.webview.onDidReceiveMessage(async msg2 => {
             if (msg2.command === 'approve') {
                 fs.writeFileSync(filePath, fixed, 'utf8');
                 _diffPanel?.dispose();
@@ -1132,6 +1136,10 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
+    _batchPanelMessageDisposable?.dispose();
+    _batchPanelMessageDisposable = undefined;
+    _diffPanelMessageDisposable?.dispose();
+    _diffPanelMessageDisposable = undefined;
     _batchPanel?.dispose();
     _batchPanel = undefined;
     _diffPanel?.dispose();

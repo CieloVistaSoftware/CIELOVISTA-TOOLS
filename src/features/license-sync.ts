@@ -22,6 +22,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectEntry } from '../shared/registry';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE        = 'license-sync';
 const CANONICAL_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\LICENSE';
@@ -33,10 +34,6 @@ function loadCanonical(): string {
         if (!fs.existsSync(CANONICAL_PATH)) { return ''; }
         return fs.readFileSync(CANONICAL_PATH, 'utf8');
     } catch { return ''; }
-}
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 type LicenseStatus = 'missing' | 'matches' | 'differs';

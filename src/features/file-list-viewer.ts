@@ -22,6 +22,7 @@
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
+import { spawn }   from 'child_process';
 import { log, logError } from '../shared/output-channel';
 import {
     sortEntries,
@@ -30,6 +31,7 @@ import {
     type SortColumn,
     type SortDirection,
 } from '../shared/file-list-sort';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE = 'file-list-viewer';
 let _panel: vscode.WebviewPanel | undefined;
@@ -38,10 +40,7 @@ let _sortColumn: SortColumn = 'name';
 let _sortDir:    SortDirection = 'asc';
 let _showHidden = true;
 let _showExcludes = false;
-
-function esc(s: string): string {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+let _selectedNames: string[] = [];
 
 function workspaceRoot(): string | undefined {
     const folders = vscode.workspace.workspaceFolders;
@@ -85,10 +84,14 @@ function buildHtml(): string {
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--vscode-font-family,sans-serif);font-size:13px;background:var(--vscode-editor-background,#1e1e1e);color:var(--vscode-editor-foreground,#d4d4d4);display:flex;flex-direction:column}
 #hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;font-size:12px}
-#up-btn{background:transparent;color:#9cdcfe;border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:12px}
+#up-btn,#new-folder-btn{background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:3px 10px;cursor:pointer;font-family:inherit;font-size:12px}
+#up-btn{color:#9cdcfe}
 #up-btn:hover:not(:disabled){background:rgba(255,255,255,.06)}
 #up-btn:disabled{opacity:.35;cursor:not-allowed}
-#path-display{flex:1;font-family:var(--vscode-editor-font-family,monospace);color:#9cdcfe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#new-folder-btn{color:#4ec9b0}
+#new-folder-btn:hover{background:rgba(78,201,176,.1)}
+#path-display{flex:1;font-family:var(--vscode-editor-font-family,monospace);color:#9cdcfe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+#path-display:hover{text-decoration:underline}
 .toggle-row{display:flex;gap:6px}
 .toggle-btn{background:transparent;color:#858585;border:1px solid rgba(255,255,255,.12);border-radius:3px;padding:3px 10px;cursor:pointer;font-size:11px;font-family:inherit}
 .toggle-btn.on{background:rgba(99,102,241,.18);color:#818cf8;border-color:rgba(99,102,241,.35)}
@@ -111,15 +114,20 @@ tr.file td.col-name::before{content:'\u{1F4C4}';margin-right:6px;opacity:.5}
 tr.hidden td.col-name{opacity:.55}
 tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important;color:var(--vscode-list-activeSelectionForeground)!important}
 .empty{padding:30px;text-align:center;color:#858585}
+#ctx-menu{display:none;position:fixed;background:var(--vscode-menu-background,#252526);border:1px solid rgba(255,255,255,.15);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:100;min-width:160px;padding:4px 0}
+#ctx-menu button{display:block;width:100%;text-align:left;background:transparent;border:none;padding:6px 14px;font-family:inherit;font-size:13px;color:var(--vscode-menu-foreground,#cccccc);cursor:pointer}
+#ctx-menu button:hover{background:var(--vscode-list-activeSelectionBackground,#094771);color:var(--vscode-list-activeSelectionForeground,#fff)}
 </style></head><body>
 <div id="hdr">
   <button id="up-btn" title="Go to parent folder">\u2191 Up</button>
   <span id="path-display"></span>
+  <button id="new-folder-btn" title="Create a new folder here and navigate into it">+ New Folder</button>
   <div class="toggle-row">
     <button class="toggle-btn on" id="toggle-hidden" title="Show hidden files (dotfiles)">.hidden</button>
     <button class="toggle-btn"    id="toggle-excludes" title="Show normally-excluded folders (node_modules, .git, out, dist, .vscode-test)">excludes</button>
   </div>
 </div>
+<div id="ctx-menu"><button id="ctx-run-test">▶ Run Test</button></div>
 <div id="tbl-wrap">
   <table id="tbl">
     <thead><tr>
@@ -151,7 +159,9 @@ function fmtDate(ms){
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function render(){
-  document.getElementById('path-display').textContent = state.dir || '(no workspace folder open)';
+  const pathDisplay = document.getElementById('path-display');
+  pathDisplay.textContent = state.dir || '(no workspace folder open)';
+  pathDisplay.title = state.dir || '';
   document.getElementById('up-btn').disabled = !state.canGoUp;
   document.getElementById('toggle-hidden').classList.toggle('on', state.showHidden);
   document.getElementById('toggle-excludes').classList.toggle('on', state.showExcludes);
@@ -168,7 +178,8 @@ function render(){
   document.getElementById('empty').style.display = state.entries.length === 0 ? '' : 'none';
   for (const e of state.entries) {
     const tr = document.createElement('tr');
-    tr.className = (e.isDir ? 'dir' : 'file') + (e.name.startsWith('.') ? ' hidden' : '');
+    const isSelected = (state.selectedNames || []).includes(e.name);
+    tr.className = (e.isDir ? 'dir' : 'file') + (e.name.startsWith('.') ? ' hidden' : '') + (isSelected ? ' selected' : '');
     tr.dataset.name = e.name;
     tr.dataset.isDir = e.isDir ? '1' : '0';
     tr.innerHTML =
@@ -180,10 +191,99 @@ function render(){
   }
 }
 
+function setSelected(names) {
+  const uniq = Array.from(new Set((names || []).map(function(n){ return String(n || ''); }).filter(Boolean)));
+  state.selectedNames = uniq;
+  render();
+}
+
+function selectRange(toName) {
+  const entries = state.entries || [];
+  const fromName = state.lastSelectedName || toName;
+  const fromIdx = entries.findIndex(function(e){ return e.name === fromName; });
+  const toIdx = entries.findIndex(function(e){ return e.name === toName; });
+  if (fromIdx < 0 || toIdx < 0) {
+    setSelected([toName]);
+    state.lastSelectedName = toName;
+    return;
+  }
+  const start = Math.min(fromIdx, toIdx);
+  const end = Math.max(fromIdx, toIdx);
+  const range = entries.slice(start, end + 1).map(function(e){ return e.name; });
+  setSelected(range);
+  state.lastSelectedName = toName;
+}
+
+function isRunnableTestFile(name) {
+  const inTestsDir = state.dir.replace(/\\/g, '/').includes('/tests');
+  return inTestsDir && /\.(js|ts)$/i.test(name || '');
+}
+
 document.getElementById('tbody').addEventListener('click', ev => {
   const tr = ev.target.closest('tr');
   if (!tr) return;
-  vsc.postMessage({ command: tr.dataset.isDir === '1' ? 'navigate-to' : 'open-file', name: tr.dataset.name });
+  const name = tr.dataset.name || '';
+  const isDir = tr.dataset.isDir === '1';
+
+  if (ev.shiftKey) {
+    selectRange(name);
+    return;
+  }
+  if (ev.ctrlKey || ev.metaKey) {
+    const current = new Set(state.selectedNames || []);
+    if (current.has(name)) {
+      current.delete(name);
+    } else {
+      current.add(name);
+    }
+    state.lastSelectedName = name;
+    setSelected(Array.from(current));
+    return;
+  }
+
+  state.lastSelectedName = name;
+  setSelected([name]);
+  vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name });
+});
+
+var _ctxMenu = document.getElementById('ctx-menu');
+var _ctxNames = [];
+function hideCtxMenu() { _ctxMenu.style.display = 'none'; }
+document.getElementById('tbody').addEventListener('contextmenu', function(ev) {
+  var tr = ev.target.closest('tr');
+  if (!tr) { hideCtxMenu(); return; }
+
+  var clickedName = tr.dataset.name || '';
+  if (!(state.selectedNames || []).includes(clickedName)) {
+    state.lastSelectedName = clickedName;
+    setSelected([clickedName]);
+  }
+
+  var selected = state.selectedNames || [];
+  var names = selected.filter(function(name){
+    var entry = (state.entries || []).find(function(e){ return e.name === name; });
+    return !!entry && !entry.isDir && isRunnableTestFile(name);
+  });
+
+  if (names.length === 0) { hideCtxMenu(); return; }
+  var name = tr.dataset.name || '';
+  if (!isRunnableTestFile(name)) { hideCtxMenu(); return; }
+  ev.preventDefault();
+  _ctxNames = names;
+  document.getElementById('ctx-run-test').textContent = names.length > 1 ? ('▶ Run Tests (' + names.length + ')') : '▶ Run Test';
+  _ctxMenu.style.display = 'block';
+  _ctxMenu.style.left = Math.min(ev.clientX, window.innerWidth - 170) + 'px';
+  _ctxMenu.style.top  = Math.min(ev.clientY, window.innerHeight - 50) + 'px';
+});
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('contextmenu', function(ev) { if (!ev.target.closest('#ctx-menu')) { hideCtxMenu(); } });
+document.getElementById('ctx-run-test').addEventListener('click', function() {
+  hideCtxMenu();
+  vsc.postMessage({ command: 'run-test', names: _ctxNames });
+});
+document.getElementById('path-display').addEventListener('click', function() {
+  if (!state.dir) { return; }
+  vsc.postMessage({ command: 'copy-path', path: state.dir });
 });
 
 document.querySelectorAll('th[data-col]').forEach(th => {
@@ -200,12 +300,19 @@ document.querySelectorAll('th[data-col]').forEach(th => {
 });
 
 document.getElementById('up-btn').addEventListener('click', () => vsc.postMessage({ command: 'up' }));
+document.getElementById('new-folder-btn').addEventListener('click', () => vsc.postMessage({ command: 'new-folder' }));
 document.getElementById('toggle-hidden').addEventListener('click',   () => vsc.postMessage({ command: 'toggle-hidden' }));
 document.getElementById('toggle-excludes').addEventListener('click', () => vsc.postMessage({ command: 'toggle-excludes' }));
 
 window.addEventListener('message', ev => {
   if (ev.data && ev.data.type === 'update') {
+    const prevSelected = state.selectedNames || [];
+    const prevLast = state.lastSelectedName || '';
     state = ev.data.state;
+    state.selectedNames = prevSelected.filter(function(name){
+      return (state.entries || []).some(function(e){ return e.name === name; });
+    });
+    state.lastSelectedName = state.selectedNames.includes(prevLast) ? prevLast : (state.selectedNames[0] || '');
     render();
   }
   if (ev.data && ev.data.type === 'select') {
@@ -244,6 +351,7 @@ function pushUpdate(): void {
             sortDir:      _sortDir,
             showHidden:   _showHidden,
             showExcludes: _showExcludes,
+          selectedNames: _selectedNames,
         },
     });
 }
@@ -254,6 +362,7 @@ function navigateTo(target: string): void {
     try { st = fs.statSync(target); } catch { return; }
     if (!st.isDirectory()) { return; }
     _currentDir = target;
+    _selectedNames = [];
     if (_panel) {
         const base = path.basename(target);
         _panel.title = `FileList — ${base}`;
@@ -291,7 +400,7 @@ export function openFileListPanel(): void {
         _currentDir = undefined;
     });
 
-    _panel.webview.onDidReceiveMessage(msg => {
+    _panel.webview.onDidReceiveMessage(async msg => {
         try {
             if (msg.command === 'ready') {
                 pushUpdate();
@@ -327,6 +436,81 @@ export function openFileListPanel(): void {
             if (msg.command === 'toggle-excludes') {
                 _showExcludes = !_showExcludes;
                 pushUpdate();
+                return;
+            }
+            if (msg.command === 'run-test') {
+                if (!_currentDir) { return; }
+              const requestedNames = Array.isArray(msg.names)
+                ? msg.names.map((n: unknown) => String(n)).filter(Boolean)
+                : [String(msg.name ?? '')].filter(Boolean);
+              if (requestedNames.length === 0) { return; }
+
+              const testFiles = requestedNames.map((n: string) => path.join(_currentDir!, n));
+              const missing = testFiles.filter((f: string) => !fs.existsSync(f));
+              if (missing.length > 0) {
+                vscode.window.showErrorMessage(`Test file not found: ${missing[0]}`);
+                return;
+              }
+
+              let totalPass = 0;
+              let totalFail = 0;
+              let failedFiles = 0;
+
+              for (const testFile of testFiles) {
+                log(FEATURE, `\u25b6 Running test: ${path.basename(testFile)}`);
+                const runResult = await new Promise<{ code: number; out: string }>((resolve) => {
+                  const child = spawn(process.execPath, [testFile], { cwd: path.dirname(testFile) });
+                  let out = '';
+                  child.stdout.on('data', (d: Buffer) => { const t = d.toString(); out += t; log(FEATURE, t.trimEnd()); });
+                  child.stderr.on('data', (d: Buffer) => { const t = d.toString(); out += t; log(FEATURE, t.trimEnd()); });
+                  child.on('close', (code: number | null) => resolve({ code: code ?? 1, out }));
+                });
+
+                const passCount = (runResult.out.match(/^PASS:/gm) || []).length;
+                const failCount = (runResult.out.match(/^FAIL:/gm) || []).length;
+                totalPass += passCount;
+                totalFail += failCount;
+                if (runResult.code !== 0) {
+                  failedFiles += 1;
+                }
+              }
+
+              const fileWord = testFiles.length === 1 ? 'file' : 'files';
+              const summary = `${testFiles.length} ${fileWord}: ${totalPass} passed, ${totalFail} failed`;
+              if (failedFiles === 0) {
+                vscode.window.showInformationMessage(`\u2705 ${summary}`);
+              } else {
+                vscode.window.showErrorMessage(`\u274C ${summary} (${failedFiles} ${failedFiles === 1 ? 'file' : 'files'} failed)`);
+              }
+              return;
+            }
+            if (msg.command === 'copy-path') {
+              const text = String(msg.path ?? '').trim();
+              if (!text) { return; }
+              await vscode.env.clipboard.writeText(text);
+              vscode.window.showInformationMessage(`Copied path: ${text}`);
+                return;
+            }
+            if (msg.command === 'new-folder') {
+                if (!_currentDir) { return; }
+                const name = await vscode.window.showInputBox({
+                    prompt: 'New folder name',
+                    value: _currentDir + path.sep,
+                    valueSelection: [_currentDir.length + 1, _currentDir.length + 1],
+                    placeHolder: 'folder-name',
+                    validateInput: v => {
+                        const base = path.basename(v ?? '');
+                        return base && /[*?"<>|]/.test(base) ? 'Invalid characters in folder name' : undefined;
+                    },
+                });
+                if (!name?.trim()) { return; }
+                const newPath = path.isAbsolute(name.trim()) ? name.trim() : path.join(_currentDir, name.trim());
+                try {
+                    fs.mkdirSync(newPath, { recursive: true });
+                    navigateTo(newPath);
+                } catch (err) {
+                    vscode.window.showErrorMessage(`Could not create folder: ${err instanceof Error ? err.message : String(err)}`);
+                }
                 return;
             }
         } catch (err) {

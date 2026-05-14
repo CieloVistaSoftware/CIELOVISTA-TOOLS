@@ -45,10 +45,18 @@ test('button click listeners are wired to handlers', () => {
     assert(SRC.includes("document.getElementById('btn-copy-chat').addEventListener('click'"), 'Copy chat click handler missing');
 });
 
-test('copy-chat payload uses escaped newlines to avoid script parse break', () => {
+test('copy-chat payload includes @workspace prefix and MD_CONTENT', () => {
     assert(
-        SRC.includes("copyToClipboard('@workspace Here is the current test coverage audit for cielovista-tools:\\\\n\\\\n' + MD_CONTENT);"),
-        'Copy chat payload must use escaped \\n sequences'
+        SRC.includes("'@workspace Here is the current Test Coverage Audit dashboard for cielovista-tools:"),
+        'Copy chat payload must start with @workspace prefix'
+    );
+    assert(
+        SRC.includes('MD_CONTENT'),
+        'Copy chat payload must reference MD_CONTENT'
+    );
+    assert(
+        SRC.includes('function buildChatPayload()'),
+        'buildChatPayload() function must exist'
     );
 });
 

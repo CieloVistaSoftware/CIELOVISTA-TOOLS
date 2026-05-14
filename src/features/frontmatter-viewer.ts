@@ -18,10 +18,72 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { fileFrontmatterViolationAsIssue } from '../shared/github-issue-filer';
 import { log, logError } from '../shared/output-channel';
+import { esc as escStr } from '../shared/webview-utils';
 
 const FEATURE = 'frontmatter-viewer';
+const FILED_ISSUES_KEY = 'frontmatter-viewer.filedIssues';
+const FILED_ISSUES_REPAIR_PATH = path.join('data', 'frontmatter-filed-issues.repair.json');
 
 let _panel: vscode.WebviewPanel | undefined;
+let _context: vscode.ExtensionContext | undefined;
+let _filedIssues = new Map<string, { number: number; url: string }>();
+
+function normalizeRelPath(p: string): string {
+    return String(p || '').replace(/\\/g, '/').trim().toLowerCase();
+}
+
+function loadRepairSnapshot(root: string): Map<string, { number: number; url: string }> {
+    const map = new Map<string, { number: number; url: string }>();
+    const abs = path.join(root, FILED_ISSUES_REPAIR_PATH);
+    if (!fs.existsSync(abs)) { return map; }
+
+    try {
+        const raw = fs.readFileSync(abs, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, { number?: number; url?: string }>;
+        for (const [k, v] of Object.entries(parsed || {})) {
+            const rel = normalizeRelPath(k);
+            const num = Number(v?.number);
+            const url = String(v?.url || '').trim();
+            if (!rel || !Number.isFinite(num) || num <= 0 || !url) { continue; }
+            map.set(rel, { number: num, url });
+        }
+    } catch (err) {
+        logError('Failed to load frontmatter repair snapshot', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+    }
+
+    return map;
+}
+
+function loadFiledIssues(root: string): void {
+    if (!_context) { return; }
+    const stored = _context.globalState.get<Record<string, { number: number; url: string }>>(FILED_ISSUES_KEY, {});
+    _filedIssues = new Map();
+    for (const [k, v] of Object.entries(stored || {})) {
+        const rel = normalizeRelPath(k);
+        const num = Number(v?.number);
+        const url = String(v?.url || '').trim();
+        if (!rel || !Number.isFinite(num) || num <= 0 || !url) { continue; }
+        _filedIssues.set(rel, { number: num, url });
+    }
+
+    // One-time repair source: import mappings produced by scripts/repair-frontmatter-filed-issues.js.
+    const repaired = loadRepairSnapshot(root);
+    let merged = false;
+    for (const [rel, info] of repaired) {
+        if (!_filedIssues.has(rel)) {
+            _filedIssues.set(rel, info);
+            merged = true;
+        }
+    }
+    if (merged) { saveFiledIssues(); }
+}
+
+function saveFiledIssues(): void {
+    if (!_context) { return; }
+    const obj: Record<string, { number: number; url: string }> = {};
+    for (const [k, v] of _filedIssues) { obj[k] = v; }
+    void _context.globalState.update(FILED_ISSUES_KEY, obj);
+}
 
 const SKIP_DIRS = new Set([
     'node_modules', '.git', '.vscode', '.vscode-test', '.claude',
@@ -130,9 +192,7 @@ function violations(f: FmFile, dupNames: Set<string>): string[] {
     return r;
 }
 
-function esc(s: unknown): string {
-    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s: unknown): string { return escStr(String(s ?? '')); }
 
 function toIssueLabel(v: string): string {
     return v.replace(/\s+/g, ' ').trim().toUpperCase();
@@ -270,7 +330,7 @@ function buildFrontmatterFixIssueBody(relativePath: string, violationList: strin
     return lines.join('\n');
 }
 
-function buildViewerHtml(report: Report): string {
+function buildViewerHtml(report: Report, filedIssues: Map<string, { number: number; url: string }>): string {
     const dupNames = new Set(report.summary.duplicateFilenameDetails.map(d => d.filename));
     const s = report.summary;
 
@@ -288,15 +348,18 @@ function buildViewerHtml(report: Report): string {
             : Object.keys(f.fields).sort().map(k =>
                 `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(f.fields[k])}</span></div>`
               ).join('');
+        const filed = bad ? filedIssues.get(normalizeRelPath(f.path)) : undefined;
         const fixHtml = bad
-            ? `<button class="fix-btn" data-action="fix" data-fix-id="${fixId}" data-rel-path="${esc(f.path)}" data-filename="${esc(f.filename)}" data-violations="${violationsAttr}" title="Create issue + failing test for this row">Fix</button>`
+            ? filed
+                ? `<button class="fix-btn fix-btn-filed" data-action="open-issue" data-fix-id="${fixId}" data-url="${esc(filed.url)}" title="Issue filed. Click to open in browser.">Filed #${filed.number}</button>`
+                : `<button class="fix-btn" data-action="fix" data-fix-id="${fixId}" data-rel-path="${esc(f.path)}" data-filename="${esc(f.filename)}" data-violations="${violationsAttr}" title="Create issue + failing test for this row">Fix</button>`
             : '<span class="muted">-</span>';
         return `<tr class="${bad ? 'violation' : 'pass'}">
   <td><span class="file-link" data-action="open" data-abs-path="${absPath}">${esc(f.filename)}</span></td>
   <td class="path-cell"><span class="file-link" data-action="open" data-abs-path="${absPath}">${esc(f.path)}</span></td>
-  <td>${f.hasFrontmatter ? 'yes' : '<span class="muted">no</span>'}</td>
+    <td class="fm-cell">${f.hasFrontmatter ? 'yes' : '<span class="muted">no</span>'}</td>
   <td>${fieldsHtml}</td>
-  <td>${statusHtml}</td>
+    <td><div class="status-stack">${statusHtml}</div></td>
   <td>${fixHtml}</td>
 </tr>`;
     }).join('\n');
@@ -327,20 +390,28 @@ h1{font-size:16px;font-weight:700;margin-bottom:4px}
 #filter-bar select{padding:5px 8px;border:1px solid var(--vscode-panel-border);border-radius:4px;background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-foreground);font-size:12px;cursor:pointer}
 #count{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
 #tbl-wrap{overflow:auto;height:calc(100vh - var(--hdr-h,220px))}
-table{width:100%;border-collapse:collapse;min-width:1040px}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+thead th:nth-child(1),tbody td:nth-child(1){width:17%}
+thead th:nth-child(2),tbody td:nth-child(2){width:29%}
+thead th:nth-child(3),tbody td:nth-child(3){width:6%}
+thead th:nth-child(4),tbody td:nth-child(4){width:16%}
+thead th:nth-child(5),tbody td:nth-child(5){width:24%}
+thead th:nth-child(6),tbody td:nth-child(6){width:8%}
 thead th{position:sticky;top:0;z-index:2;background:var(--vscode-editor-background);border-bottom:2px solid var(--vscode-panel-border);padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground);white-space:nowrap;cursor:pointer;user-select:none}
 thead th:hover{color:var(--vscode-editor-foreground)}
 thead th.sorted{color:var(--vscode-focusBorder)}
-tbody td{padding:7px 10px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:top;font-size:12px}
+tbody td{padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:top;font-size:12px;overflow:hidden}
 tr.pass{}
 tr.violation td{background:rgba(248,81,73,.1)!important;border-bottom-color:rgba(248,81,73,.2)}
 tr:hover td{background:var(--vscode-list-hoverBackground)}
 .path-cell{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;color:var(--vscode-descriptionForeground);word-break:break-all}
+.fm-cell{white-space:nowrap}
 .kv{display:grid;grid-template-columns:140px 1fr;gap:4px;padding:2px 0;border-bottom:1px dashed rgba(128,128,128,.2)}
 .kv:last-child{border-bottom:none}
 .k{color:#4dabf7;font-weight:600;font-size:11px}
 .v{word-break:break-word;font-size:11px}
 .muted{color:var(--vscode-descriptionForeground)}
+.status-stack{display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start}
 .reason{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.35);margin:1px 4px 1px 0}
 .ok{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(63,185,80,.12);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
 .file-link{cursor:pointer;color:var(--vscode-textLink-foreground);text-decoration:underline dotted;text-underline-offset:2px}
@@ -349,6 +420,9 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 .fix-btn:hover{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
 .fix-btn:disabled{opacity:.7;cursor:wait}
 .fix-btn-filed{border-color:#3fb950;color:#3fb950;background:transparent}
+#filter-bar .fix-all-btn{padding:5px 10px;border:1px solid #f85149;border-radius:4px;background:rgba(248,81,73,.12);color:#f85149;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+#filter-bar .fix-all-btn:hover{background:rgba(248,81,73,.3)}
+#filter-bar .fix-all-btn:disabled{opacity:.6;cursor:wait}
 </style>
 </head><body>
 <div id="hdr">
@@ -366,6 +440,7 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 <div id="filter-bar">
   <input id="search" type="text" placeholder="Filter by filename, path, field…" autocomplete="off" spellcheck="false">
     <button id="rescanBtn" class="rescan-btn" data-action="rescan" type="button" title="Re-scan markdown files and refresh results">Rescan</button>
+    <button id="fixAllBtn" class="fix-all-btn" data-action="fix-all" type="button" title="Apply existing filed issue IDs to all visible violation rows">Fix All</button>
   <select id="status-filter">
     <option value="all">All rows</option>
     <option value="violations">Violations only</option>
@@ -418,11 +493,39 @@ document.addEventListener('click', function(e) {
         rescanEl.disabled = true;
         rescanEl.textContent = 'Scanning...';
         vscode.postMessage({ command: 'rescan' });
+        return;
+    }
+    var fixAllTrigger = e.target.closest('[data-action="fix-all"]');
+    if (fixAllTrigger) {
+        var items = [];
+        tbody.querySelectorAll('tr.violation').forEach(function(tr) {
+            if (tr.style.display === 'none') { return; }
+            var btn = tr.querySelector('[data-action="fix"]');
+            if (!btn || btn.disabled) { return; }
+            items.push({ fixId: btn.dataset.fixId, relPath: btn.dataset.relPath, filename: btn.dataset.filename, violations: btn.dataset.violations });
+        });
+        if (items.length === 0) { return; }
+        fixAllTrigger.disabled = true;
+        fixAllTrigger.textContent = '0 / ' + items.length;
+        vscode.postMessage({ command: 'fix-all', items: items });
+        return;
     }
 });
 
 window.addEventListener('message', function(ev) {
     var m = ev.data || {};
+    if (m.type === 'fix-all-progress') {
+        var fab = document.getElementById('fixAllBtn');
+        if (fab) {
+            if (m.done >= m.total) {
+                fab.disabled = false;
+                fab.textContent = 'Fix All';
+            } else {
+                fab.textContent = m.done + ' / ' + m.total;
+            }
+        }
+        return;
+    }
     if (m.type !== 'fix-result' || !m.fixId) { return; }
     var btn = document.querySelector('[data-fix-id="' + m.fixId + '"]');
     if (!btn) { return; }
@@ -469,9 +572,19 @@ function applyFilter(){
   countEl.textContent = vis + ' of ' + rows.length + ' files';
 }
 
-search.addEventListener('input', applyFilter);
-statusFilter.addEventListener('change', applyFilter);
+function updateFixAllState() {
+    var fab = document.getElementById('fixAllBtn');
+    if (!fab || fab.disabled) { return; }
+    var visVio = 0;
+    tbody.querySelectorAll('tr.violation').forEach(function(tr) {
+        if (tr.style.display !== 'none') { visVio++; }
+    });
+    fab.disabled = visVio === 0;
+}
+search.addEventListener('input', function() { applyFilter(); updateFixAllState(); });
+statusFilter.addEventListener('change', function() { applyFilter(); updateFixAllState(); });
 applyFilter();
+updateFixAllState();
 })();</script>
 </body></html>`;
 }
@@ -493,7 +606,7 @@ async function openFrontmatterViewer(): Promise<void> {
                 return;
             }
 
-            const html = buildViewerHtml(report);
+            const html = buildViewerHtml(report, _filedIssues);
             const violationCount = report.files.filter(f =>
                 violations(f, new Set(report.summary.duplicateFilenameDetails.map(d => d.filename))).length > 0
             ).length;
@@ -523,6 +636,42 @@ async function openFrontmatterViewer(): Promise<void> {
                     if (msg.command === 'open-issue' && msg.url) {
                         void vscode.env.openExternal(vscode.Uri.parse(msg.url));
                     }
+                    if (msg.command === 'fix-all' && Array.isArray(msg.items) && msg.items.length > 0) {
+                        const fixItems = msg.items as Array<{ fixId: string; relPath: string; filename: string; violations: string }>;
+                        const choice = await vscode.window.showWarningMessage(
+                            `Apply existing filed issue IDs for ${fixItems.length} visible violation${fixItems.length === 1 ? '' : 's'}? This will not open new issues.`,
+                            { modal: true },
+                            'Proceed'
+                        );
+                        if (choice !== 'Proceed') {
+                            panel.webview.postMessage({ type: 'fix-all-progress', done: fixItems.length, total: fixItems.length });
+                            return;
+                        }
+                        let restored = 0;
+                        let done = 0;
+                        for (const item of fixItems) {
+                            const known = _filedIssues.get(normalizeRelPath(String(item.relPath)));
+                            if (!known) {
+                                panel.webview.postMessage({ type: 'fix-result', fixId: item.fixId, ok: false });
+                                done++;
+                                panel.webview.postMessage({ type: 'fix-all-progress', done, total: fixItems.length });
+                                continue;
+                            }
+                            panel.webview.postMessage({
+                                type: 'fix-result',
+                                fixId: item.fixId,
+                                ok: true,
+                                url: known.url,
+                                number: known.number,
+                            });
+                            restored++;
+                            done++;
+                            panel.webview.postMessage({ type: 'fix-all-progress', done, total: fixItems.length });
+                        }
+                        log(FEATURE, `Fix All complete — ${restored} restored, ${done - restored} unmatched`);
+                        void vscode.window.showInformationMessage(`Frontmatter Fix All restored ${restored} filed issue id${restored === 1 ? '' : 's'}${done - restored > 0 ? `, ${done - restored} unmatched` : ''}.`);
+                        return;
+                    }
                     if (msg.command === 'fix' && msg.fixId && msg.relPath && msg.filename) {
                         const violationList = String(msg.violations ?? '')
                             .split('|')
@@ -551,6 +700,10 @@ async function openFrontmatterViewer(): Promise<void> {
                             labels: ['type:bug', 'auto-filed', 'area:frontmatter', 'area:docs'],
                         });
 
+                        if (result.ok && result.issueNumber && result.issueUrl) {
+                            _filedIssues.set(normalizeRelPath(String(msg.relPath)), { number: result.issueNumber, url: result.issueUrl });
+                            saveFiledIssues();
+                        }
                         panel.webview.postMessage({
                             type: 'fix-result',
                             fixId: msg.fixId,
@@ -584,6 +737,9 @@ async function openFrontmatterViewer(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');
+    _context = context;
+    const root = path.resolve(__dirname, '../..');
+    loadFiledIssues(root);
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.headers.frontmatterViewer', openFrontmatterViewer)
     );

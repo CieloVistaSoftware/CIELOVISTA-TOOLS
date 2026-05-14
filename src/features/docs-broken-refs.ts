@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { loadRegistry } from '../shared/registry';
 import { log } from '../shared/output-channel';
 import { sendToCopilotChat } from './terminal-copy-output';
+import { esc } from '../shared/webview-utils';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.vscode', '.vscode-test', 'dist', 'out',
@@ -186,9 +187,6 @@ function fileNameCandidates(
   return crossProject.slice(0, 3);
 }
 
-function esc(text: string): string {
-  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function reduceGoal(total: number): number {
   if (total <= 0) {

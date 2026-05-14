@@ -38,6 +38,7 @@ import {
     addToRegistry,
     removeFromRegistry
 } from '../shared/cvt-registry';
+import { esc } from '../shared/webview-utils';
 
 let homePanel: vscode.WebviewPanel | undefined;
 
@@ -221,10 +222,6 @@ function showHomePage(context: vscode.ExtensionContext): void {
 }
 
 // ─── HTML ─────────────────────────────────────────────────────────────────────
-
-function esc(s: string): string {
-    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 function buildDashboardHtml(
     wsName:    string,

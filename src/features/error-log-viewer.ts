@@ -16,13 +16,10 @@ import { getErrors, clearErrors, getLogPath, getLogSourceSummary, ensureLogFile,
 import type { ErrorEntry } from '../shared/error-log-adapter';
 import { fileErrorAsIssue } from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE = 'error-log-viewer';
 let _panel: vscode.WebviewPanel | undefined;
-
-function esc(s: string): string {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 function typeColor(type: string): string {
     const map: Record<string, string> = {
@@ -105,7 +102,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div class="toolbar">
-  <h2>🪵 CieloVista Tools — Error Log</h2>
+  <h2>🪵 CieloVista Tools — Error Log Viewer</h2>
   ${unresolvedCount > 0
     ? `<span class="pill pill-err">❌ ${unresolvedCount} active error${unresolvedCount !== 1 ? 's' : ''}</span>`
     : `<span class="pill pill-ok">✅ Clean</span>`}
@@ -177,7 +174,7 @@ export async function openErrorLogViewer(): Promise<void> {
     }
 
     _panel = vscode.window.createWebviewPanel(
-        'toolsErrorLog', '🪵 Tools Error Log', vscode.ViewColumn.One,
+        'toolsErrorLog', '🪵 Tools Error Log Viewer', vscode.ViewColumn.One,
         { enableScripts: true, retainContextWhenHidden: true }
     );
     _panel.webview.html = html;

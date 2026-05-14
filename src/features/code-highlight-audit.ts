@@ -18,6 +18,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { esc }           from '../shared/webview-utils';
 
 const FEATURE = 'code-highlight-audit';
 
@@ -112,10 +113,6 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
         });
     }
     return results;
-}
-
-function esc(s: string): string {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function buildHtml(blocks: UntaggedBlock[], scannedFiles: number): string {

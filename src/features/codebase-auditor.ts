@@ -24,6 +24,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { sendToCopilotChat } from './terminal-copy-output';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE      = 'codebase-auditor';
 const FEATURES_DIR = path.join(__dirname, '..', 'src', 'features');
@@ -450,10 +451,6 @@ function checkFolderDuplicateCode(files: FileInfo[]): Finding[] {
 }
 
 // ─── HTML ─────────────────────────────────────────────────────────────────────
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function buildAuditHtml(findings: Finding[], scannedFiles: number, totalLines: number): string {
     const red    = findings.filter(f => f.severity === 'red').length;

@@ -23,6 +23,7 @@
 import * as vscode  from 'vscode';
 import * as cp      from 'child_process';
 import { log, logError } from '../shared/output-channel';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE = 'claude-process-monitor';
 
@@ -172,13 +173,6 @@ function killPid(pid: number): boolean {
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
-function esc(s: string): string {
-    return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
 
 function formatUptime(ms: number): string {
     const totalSec = Math.max(0, Math.floor(ms / 1000));
