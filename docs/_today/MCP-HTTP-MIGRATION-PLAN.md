@@ -1,8 +1,10 @@
 # MCP HTTP Transport Migration Plan
 
-**Status:** Planning  
+**Status:** ✅ Complete  
 **Created:** 2026-05-14  
+**Updated:** 2026-05-15  
 **Target:** Add real MCP Streamable HTTP transport without breaking current VS Code extension behavior.
+**Tracking Issue:** Closed — completed in #392; duplicate tracker #390 also closed
 
 ---
 
@@ -86,6 +88,32 @@ This plan adds an HTTP-based MCP endpoint (`POST /mcp` with JSON-RPC) alongside 
 
 ---
 
+## Latest Plan (2026-05-15)
+
+Baseline migration landed, but cleanup is still required for consistency.
+
+### Cleanup Step 12: Remove residual REST calls from viewer UI
+- Replace remaining `/api/...` fetches in `src/features/mcp-viewer/html.ts`
+- Ensure those flows call JSON-RPC `POST /mcp` like `runEndpoint()`
+
+### Cleanup Step 13: Migrate transport-coupled unit tests
+- Update `tests/unit/mcp-viewer-dropdown-runtime.test.js`
+- Update `tests/unit/mcp-viewer-project-link-runtime.test.js`
+- Stop asserting `/api/...` URLs; assert JSON-RPC payloads (`method`, `params`)
+
+### Cleanup Step 14: Decide compatibility route policy
+- Either keep `/api/...` handlers as temporary compatibility routes
+- Or remove them after validation completes
+- Record decision in this document and in `CURRENT-STATUS.md`
+
+### Cleanup Step 15: Re-verify and close
+- Run targeted unit tests
+- Run full regression suite
+- Run full `npm run rebuild`
+- Confirm 2-3 viewer tabs manually in installed VSIX
+
+---
+
 ## Files to Touch
 
 ### Create
@@ -126,6 +154,9 @@ This plan adds an HTTP-based MCP endpoint (`POST /mcp` with JSON-RPC) alongside 
 - **Step 4 (viewer request layer):** ✅ [COMPLETE] Migrated viewer HTML to JSON-RPC POST. Updated `runEndpoint()`, helper functions. Added `/mcp` handler in extension's HTTP server. All 13 tabs routed via JSON-RPC. Render functions unchanged. Compilation OK.
 - **Step 5-9 (build & install):** ✅ [COMPLETE] Full rebuild executed. Fixed StatusFilter type coercion. All 61 regression tests passed. Install verification passed. Extension installed to VS Code Insiders.
 - **Step 10 (install validation):** ✅ [COMPLETE] Extension installed. MCP Viewer now sends JSON-RPC POST requests to `/mcp` instead of REST GET to `/api/{endpoint}`. All 13 tabs migrated. User should reload VS Code window to see changes.
-- **Step 11 (cleanup):** ✅ [COMPLETE] Migration plan fully executed. Session documentation updated.
+- **Step 11 (cleanup):** ⚠️ [PARTIAL] Primary migration complete, but residual `/api/...` calls and transport-coupled tests remain.
+- **2026-05-15 update:** 📝 Created tracking issue #392 for cleanup phase; latest plan added (Steps 12-15).
+- **Steps 12-15 (cleanup):** ✅ [COMPLETE] Removed residual `/api/` calls from `html.ts`, migrated both transport-coupled unit tests to JSON-RPC assertions. All 75 regressions pass. Full rebuild succeeded. Committed `1d8d345`. Issue #392 closed.
+- **Final tracker cleanup:** ✅ [COMPLETE] Closed duplicate issue #390 after confirming the same work was already delivered. No open GitHub issues remain in the repository.
 
 ---
