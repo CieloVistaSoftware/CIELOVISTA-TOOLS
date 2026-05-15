@@ -481,16 +481,20 @@ function buildCard(c) {
   return node;
 }
 
+var SECONDARY_LIMIT = 8;
+var SECONDARY_SCRIPT_PATTERNS = [
+  /^(lint|clean|watch|package|preview|format|coverage|typecheck|check|verify|prepare|release|deploy|serve)$/i,
+  /^test:(unit|watch|smoke|ci|e2e|integration)$/i,
+  /^build:(watch|dev|prod)$/i,
+  /^start:(dev|watch)$/i
+];
+
 function classifyScripts(scripts) {
   var primaryOrder = ['rebuild', 'start', 'dev', 'build', 'compile', 'test'];
-  var secondaryLimit = 8;
 
   function isSecondaryCandidate(name) {
     return !name.includes(':')
-      || /^(lint|clean|watch|package|preview|format|coverage|typecheck|check|verify|prepare|release|deploy|serve)$/i.test(name)
-      || /^test:(unit|watch|smoke|ci|e2e|integration)$/i.test(name)
-      || /^build:(watch|dev|prod)$/i.test(name)
-      || /^start:(dev|watch)$/i.test(name);
+      || SECONDARY_SCRIPT_PATTERNS.some(function(pattern) { return pattern.test(name); });
   }
 
   function toGroupName(name) {
@@ -526,7 +530,7 @@ function classifyScripts(scripts) {
 
   var secondary = [];
   scripts.forEach(function(s) {
-    if (secondary.length >= secondaryLimit) return;
+    if (secondary.length >= SECONDARY_LIMIT) return;
     if (picked.has(s.name)) return;
     if (!isSecondaryCandidate(s.name)) return;
     secondary.push(s);
@@ -534,7 +538,7 @@ function classifyScripts(scripts) {
   });
 
   scripts.forEach(function(s) {
-    if (secondary.length >= secondaryLimit) return;
+    if (secondary.length >= SECONDARY_LIMIT) return;
     if (picked.has(s.name)) return;
     secondary.push(s);
     picked.add(s.name);

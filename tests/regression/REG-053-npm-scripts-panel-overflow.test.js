@@ -14,25 +14,21 @@ const vm = require('vm');
 
 const SHELL_SRC = path.resolve(__dirname, '..', '..', 'src', 'shared', 'project-card-shell.ts');
 
-function extractFunction(source, name) {
-    const start = source.indexOf(`function ${name}(`);
-    if (start < 0) { throw new Error(`Missing function ${name}`); }
-    const braceStart = source.indexOf('{', start);
-    let depth = 0;
-    for (let i = braceStart; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; }
-        else if (ch === '}') {
-            depth--;
-            if (depth === 0) { return source.slice(start, i + 1); }
-        }
-    }
-    throw new Error(`Could not extract function ${name}`);
+function extractScriptSnippet(source, startNeedle, endNeedle) {
+    const start = source.indexOf(startNeedle);
+    if (start < 0) { throw new Error(`Missing snippet start ${startNeedle}`); }
+    const end = source.indexOf(endNeedle, start);
+    if (end < 0) { throw new Error(`Missing snippet end ${endNeedle}`); }
+    return source.slice(start, end).trim();
+}
+
+function loadClassifier(source) {
+    const snippet = extractScriptSnippet(source, 'var SECONDARY_LIMIT = 8;', '\nfunction buildScriptBtn');
+    return vm.runInNewContext(`${snippet}; classifyScripts;`);
 }
 
 const shell = fs.readFileSync(SHELL_SRC, 'utf8');
-const classifySource = extractFunction(shell, 'classifyScripts');
-const classifyScripts = vm.runInNewContext(`${classifySource}; classifyScripts;`);
+const classifyScripts = loadClassifier(shell);
 
 const scripts = [
     'rebuild', 'start', 'dev', 'build', 'compile', 'test', 'lint', 'clean',
@@ -49,7 +45,7 @@ const scripts = [
 const layout = classifyScripts(scripts);
 const primaryNames = Array.from(layout.primary, script => script.name);
 const secondaryNames = Array.from(layout.secondary, script => script.name);
-const moreScripts = Array.from(Object.values(layout.moreGroups), group => Array.from(group)).flat();
+const moreScripts = Object.values(layout.moreGroups).flat();
 const renderedNames = [
     ...primaryNames,
     ...secondaryNames,
