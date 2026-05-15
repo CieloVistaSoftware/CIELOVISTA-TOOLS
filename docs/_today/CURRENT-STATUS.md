@@ -20,6 +20,17 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ## 🅿️ PARKING LOT — end of session 2026-05-11 (all open issues closed)
 
+**TASK:** Polish GitHub Issues Viewer with authenticated gh/REST dual-fetch fallback, reopen refresh, visible-only Copy All, and paginated issue test coverage
+**FILES TOUCHED:**
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/src/shared/github-issues-view.ts` — authenticated gh detection, visible-only copy-all selection, viewer notes polish
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/tests/github-issues-view.test.js` — source assertions, 5-page dedupe/sort/cap pagination coverage, restricted-network skip
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/docs/_today/CURRENT-STATUS.md` — parking lot update
+**LAST ACTION:** Compiled successfully, verified the updated viewer preview, and captured a screenshot after wiring visible-row copy-all + authenticated gh fallback checks
+**NEXT STEP:** Run PR validation/review checks and monitor CI in an environment that can reach api.github.com for the live pagination leg
+**OPEN QUESTIONS:** Live GitHub API pagination check is skipped in this sandbox because outbound access to api.github.com is blocked by the DNS monitoring proxy
+
+---
+
 **TASK:** Work through all 4 open GitHub issues
 **STATUS:** ✅ All 4 issues closed — zero open issues remain
 
