@@ -10,8 +10,8 @@ const REQUEST_SUMMARY_MAX_CHARS = 2000;
 
 function summarizeRequest(name: string, args: unknown): string {
   try {
-    const raw = JSON.stringify(args ?? {});
-    const summary = raw && raw !== "undefined" ? raw : "{}";
+    const raw = args === undefined ? undefined : JSON.stringify(args);
+    const summary = raw || "{}";
     return `${name} ${summary.length > REQUEST_SUMMARY_MAX_CHARS ? summary.slice(0, REQUEST_SUMMARY_MAX_CHARS) + "…" : summary}`;
   } catch {
     return `${name} "[unserializable request args]"`;
