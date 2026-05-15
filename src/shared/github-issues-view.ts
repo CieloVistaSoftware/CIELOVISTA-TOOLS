@@ -3,13 +3,15 @@
 /**
  * github-issues-view.ts
  *
- * Webview that lists open GitHub Issues for the cielovista-tools repo.
+ * Webview that lists GitHub Issues for the cielovista-tools repo.
  * Wired to the "TODO List" button on the CVT Home dashboard.
  *
- * - Anonymous fetch via Node's https module (public repo, ~60 req/hr is plenty).
+ * - Prefer authenticated GitHub CLI fetches when available.
+ * - Fall back to anonymous REST when gh is missing or not authenticated.
  * - PRs are filtered out (GitHub's /issues endpoint returns both).
  * - Click an issue card to open it in the user's default browser.
- * - Reload button re-fetches.
+ * - Reload button re-fetches, and reopening the panel refreshes the active view.
+ * - Copy All exports the visible issue list to the clipboard.
  *
  * No webview client-side fetch — the extension host fetches and bakes the
  * data into the HTML each render. Avoids CSP gymnastics for connect-src.
@@ -75,6 +77,17 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
     }).join('\n\n---\n\n');
 }
 
+function issuesForClipboard(allIssues: GHIssue[], visibleNumbers: number[] | undefined): GHIssue[] {
+    if (!Array.isArray(visibleNumbers) || visibleNumbers.length === 0) {
+        return allIssues;
+    }
+
+    const issuesByNumber = new Map<number, GHIssue>(allIssues.map((issue) => [issue.number, issue]));
+    return visibleNumbers
+        .map((number) => issuesByNumber.get(number))
+        .filter((issue): issue is GHIssue => !!issue);
+}
+
 /**
  * Show the issues panel. Reuses the existing panel if already open.
  *
@@ -127,7 +140,7 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     };
     activeRefresh = refresh;
 
-    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number; testRef?: string }) => {
+    panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number; numbers?: number[]; testRef?: string }) => {
         if (!msg?.type) { return; }
         if (msg.type === 'refresh') {
             void refresh();
@@ -140,7 +153,10 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
         } else if (msg.type === 'open' && msg.url) {
             void vscode.env.openExternal(vscode.Uri.parse(String(msg.url)));
         } else if (msg.type === 'copyAll' && latestIssues.length > 0) {
-            void vscode.env.clipboard.writeText(formatIssuesForClipboard(latestIssues));
+            const visibleIssues = issuesForClipboard(latestIssues, msg.numbers);
+            if (visibleIssues.length > 0) {
+                void vscode.env.clipboard.writeText(formatIssuesForClipboard(visibleIssues));
+            }
         } else if (msg.type === 'claim' && msg.number) {
             void claimIssue(msg.number, panel);
         } else if (msg.type === 'runTest' && msg.testRef) {
@@ -272,61 +288,83 @@ interface GhIssueRaw {
     comments?: number;
 }
 
-function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
+const GH_CANDIDATES = [
+    'gh',
+    'C:\\Program Files\\GitHub CLI\\gh.exe',
+    'C:\\Program Files (x86)\\GitHub CLI\\gh.exe',
+];
+
+function runGh(ghPath: string, args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-        const ghCandidates = [
-            'gh',
-            'C:\\Program Files\\GitHub CLI\\gh.exe',
-            'C:\\Program Files (x86)\\GitHub CLI\\gh.exe',
-        ];
-        const ghPath = ghCandidates.find((candidate) => candidate === 'gh' || fs.existsSync(candidate));
-        if (!ghPath) {
-            reject(new Error('GitHub CLI not found'));
-            return;
-        }
-
-        const args = [
-            'issue', 'list',
-            '-R', `${REPO_OWNER}/${REPO_NAME}`,
-            '--state', state,
-            '--limit', '50',
-            '--json', 'number,title,url,state,createdAt,updatedAt,closedAt,author,labels,assignees,body,comments',
-        ];
-
         execFile(ghPath, args, { windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
             if (err) {
-                reject(new Error((stderr || err.message || 'gh issue list failed').trim()));
+                reject(new Error((stderr || err.message || 'gh command failed').trim()));
                 return;
             }
-
-            try {
-                const parsed = JSON.parse(stdout) as GhIssueRaw[];
-                if (!Array.isArray(parsed)) {
-                    resolve([]);
-                    return;
-                }
-
-                const mapped: GHIssue[] = parsed.map((i) => ({
-                    number: i.number,
-                    title: i.title,
-                    html_url: i.url,
-                    state: i.state,
-                    created_at: i.createdAt,
-                    updated_at: i.updatedAt,
-                    closed_at: i.closedAt ?? null,
-                    user: { login: i.author?.login || 'unknown' },
-                    labels: (i.labels || []).map((l) => ({ name: l.name || '', color: l.color || '888888' })),
-                    assignees: (i.assignees || []).map((a) => ({ login: a.login || '' })).filter((a) => a.login),
-                    body: i.body || null,
-                    comments: typeof i.comments === 'number' ? i.comments : 0,
-                }));
-
-                resolve(mapped);
-            } catch {
-                reject(new Error('Failed to parse gh issue list output'));
-            }
+            resolve(stdout);
         });
     });
+}
+
+async function findAuthenticatedGh(): Promise<string> {
+    let lastError = 'GitHub CLI not found';
+
+    for (const candidate of GH_CANDIDATES) {
+        if (candidate !== 'gh' && !fs.existsSync(candidate)) {
+            continue;
+        }
+
+        try {
+            await runGh(candidate, ['auth', 'status', '--hostname', 'github.com']);
+            return candidate;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (/ENOENT|not found/i.test(message)) {
+                lastError = 'GitHub CLI not found';
+            } else {
+                lastError = `GitHub CLI unavailable or unauthenticated: ${message}`;
+            }
+        }
+    }
+
+    throw new Error(lastError);
+}
+
+async function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
+    const ghPath = await findAuthenticatedGh();
+    const stdout = await runGh(ghPath, [
+        'issue', 'list',
+        '-R', `${REPO_OWNER}/${REPO_NAME}`,
+        '--state', state,
+        '--limit', '50',
+        '--json', 'number,title,url,state,createdAt,updatedAt,closedAt,author,labels,assignees,body,comments',
+    ]);
+
+    let parsed: GhIssueRaw[];
+    try {
+        parsed = JSON.parse(stdout) as GhIssueRaw[];
+    } catch {
+        throw new Error('Failed to parse gh issue list output');
+    }
+
+    if (!Array.isArray(parsed)) {
+        return [];
+    }
+
+    return parsed.map((i) => ({
+        number: i.number,
+        title: i.title,
+        html_url: i.url,
+        state: i.state,
+        created_at: i.createdAt,
+        updated_at: i.updatedAt,
+        closed_at: i.closedAt ?? null,
+        user: { login: i.author?.login || 'unknown' },
+        labels: (i.labels || []).map((l) => ({ name: l.name || '', color: l.color || '888888' })),
+        assignees: (i.assignees || []).map((a) => ({ login: a.login || '' })).filter((a) => a.login),
+        body: i.body || null,
+        comments: typeof i.comments === 'number' ? i.comments : 0,
+    }));
 }
 
 function fetchIssuesPage(page: number, perPage: number, state: IssueState): Promise<GHIssue[]> {
@@ -644,6 +682,18 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         var countTotal = document.getElementById('countTotal');
         if (countShown) { countShown.textContent = String(shown); }
         if (countTotal) { countTotal.textContent = String(total); }
+        var copyAllBtn = document.getElementById('copy-all');
+        if (copyAllBtn) { copyAllBtn.disabled = shown === 0; }
+    }
+
+    function visibleIssueNumbers(){
+        var numbers = [];
+        document.querySelectorAll('.issue-row').forEach(function(row){
+            if (row.style.display === 'none') { return; }
+            var num = Number(row.getAttribute('data-number'));
+            if (num) { numbers.push(num); }
+        });
+        return numbers;
     }
 
     var refresh = document.getElementById('refresh');
@@ -654,7 +704,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (copyAll) {
                 copyAll.addEventListener('click', function(){
                         if (!copyAll.disabled) {
-                                vsc.postMessage({ type: 'copyAll' });
+                                vsc.postMessage({ type: 'copyAll', numbers: visibleIssueNumbers() });
                         }
                 });
         }
