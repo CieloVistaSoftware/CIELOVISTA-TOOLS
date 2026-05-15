@@ -78,20 +78,24 @@ const filerSrc = fs.readFileSync(FILER_TS, 'utf8');
 })();
 
 (function checkGuardPositionedBeforeLogError() {
-    // The guard must be positioned BEFORE the logError call so the
-    // log-and-retry path is skipped. Verify by checking the guard
-    // text appears earlier in the file than the logError line.
+    // The guard must be positioned BEFORE the unexpected-failure path
+    // so expected lifecycle exits skip diagnostics + retry handling.
+    // The implementation was later refactored through
+    // handleUnexpectedFailure(...), so accept either the original
+    // direct logError line or the new helper call.
     const guardIdx = mcpSrc.indexOf('isExpectedTermSignal');
+    const failurePathIdx = mcpSrc.indexOf('logMessage: `MCP process exited unexpectedly');
     const logErrIdx = mcpSrc.indexOf('logError(`MCP process exited unexpectedly');
-    if (guardIdx < 0 || logErrIdx < 0) {
-        fail('mcp-server-status.ts is missing either the guard or the original logError call — cannot verify ordering');
+    const targetIdx = failurePathIdx >= 0 ? failurePathIdx : logErrIdx;
+    if (guardIdx < 0 || targetIdx < 0) {
+        fail('mcp-server-status.ts is missing either the guard or the unexpected-failure path — cannot verify ordering');
         return;
     }
-    if (guardIdx > logErrIdx) {
-        fail('mcp-server-status.ts has the guard AFTER the logError call — that is a no-op. The guard must run BEFORE logError and return early.');
+    if (guardIdx > targetIdx) {
+        fail('mcp-server-status.ts has the guard AFTER the unexpected-failure path — that is a no-op. The guard must run BEFORE diagnostics/retry handling and return early.');
         return;
     }
-    ok('mcp-server-status.ts guard is positioned before the logError call');
+    ok('mcp-server-status.ts guard is positioned before the unexpected-failure path');
 })();
 
 // ─── Check 2: fileErrorAsIssue dedups before posting a new issue ─────────

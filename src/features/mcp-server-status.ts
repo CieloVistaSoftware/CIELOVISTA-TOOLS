@@ -61,15 +61,20 @@ export function getMcpServerUrl(): string {
 const RETRY_BACKOFF_MS = [1000, 2000, 5000, 10000, 30000];
 const RETRY_STEADY_MS  = 30000;
 const STABLE_UPTIME_MS = 15000;
+const MAX_RESTART_ATTEMPTS = RETRY_BACKOFF_MS.length;
 const DIAG_ESCALATION_ATTEMPT = 3;
 const DIAG_TAIL_MAX_CHARS = 120_000;
 const MCP_DIAG_DIR = path.join(os.tmpdir(), 'cielovista-tools', 'mcp-diagnostics');
+const REQUEST_START_PREFIX = '[CVT MCP REQUEST START] ';
+const REQUEST_ERROR_PREFIX = '[CVT MCP REQUEST ERROR] ';
+const REQUEST_END_PREFIX = '[CVT MCP REQUEST END] ';
 
 // Retry / lifecycle state.
 let retryTimer: NodeJS.Timeout | null = null;
 let retryAttempt = 0;
 let stopRequested = false;
 let stableUptimeTimer: NodeJS.Timeout | null = null;
+let restartLimitNotified = false;
 
 // Terminal and owned process state.
 let mcpTerminal: vscode.Terminal | null = null;
@@ -127,6 +132,7 @@ export function startMcpServer(): void {
 
     // A manual start cancels any prior stop intent and pending retry timer.
     stopRequested = false;
+    restartLimitNotified = false;
     clearRetryTimer();
     clearStableTimer();
 
@@ -134,8 +140,19 @@ export function startMcpServer(): void {
     if (!fs.existsSync(resolvedDistPath)) {
         const reason = `dist not found: ${resolvedDistPath} — run cvs.mcp.build first.`;
         setStatus('down');
-        logError(`MCP dist not found: ${resolvedDistPath} — run cvs.mcp.build first`, '', FEATURE);
-        scheduleRetry(reason);
+        handleUnexpectedFailure({
+            attemptNumber: retryAttempt + 1,
+            reason,
+            traceMode: false,
+            args: [resolvedDistPath],
+            stdoutTail: '',
+            stderrTail: '',
+            lastStdoutLine: '',
+            lastStderrLine: '',
+            currentRequest: '',
+            lastRequest: '',
+            logMessage: `MCP dist not found: ${resolvedDistPath} — run cvs.mcp.build first`,
+        });
         return;
     }
 
@@ -247,6 +264,45 @@ function appendTail(existing: string, chunk: Buffer): string {
     return trimTail(existing + chunk.toString());
 }
 
+function extractLastNonEmptyLine(value: string): string {
+    const lines = value
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    return lines.length > 0 ? lines[lines.length - 1] : '';
+}
+
+function updateRequestTracking(currentRequest: string, lastRequest: string, chunkText: string): { currentRequest: string; lastRequest: string } {
+    let nextCurrentRequest = currentRequest;
+    let nextLastRequest = lastRequest;
+
+    for (const rawLine of chunkText.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) { continue; }
+
+        if (line.startsWith(REQUEST_START_PREFIX)) {
+            nextCurrentRequest = line.slice(REQUEST_START_PREFIX.length);
+            nextLastRequest = nextCurrentRequest;
+            continue;
+        }
+        if (line.startsWith(REQUEST_ERROR_PREFIX)) {
+            nextLastRequest = line.slice(REQUEST_ERROR_PREFIX.length);
+            continue;
+        }
+        if (line.startsWith(REQUEST_END_PREFIX)) {
+            const completedRequest = line.slice(REQUEST_END_PREFIX.length);
+            if (!nextLastRequest) {
+                nextLastRequest = completedRequest;
+            }
+            if (!nextCurrentRequest || nextCurrentRequest === completedRequest) {
+                nextCurrentRequest = '';
+            }
+        }
+    }
+
+    return { currentRequest: nextCurrentRequest, lastRequest: nextLastRequest };
+}
+
 function buildMcpLaunchConfig(attemptNumber: number): { args: string[]; env: NodeJS.ProcessEnv; traceMode: boolean } {
     const traceMode = attemptNumber >= DIAG_ESCALATION_ATTEMPT;
     const args = traceMode
@@ -270,6 +326,10 @@ function writeMcpCrashDiagnostics(params: {
     args: string[];
     stdoutTail: string;
     stderrTail: string;
+    lastStdoutLine: string;
+    lastStderrLine: string;
+    currentRequest: string;
+    lastRequest: string;
 }): string | null {
     try {
         fs.mkdirSync(MCP_DIAG_DIR, { recursive: true });
@@ -284,6 +344,10 @@ function writeMcpCrashDiagnostics(params: {
             `attempt=${params.attemptNumber}`,
             `traceMode=${params.traceMode}`,
             `nodeArgs=${JSON.stringify(params.args)}`,
+            `currentRequest=${params.currentRequest || '(none observed)'}`,
+            `lastRequest=${params.lastRequest || '(none observed)'}`,
+            `lastStderrLine=${params.lastStderrLine || '(empty)'}`,
+            `lastStdoutLine=${params.lastStdoutLine || '(empty)'}`,
             '',
             '--- stderr tail ---',
             params.stderrTail || '(empty)',
@@ -298,6 +362,92 @@ function writeMcpCrashDiagnostics(params: {
     } catch {
         return null;
     }
+}
+
+function buildCrashStacktrace(params: {
+    reason: string;
+    attemptNumber: number;
+    currentRequest: string;
+    lastRequest: string;
+    lastStdoutLine: string;
+    lastStderrLine: string;
+    stdoutTail: string;
+    stderrTail: string;
+    diagPath: string | null;
+}): string {
+    return [
+        `reason=${params.reason}`,
+        `attempt=${params.attemptNumber}`,
+        `currentRequest=${params.currentRequest || '(none observed)'}`,
+        `lastRequest=${params.lastRequest || '(none observed)'}`,
+        `lastStderrLine=${params.lastStderrLine || '(empty)'}`,
+        `lastStdoutLine=${params.lastStdoutLine || '(empty)'}`,
+        `diagnostics=${params.diagPath || '(unavailable)'}`,
+        '',
+        '--- stderr tail ---',
+        params.stderrTail || '(empty)',
+        '',
+        '--- stdout tail ---',
+        params.stdoutTail || '(empty)',
+    ].join('\n');
+}
+
+function notifyRestartLimitReached(reason: string, attemptNumber: number, diagPath: string | null): void {
+    if (restartLimitNotified) { return; }
+    restartLimitNotified = true;
+
+    const detail = diagPath
+        ? ` Diagnostics: ${diagPath}`
+        : '';
+    void vscode.window.showErrorMessage(
+        `CieloVista MCP stopped after ${attemptNumber} failed launches (${reason}).${detail}`,
+    );
+}
+
+function handleUnexpectedFailure(params: {
+    attemptNumber: number;
+    reason: string;
+    traceMode: boolean;
+    args: string[];
+    stdoutTail: string;
+    stderrTail: string;
+    lastStdoutLine: string;
+    lastStderrLine: string;
+    currentRequest: string;
+    lastRequest: string;
+    logMessage: string;
+}): { diagPath: string | null; scheduledRetry: boolean } {
+    const diagPath = writeMcpCrashDiagnostics(params);
+    if (diagPath) {
+        terminalWriteLine(`[CVT MCP] Crash diagnostics written: ${diagPath}`);
+    }
+
+    log(
+        FEATURE,
+        `${params.reason}; request=${params.currentRequest || params.lastRequest || '(none observed)'}; last stderr=${params.lastStderrLine || '(empty)'}${diagPath ? `; diagnostics=${diagPath}` : ''}`,
+    );
+
+    const scheduledRetry = scheduleRetry(params.reason);
+    if (!scheduledRetry) {
+        logError(
+            params.logMessage,
+            buildCrashStacktrace({
+                reason: params.reason,
+                attemptNumber: params.attemptNumber,
+                currentRequest: params.currentRequest,
+                lastRequest: params.lastRequest,
+                lastStdoutLine: params.lastStdoutLine,
+                lastStderrLine: params.lastStderrLine,
+                stdoutTail: params.stdoutTail,
+                stderrTail: params.stderrTail,
+                diagPath,
+            }),
+            FEATURE,
+        );
+        notifyRestartLimitReached(params.reason, params.attemptNumber, diagPath);
+    }
+
+    return { diagPath, scheduledRetry };
 }
 
 /**
@@ -348,25 +498,44 @@ function runMcpProcess(): void {
 
     let stdoutTail = '';
     let stderrTail = '';
+    let lastStdoutLine = '';
+    let lastStderrLine = '';
+    let currentRequest = '';
+    let lastRequest = '';
+    let failureHandled = false;
 
     child.stdout?.on('data', (chunk: Buffer) => {
         stdoutTail = appendTail(stdoutTail, chunk);
-        if (ptyWrite) { ptyWrite(chunk.toString().replace(/\n/g, '\r\n')); }
+        const text = chunk.toString();
+        const nextStdoutLine = extractLastNonEmptyLine(text);
+        if (nextStdoutLine) {
+            lastStdoutLine = nextStdoutLine;
+        }
+        if (ptyWrite) { ptyWrite(text.replace(/\n/g, '\r\n')); }
     });
     child.stderr?.on('data', (chunk: Buffer) => {
         stderrTail = appendTail(stderrTail, chunk);
-        if (ptyWrite) { ptyWrite(chunk.toString().replace(/\n/g, '\r\n')); }
+        const text = chunk.toString();
+        const nextStderrLine = extractLastNonEmptyLine(text);
+        if (nextStderrLine) {
+            lastStderrLine = nextStderrLine;
+        }
+        ({ currentRequest, lastRequest } = updateRequestTracking(currentRequest, lastRequest, text));
+        if (ptyWrite) { ptyWrite(text.replace(/\n/g, '\r\n')); }
     });
 
     setStatus('up');
     clearStableTimer();
     stableUptimeTimer = setTimeout(() => {
         retryAttempt = 0;
+        restartLimitNotified = false;
         stableUptimeTimer = null;
     }, STABLE_UPTIME_MS);
 
     child.on('exit', (code, signal) => {
         if (generation !== executionGeneration) { return; }
+        if (failureHandled) { return; }
+        failureHandled = true;
         if (mcpProcess === child) { mcpProcess = null; }
 
         clearStableTimer();
@@ -382,18 +551,6 @@ function runMcpProcess(): void {
             : `process exited with code ${code ?? '?'}`;
         terminalWriteLine(`[CVT MCP] ${reason}.`);
 
-        const diagPath = writeMcpCrashDiagnostics({
-            attemptNumber,
-            reason,
-            traceMode: launch.traceMode,
-            args: launch.args,
-            stdoutTail,
-            stderrTail,
-        });
-        if (diagPath) {
-            terminalWriteLine(`[CVT MCP] Crash diagnostics written: ${diagPath}`);
-        }
-
         // Issues #59 / #63 / #64 / #60 — auto-filed APP_ERROR cluster.
         // Error logging was firing on every MCP shutdown, including SIGTERM
         // (sent by VS Code on window reload or extension deactivate) and
@@ -408,12 +565,25 @@ function runMcpProcess(): void {
             return;
         }
 
-        logError(`MCP process exited unexpectedly: ${reason}`, '', FEATURE);
-        scheduleRetry(reason);
+        handleUnexpectedFailure({
+            attemptNumber,
+            reason,
+            traceMode: launch.traceMode,
+            args: launch.args,
+            stdoutTail,
+            stderrTail,
+            lastStdoutLine,
+            lastStderrLine,
+            currentRequest,
+            lastRequest,
+            logMessage: `MCP process exited unexpectedly: ${reason}`,
+        });
     });
 
     child.on('error', (err) => {
         if (generation !== executionGeneration) { return; }
+        if (failureHandled) { return; }
+        failureHandled = true;
         if (mcpProcess === child) { mcpProcess = null; }
 
         clearStableTimer();
@@ -421,34 +591,52 @@ function runMcpProcess(): void {
         const reason = `spawn error: ${err.message}`;
         terminalWriteLine(`[CVT MCP] ${reason}.`);
 
-        const diagPath = writeMcpCrashDiagnostics({
+        const errorDetails = err instanceof Error ? err.stack || String(err) : String(err);
+        handleUnexpectedFailure({
             attemptNumber,
             reason,
             traceMode: launch.traceMode,
             args: launch.args,
             stdoutTail,
-            stderrTail,
+            stderrTail: trimTail(`${stderrTail}\n${errorDetails}`),
+            lastStdoutLine,
+            lastStderrLine: errorDetails,
+            currentRequest,
+            lastRequest,
+            logMessage: 'MCP process spawn error',
         });
-        if (diagPath) {
-            terminalWriteLine(`[CVT MCP] Crash diagnostics written: ${diagPath}`);
-        }
-
-        logError('MCP process spawn error', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-        scheduleRetry(reason);
     });
     } catch (err) {
         setStatus('down');
         const reason = `internal start error: ${err instanceof Error ? err.message : String(err)}`;
-        logError('MCP internal start error', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-        scheduleRetry(reason);
+        const errorDetails = err instanceof Error ? err.stack || String(err) : String(err);
+        handleUnexpectedFailure({
+            attemptNumber: retryAttempt + 1,
+            reason,
+            traceMode: false,
+            args: mcpDistPath ? [mcpDistPath] : [],
+            stdoutTail: '',
+            stderrTail: errorDetails,
+            lastStdoutLine: '',
+            lastStderrLine: errorDetails,
+            currentRequest: '',
+            lastRequest: '',
+            logMessage: 'MCP internal start error',
+        });
     }
 }
 
 /**
  * Schedules the next restart attempt using bounded exponential backoff.
  */
-function scheduleRetry(reason: string): void {
-    if (stopRequested) { return; }
+function scheduleRetry(reason: string): boolean {
+    if (stopRequested) { return false; }
+    if (retryAttempt >= MAX_RESTART_ATTEMPTS) {
+        clearRetryTimer();
+        terminalWriteLine(`[CVT MCP] ${reason}; retry limit reached after ${MAX_RESTART_ATTEMPTS} scheduled restarts.`);
+        log(FEATURE, `${reason}; retry limit reached after ${MAX_RESTART_ATTEMPTS} scheduled restarts`);
+        return false;
+    }
 
     const delay = RETRY_BACKOFF_MS[retryAttempt] ?? RETRY_STEADY_MS;
     retryAttempt += 1;
@@ -462,6 +650,7 @@ function scheduleRetry(reason: string): void {
         if (stopRequested) { return; }
         runMcpProcess();
     }, delay);
+    return true;
 }
 
 /** @internal — exported for unit testing only */
@@ -471,9 +660,29 @@ export const _test = {
     notifyListeners,
     buildMcpLaunchConfig,
     writeMcpCrashDiagnostics,
+    buildCrashStacktrace,
     trimTail,
     appendTail,
+    extractLastNonEmptyLine,
+    updateRequestTracking,
+    handleUnexpectedFailure,
+    scheduleRetry,
+    MAX_RESTART_ATTEMPTS,
     DIAG_ESCALATION_ATTEMPT,
     DIAG_TAIL_MAX_CHARS,
     MCP_DIAG_DIR,
+    REQUEST_START_PREFIX,
+    REQUEST_ERROR_PREFIX,
+    REQUEST_END_PREFIX,
+    resetStateForTests: (): void => {
+        retryAttempt = 0;
+        stopRequested = false;
+        restartLimitNotified = false;
+        executionGeneration = 0;
+        mcpProcess = null;
+        ptyWrite = null;
+        mcpStatus = 'down';
+        clearRetryTimer();
+        clearStableTimer();
+    },
 };
