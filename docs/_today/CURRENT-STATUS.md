@@ -18,7 +18,19 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
-## 🅿️ PARKING LOT — end of session 2026-05-11 (all open issues closed)
+## 🅿️ PARKING LOT — end of session 2026-05-15 (MCP lifecycle crash-loop fix)
+
+**TASK:** Fix MCP server lifecycle crashes, expected-exit noise, and crash-respawn loops
+**FILES TOUCHED:**
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/src/features/mcp-server-status.ts` — capped restart loop, richer crash diagnostics, single exhaustion notification
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/mcp-server/src/server.ts` — request start/error/end tracing for crash-context capture
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/tests/unit/mcp-server-status.test.js` — transpiled-source lifecycle unit test with crash-loop simulation
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/tests/regression/REG-018-mcp-lifecycle-and-dedup.test.js` — updated static guard assertion for refactored failure path
+**LAST ACTION:** Ran targeted MCP lifecycle validation green (`npm run test:mcp-status`, `node tests/regression/REG-018-mcp-lifecycle-and-dedup.test.js`) and confirmed broader `npm run rebuild` still only fails on pre-existing machine-specific catalog path checks.
+**NEXT STEP:** Review/merge the MCP lifecycle fix; if broader CI parity is needed later, address the unrelated `tests/catalog-integrity.test.js` environment assumptions separately.
+**OPEN QUESTIONS:** None
+
+---
 
 **TASK:** Work through all 4 open GitHub issues
 **STATUS:** ✅ All 4 issues closed — zero open issues remain
