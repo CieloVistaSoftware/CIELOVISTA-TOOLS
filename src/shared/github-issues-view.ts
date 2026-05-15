@@ -79,8 +79,11 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
 }
 
 function issuesForClipboard(allIssues: GHIssue[], visibleNumbers: number[] | undefined): GHIssue[] {
-    if (!Array.isArray(visibleNumbers) || visibleNumbers.length === 0) {
+    if (!Array.isArray(visibleNumbers)) {
         return allIssues;
+    }
+    if (visibleNumbers.length === 0) {
+        return [];
     }
 
     const issuesByNumber = new Map<number, GHIssue>(allIssues.map((issue) => [issue.number, issue]));

@@ -51,7 +51,12 @@ if (!src.includes('activeRefresh = undefined;')) {
 }
 pass('activeRefresh clears on dispose');
 
-if (!src.includes("const GH_HOSTNAME = 'github.com';") || !src.includes("['auth', 'status', '--hostname', GH_HOSTNAME]")) {
+if (!src.includes("const GH_HOSTNAME = 'github.com';")) {
+    fail('source gh hostname', 'github host constant must be defined for gh auth checks');
+}
+pass('gh hostname constant is defined');
+
+if (!src.includes("['auth', 'status', '--hostname', GH_HOSTNAME]")) {
     fail('source gh auth', 'gh fetch path must verify gh auth status before use');
 }
 pass('gh fetch path verifies authentication');
