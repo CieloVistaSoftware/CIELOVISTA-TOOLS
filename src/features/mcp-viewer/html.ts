@@ -5,8 +5,8 @@
  * mcp-viewer/html.ts
  *
  * Builds the browser HTML for the MCP Endpoint Viewer. Served by the local
- * HTTP server in `index.ts`. Four tabs, each calls the matching `/api/*`
- * endpoint and renders the JSON result.
+ * HTTP server in `index.ts`. Viewer requests now use JSON-RPC `POST /mcp`
+ * and render the unwrapped result data.
  *
  * Follows the View a Doc visual convention: dark theme, same colors.
  * Links rendered in yellow (#FFD700) per project link-visibility rule.
