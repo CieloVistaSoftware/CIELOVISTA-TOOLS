@@ -804,10 +804,15 @@ function loadProjectOptions(selectEl){
     return;
   }
 
-  fetch(BASE + '/api/list_projects')
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000), method: 'list_projects', params: {} })
+  })
     .then(function(res){ return res.json(); })
     .then(function(json){
-      var rows = (json && json.projects) || [];
+      var result = (json && json.result) || {};
+      var rows = (result && result.projects) || [];
       projectOptions = rows.map(function(p){ return p.name; }).sort();
       renderOptions(projectOptions);
     })
@@ -933,14 +938,19 @@ function selectTab(endpoint){
   if (btn) { btn.addEventListener('click', runFromControls); }
   if (activeFileBtn && filePathEl) {
     activeFileBtn.addEventListener('click', function(){
-      fetch(BASE + '/api/active_markdown')
+      fetch(BASE + '/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000), method: 'active_markdown', params: {} })
+      })
         .then(function(res){ return res.json(); })
         .then(function(json){
-          if (!json || !json.hasActiveMarkdown || !json.filePath) {
+          var result = (json && json.result) || {};
+          if (!result || !result.hasActiveMarkdown || !result.filePath) {
             toast('No active markdown editor found');
             return;
           }
-          filePathEl.value = json.filePath;
+          filePathEl.value = result.filePath;
           toast('Loaded active markdown file');
           filePathEl.focus();
         })

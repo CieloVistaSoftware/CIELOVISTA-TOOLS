@@ -37,12 +37,18 @@ function flush() {
     resources: 'usable',
     url: 'http://127.0.0.1:4321/',
     beforeParse(window) {
-      window.fetch = (url) => {
+      window.fetch = (url, options) => {
         const href = String(url);
-        requests.push(href);
-        let body = {};
-        if (href.includes('/api/list_projects')) {
-          body = {
+        let parsedBody = {};
+        if (options && options.body) {
+          try { parsedBody = JSON.parse(options.body); } catch (e) {}
+        }
+        const rpcMethod = parsedBody.method || '';
+        const rpcParams = parsedBody.params || {};
+        requests.push({ url: href, method: rpcMethod, params: rpcParams });
+        let result = {};
+        if (rpcMethod === 'list_projects') {
+          result = {
             globalDocsPath: 'C:/docs',
             status: '(all)',
             projectCount: 2,
@@ -51,22 +57,22 @@ function flush() {
               { name: 'cielovista-tools', path: 'C:/cielovista-tools', type: 'product', description: 'Tools', status: 'product' },
             ],
           };
-        } else if (href.includes('/api/get_catalog')) {
-          const parsed = new URL(href);
-          const projectName = parsed.searchParams.get('projectName') || '(all)';
-          body = {
+        } else if (rpcMethod === 'get_catalog') {
+          const projectName = rpcParams.projectName || '(all)';
+          result = {
             projectName,
             docCount: 1,
             docs: [{
               projectName,
               fileName: 'README.md',
-              filePath: 'C:/'+projectName+'/README.md',
+              filePath: 'C:/' + projectName + '/README.md',
               title: 'Readme',
               description: 'Project doc',
               lastModified: '2026-05-06T00:00:00.000Z',
             }],
           };
         }
+        const body = { jsonrpc: '2.0', id: parsedBody.id, result };
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -99,7 +105,7 @@ function flush() {
   assert.ok(activeTab, 'there should be an active tab after clicking a project name');
   assert.strictEqual(activeTab.getAttribute('data-endpoint'), 'get_catalog', 'clicking a project name should switch to get_catalog tab');
 
-  const matching = requests.find((href) => href.includes('/api/get_catalog?projectName=DiskCleanUp'));
+  const matching = requests.find((r) => r.url.endsWith('/mcp') && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp');
   assert.ok(matching, 'clicking a project name must fetch get_catalog filtered to that project');
 
   console.log('PASS: project links in list_projects open filtered get_catalog view at runtime.');
