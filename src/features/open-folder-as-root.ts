@@ -19,18 +19,23 @@ const FEATURE = 'open-folder-as-root';
 export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');
     context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.explorer.openFolderAsRoot', (uri?: vscode.Uri) => {
-            if (!uri) {
-                require('../shared/show-result-webview').showResultWebview(
-                    'No Folder Selected',
-                    'Open Folder as Root',
-                    0,
-                    'No folder was selected. Please right-click a folder in the Explorer.'
-                );
-                return;
+        vscode.commands.registerCommand('cvs.explorer.openFolderAsRoot', async (uri?: vscode.Uri) => {
+            let folderUri = uri;
+            if (!folderUri) {
+                // Context menu may not pass the URI on some VS Code versions — fall back to a picker.
+                const picked = await vscode.window.showOpenDialog({
+                    canSelectFiles:   false,
+                    canSelectFolders: true,
+                    canSelectMany:    false,
+                    openLabel:        'Open as Root',
+                    title:            'Select a folder to open as workspace root',
+                });
+                if (!picked || picked.length === 0) { return; }
+                folderUri = picked[0];
             }
+            log(FEATURE, `Opening folder as root: ${folderUri.fsPath}`);
             // forceNewWindow: false → reuse the current window
-            return vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
+            return vscode.commands.executeCommand('vscode.openFolder', folderUri, { forceNewWindow: false });
         })
     );
 }

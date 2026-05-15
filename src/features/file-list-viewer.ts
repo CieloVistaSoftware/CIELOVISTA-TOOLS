@@ -41,8 +41,39 @@ let _sortDir:    SortDirection = 'asc';
 let _showHidden = true;
 let _showExcludes = false;
 let _selectedNames: string[] = [];
+let _lastViewState: FileListViewState | undefined;
+
+const MARKDOWN_EXTENSIONS = new Set([
+  '.md',
+  '.markdown',
+  '.mdown',
+  '.mkd',
+]);
+
+const JAVASCRIPT_EXTENSIONS = new Set([
+  '.js',
+  '.mjs',
+  '.cjs',
+]);
+
+type FileListViewState = {
+  dir: string;
+  entries: FileListEntry[];
+  canGoUp: boolean;
+  sortCol: SortColumn;
+  sortDir: SortDirection;
+  showHidden: boolean;
+  showExcludes: boolean;
+  selectedNames: string[];
+};
 
 function workspaceRoot(): string | undefined {
+  const activeUri = vscode.window.activeTextEditor?.document?.uri;
+  if (activeUri) {
+    const folder = vscode.workspace.getWorkspaceFolder(activeUri);
+    if (folder) { return folder.uri.fsPath; }
+  }
+
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) { return undefined; }
     return folders[0].uri.fsPath;
@@ -64,7 +95,7 @@ function readDirEntries(dir: string): FileListEntry[] {
         catch { continue; /* broken symlink or perms — skip */ }
 
         const isDir = st.isDirectory();
-        const ext   = isDir ? '<dir>' : (path.extname(name).slice(1) || '<no-ext>');
+        const ext   = isDir ? 'dir' : (path.extname(name).slice(1) || 'no-ext');
         result.push({
             name,
             isDir,
@@ -76,7 +107,68 @@ function readDirEntries(dir: string): FileListEntry[] {
     return result;
 }
 
-function buildHtml(): string {
+function makeViewState(): FileListViewState | undefined {
+  if (!_currentDir) { return undefined; }
+
+  const entries = readDirEntries(_currentDir);
+  sortEntries(entries, _sortColumn, _sortDir);
+
+  const root = workspaceRoot();
+  const canGoUp = !!root && path.resolve(_currentDir) !== path.resolve(root);
+
+  return {
+    dir: _currentDir,
+    entries,
+    canGoUp,
+    sortCol: _sortColumn,
+    sortDir: _sortDir,
+    showHidden: _showHidden,
+    showExcludes: _showExcludes,
+    selectedNames: _selectedNames,
+  };
+}
+
+function fmtSizeBytes(bytes: number): string {
+  if (bytes < 1024) { return `${bytes} B`; }
+  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)} KB`; }
+  if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function fmtMtime(ms: number): string {
+  if (!ms) { return ''; }
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderInitialRows(entries: FileListEntry[], selectedNames: string[]): string {
+  if (!entries.length) { return ''; }
+
+  const selected = new Set(selectedNames);
+  return entries.map(e => {
+    const rowClass = `${e.isDir ? 'dir' : 'file'}${e.name.startsWith('.') ? ' hidden' : ''}${selected.has(e.name) ? ' selected' : ''}`;
+    const typeCell = e.isDir ? '' : esc(e.type);
+    const sizeCell = e.isDir ? '' : esc(fmtSizeBytes(e.size));
+    return [
+      `<tr class="${rowClass}" data-name="${esc(e.name)}" data-is-dir="${e.isDir ? '1' : '0'}">`,
+      `<td class="col-name">${esc(e.name)}</td>`,
+      `<td class="col-date">${esc(fmtMtime(e.mtime))}</td>`,
+      `<td class="col-type">${typeCell}</td>`,
+      `<td class="col-size">${sizeCell}</td>`,
+      '</tr>',
+    ].join('');
+  }).join('');
+}
+
+function buildHtml(initialState: FileListViewState | undefined): string {
+  const bootstrapState = JSON.stringify(initialState ?? null).replace(/</g, '\\u003c');
+  const initialDir = initialState?.dir ?? '';
+  const initialRows = renderInitialRows(initialState?.entries ?? [], initialState?.selectedNames ?? []);
+  const emptyStyle = (initialState?.entries?.length ?? 0) === 0 ? '' : 'display:none';
+  const upDisabled = initialState?.canGoUp ? '' : 'disabled';
+  const hiddenClass = initialState?.showHidden ?? true ? 'toggle-btn on' : 'toggle-btn';
+  const excludesClass = initialState?.showExcludes ? 'toggle-btn on' : 'toggle-btn';
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
 <style>
@@ -119,15 +211,22 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
 #ctx-menu button:hover{background:var(--vscode-list-activeSelectionBackground,#094771);color:var(--vscode-list-activeSelectionForeground,#fff)}
 </style></head><body>
 <div id="hdr">
-  <button id="up-btn" title="Go to parent folder">\u2191 Up</button>
-  <span id="path-display"></span>
+  <button id="up-btn" title="Go to parent folder" ${upDisabled}>\u2191 Up</button>
+  <span id="path-display" title="${esc(initialDir)}">${esc(initialDir || '(no workspace folder open)')}</span>
   <button id="new-folder-btn" title="Create a new folder here and navigate into it">+ New Folder</button>
   <div class="toggle-row">
-    <button class="toggle-btn on" id="toggle-hidden" title="Show hidden files (dotfiles)">.hidden</button>
-    <button class="toggle-btn"    id="toggle-excludes" title="Show normally-excluded folders (node_modules, .git, out, dist, .vscode-test)">excludes</button>
+    <button class="${hiddenClass}" id="toggle-hidden" title="Show hidden files (dotfiles)">.hidden</button>
+    <button class="${excludesClass}" id="toggle-excludes" title="Show normally-excluded folders (node_modules, .git, out, dist, .vscode-test)">excludes</button>
   </div>
 </div>
-<div id="ctx-menu"><button id="ctx-run-test">▶ Run Test</button></div>
+<div id="ctx-menu">
+  <button id="ctx-open" style="display:none">📄 Open</button>
+  <button id="ctx-navigate" style="display:none">📂 Open here</button>
+  <button id="ctx-reveal">🔍 Reveal in Explorer</button>
+  <button id="ctx-copy-path">📋 Copy path</button>
+  <div id="ctx-sep" style="border-top:1px solid rgba(255,255,255,.1);margin:4px 0"></div>
+  <button id="ctx-run-test" style="display:none">▶ Run Test</button>
+</div>
 <div id="tbl-wrap">
   <table id="tbl">
     <thead><tr>
@@ -136,13 +235,14 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
       <th data-col="type">Type <span class="arrow"></span></th>
       <th data-col="size">Size <span class="arrow"></span></th>
     </tr></thead>
-    <tbody id="tbody"></tbody>
+    <tbody id="tbody">${initialRows}</tbody>
   </table>
-  <div class="empty" id="empty" style="display:none">(empty folder)</div>
+  <div class="empty" id="empty" style="${emptyStyle}">(empty folder)</div>
 </div>
 <script>(function(){
 const vsc = acquireVsCodeApi();
-let state = { dir: '', entries: [], canGoUp: false, sortCol: 'name', sortDir: 'asc', showHidden: true, showExcludes: false };
+const bootstrap = ${bootstrapState};
+let state = bootstrap || { dir: '', entries: [], canGoUp: false, sortCol: 'name', sortDir: 'asc', showHidden: true, showExcludes: false, selectedNames: [] };
 
 function fmtSize(b){
   if(b<1024) return b+' B';
@@ -197,6 +297,8 @@ function setSelected(names) {
   render();
 }
 
+render();
+
 function selectRange(toName) {
   const entries = state.entries || [];
   const fromName = state.lastSelectedName || toName;
@@ -243,15 +345,17 @@ document.getElementById('tbody').addEventListener('click', ev => {
 
   state.lastSelectedName = name;
   setSelected([name]);
-  vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name });
+  vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name, isDir: isDir });
 });
 
 var _ctxMenu = document.getElementById('ctx-menu');
 var _ctxNames = [];
+var _ctxEntry = null;
 function hideCtxMenu() { _ctxMenu.style.display = 'none'; }
 document.getElementById('tbody').addEventListener('contextmenu', function(ev) {
   var tr = ev.target.closest('tr');
   if (!tr) { hideCtxMenu(); return; }
+  ev.preventDefault();
 
   var clickedName = tr.dataset.name || '';
   if (!(state.selectedNames || []).includes(clickedName)) {
@@ -259,24 +363,53 @@ document.getElementById('tbody').addEventListener('contextmenu', function(ev) {
     setSelected([clickedName]);
   }
 
-  var selected = state.selectedNames || [];
-  var names = selected.filter(function(name){
-    var entry = (state.entries || []).find(function(e){ return e.name === name; });
-    return !!entry && !entry.isDir && isRunnableTestFile(name);
-  });
+  var entry = (state.entries || []).find(function(e){ return e.name === clickedName; });
+  _ctxEntry = entry || { name: clickedName, isDir: tr.dataset.isDir === '1' };
+  var isDir = _ctxEntry.isDir;
 
-  if (names.length === 0) { hideCtxMenu(); return; }
-  var name = tr.dataset.name || '';
-  if (!isRunnableTestFile(name)) { hideCtxMenu(); return; }
-  ev.preventDefault();
-  _ctxNames = names;
-  document.getElementById('ctx-run-test').textContent = names.length > 1 ? ('▶ Run Tests (' + names.length + ')') : '▶ Run Test';
+  document.getElementById('ctx-open').style.display = isDir ? 'none' : 'block';
+  document.getElementById('ctx-navigate').style.display = isDir ? 'block' : 'none';
+
+  var selected = state.selectedNames || [];
+  _ctxNames = selected.filter(function(name){
+    var e = (state.entries || []).find(function(x){ return x.name === name; });
+    return !!e && !e.isDir && isRunnableTestFile(name);
+  });
+  if (_ctxNames.length === 0 && isRunnableTestFile(clickedName)) { _ctxNames = [clickedName]; }
+
+  var runTestBtn = document.getElementById('ctx-run-test');
+  if (_ctxNames.length > 0) {
+    runTestBtn.style.display = 'block';
+    runTestBtn.textContent = _ctxNames.length > 1 ? ('▶ Run Tests (' + _ctxNames.length + ')') : '▶ Run Test';
+  } else {
+    runTestBtn.style.display = 'none';
+  }
+  document.getElementById('ctx-sep').style.display = _ctxNames.length > 0 ? 'block' : 'none';
+
   _ctxMenu.style.display = 'block';
-  _ctxMenu.style.left = Math.min(ev.clientX, window.innerWidth - 170) + 'px';
-  _ctxMenu.style.top  = Math.min(ev.clientY, window.innerHeight - 50) + 'px';
+  _ctxMenu.style.left = Math.min(ev.clientX, window.innerWidth - 180) + 'px';
+  _ctxMenu.style.top  = Math.min(ev.clientY, window.innerHeight - 140) + 'px';
 });
 document.addEventListener('click', hideCtxMenu);
 document.addEventListener('contextmenu', function(ev) { if (!ev.target.closest('#ctx-menu')) { hideCtxMenu(); } });
+document.getElementById('ctx-open').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry) { vsc.postMessage({ command: 'open-file', name: _ctxEntry.name }); }
+});
+document.getElementById('ctx-navigate').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry) { vsc.postMessage({ command: 'navigate-to', name: _ctxEntry.name }); }
+});
+document.getElementById('ctx-reveal').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry) { vsc.postMessage({ command: 'reveal-in-explorer', name: _ctxEntry.name, isDir: _ctxEntry.isDir }); }
+});
+document.getElementById('ctx-copy-path').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry && state.dir) {
+    vsc.postMessage({ command: 'copy-path', path: state.dir + '/' + _ctxEntry.name });
+  }
+});
 document.getElementById('ctx-run-test').addEventListener('click', function() {
   hideCtxMenu();
   vsc.postMessage({ command: 'run-test', names: _ctxNames });
@@ -334,25 +467,14 @@ vsc.postMessage({ command: 'ready' });
 }
 
 function pushUpdate(): void {
-    if (!_panel || !_currentDir) { return; }
-    const entries = readDirEntries(_currentDir);
-    sortEntries(entries, _sortColumn, _sortDir);
-
-    const root = workspaceRoot();
-    const canGoUp = !!root && path.resolve(_currentDir) !== path.resolve(root);
+  if (!_panel) { return; }
+  const state = makeViewState();
+  if (!state) { return; }
+  _lastViewState = state;
 
     void _panel.webview.postMessage({
         type: 'update',
-        state: {
-            dir:          _currentDir,
-            entries,
-            canGoUp,
-            sortCol:      _sortColumn,
-            sortDir:      _sortDir,
-            showHidden:   _showHidden,
-            showExcludes: _showExcludes,
-          selectedNames: _selectedNames,
-        },
+    state,
     });
 }
 
@@ -370,27 +492,95 @@ function navigateTo(target: string): void {
     pushUpdate();
 }
 
-function openFile(target: string): void {
-    if (!fs.existsSync(target)) { return; }
-    void vscode.workspace.openTextDocument(target).then(
-        doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside),
-        err => { logError(`openTextDocument failed: ${target}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
-    );
+async function openFile(target: string): Promise<void> {
+  if (!fs.existsSync(target)) { return; }
+  const uri = vscode.Uri.file(target);
+  const ext = path.extname(target).toLowerCase();
+
+  try {
+    if (ext === '.vsix') {
+      await vscode.commands.executeCommand('workbench.extensions.installExtension', uri);
+      return;
+    }
+
+    if (MARKDOWN_EXTENSIONS.has(ext)) {
+      await vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
+      return;
+    }
+
+    if (JAVASCRIPT_EXTENSIONS.has(ext)) {
+      const pick = await vscode.window.showQuickPick(
+        [
+          { label: 'Run', description: `Execute ${path.basename(target)} with Node.js`, value: 'run' },
+          { label: 'View', description: 'Open source in editor/default viewer', value: 'view' },
+        ],
+        {
+          placeHolder: `Open ${path.basename(target)} as:`,
+          ignoreFocusOut: true,
+        }
+      );
+
+      if (!pick) { return; }
+      if (pick.value === 'run') {
+        const terminal = vscode.window.createTerminal({
+          name: `Run ${path.basename(target)}`,
+          cwd: path.dirname(target),
+        });
+        terminal.show(true);
+        terminal.sendText(`"${process.execPath}" "${target}"`);
+        return;
+      }
+    }
+
+    // Respect VS Code editor associations so each file type opens in its default viewer.
+    await vscode.commands.executeCommand('vscode.open', uri, vscode.ViewColumn.Beside);
+  } catch (err) {
+    logError(`openFile default viewer failed: ${target}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+
+    // Fallback to text editor if the preferred viewer command fails for any reason.
+    try {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+    } catch (fallbackErr) {
+      logError(`openTextDocument fallback failed: ${target}`, fallbackErr instanceof Error ? fallbackErr.stack || String(fallbackErr) : String(fallbackErr), FEATURE);
+    }
+  }
+}
+
+async function openEntryFromCurrentDir(name: string, mode: 'navigate' | 'open'): Promise<void> {
+  if (!_currentDir) { return; }
+  const entryPath = path.join(_currentDir, name);
+  if (!fs.existsSync(entryPath)) { return; }
+
+  let st: fs.Stats;
+  try { st = fs.statSync(entryPath); } catch { return; }
+
+  if (st.isDirectory()) {
+    navigateTo(entryPath);
+    return;
+  }
+
+  if (mode === 'navigate') {
+    return;
+  }
+
+  await openFile(entryPath);
 }
 
 export function openFileListPanel(): void {
     if (_panel) { _panel.reveal(vscode.ViewColumn.One); return; }
 
     const root = workspaceRoot();
-    if (!root) {
+    if (!root && !_currentDir) {
         vscode.window.showInformationMessage('FileList: open a workspace folder first.');
         return;
     }
-    _currentDir = root;
+    // Preserve a directory pre-set by navigateFileListToFolder; fall back to workspace root.
+    if (!_currentDir) { _currentDir = root!; }
 
     _panel = vscode.window.createWebviewPanel(
         'cvsFileList',
-        `FileList \u2014 ${path.basename(root)}`,
+        `FileList \u2014 ${path.basename(_currentDir)}`,
         vscode.ViewColumn.One,
         { enableScripts: true, retainContextWhenHidden: true },
     );
@@ -413,13 +603,11 @@ export function openFileListPanel(): void {
                 return;
             }
             if (msg.command === 'navigate-to') {
-                if (!_currentDir) { return; }
-                navigateTo(path.join(_currentDir, String(msg.name)));
+                await openEntryFromCurrentDir(String(msg.name), 'navigate');
                 return;
             }
             if (msg.command === 'open-file') {
-                if (!_currentDir) { return; }
-                openFile(path.join(_currentDir, String(msg.name)));
+                await openEntryFromCurrentDir(String(msg.name), 'open');
                 return;
             }
             if (msg.command === 'up') {
@@ -489,6 +677,13 @@ export function openFileListPanel(): void {
               if (!text) { return; }
               await vscode.env.clipboard.writeText(text);
               vscode.window.showInformationMessage(`Copied path: ${text}`);
+              return;
+            }
+            if (msg.command === 'reveal-in-explorer') {
+                if (!_currentDir) { return; }
+                const target = path.join(_currentDir, String(msg.name ?? ''));
+                const uri = vscode.Uri.file(target);
+                await vscode.commands.executeCommand('revealInExplorer', uri);
                 return;
             }
             if (msg.command === 'new-folder') {
@@ -518,7 +713,8 @@ export function openFileListPanel(): void {
         }
     });
 
-    _panel.webview.html = buildHtml();
+    _lastViewState = makeViewState();
+    _panel.webview.html = buildHtml(_lastViewState);
     log(FEATURE, `FileList opened at ${root}`);
 }
 
@@ -532,12 +728,47 @@ export function revealFileInPanel(filePath: string): void {
     void _panel.webview.postMessage({ type: 'select', name });
 }
 
+export function navigateFileListToFolder(folderUri: vscode.Uri): void {
+    const folderPath = folderUri.fsPath;
+    if (!fs.existsSync(folderPath)) { return; }
+    if (_panel) {
+        navigateTo(folderPath);
+        _panel.reveal(vscode.ViewColumn.One);
+    } else {
+        _currentDir = folderPath;
+        openFileListPanel();
+    }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.tools.fileList', openFileListPanel),
+        vscode.commands.registerCommand('cvs.tools.fileList.navigateTo', (uri: vscode.Uri) => {
+            if (uri && uri.fsPath) { navigateFileListToFolder(uri); }
+        }),
+        vscode.commands.registerCommand('cvs.tools.fileList._debugState', () => ({
+            hasPanel: !!_panel,
+            dir: _lastViewState?.dir ?? _currentDir ?? '',
+            entryCount: _lastViewState?.entries.length ?? 0,
+            sortCol: _sortColumn,
+            sortDir: _sortDir,
+            showHidden: _showHidden,
+            showExcludes: _showExcludes,
+        })),
+        vscode.commands.registerCommand('cvs.tools.fileList._debugEntries', () =>
+            (_lastViewState?.entries ?? []).map(e => ({ name: e.name, isDir: e.isDir }))
+        ),
+        vscode.commands.registerCommand('cvs.tools.fileList._debugOpenEntry', async (name: string, mode?: 'navigate' | 'open') => {
+            await openEntryFromCurrentDir(String(name || ''), mode === 'navigate' ? 'navigate' : 'open');
+            return {
+                dir: _lastViewState?.dir ?? _currentDir ?? '',
+                entryCount: _lastViewState?.entries.length ?? 0,
+            };
+        }),
     );
 }
 
 export function deactivate(): void {
+  _lastViewState = undefined;
     if (_panel) { _panel.dispose(); _panel = undefined; }
 }
