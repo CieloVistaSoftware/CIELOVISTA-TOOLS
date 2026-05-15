@@ -66,27 +66,53 @@ test('REG-053-1: classifyScripts outputs all scripts', async () => {
     });
   }
 
-  const secondary = [];
+  // Remaining scripts: fit ~12 in secondary row, move overflow to moreGroups by category
+  const all = [];
   scripts.forEach(s => {
-    if (picked.has(s.name)) return;
-    secondary.push(s);
-    picked.add(s.name);
+    if (!picked.has(s.name)) {
+      all.push(s);
+    }
   });
 
-  const layout = { primary, secondary, moreGroups: {}, moreCount: 0 };
+  const SECONDARY_LIMIT = 12;
+  const secondary = all.slice(0, SECONDARY_LIMIT);
+  const overflow = all.slice(SECONDARY_LIMIT);
+
+  // Organize overflow by category (test:*, lint:*, docs:*, etc.; remainder as 'other')
+  const moreGroups = {};
+  overflow.forEach(s => {
+    let category = 'other';
+    const match = s.name.match(/^([^:]+):/);
+    if (match) {
+      category = match[1]; // e.g., 'test', 'lint', 'docs'
+    } else if (/test|spec/.test(s.name)) {
+      category = 'test';
+    } else if (/lint|format|prettier|eslint/.test(s.name)) {
+      category = 'lint';
+    } else if (/doc|help|readme/.test(s.name)) {
+      category = 'docs';
+    }
+    if (!moreGroups[category]) {
+      moreGroups[category] = [];
+    }
+    moreGroups[category].push(s);
+  });
+
+  const layout = { primary, secondary, moreGroups, moreCount: Object.keys(moreGroups).length };
 
   // ── CHECKS ──
   assert.ok(primary.length > 0, '✓ primary scripts exist');
   assert.ok(secondary.length > 0, '✓ secondary scripts exist');
 
-  const totalShown = primary.length + secondary.length + layout.moreCount;
+  const overflowCount = Object.values(layout.moreGroups).reduce((n, arr) => n + arr.length, 0);
+  const totalShown = primary.length + secondary.length + overflowCount;
   assert.strictEqual(totalShown, scripts.length, 
-    `✓ all ${scripts.length} scripts accounted for (primary: ${primary.length} + secondary: ${secondary.length} + more: ${layout.moreCount})`);
+    `✓ all ${scripts.length} scripts accounted for (primary: ${primary.length} + secondary: ${secondary.length} + overflow: ${overflowCount})`);
 
   console.log(`✓ Script classification OK:`);
   console.log(`  Primary (4 max): ${primary.map(s => s.name).join(', ')}`);
   console.log(`  Secondary: ${secondary.length} scripts`);
-  console.log(`  More: ${layout.moreCount}`);
+  console.log(`  More groups: ${layout.moreCount}, overflow scripts: ${overflowCount}`);
 });
 
 test('REG-053-2: npm-command-launcher sends all scripts in init message', async () => {

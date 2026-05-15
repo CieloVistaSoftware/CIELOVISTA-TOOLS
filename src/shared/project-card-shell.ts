@@ -545,15 +545,45 @@ function classifyScripts(scripts) {
     });
   }
 
-  // All remaining scripts go to secondary — no "More commands" section
-  var secondary = [];
+  // Remaining scripts: fit ~12 in secondary row, move overflow to moreGroups by category
+  var all = [];
   scripts.forEach(function(s) {
-    if (picked.has(s.name)) return;
-    secondary.push(s);
-    picked.add(s.name);
+    if (!picked.has(s.name)) {
+      all.push(s);
+    }
   });
 
-  return { primary: primary, secondary: secondary, moreGroups: {}, moreCount: 0 };
+  var SECONDARY_LIMIT = 12;
+  var secondary = all.slice(0, SECONDARY_LIMIT);
+  var overflow = all.slice(SECONDARY_LIMIT);
+
+  // Organize overflow by category (test:*, lint:*, docs:*, etc.; remainder as 'other')
+  var moreGroups = {};
+  overflow.forEach(function(s) {
+    var category = 'other';
+    var match = s.name.match(/^([^:]+):/);
+    if (match) {
+      category = match[1]; // e.g., 'test', 'lint', 'docs'
+    } else if (/test|spec/.test(s.name)) {
+      category = 'test';
+    } else if (/lint|format|prettier|eslint/.test(s.name)) {
+      category = 'lint';
+    } else if (/doc|help|readme/.test(s.name)) {
+      category = 'docs';
+    }
+
+    if (!moreGroups[category]) {
+      moreGroups[category] = [];
+    }
+    moreGroups[category].push(s);
+  });
+
+  return {
+    primary: primary,
+    secondary: secondary,
+    moreGroups: moreGroups,
+    moreCount: Object.keys(moreGroups).length
+  };
 }
 
 function buildScriptBtn(s, size) {
