@@ -745,6 +745,22 @@ async function handleListMarkdownPaths(params: URLSearchParams): Promise<{
 
 /* ── HTTP server wiring ───────────────────────────────────────────────────── */
 
+function readBody(req: http.IncomingMessage): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+        let data = '';
+        req.on('data', (chunk: Buffer) => { data += chunk.toString('utf8'); });
+        req.on('end', () => resolve(data));
+        req.on('error', reject);
+    });
+}
+
+function paramsAdapter(params: Record<string, unknown>): URLSearchParams {
+    const entries: [string, string][] = Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, String(v)]);
+    return new URLSearchParams(entries);
+}
+
 function jsonResponse(res: http.ServerResponse, status: number, body: unknown): void {
     const text = JSON.stringify(body);
     res.writeHead(status, {
@@ -824,6 +840,68 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         const { buildViewerHtml } = await import('./html');
         const summary = handleListProjects();
         htmlResponse(res, 200, buildViewerHtml(port, summary.projectCount));
+        return;
+    }
+
+    /* JSON-RPC endpoint — primary transport for all viewer UI calls. */
+    if (p === '/mcp') {
+        if (req.method !== 'POST') {
+            jsonResponse(res, 405, { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Method Not Allowed: POST required' } });
+            return;
+        }
+        let rpc: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
+        try {
+            const body = await readBody(req);
+            rpc = JSON.parse(body);
+        } catch {
+            jsonResponse(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } });
+            return;
+        }
+        const rpcId  = rpc.id ?? null;
+        const method = (rpc.method || '').trim();
+        const sp     = paramsAdapter(rpc.params || {});
+        try {
+            let result: unknown;
+            switch (method) {
+                case 'list_projects':
+                    result = handleListProjects(coerceStatus(sp.get('status'))); break;
+                case 'find_project':
+                    result = handleFindProject(sp.get('query') || '', coerceStatus(sp.get('status'))); break;
+                case 'search_docs':
+                    result = await handleSearchDocs(sp.get('query') || '', sp.get('projectName') || undefined); break;
+                case 'get_catalog':
+                    result = await handleGetCatalog(sp.get('projectName') || undefined); break;
+                case 'list_doc_violations':
+                    result = await handleListDocViolations(sp); break;
+                case 'validate_doc':
+                    result = await handleValidateDoc(sp); break;
+                case 'normalize_doc':
+                    result = await handleNormalizeDoc(sp); break;
+                case 'get_doc_by_identity':
+                    result = await handleGetDocByIdentity(sp); break;
+                case 'list_old_dewey':
+                    result = await handleListOldDewey(sp); break;
+                case 'active_markdown':
+                    result = handleGetActiveMarkdown(); break;
+                case 'list_markdown_paths':
+                    result = await handleListMarkdownPaths(sp); break;
+                case 'list_symbols':
+                    result = handleListSymbols(sp); break;
+                case 'find_symbol':
+                    result = handleFindSymbol(sp); break;
+                case 'list_cvt_commands':
+                    result = handleListCvtCommands(sp); break;
+                case 'lookup_dewey':
+                    result = await handleLookupDewey(sp); break;
+                default:
+                    jsonResponse(res, 404, { jsonrpc: '2.0', id: rpcId, error: { code: -32601, message: `Method not found: ${method}` } });
+                    return;
+            }
+            jsonResponse(res, 200, { jsonrpc: '2.0', id: rpcId, result });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Internal error';
+            jsonResponse(res, 400, { jsonrpc: '2.0', id: rpcId, error: { code: -32603, message } });
+        }
         return;
     }
 

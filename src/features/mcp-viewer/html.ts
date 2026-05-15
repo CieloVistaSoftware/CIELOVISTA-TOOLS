@@ -5,8 +5,7 @@
  * mcp-viewer/html.ts
  *
  * Builds the browser HTML for the MCP Endpoint Viewer. Served by the local
- * HTTP server in `index.ts`. Four tabs, each calls the matching `/api/*`
- * endpoint and renders the JSON result.
+ * HTTP server in `index.ts`. All data calls use JSON-RPC 2.0 over POST /mcp.
  *
  * Follows the View a Doc visual convention: dark theme, same colors.
  * Links rendered in yellow (#FFD700) per project link-visibility rule.
@@ -149,6 +148,7 @@ var currentEndpoint = 'list_projects';
 var catalogSortBy = 'recent';
 var projectOptions = [];
 var pendingCatalogProjectName = '';
+var _rpcId = 0;
 
 /* Control templates per endpoint. */
 var CONTROLS = {
@@ -232,10 +232,10 @@ function buildMdPreviewLink(filePath){
   return BASE + '/md-preview?path=' + encodeURIComponent(filePath || '') + '&back=' + encodeURIComponent(window.location.href);
 }
 
-function setMeta(url, status, ms, extra){
+function setMeta(label, status, ms, extra){
   var cls = status >= 200 && status < 300 ? 'ok' : 'err';
   var tail = extra ? ' &middot; ' + esc(extra) : '';
-  metaEl.innerHTML = 'GET ' + esc(url) + ' &middot; <span class="' + cls + '">' + status + '</span> &middot; ' + ms + 'ms' + tail;
+  metaEl.innerHTML = esc(label) + ' &middot; <span class="' + cls + '">' + status + '</span> &middot; ' + ms + 'ms' + tail;
 }
 
 function statusPill(s){
@@ -619,9 +619,14 @@ function renderOldDewey(data){
 
 function loadActiveMarkdownPath(filePathEl){
   if (!filePathEl) { return; }
-  fetch(BASE + '/api/active_markdown')
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: ++_rpcId, method: 'active_markdown', params: {} })
+  })
     .then(function(res){ return res.json(); })
-    .then(function(json){
+    .then(function(rpc){
+      var json = (rpc && rpc.result !== undefined) ? rpc.result : rpc;
       if (!json || !json.hasActiveMarkdown || !json.filePath) { return; }
       if (!filePathEl.value.trim()) {
         filePathEl.value = json.filePath;
@@ -635,9 +640,14 @@ function loadActiveMarkdownPath(filePathEl){
 function loadWorkspaceMarkdownOptions(selectEl){
   if (!selectEl) { return; }
 
-  fetch(BASE + '/api/list_markdown_paths?limit=300')
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: ++_rpcId, method: 'list_markdown_paths', params: { limit: 300 } })
+  })
     .then(function(res){ return res.json(); })
-    .then(function(json){
+    .then(function(rpc){
+      var json = (rpc && rpc.result !== undefined) ? rpc.result : rpc;
       var rows = (json && json.paths) || [];
       if (!rows.length) {
         selectEl.innerHTML = '<option value="">no markdown files found</option>';
@@ -658,18 +668,19 @@ function loadWorkspaceMarkdownOptions(selectEl){
 
 /* Fetch and render the current endpoint. */
 function runEndpoint(params){
-  var qs = params ? ('?' + new URLSearchParams(params).toString()) : '';
-  var url = BASE + '/api/' + currentEndpoint + qs;
+  var mcpUrl = BASE + '/mcp';
+  var payload = JSON.stringify({ jsonrpc: '2.0', id: ++_rpcId, method: currentEndpoint, params: params || {} });
   resultEl.innerHTML = '<div class="state">Loading&hellip;</div>';
-  metaEl.textContent = 'GET ' + url + ' ...';
+  metaEl.textContent = 'POST /mcp \u2192 ' + currentEndpoint + ' ...';
   var t0 = Date.now();
-  fetch(url)
+  fetch(mcpUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
     .then(function(res){
       var ms = Date.now() - t0;
       return res.text().then(function(body){
-        var json;
-        try { json = JSON.parse(body); } catch (e) { json = null; }
-        setMeta(url, res.status, ms, json ? (countSummary(json)) : 'non-JSON response');
+        var rpc;
+        try { rpc = JSON.parse(body); } catch (e) { rpc = null; }
+        var json = (rpc && rpc.result !== undefined) ? rpc.result : rpc;
+        setMeta('POST /mcp \u2192 ' + currentEndpoint, res.status, ms, json ? (countSummary(json)) : 'non-JSON response');
         if (!res.ok || !json) {
           resultEl.innerHTML = '<div class="state err">' + esc(body) + '</div>';
           return;
@@ -692,7 +703,7 @@ function runEndpoint(params){
     })
     .catch(function(err){
       var ms = Date.now() - t0;
-      setMeta(url, 0, ms, err.message || 'network error');
+      setMeta('POST /mcp \u2192 ' + currentEndpoint, 0, ms, err.message || 'network error');
       resultEl.innerHTML = '<div class="state err">' + esc(err.message || 'network error') + '</div>';
     });
 }
@@ -765,9 +776,14 @@ function loadProjectOptions(selectEl){
     return;
   }
 
-  fetch(BASE + '/api/list_projects')
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: ++_rpcId, method: 'list_projects', params: {} })
+  })
     .then(function(res){ return res.json(); })
-    .then(function(json){
+    .then(function(rpc){
+      var json = (rpc && rpc.result !== undefined) ? rpc.result : rpc;
       var rows = (json && json.projects) || [];
       projectOptions = rows.map(function(p){ return p.name; }).sort();
       renderOptions(projectOptions);
@@ -894,9 +910,14 @@ function selectTab(endpoint){
   if (btn) { btn.addEventListener('click', runFromControls); }
   if (activeFileBtn && filePathEl) {
     activeFileBtn.addEventListener('click', function(){
-      fetch(BASE + '/api/active_markdown')
+      fetch(BASE + '/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: ++_rpcId, method: 'active_markdown', params: {} })
+      })
         .then(function(res){ return res.json(); })
-        .then(function(json){
+        .then(function(rpc){
+          var json = (rpc && rpc.result !== undefined) ? rpc.result : rpc;
           if (!json || !json.hasActiveMarkdown || !json.filePath) {
             toast('No active markdown editor found');
             return;

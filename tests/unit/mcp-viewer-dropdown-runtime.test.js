@@ -37,12 +37,21 @@ function flush() {
     resources: 'usable',
     url: 'http://127.0.0.1:4321/',
     beforeParse(window) {
-      window.fetch = (url) => {
+      window.fetch = (url, init) => {
         const href = String(url);
-        requests.push(href);
-        let body = {};
-        if (href.includes('/api/list_projects')) {
-          body = {
+        let rpcMethod = '';
+        let rpcParams = {};
+        if (init && init.body) {
+          try {
+            const rpc = JSON.parse(init.body);
+            rpcMethod = rpc.method || '';
+            rpcParams = rpc.params || {};
+          } catch (e) { /* ignore */ }
+        }
+        requests.push({ url: href, method: rpcMethod, params: rpcParams });
+        let result = {};
+        if (rpcMethod === 'list_projects') {
+          result = {
             globalDocsPath: 'C:/docs',
             status: '(all)',
             projectCount: 2,
@@ -51,19 +60,19 @@ function flush() {
               { name: 'cielovista-tools', path: 'C:/cielovista-tools', type: 'product', description: 'Tools', status: 'product' },
             ],
           };
-        } else if (href.includes('/api/get_catalog')) {
-          const parsed = new URL(href);
-          body = {
-            projectName: parsed.searchParams.get('projectName') || '(all)',
+        } else if (rpcMethod === 'get_catalog') {
+          result = {
+            projectName: rpcParams.projectName || '(all)',
             docCount: 0,
             docs: [],
           };
         }
+        const responseBody = JSON.stringify({ jsonrpc: '2.0', id: 1, result });
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve(body),
-          text: () => Promise.resolve(JSON.stringify(body)),
+          json: () => Promise.resolve({ jsonrpc: '2.0', id: 1, result }),
+          text: () => Promise.resolve(responseBody),
         });
       };
     },
@@ -97,10 +106,10 @@ function flush() {
   await flush();
   await flush();
 
-  const matching = requests.find((href) => href.includes('/api/get_catalog?projectName=DiskCleanUp'));
-  assert.ok(matching, 'Changing get_catalog project dropdown must trigger /api/get_catalog?projectName=DiskCleanUp');
+  const matching = requests.find((r) => r.url.includes('/mcp') && r.method === 'get_catalog' && r.params.projectName === 'DiskCleanUp');
+  assert.ok(matching, 'Changing get_catalog project dropdown must trigger POST /mcp with method=get_catalog and params.projectName=DiskCleanUp');
 
-  console.log('PASS: get_catalog project dropdown change triggers filtered fetch at runtime.');
+  console.log('PASS: get_catalog project dropdown change triggers filtered JSON-RPC fetch at runtime.');
 })().catch((err) => {
   console.error(err && err.stack ? err.stack : String(err));
   process.exit(1);
