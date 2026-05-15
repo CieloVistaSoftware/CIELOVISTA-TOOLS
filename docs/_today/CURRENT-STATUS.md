@@ -9,12 +9,44 @@ status: active
 tags: [current, status, currentstatusmd]
 category: 150.9 — Meta
 created: 2026-04-25
-updated: 2026-05-11
+updated: 2026-05-15
 version: 1.0.0
 author: CieloVista Software
 relativepath: docs/_today/CURRENT-STATUS.md
 ---
 # CURRENT-STATUS.md — cielovista-tools
+
+---
+
+## 🅿️ PARKING LOT — end of session 2026-05-15 (MCP HTTP migration cleanup — issue #320)
+
+**TASK:** MCP HTTP migration cleanup — replace legacy `/api/...` REST calls with JSON-RPC `POST /mcp`
+**STATUS:** ✅ Complete
+
+**WHAT WAS DONE:**
+- Added `/mcp` JSON-RPC POST route to `src/features/mcp-viewer/index.ts` (all 16 methods dispatched)
+- Converted all 5 legacy `/api/...` fetch calls in `src/features/mcp-viewer/html.ts` to `POST /mcp` with JSON-RPC 2.0 payloads:
+  - `runEndpoint` — main endpoint renderer
+  - `loadProjectOptions` — project dropdown fetch
+  - `loadActiveMarkdownPath` — active editor detection (×2 call sites)
+  - `loadWorkspaceMarkdownOptions` — workspace markdown list
+- Updated `setMeta` to accept a generic label string (removed hardcoded `GET ` prefix)
+- Added `_rpcId` counter for JSON-RPC id generation
+- Legacy `/api/...` routes kept as compatibility layer — `mcp-viewer-routes.test.js` still passes
+- Updated `tests/unit/mcp-viewer-dropdown-runtime.test.js` — asserts `POST /mcp` JSON-RPC requests
+- Updated `tests/unit/mcp-viewer-project-link-runtime.test.js` — asserts `POST /mcp` JSON-RPC requests
+
+**FILES TOUCHED:**
+- `src/features/mcp-viewer/index.ts` — added `readBody`, `paramsAdapter`, `/mcp` route
+- `src/features/mcp-viewer/html.ts` — migrated all fetches to JSON-RPC POST /mcp
+- `tests/unit/mcp-viewer-dropdown-runtime.test.js` — JSON-RPC assertions
+- `tests/unit/mcp-viewer-project-link-runtime.test.js` — JSON-RPC assertions
+- `docs/_today/CURRENT-STATUS.md` — updated
+
+**TRANSPORT MODEL:** All MCP Viewer UI flows now use `POST /mcp` (JSON-RPC 2.0). `/api/...` routes retained as compatibility layer only.
+
+**NEXT STEP:** Ready for new feature work
+**OPEN QUESTIONS:** None
 
 ---
 
