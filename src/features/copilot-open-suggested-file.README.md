@@ -1,7 +1,7 @@
 ---
 docid: 150.1.copilot-open-suggested-file-readme
 id: feature-copilot-open-suggested-filets
-title: feature: copilot-open-suggested-file.ts
+title: "feature: copilot-open-suggested-file.ts"
 project: cielovista-tools
 description: When Copilot mentions a file path in its response (e.g. "see src/utils.ts for the implementation"), this command extracts that path and opens the f…
 status: active

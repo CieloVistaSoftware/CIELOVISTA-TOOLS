@@ -1,7 +1,7 @@
 ---
 docid: 150.1.terminal-utils-readme
 id: feature-sharedterminal-utilsts
-title: feature: shared/terminal-utils.ts
+title: "feature: shared/terminal-utils.ts"
 project: cielovista-tools
 description: Reusable terminal and file-navigation helpers shared across all features that involve terminals or opening files/folders. The rule is simple: if tw…
 status: active

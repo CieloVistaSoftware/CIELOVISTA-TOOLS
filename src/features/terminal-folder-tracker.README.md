@@ -1,7 +1,7 @@
 ---
 docid: 150.1.terminal-folder-tracker-readme
 id: feature-terminal-folder-trackerts
-title: feature: terminal-folder-tracker.ts
+title: "feature: terminal-folder-tracker.ts"
 project: cielovista-tools
 description: Monitors every terminal's sendText calls for cd commands and saves the last known directory to a file in AppData. A single command lets you jump ba…
 status: active

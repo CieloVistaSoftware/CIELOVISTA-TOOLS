@@ -1,7 +1,7 @@
 ---
 docid: 150.1.npm-command-launcher-readme
 id: feature-npm-command-launcher
-title: Feature: NPM Command Launcher
+title: "Feature: NPM Command Launcher"
 project: cielovista-tools
 description: Adds a NPM Cmds button to the VS Code status bar. When clicked, it discovers every npm script across all workspace package.json files and lets you …
 status: active

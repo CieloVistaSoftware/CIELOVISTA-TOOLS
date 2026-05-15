@@ -1,7 +1,7 @@
 ---
 docid: 150.3.test-coverage-auditor-readme
 id: feature-test-coverage-auditorts-test-coverage-audi
-title: feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard
+title: "feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard"
 project: cielovista-tools
 description: The test coverage auditor integrates the tiered testing strategy directly into CieloVista Tools as an interactive webview panel. It provides: - Aud…
 status: active

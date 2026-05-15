@@ -1,7 +1,7 @@
 ---
 docid: 150.1.python-runner-readme
 id: feature-python-runnerts
-title: feature: python-runner.ts
+title: "feature: python-runner.ts"
 project: cielovista-tools
 description: Right-click any .py file in the VS Code Explorer and run it in the terminal with a single click. Uses the Python interpreter configured in VS Code …
 status: active
