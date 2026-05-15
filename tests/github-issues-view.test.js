@@ -123,8 +123,17 @@ async function fetchOpenIssues() {
         .slice(0, perPage);
 }
 
+// Common sandbox / CI network failures where github.com is intentionally blocked.
+const BLOCKED_NETWORK_PATTERNS = [
+    'Blocked by DNS monitoring proxy',
+    'EAI_AGAIN',
+    'ENOTFOUND',
+    'ECONNRESET',
+    'ETIMEDOUT',
+];
+
 function isBlockedNetworkError(err) {
-    return /Blocked by DNS monitoring proxy|EAI_AGAIN|ENOTFOUND|ECONNRESET|ETIMEDOUT/i.test(err.message || '');
+    return BLOCKED_NETWORK_PATTERNS.some((pattern) => (err.message || '').toUpperCase().includes(pattern.toUpperCase()));
 }
 
 (async () => {
