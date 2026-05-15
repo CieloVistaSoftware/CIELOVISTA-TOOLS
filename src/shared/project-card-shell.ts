@@ -481,8 +481,29 @@ function buildCard(c) {
   return node;
 }
 
+var SECONDARY_LIMIT = 8;
+var SECONDARY_SCRIPT_PATTERNS = [
+  /^(lint|clean|watch|package|preview|format|coverage|typecheck|check|verify|prepare|release|deploy|serve)$/i,
+  /^test:(unit|watch|smoke|ci|e2e|integration)$/i,
+  /^build:(watch|dev|prod)$/i,
+  /^start:(dev|watch)$/i
+];
+
 function classifyScripts(scripts) {
   var primaryOrder = ['rebuild', 'start', 'dev', 'build', 'compile', 'test'];
+
+  function isSecondaryCandidate(name) {
+    return !name.includes(':')
+      || SECONDARY_SCRIPT_PATTERNS.some(function(pattern) { return pattern.test(name); });
+  }
+
+  function toGroupName(name) {
+    var head = (name || '').split(':')[0];
+    if (!head || head === name) return 'Other';
+    return head
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+  }
 
   var byName = {};
   scripts.forEach(function(s) { byName[s.name] = s; });
@@ -507,15 +528,34 @@ function classifyScripts(scripts) {
     });
   }
 
-  // All remaining scripts go to secondary — no "More commands" section
   var secondary = [];
   scripts.forEach(function(s) {
+    if (secondary.length >= SECONDARY_LIMIT) return;
+    if (picked.has(s.name)) return;
+    if (!isSecondaryCandidate(s.name)) return;
+    secondary.push(s);
+    picked.add(s.name);
+  });
+
+  scripts.forEach(function(s) {
+    if (secondary.length >= SECONDARY_LIMIT) return;
     if (picked.has(s.name)) return;
     secondary.push(s);
     picked.add(s.name);
   });
 
-  return { primary: primary, secondary: secondary, moreGroups: {}, moreCount: 0 };
+  var moreGroups = {};
+  var moreCount = 0;
+  scripts.forEach(function(s) {
+    if (picked.has(s.name)) return;
+    var groupName = toGroupName(s.name);
+    if (!moreGroups[groupName]) { moreGroups[groupName] = []; }
+    moreGroups[groupName].push(s);
+    picked.add(s.name);
+    moreCount++;
+  });
+
+  return { primary: primary, secondary: secondary, moreGroups: moreGroups, moreCount: moreCount };
 }
 
 function buildScriptBtn(s, size) {
