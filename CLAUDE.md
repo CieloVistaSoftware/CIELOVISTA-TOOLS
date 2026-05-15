@@ -22,6 +22,11 @@ relativepath: CLAUDE.md
 3. Use `recent_chats` — continue from last session, never start blind
 4. Start working — no questions, no fumbling
 
+> **Git worktree note:** If working in a worktree (`.claude/worktrees/…`), `out/` and
+> `node_modules/` are not shared. The regression runner auto-builds `out/` on first run.
+> Always run `node scripts/run-regression-tests.js` **before the first commit** to establish
+> a clean baseline — do not assume the suite is green without running it.
+
 ## End of Session
 
 Update the **🅿️ PARKING LOT** at the top of `docs/_today/CURRENT-STATUS.md`:
@@ -129,3 +134,4 @@ If the feature needs a shared utility → add it to `src/shared/`, never inline 
 - Never use `npx tsc` — use `.\node_modules\.bin\tsc`
 - Never duplicate logic between feature files — shared/ exists for a reason
 - Never create a second OutputChannel
+- Never commit without running `node scripts/run-regression-tests.js` first — all tests must be green
