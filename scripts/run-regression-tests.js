@@ -629,6 +629,17 @@ test('REG-030', 'README Compliance applyFix is frontmatter-aware and language-in
         `REG-030 readme compliance smart fixer test failed:\n${result.stdout}\n${result.stderr}`);
 });
 
+// REG-053: Issue #10 follow-up — package.json Scripts panel must keep overflow
+// commands visible instead of flattening or dropping them.
+test('REG-053', 'package.json Scripts panel keeps all scripts visible with More commands overflow', () => {
+    const result = require('child_process').spawnSync(
+        process.execPath, [path.join(ROOT, 'tests/regression/REG-053-npm-scripts-panel-overflow.test.js')],
+        { encoding: 'utf8' }
+    );
+    assert(result.status === 0,
+        `REG-053 npm scripts overflow test failed:\n${result.stdout}\n${result.stderr}`);
+});
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log('\u2500'.repeat(50));

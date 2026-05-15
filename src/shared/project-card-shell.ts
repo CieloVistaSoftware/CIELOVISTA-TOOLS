@@ -483,6 +483,23 @@ function buildCard(c) {
 
 function classifyScripts(scripts) {
   var primaryOrder = ['rebuild', 'start', 'dev', 'build', 'compile', 'test'];
+  var secondaryLimit = 8;
+
+  function isSecondaryCandidate(name) {
+    return !name.includes(':')
+      || /^(lint|clean|watch|package|preview|format|coverage|typecheck|check|verify|prepare|release|deploy|serve)$/i.test(name)
+      || /^test:(unit|watch|smoke|ci|e2e|integration)$/i.test(name)
+      || /^build:(watch|dev|prod)$/i.test(name)
+      || /^start:(dev|watch)$/i.test(name);
+  }
+
+  function toGroupName(name) {
+    var head = (name || '').split(':')[0];
+    if (!head || head === name) return 'Other';
+    return head
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+  }
 
   var byName = {};
   scripts.forEach(function(s) { byName[s.name] = s; });
@@ -507,15 +524,34 @@ function classifyScripts(scripts) {
     });
   }
 
-  // All remaining scripts go to secondary — no "More commands" section
   var secondary = [];
   scripts.forEach(function(s) {
+    if (secondary.length >= secondaryLimit) return;
+    if (picked.has(s.name)) return;
+    if (!isSecondaryCandidate(s.name)) return;
+    secondary.push(s);
+    picked.add(s.name);
+  });
+
+  scripts.forEach(function(s) {
+    if (secondary.length >= secondaryLimit) return;
     if (picked.has(s.name)) return;
     secondary.push(s);
     picked.add(s.name);
   });
 
-  return { primary: primary, secondary: secondary, moreGroups: {}, moreCount: 0 };
+  var moreGroups = {};
+  var moreCount = 0;
+  scripts.forEach(function(s) {
+    if (picked.has(s.name)) return;
+    var groupName = toGroupName(s.name);
+    if (!moreGroups[groupName]) { moreGroups[groupName] = []; }
+    moreGroups[groupName].push(s);
+    picked.add(s.name);
+    moreCount++;
+  });
+
+  return { primary: primary, secondary: secondary, moreGroups: moreGroups, moreCount: moreCount };
 }
 
 function buildScriptBtn(s, size) {

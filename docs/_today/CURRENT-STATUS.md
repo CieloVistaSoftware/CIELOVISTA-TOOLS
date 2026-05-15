@@ -18,34 +18,17 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
-## 🅿️ PARKING LOT — end of session 2026-05-11 (all open issues closed)
+## 🅿️ PARKING LOT — end of session 2026-05-15 (npm scripts panel overflow restored)
 
-**TASK:** Work through all 4 open GitHub issues
-**STATUS:** ✅ All 4 issues closed — zero open issues remain
-
-**ISSUES RESOLVED:**
-- **#317** — Daily Health Check spinner continuous: fix already in source (offerAuditActions outside withProgress). Added `tests/unit/daily-audit-progress.test.js` + wired into rebuild. John independently committed a fuller fix + test in `eb56d30`.
-- **#313** — Doc Intelligence pills don't filter: already implemented (pills have `data-filter="kind:..."`, setFilter handles `kind:` prefix). Closed as already done.
-- **#311** — APP_ERROR Startup corequisite check failed ×11: fixed in `eb56d30` — Canceled/cancelled errors filtered before logError. VS Code fires these on window reload.
-- **#315** — Convert doc-based issues: no `*-issue.md` files found in repo. Closed as not applicable.
-
-**FILES TOUCHED THIS SESSION:**
-- `tests/regression/REG-025-npm-output-routing-and-timing.test.js` — rewritten for terminal API checks
-- `tests/regression/REG-016-npm-output-webview.test.js` — rewritten to assert old webview is gone
-- `tests/unit/npm-output-shell.test.js` — deleted
-- `tests/npm-fix-button.test.js` — deleted
-- `tests/npm-send-to-claude.test.js` — deleted
-- `tests/unit/daily-audit-progress.test.js` — new (3-check structural test for #317)
-- `package.json` — added `test:daily-audit-progress` + wired into rebuild
-- `src/features/corequisite-checker.ts` — #311 Canceled filter (also in John's eb56d30)
-
-**COMMITS THIS SESSION:**
-- `51b7f17` — fix: #293 NPM output → real VS Code terminal — test suite cleanup
-- `6a9d515` — fix: #317 Daily Health Check spinner — add progress guardrail test
-- `eb56d30` — fix: #317 daily health check spinner (John's fuller fix, also includes #311 corequisite filter)
-
-**NEXT STEP:** Ready for new feature work — no open issues
-**OPEN QUESTIONS:** None
+**TASK:** Fix issue "npm scripts: panel broken — show all scripts, retest" by restoring Primary / Secondary / More commands classification and adding regression coverage.
+**FILES TOUCHED:**
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/src/shared/project-card-shell.ts` — restore overflow classification so large script sets keep a compact secondary row and grouped More commands section
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/tests/regression/REG-053-npm-scripts-panel-overflow.test.js` — new regression test for 20+ scripts, grouping, and no missing commands
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/scripts/run-regression-tests.js` — wire REG-053 into the regression suite
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/docs/_today/CURRENT-STATUS.md` — parking lot update
+**LAST ACTION:** Ran compile, npm-script-focused tests, full regression runner, and full rebuild; the new REG-053 and npm script tests passed, while rebuild still hit unrelated environment-specific failures for external Windows paths/registry data.
+**NEXT STEP:** Review and merge the npm scripts panel fix; if a fully green rebuild is required in CI/local Windows, rerun `npm run rebuild` in an environment that has the expected external registry and launcher project paths.
+**OPEN QUESTIONS:** Full rebuild still fails in this sandbox on pre-existing external-path checks (`tests/catalog-integrity.test.js` launcher paths and registry-based checks), not on the npm scripts panel changes.
 
 ---
 
