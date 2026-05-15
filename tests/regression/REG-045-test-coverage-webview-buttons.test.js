@@ -87,6 +87,28 @@ test('getWebviewHtml uses a nonce — script is not blocked by VS Code CSP', () 
         SRC.includes('<script nonce='),
         '<script> tag must carry the nonce attribute'
     );
+    assert(
+        SRC.includes('img-src'),
+        'CSP must include img-src directive so extension images are not blocked'
+    );
+});
+
+test('JSON data embedded in script uses safeJson to escape </script>', () => {
+    // JSON.stringify does NOT escape </script> — if any report field contains that string,
+    // VS Code wraps webview HTML in document.write() and the unescaped </script> closes
+    // the outer script tag, producing "missing ) after argument list" SyntaxError.
+    assert(
+        SRC.includes('function safeJson('),
+        'safeJson helper must exist to escape </script> in embedded JSON'
+    );
+    assert(
+        SRC.includes('<\\/script>') || SRC.includes('<\\\/script>'),
+        'safeJson must replace </script> with <\\/script>'
+    );
+    assert(
+        SRC.includes('safeJson(mdContent)') && SRC.includes('safeJson(report)'),
+        'Both MD_CONTENT and REPORT_DATA must use safeJson, not raw JSON.stringify'
+    );
 });
 
 test('onDidReceiveMessage registered once at panel creation, not in refresh path', () => {

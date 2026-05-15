@@ -383,9 +383,15 @@ function formatAuditReport(metricsJson: any): AuditReport {
 /**
  * Generate HTML content for the webview panel
  */
+function safeJson(value: unknown): string {
+  // JSON.stringify does not escape </script>, which causes document.write() to
+  // break when VS Code's webview framework wraps the HTML. Replace it so the
+  // script tag can never be prematurely closed by data embedded in the JSON.
+  return JSON.stringify(value).replace(/<\/script>/gi, '<\\/script>');
+}
+
 function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent: string): string {
   const nonce = getNonce();
-  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'resources', 'webview.css'));
 
   // Determine coverage color
   const coverageColor = report.coveragePercent >= 70 ? '#4CAF50' : report.coveragePercent >= 40 ? '#FFC107' : '#F44336';
@@ -395,7 +401,7 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <title>Test Coverage Audit</title>
 <style>
   body {
@@ -782,8 +788,8 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
 
 <script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
-  const MD_CONTENT = ${JSON.stringify(mdContent)};
-  const REPORT_DATA = ${JSON.stringify(report)};
+  const MD_CONTENT = ${safeJson(mdContent)};
+  const REPORT_DATA = ${safeJson(report)};
   let selectedTierKey = '';
 
   function refresh() { vscode.postMessage({ command: 'refresh' }); }
