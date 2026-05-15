@@ -1,50 +1,49 @@
 /**
  * tests/unit/regression-log-viewer.test.js
- * Structural tests for src/features/regression-log-viewer.ts
+ *
+ * Structural regression checks for the Regression Log Viewer feature.
  * Run: node tests/unit/regression-log-viewer.test.js
  */
 'use strict';
+
 const assert = require('assert');
-const fs     = require('fs');
-const path   = require('path');
-const Module = require('module');
+const fs = require('fs');
+const path = require('path');
 
-const OUT = path.join(__dirname, '../../out/features/regression-log-viewer.js');
-if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
+const ROOT = path.join(__dirname, '..', '..');
+const VIEWER_SRC = path.join(ROOT, 'src', 'features', 'regression-log-viewer.ts');
+const HOME_SRC = path.join(ROOT, 'src', 'features', 'home-page.ts');
+const BUNDLE = path.join(ROOT, 'out', 'extension.js');
 
-const registered = new Map();
-const origLoad = Module._load;
-Module._load = function(req, parent, isMain) {
-    if (req === 'vscode') {
-        return {
-            commands:  { registerCommand(n, h) { registered.set(n, h); return { dispose() {} }; } },
-            window:    { showErrorMessage() {}, showInformationMessage() {}, createWebviewPanel: () => ({ webview: { html: '', onDidReceiveMessage: () => ({ dispose() {} }), asWebviewUri: u => u }, onDidDispose: () => ({ dispose() {} }), reveal() {} }), createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }) },
-            workspace: { workspaceFolders: null, getConfiguration: () => ({ get: () => undefined }) },
-            ViewColumn: { One: 1 },
-            Uri:        { file: f => ({ fsPath: f, toString: () => f }) },
-        };
-    }
-    return origLoad.apply(this, arguments);
-};
-const sharedOC = path.join(__dirname, '../../out/shared/output-channel.js');
-if (fs.existsSync(sharedOC)) { try { require(sharedOC); } catch {} }
-const mod = require(OUT);
-Module._load = origLoad;
+const viewerSrc = fs.readFileSync(VIEWER_SRC, 'utf8');
+const homeSrc = fs.readFileSync(HOME_SRC, 'utf8');
+const bundle = fs.existsSync(BUNDLE) ? fs.readFileSync(BUNDLE, 'utf8') : '';
 
-let passed = 0, failed = 0;
-function test(name, fn) {
-    try { fn(); console.log(`  ✓ ${name}`); passed++; }
-    catch (e) { console.error(`  ✗ ${name}\n    → ${e.message}`); failed++; }
+function mustContain(haystack, needle, label) {
+    assert.ok(haystack.includes(needle), `${label}\nMissing: ${needle}`);
 }
-console.log('\nregression-log-viewer unit tests\n' + '─'.repeat(50));
 
-test('module loads without throwing',          () => assert.ok(mod));
-test('exports activate function',              () => assert.strictEqual(typeof mod.activate,              'function'));
-test('exports deactivate function',            () => assert.strictEqual(typeof mod.deactivate,            'function'));
-test('exports openRegressionLogViewer function', () => assert.strictEqual(typeof mod.openRegressionLogViewer, 'function'));
-test('activate does not throw synchronously',  () => {
-    assert.doesNotThrow(() => mod.activate({ subscriptions: [] }));
-});
+function mustMatch(haystack, pattern, label) {
+    assert.ok(pattern.test(haystack), `${label}\nPattern: ${pattern}`);
+}
 
-console.log(`\n${passed} passed, ${failed} failed`);
-if (failed > 0) process.exit(1);
+mustContain(viewerSrc, "registerCommand('cvs.tools.regressionLog'", 'SOURCE: Regression Log command must be registered');
+mustContain(viewerSrc, "fileRegressionAsIssue", 'SOURCE: viewer must file regressions as GitHub issues');
+mustContain(viewerSrc, "data/regressions.json", 'SOURCE: viewer must reference structured regressions.json data');
+mustContain(viewerSrc, "docs/REGRESSION-LOG.md", 'SOURCE: viewer must reference the markdown narrative log');
+mustContain(viewerSrc, "sortEntriesNewestFirst", 'SOURCE: entries must be sorted newest-first');
+mustContain(viewerSrc, "<span class=\"pill pill-open\">⚠️ ${openCount} open</span>", 'SOURCE: open-count pill must always render');
+mustContain(viewerSrc, "<span class=\"pill pill-fixed\">✅ ${fixedCount} fixed</span>", 'SOURCE: fixed-count pill must always render');
+mustMatch(viewerSrc, /e\.status !== 'fixed'[\s\S]{0,220}File as Issue/, 'SOURCE: only open entries should render the File as Issue button');
+mustMatch(viewerSrc, /data-action="mark-fixed"[\s\S]{0,220}Record this regression as fixed/, 'SOURCE: open entries must offer Mark Fixed');
+mustContain(viewerSrc, "refreshPanel();", 'SOURCE: viewer should refresh after file/fix actions so counts and status stay current');
+
+mustContain(homeSrc, "label: 'Regression Log'", 'SOURCE: Home quick-launch Regression Log button label must exist');
+mustContain(homeSrc, "cmd: 'cvs.tools.regressionLog'", 'SOURCE: Home quick-launch Regression Log command must be wired');
+mustMatch(homeSrc, /OPEN_DIRECT[\s\S]{0,800}cvs\.tools\.regressionLog/, 'SOURCE: Home quick-launch Regression Log command must route directly');
+
+assert.ok(bundle.length > 0, 'BUNDLE: out/extension.js not found. Run npm run compile first.');
+mustContain(bundle, 'cvs.tools.regressionLog', 'BUNDLE: compiled bundle must include Regression Log command wiring');
+mustContain(bundle, 'Regression Log', 'BUNDLE: compiled bundle must include Regression Log UI text');
+
+console.log('PASS: Regression Log Viewer is wired in source and compiled bundle.');

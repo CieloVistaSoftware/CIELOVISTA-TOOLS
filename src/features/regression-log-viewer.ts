@@ -35,6 +35,7 @@ function readEntries(): RegressionEntry[] {
 }
 
 function writeEntries(entries: RegressionEntry[]): void {
+    fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
     fs.writeFileSync(DATA_PATH, JSON.stringify(entries, null, 2), 'utf8');
 }
 
@@ -66,8 +67,17 @@ function statusColor(s: string): string {
     return s === 'fixed' ? '#3fb950' : '#e9a93a';
 }
 
+function sortEntriesNewestFirst(entries: RegressionEntry[]): RegressionEntry[] {
+    return [...entries].sort((a, b) => {
+        const aTime = Date.parse(a.date);
+        const bTime = Date.parse(b.date);
+        if (!Number.isNaN(aTime) && !Number.isNaN(bTime)) { return bTime - aTime; }
+        return String(b.date ?? '').localeCompare(String(a.date ?? ''));
+    });
+}
+
 function buildHtml(entries: RegressionEntry[]): string {
-    const sorted = [...entries].reverse(); // newest first
+    const sorted = sortEntriesNewestFirst(entries);
 
     const openCount   = entries.filter(e => e.status !== 'fixed').length;
     const fixedCount  = entries.filter(e => e.status === 'fixed').length;
@@ -78,9 +88,11 @@ function buildHtml(entries: RegressionEntry[]): string {
             const sevColor  = severityColor(e.severity);
             const statColor = statusColor(e.status);
 
-            const issueBtn = e.githubIssueNumber
-                ? `<button class="btn-issue btn-filed" data-action="open-issue" data-url="${esc(e.githubIssueUrl ?? '')}" title="Filed as ${esc(e.githubIssueNumber.toString())} — click to open">✅ #${e.githubIssueNumber}</button>`
-                : `<button class="btn-issue" data-action="file-as-issue" data-reg-id="${esc(e.regId)}" title="File a GitHub issue for this regression">⚡ File as Issue</button>`;
+            const issueAction = e.githubIssueNumber
+                ? `<a class="btn-issue btn-filed issue-link" href="#" data-action="open-issue" data-url="${esc(e.githubIssueUrl ?? '')}" title="Filed as ${esc(e.githubIssueNumber.toString())} — click to open">✅ #${e.githubIssueNumber}</a>`
+                : (e.status !== 'fixed'
+                    ? `<button class="btn-issue" data-action="file-as-issue" data-reg-id="${esc(e.regId)}" title="File a GitHub issue for this regression">⚡ File as Issue</button>`
+                    : '');
 
             const fixBtn = e.status !== 'fixed'
                 ? `<button class="btn-fix" data-action="mark-fixed" data-reg-id="${esc(e.regId)}" title="Record this regression as fixed">🔧 Mark Fixed</button>`
@@ -93,7 +105,7 @@ function buildHtml(entries: RegressionEntry[]): string {
     <span class="entry-status" style="color:${statColor};border-color:${statColor}">${esc(e.status.toUpperCase())}</span>
     <span class="entry-date">${esc(e.date)}</span>
     <div class="entry-actions">
-      ${issueBtn}
+      ${issueAction}
       ${fixBtn}
     </div>
   </div>
@@ -126,6 +138,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .btn-issue,.btn-fix{border:1px solid transparent;border-radius:3px;padding:2px 9px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;white-space:nowrap;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
 .btn-issue:hover,.btn-fix:hover{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-focusBorder)}
 .btn-issue:disabled,.btn-fix:disabled{opacity:.5;cursor:wait}
+.issue-link{text-decoration:none}
 .btn-filed{background:transparent;color:#3fb950;border-color:#3fb950;cursor:pointer}
 .btn-filed:hover{background:#3fb95022}
 .fixed-date{font-size:10px;color:#3fb950;font-style:italic}
@@ -140,8 +153,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div class="toolbar">
   <h2>🔁 Regression Log</h2>
-  ${openCount > 0  ? `<span class="pill pill-open">⚠️ ${openCount} open</span>` : ''}
-  ${fixedCount > 0 ? `<span class="pill pill-fixed">✅ ${fixedCount} fixed</span>` : ''}
+  <span class="pill pill-open">⚠️ ${openCount} open</span>
+  <span class="pill pill-fixed">✅ ${fixedCount} fixed</span>
   <button class="btn-toolbar" data-action="open-markdown" title="Open REGRESSION-LOG.md">📄 Open Markdown</button>
 </div>
 <div class="content">${rows}</div>
@@ -212,15 +225,21 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
-export async function openRegressionLogViewer(): Promise<void> {
-    const entries = readEntries();
-    const html    = buildHtml(entries);
-
+function refreshPanel(): void {
     if (_panel) {
-        _panel.webview.html = html;
+        _panel.webview.html = buildHtml(readEntries());
+    }
+}
+
+export async function openRegressionLogViewer(): Promise<void> {
+    if (_panel) {
+        refreshPanel();
         _panel.reveal();
         return;
     }
+
+    const entries = readEntries();
+    const html    = buildHtml(entries);
 
     _panel = vscode.window.createWebviewPanel(
         'regressionLog', '🔁 Regression Log', vscode.ViewColumn.One,
@@ -248,7 +267,7 @@ export async function openRegressionLogViewer(): Promise<void> {
         if (msg.command === 'file-as-issue' && msg.regId) {
             const entry = readEntries().find(e => e.regId === msg.regId);
             if (!entry) {
-                _panel!.webview.postMessage({ type: 'file-as-issue-result', regId: msg.regId, ok: false });
+                refreshPanel();
                 return;
             }
             log(FEATURE, `file-as-issue: filing for ${entry.regId}`);
@@ -256,13 +275,7 @@ export async function openRegressionLogViewer(): Promise<void> {
             if (result.ok && result.issueNumber && result.issueUrl) {
                 patchEntry(entry.regId, { githubIssueNumber: result.issueNumber, githubIssueUrl: result.issueUrl });
             }
-            _panel!.webview.postMessage({
-                type:   'file-as-issue-result',
-                regId:  msg.regId,
-                ok:     result.ok,
-                url:    result.issueUrl,
-                number: result.issueNumber,
-            });
+            refreshPanel();
             if (result.ok && result.issueUrl) {
                 const action = await vscode.window.showInformationMessage(
                     `Filed as issue #${result.issueNumber}.`,
@@ -283,8 +296,7 @@ export async function openRegressionLogViewer(): Promise<void> {
                 placeHolder: 'e.g. 1.0.1',
             });
             if (releaseInput === undefined) {
-                // User pressed Escape — re-enable button
-                _panel!.webview.postMessage({ type: 'mark-fixed-canceled', regId: msg.regId });
+                refreshPanel();
                 return;
             }
             const fixedDate = new Date().toISOString().slice(0, 10);
@@ -295,12 +307,7 @@ export async function openRegressionLogViewer(): Promise<void> {
             };
             patchEntry(msg.regId, patch);
             log(FEATURE, `mark-fixed: ${msg.regId} fixed on ${fixedDate}`);
-            _panel!.webview.postMessage({
-                type:           'mark-fixed-result',
-                regId:          msg.regId,
-                fixedDate,
-                releaseVersion: releaseInput.trim() || null,
-            });
+            refreshPanel();
             return;
         }
     });

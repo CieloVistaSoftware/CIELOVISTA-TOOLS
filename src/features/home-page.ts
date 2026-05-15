@@ -133,6 +133,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
         'cvs.claude.processMonitor',
         'cvs.catalog.view',
         'cvs.tools.home',
+        'cvs.tools.regressionLog',
         'cvs.mcp.viewer.open',
         'cvs.tools.fileList',
         'workbench.action.reloadWindow',
@@ -230,6 +231,7 @@ function buildDashboardHtml(
     // ── Quick Launch buttons ──────────────────────────────────────────────────
     const quickLaunch = [
       { icon: '\uD83D\uDCCB', label: 'Issue Viewer',    desc: 'Live GitHub issues for cielovista-tools', cmd: '__openIssues__',                      primary: true },
+      { icon: '\uD83D\uDD01', label: 'Regression Log',  desc: 'Review regressions, file issues, and mark fixes', cmd: 'cvs.tools.regressionLog',      primary: false },
       { icon: '\u26a1', label: 'Guided Launcher', desc: 'Search & run all 81 commands', cmd: 'cvs.commands.showAll',        primary: false  },
         { icon: '\uD83D\uDCDA', label: 'Doc Catalog',     desc: 'Browse project documentation',    cmd: 'cvs.catalog.open',           primary: false },
         { icon: '\uD83D\uDCE6', label: 'NPM Scripts',     desc: 'Run scripts across all projects', cmd: 'cvs.npm.showAndRunScripts',   primary: false },

@@ -18,33 +18,16 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
-## 🅿️ PARKING LOT — end of session 2026-05-11 (all open issues closed)
+## 🅿️ PARKING LOT — end of session 2026-05-15 (regression log viewer integration)
 
-**TASK:** Work through all 4 open GitHub issues
-**STATUS:** ✅ All 4 issues closed — zero open issues remain
-
-**ISSUES RESOLVED:**
-- **#317** — Daily Health Check spinner continuous: fix already in source (offerAuditActions outside withProgress). Added `tests/unit/daily-audit-progress.test.js` + wired into rebuild. John independently committed a fuller fix + test in `eb56d30`.
-- **#313** — Doc Intelligence pills don't filter: already implemented (pills have `data-filter="kind:..."`, setFilter handles `kind:` prefix). Closed as already done.
-- **#311** — APP_ERROR Startup corequisite check failed ×11: fixed in `eb56d30` — Canceled/cancelled errors filtered before logError. VS Code fires these on window reload.
-- **#315** — Convert doc-based issues: no `*-issue.md` files found in repo. Closed as not applicable.
-
-**FILES TOUCHED THIS SESSION:**
-- `tests/regression/REG-025-npm-output-routing-and-timing.test.js` — rewritten for terminal API checks
-- `tests/regression/REG-016-npm-output-webview.test.js` — rewritten to assert old webview is gone
-- `tests/unit/npm-output-shell.test.js` — deleted
-- `tests/npm-fix-button.test.js` — deleted
-- `tests/npm-send-to-claude.test.js` — deleted
-- `tests/unit/daily-audit-progress.test.js` — new (3-check structural test for #317)
-- `package.json` — added `test:daily-audit-progress` + wired into rebuild
-- `src/features/corequisite-checker.ts` — #311 Canceled filter (also in John's eb56d30)
-
-**COMMITS THIS SESSION:**
-- `51b7f17` — fix: #293 NPM output → real VS Code terminal — test suite cleanup
-- `6a9d515` — fix: #317 Daily Health Check spinner — add progress guardrail test
-- `eb56d30` — fix: #317 daily health check spinner (John's fuller fix, also includes #311 corequisite filter)
-
-**NEXT STEP:** Ready for new feature work — no open issues
+**TASK:** Finish issue: Regression Log Viewer webview with file-as-issue integration
+**FILES TOUCHED:**
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/src/features/regression-log-viewer.ts` — sorted entries by date, always-rendered count pills, open-only issue button, panel refresh after file/fix actions
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/src/features/home-page.ts` — added Regression Log Quick Launch button and routed it through `OPEN_DIRECT`
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/tests/unit/regression-log-viewer.test.js` — replaced skipped compiled-module test with source/bundle structural checks for viewer + home wiring
+- `/home/runner/work/CIELOVISTA-TOOLS/CIELOVISTA-TOOLS/docs/_today/CURRENT-STATUS.md` — updated parking lot for this session
+**LAST ACTION:** Compiled successfully, ran focused regression log viewer + adjacent home page tests green, and captured preview screenshot at `/tmp/regression-log-viewer-preview.png`
+**NEXT STEP:** Run final PR validation (`parallel_validation`) and report/commit the finished change set
 **OPEN QUESTIONS:** None
 
 ---
