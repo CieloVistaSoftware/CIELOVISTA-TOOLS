@@ -26,6 +26,7 @@ import { getChannel } from './output-channel';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
+const GH_HOSTNAME = 'github.com';
 
 interface GHLabel    { name: string; color: string; }
 interface GHUser     { login: string; }
@@ -315,7 +316,7 @@ async function findAuthenticatedGh(): Promise<string> {
         }
 
         try {
-            await runGh(candidate, ['auth', 'status', '--hostname', 'github.com']);
+            await runGh(candidate, ['auth', 'status', '--hostname', GH_HOSTNAME]);
             return candidate;
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -686,9 +687,9 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (copyAllBtn) { copyAllBtn.disabled = shown === 0; }
     }
 
-    function visibleIssueNumbers(){
+    function visibleIssueNumbers() {
         var numbers = [];
-        document.querySelectorAll('.issue-row').forEach(function(row){
+        document.querySelectorAll('.issue-row').forEach(function(row) {
             if (row.style.display === 'none') { return; }
             var num = Number(row.getAttribute('data-number'));
             if (num) { numbers.push(num); }
