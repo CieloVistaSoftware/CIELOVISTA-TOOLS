@@ -42,6 +42,7 @@ let _showHidden = true;
 let _showExcludes = false;
 let _selectedNames: string[] = [];
 let _lastViewState: FileListViewState | undefined;
+let _activationDisposables: vscode.Disposable[] = [];
 
 const MARKDOWN_EXTENSIONS = new Set([
   '.md',
@@ -741,34 +742,49 @@ export function navigateFileListToFolder(folderUri: vscode.Uri): void {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.tools.fileList', openFileListPanel),
-        vscode.commands.registerCommand('cvs.tools.fileList.navigateTo', (uri: vscode.Uri) => {
-            if (uri && uri.fsPath) { navigateFileListToFolder(uri); }
-        }),
-        vscode.commands.registerCommand('cvs.tools.fileList._debugState', () => ({
-            hasPanel: !!_panel,
-            dir: _lastViewState?.dir ?? _currentDir ?? '',
-            entryCount: _lastViewState?.entries.length ?? 0,
-            sortCol: _sortColumn,
-            sortDir: _sortDir,
-            showHidden: _showHidden,
-            showExcludes: _showExcludes,
-        })),
-        vscode.commands.registerCommand('cvs.tools.fileList._debugEntries', () =>
-            (_lastViewState?.entries ?? []).map(e => ({ name: e.name, isDir: e.isDir }))
-        ),
-        vscode.commands.registerCommand('cvs.tools.fileList._debugOpenEntry', async (name: string, mode?: 'navigate' | 'open') => {
-            await openEntryFromCurrentDir(String(name || ''), mode === 'navigate' ? 'navigate' : 'open');
-            return {
-                dir: _lastViewState?.dir ?? _currentDir ?? '',
-                entryCount: _lastViewState?.entries.length ?? 0,
-            };
-        }),
-    );
+  if (_activationDisposables.length > 0) {
+    log(FEATURE, 'activate() called while already active; skipping duplicate command registration');
+    return;
+  }
+
+  _activationDisposables = [
+    vscode.commands.registerCommand('cvs.tools.fileList', openFileListPanel),
+    vscode.commands.registerCommand('cvs.tools.fileList.navigateTo', (uri: vscode.Uri) => {
+      if (uri && uri.fsPath) { navigateFileListToFolder(uri); }
+    }),
+    vscode.commands.registerCommand('cvs.tools.fileList._debugState', () => ({
+      hasPanel: !!_panel,
+      dir: _lastViewState?.dir ?? _currentDir ?? '',
+      entryCount: _lastViewState?.entries.length ?? 0,
+      sortCol: _sortColumn,
+      sortDir: _sortDir,
+      showHidden: _showHidden,
+      showExcludes: _showExcludes,
+    })),
+    vscode.commands.registerCommand('cvs.tools.fileList._debugEntries', () =>
+      (_lastViewState?.entries ?? []).map(e => ({ name: e.name, isDir: e.isDir }))
+    ),
+    vscode.commands.registerCommand('cvs.tools.fileList._debugOpenEntry', async (name: string, mode?: 'navigate' | 'open') => {
+      await openEntryFromCurrentDir(String(name || ''), mode === 'navigate' ? 'navigate' : 'open');
+      return {
+        dir: _lastViewState?.dir ?? _currentDir ?? '',
+        entryCount: _lastViewState?.entries.length ?? 0,
+      };
+    }),
+  ];
+  context.subscriptions.push(..._activationDisposables);
 }
 
 export function deactivate(): void {
   _lastViewState = undefined;
+  if (_activationDisposables.length > 0) {
+    for (const disposable of _activationDisposables) {
+      try { disposable.dispose(); } catch {}
+    }
+    _activationDisposables = [];
+  }
     if (_panel) { _panel.dispose(); _panel = undefined; }
 }
+
+// Test-only exports — not part of the public API
+export const _test = { buildHtml, renderInitialRows };
