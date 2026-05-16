@@ -77,6 +77,7 @@
     "test:mcp-viewer-runtime": "node tests/unit/mcp-viewer-runtime-script.test.js",
     "test:mcp-vsix": "node tests/unit/mcp-vsix-contents.test.js",
     "test:mcp-status": "node tests/unit/mcp-server-status.test.js",
+    "test:filelist-webview": "node tests/unit/file-list-viewer-webview.test.js",
     "test:all": "node tests/catalog-integrity.test.js && node tests/command-validation.test.js && node tests/doc-catalog.test.js && node tests/launcher-script.test.js && node tests/launcher-test-coverage.test.js && node tests/unit/background-health-runner.test.js && node tests/unit/webview-utils.test.js && node tests/unit/docs-audit-utils.test.js && node tests/unit/error-log.test.js && node tests/unit/error-log-utils.test.js && node tests/unit/shared-source.test.js && node tests/unit/doc-auditor-analyzer.test.js && node tests/unit/doc-auditor-scanner.test.js && node tests/unit/feature-toggle.test.js && node tests/unit/doc-header.test.js && node tests/unit/license-sync.test.js && node tests/unit/readme-compliance.test.js && node tests/unit/js-error-audit.test.js && node tests/unit/codebase-auditor.test.js && node tests/unit/marketplace-compliance.test.js && node tests/unit/doc-consolidator.test.js && node tests/unit/daily-audit-checks.test.js && node tests/unit/thin-features.test.js && node tests/unit/github-issues-view-ui.test.js && node tests/regression/REG-001-extension-activation.test.js && node tests/regression/REG-029-catalog-folder-button.test.js && node tests/regression/REG-031-catalog-dewey-badges-clickable.test.js && node tests/regression/REG-032-frontmatter-viewer-clickable.test.js && node tests/regression/REG-033-no-dewey-field-in-src-docs.test.js && node tests/test-coverage-commands.integration.test.js",
     "test:ui:launcher": "npx playwright test tests/ui/launcher-webview.spec.js",
     "test:ui:cards": "npx playwright test tests/ui/all-cards-webview.spec.ts",
@@ -102,6 +103,7 @@
     "cross-env": "^10.1.0",
     "esbuild": "^0.27.4",
     "jsdom": "^29.0.1",
+    "mocha": "^11.7.5",
     "sinon": "^21.0.3",
     "typescript": "^5.3.0",
     "zod": "^3.24.2"
@@ -737,6 +739,12 @@
         "description": "Open the FileList viewer — a sortable, table-based alternative to the Explorer tree (Name, Date modified, Type, Size)."
       },
       {
+        "command": "cvs.tools.fileList.navigateTo",
+        "title": "FileList: Open folder here",
+        "category": "CieloVista",
+        "description": "Navigate the open FileList panel to this folder (or open FileList at this folder)."
+      },
+      {
         "command": "cvs.claude.processMonitor",
         "title": "Claude: Process Monitor",
         "category": "CieloVista",
@@ -808,6 +816,11 @@
           "command": "cvs.explorer.openFolderAsRoot",
           "when": "explorerResourceIsFolder",
           "group": "navigation@99"
+        },
+        {
+          "command": "cvs.tools.fileList.navigateTo",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@98"
         },
         {
           "command": "cvs.python.runFile",

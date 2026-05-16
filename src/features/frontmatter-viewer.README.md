@@ -1,5 +1,5 @@
 ---
-docid: auto.frontmatter-viewer
+docid: 150.1.frontmatter-viewer
 id: feature-frontmatter-viewer
 title: "Feature: Frontmatter Viewer"
 project: cielovista-tools

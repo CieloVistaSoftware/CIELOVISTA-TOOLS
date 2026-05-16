@@ -10,7 +10,7 @@
  *  3. The "package" script does NOT contain --no-dependencies
  *  4. VSIX exists and was built recently (within 24h) — warns if stale
  *  5. All catalog command IDs have a registerCommand() call in src/
- *  6. TypeScript compiles with zero errors
+ *  6. TypeScript compile gate is enforced by REG-003 in the shared suite
  *
  * Run: node tests/regression/REG-001-extension-activation.test.js
  */
@@ -18,7 +18,6 @@
 
 const fs      = require('fs');
 const path    = require('path');
-const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SRC  = path.join(ROOT, 'src');
@@ -141,13 +140,11 @@ test('All catalog command IDs have a registerCommand() call in src/', () => {
         `${missing.length} catalog ID(s) have no registerCommand():\n  ${missing.join('\n  ')}`);
 });
 
-// 6. TypeScript compiles clean
-test('TypeScript compiles with zero errors', () => {
-    const tsc = path.join(ROOT, 'node_modules', '.bin', 'tsc');
-    let exitCode = 0, output = '';
-    try { execSync(`"${tsc}" --noEmit`, { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }); }
-    catch (e) { exitCode = e.status ?? 1; output = (e.stdout ?? '') + (e.stderr ?? ''); }
-    assert(exitCode === 0, `TypeScript errors:\n${output.slice(0, 800)}`);
+// 6. Compile is already enforced by REG-003 in run-regression-tests.js.
+// Keep REG-001 focused on activation packaging gates to avoid duplicate tsc races.
+test('TypeScript compile gate is covered by REG-003', () => {
+    const suite = path.join(ROOT, 'scripts', 'run-regression-tests.js');
+    assert(fs.existsSync(suite), 'run-regression-tests.js not found (REG-003 compile gate unavailable)');
 });
 
 console.log('\u2500'.repeat(50));

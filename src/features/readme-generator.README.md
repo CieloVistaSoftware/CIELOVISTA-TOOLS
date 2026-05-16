@@ -1,5 +1,5 @@
 ---
-docid: auto.readme-generator
+docid: 150.1.readme-generator
 id: feature-readme-generator
 title: "Feature: Readme Generator"
 project: cielovista-tools

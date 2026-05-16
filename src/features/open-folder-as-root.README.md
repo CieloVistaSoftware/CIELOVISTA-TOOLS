@@ -1,5 +1,5 @@
 ---
-docid: auto.open-folder-as-root
+docid: 150.1.open-folder-as-root
 id: feature-open-folder-as-root
 title: "Feature: Open Folder As Root"
 project: cielovista-tools

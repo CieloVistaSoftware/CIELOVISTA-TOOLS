@@ -1,5 +1,5 @@
 ---
-docid: auto.license-sync
+docid: 150.1.license-sync
 id: feature-license-sync
 title: "Feature: License Sync"
 project: cielovista-tools

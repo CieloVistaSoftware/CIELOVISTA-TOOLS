@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Developer tooling illustration">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0b2538"/>
+      <stop offset="100%" stop-color="#133b58"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect x="120" y="120" width="1360" height="660" rx="28" fill="#0b1220" stroke="#274b6a" stroke-width="4"/>
+  <rect x="160" y="170" width="1280" height="84" rx="14" fill="url(#panel)"/>
+  <circle cx="214" cy="212" r="12" fill="#ef4444"/>
+  <circle cx="252" cy="212" r="12" fill="#f59e0b"/>
+  <circle cx="290" cy="212" r="12" fill="#22c55e"/>
+  <rect x="190" y="320" width="580" height="380" rx="16" fill="#0f2135"/>
+  <rect x="840" y="320" width="560" height="170" rx="16" fill="#10263d"/>
+  <rect x="840" y="530" width="560" height="170" rx="16" fill="#10263d"/>
+  <text x="210" y="372" font-family="Consolas, Menlo, monospace" font-size="28" fill="#7dd3fc">const workflow = {</text>
+  <text x="230" y="418" font-family="Consolas, Menlo, monospace" font-size="26" fill="#bae6fd">repo: "cielovista-tools",</text>
+  <text x="230" y="462" font-family="Consolas, Menlo, monospace" font-size="26" fill="#bae6fd">feature: "custom-extension",</text>
+  <text x="230" y="506" font-family="Consolas, Menlo, monospace" font-size="26" fill="#bae6fd">status: "shipping"</text>
+  <text x="210" y="552" font-family="Consolas, Menlo, monospace" font-size="28" fill="#7dd3fc">};</text>
+  <rect x="880" y="362" width="180" height="28" rx="10" fill="#0ea5e9" opacity="0.3"/>
+  <rect x="880" y="404" width="460" height="20" rx="10" fill="#dbeafe" opacity="0.45"/>
+  <rect x="880" y="556" width="180" height="28" rx="10" fill="#0ea5e9" opacity="0.3"/>
+  <rect x="880" y="598" width="460" height="20" rx="10" fill="#dbeafe" opacity="0.45"/>
+</svg>

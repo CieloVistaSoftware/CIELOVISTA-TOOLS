@@ -1,5 +1,5 @@
 ---
-docid: auto.worktree-cleaner
+docid: 150.1.worktree-cleaner
 id: feature-worktree-cleaner
 title: "Feature: Worktree Cleaner"
 project: cielovista-tools

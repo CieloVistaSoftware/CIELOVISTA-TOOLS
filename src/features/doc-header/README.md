@@ -1,5 +1,5 @@
 ---
-docid: auto.doc-header-dir
+docid: 150.1.doc-header-dir
 id: feature-doc-header
 title: "Feature: Doc Header"
 project: cielovista-tools

@@ -124,6 +124,7 @@ npm run rebuild
 ```text
 
 `npm run rebuild` compiles TypeScript, packages the `.vsix`, and installs it in one shot.
+After the install finishes, reload the VS Code Insiders window to see the change. For a release-by-release summary of what changed and how to verify it, see [docs/RELEASE-GUIDE.md](docs/RELEASE-GUIDE.md).
 
 ---
 

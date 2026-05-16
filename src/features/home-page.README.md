@@ -1,5 +1,5 @@
 ---
-docid: auto.home-page
+docid: 150.1.home-page
 id: feature-home-page
 title: "Feature: Home Page"
 project: cielovista-tools

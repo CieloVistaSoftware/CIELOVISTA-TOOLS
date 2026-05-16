@@ -318,7 +318,7 @@ function selectRange(toName) {
 }
 
 function isRunnableTestFile(name) {
-  const inTestsDir = state.dir.replace(/\\/g, '/').includes('/tests');
+  const inTestsDir = state.dir.split('\\\\').join('/').includes('/tests');
   return inTestsDir && /\.(js|ts)$/i.test(name || '');
 }
 
@@ -349,6 +349,14 @@ document.getElementById('tbody').addEventListener('click', ev => {
   vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name, isDir: isDir });
 });
 
+document.getElementById('tbody').addEventListener('dblclick', function(ev) {
+  var tr = ev.target.closest('tr');
+  if (!tr) { return; }
+  var name = tr.dataset.name || '';
+  var isDir = tr.dataset.isDir === '1';
+  vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name, isDir: isDir });
+});
+
 var _ctxMenu = document.getElementById('ctx-menu');
 var _ctxNames = [];
 var _ctxEntry = null;
@@ -357,6 +365,7 @@ document.getElementById('tbody').addEventListener('contextmenu', function(ev) {
   var tr = ev.target.closest('tr');
   if (!tr) { hideCtxMenu(); return; }
   ev.preventDefault();
+  ev.stopPropagation();
 
   var clickedName = tr.dataset.name || '';
   if (!(state.selectedNames || []).includes(clickedName)) {

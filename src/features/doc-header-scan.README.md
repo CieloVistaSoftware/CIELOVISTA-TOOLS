@@ -1,5 +1,5 @@
 ---
-docid: auto.doc-header-scan
+docid: 150.1.doc-header-scan
 id: feature-doc-header-scan
 title: "Feature: Doc Header Scan"
 project: cielovista-tools

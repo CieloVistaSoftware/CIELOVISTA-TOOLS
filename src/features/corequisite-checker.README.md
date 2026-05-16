@@ -1,5 +1,5 @@
 ---
-docid: auto.corequisite-checker
+docid: 150.1.corequisite-checker
 id: feature-corequisite-checker
 title: "Feature: Corequisite Checker"
 project: cielovista-tools

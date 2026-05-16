@@ -1,5 +1,5 @@
 ---
-docid: auto.claude-process-monitor
+docid: 150.1.claude-process-monitor
 id: feature-claude-process-monitor
 title: "Feature: Claude Process Monitor"
 project: cielovista-tools

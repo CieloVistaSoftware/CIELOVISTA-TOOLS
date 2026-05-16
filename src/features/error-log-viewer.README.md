@@ -1,5 +1,5 @@
 ---
-docid: auto.error-log-viewer
+docid: 150.1.error-log-viewer
 id: feature-error-log-viewer
 title: "Feature: Error Log Viewer"
 project: cielovista-tools

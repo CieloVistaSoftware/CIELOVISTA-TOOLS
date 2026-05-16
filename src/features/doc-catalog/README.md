@@ -1,5 +1,5 @@
 ---
-docid: auto.doc-catalog-dir
+docid: 150.1.doc-catalog-dir
 id: feature-doc-catalog
 title: "Feature: Doc Catalog"
 project: cielovista-tools

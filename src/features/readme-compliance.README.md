@@ -1,5 +1,5 @@
 ---
-docid: auto.readme-compliance
+docid: 150.1.readme-compliance
 id: feature-readme-compliance
 title: "Feature: Readme Compliance"
 project: cielovista-tools

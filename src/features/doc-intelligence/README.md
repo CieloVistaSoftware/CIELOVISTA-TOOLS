@@ -1,5 +1,5 @@
 ---
-docid: auto.doc-intelligence-dir
+docid: 150.1.doc-intelligence-dir
 id: feature-doc-intelligence
 title: "Feature: Doc Intelligence"
 project: cielovista-tools

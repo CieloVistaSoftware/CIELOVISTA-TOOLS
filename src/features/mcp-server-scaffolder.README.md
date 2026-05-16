@@ -1,5 +1,5 @@
 ---
-docid: auto.mcp-server-scaffolder
+docid: 150.1.mcp-server-scaffolder
 id: feature-mcp-server-scaffolder
 title: "Feature: Mcp Server Scaffolder"
 project: cielovista-tools

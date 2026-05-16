@@ -1,5 +1,5 @@
 ---
-docid: auto.project-launcher
+docid: 150.1.project-launcher
 id: feature-project-launcher
 title: "Feature: Project Launcher"
 project: cielovista-tools

@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "cvt-demo",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npx serve docs/_today -p 4200 --no-clipboard"
+    }
+  ]
+}

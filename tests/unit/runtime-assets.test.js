@@ -77,6 +77,11 @@ test('extension/out/catalog.html present in VSIX', () => {
         '       __dirname in bundled extension.js resolves to out/ — catalog.html must be at out/catalog.html.\n' +
         '       Check scripts/copy-commandhelp.js copy destination.');
 });
+test('extension/out/cvt-demo.html present in VSIX', () => {
+    assert.ok(has('extension/out/cvt-demo.html'),
+        'extension/out/cvt-demo.html missing from VSIX.\n' +
+        '       The cvt demo page should be copied by scripts/copy-commandhelp.js to out/cvt-demo.html.');
+});
 test('extension/out/features/doc-catalog/catalog.html NOT in VSIX (old pre-esbuild path)', () => {
     assert.ok(!has('extension/out/features/doc-catalog/catalog.html'),
         'Old pre-esbuild path found in VSIX — catalog.html should be at out/catalog.html, not out/features/doc-catalog/catalog.html');

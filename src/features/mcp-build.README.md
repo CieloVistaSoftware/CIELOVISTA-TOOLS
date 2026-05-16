@@ -1,5 +1,5 @@
 ---
-docid: auto.mcp-build
+docid: 150.1.mcp-build
 id: feature-mcp-build
 title: "Feature: Mcp Build"
 project: cielovista-tools

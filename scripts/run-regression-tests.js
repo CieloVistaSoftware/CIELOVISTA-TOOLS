@@ -372,7 +372,7 @@ async function main() {
 
   // REG-012: Static HTML files are copied to out/.
   all.push(check('REG-012', 'Static HTML files are copied to out/ by copy-commandhelp.js', () => {
-    const missing = ['out/catalog.html'].filter(f => !fs.existsSync(path.join(ROOT, f)));
+    const missing = ['out/catalog.html', 'out/cvt-demo.html'].filter(f => !fs.existsSync(path.join(ROOT, f)));
     assert(missing.length === 0,
       `Missing from out/:\n  ${missing.join('\n  ')}\nRun: node scripts/copy-commandhelp.js`);
   }));

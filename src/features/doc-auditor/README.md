@@ -1,5 +1,5 @@
 ---
-docid: auto.doc-auditor-dir
+docid: 150.1.doc-auditor-dir
 id: feature-doc-auditor
 title: "Feature: Doc Auditor"
 project: cielovista-tools

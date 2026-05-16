@@ -1,5 +1,5 @@
 ---
-docid: auto.regression-log-viewer
+docid: 150.1.regression-log-viewer
 id: feature-regression-log-viewer
 title: "Feature: Regression Log Viewer"
 project: cielovista-tools

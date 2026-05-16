@@ -10,8 +10,14 @@ const ROOT = path.resolve(__dirname, '..');
 
 const TESTS = [
     'tests/regression/REG-019-filelist-feature.test.js',
+    'tests/regression/REG-054-home-filelist-click.test.js',
     'tests/regression/REG-046-filelist-run-test-context-menu.test.js',
     'tests/regression/REG-049-filelist-webview-basic-render.test.js',
+    'tests/regression/REG-055-filelist-initial-rows-folder-click.test.js',
+    'tests/regression/REG-056-filelist-default-viewers.test.js',
+    'tests/regression/REG-057-filelist-special-file-actions.test.js',
+    'tests/regression/REG-058-filelist-folder-open-fallback.test.js',
+    'tests/regression/REG-059-filelist-explorer-context-menu.test.js',
     'tests/regression/REG-047-frontmatter-viewer-rescan-preserves-filed-issues.test.js',
     'tests/regression/REG-048-frontmatter-fix-all-no-new-issues.test.js',
 ];

@@ -1,5 +1,5 @@
 ---
-docid: auto.mcp-viewer-dir
+docid: 150.1.mcp-viewer-dir
 id: feature-mcp-viewer
 title: "Feature: Mcp Viewer"
 project: cielovista-tools

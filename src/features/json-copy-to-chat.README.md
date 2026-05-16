@@ -1,5 +1,5 @@
 ---
-docid: auto.json-copy-to-chat
+docid: 150.1.json-copy-to-chat
 id: feature-json-copy-to-chat
 title: "Feature: Json Copy To Chat"
 project: cielovista-tools

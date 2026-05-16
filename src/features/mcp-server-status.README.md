@@ -1,5 +1,5 @@
 ---
-docid: auto.mcp-server-status
+docid: 150.1.mcp-server-status
 id: feature-mcp-server-status
 title: "Feature: Mcp Server Status"
 project: cielovista-tools

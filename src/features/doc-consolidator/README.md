@@ -1,5 +1,5 @@
 ---
-docid: auto.doc-consolidator-dir
+docid: 150.1.doc-consolidator-dir
 id: feature-doc-consolidator
 title: "Feature: Doc Consolidator"
 project: cielovista-tools

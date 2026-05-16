@@ -1,5 +1,5 @@
 ---
-docid: auto.cvs-command-launcher-dir
+docid: 150.1.cvs-command-launcher-dir
 id: feature-cvs-command-launcher
 title: "Feature: Cvs Command Launcher"
 project: cielovista-tools

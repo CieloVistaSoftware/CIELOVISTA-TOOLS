@@ -15,7 +15,7 @@ export interface FileListEntry {
     isDir: boolean;
     size: number;          // bytes (0 for directories)
     mtime: number;         // ms since epoch
-    type: string;          // extension without dot, or '<dir>' for directories, or '<no-ext>' for files without one
+    type: string;          // extension without dot, or 'dir' for directories, or 'no-ext' for files without one
 }
 
 export type SortColumn    = 'name' | 'date' | 'type' | 'size';

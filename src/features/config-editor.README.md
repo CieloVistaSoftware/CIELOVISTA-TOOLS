@@ -1,5 +1,5 @@
 ---
-docid: auto.config-editor
+docid: 150.1.config-editor
 id: feature-config-editor
 title: "Feature: Config Editor"
 project: cielovista-tools

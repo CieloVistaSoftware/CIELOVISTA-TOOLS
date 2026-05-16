@@ -46,7 +46,7 @@ test('webview supports multi-select state and range selection', () => {
 test('context menu run action uses selected runnable files and labels batch action', () => {
     assert(SRC.includes('isRunnableTestFile(name)'), 'runnable test predicate missing');
     assert(SRC.includes("/\\.(js|ts)$/i.test(name || '')"), 'js/ts runnable guard missing');
-    assert(SRC.includes("document.getElementById('ctx-run-test').textContent = names.length > 1 ? ('▶ Run Tests (' + names.length + ')') : '▶ Run Test';"), 'batch run context label missing');
+    assert(SRC.includes("runTestBtn.textContent = _ctxNames.length > 1 ? ('▶ Run Tests (' + _ctxNames.length + ')') : '▶ Run Test';"), 'batch run context label missing');
     assert(SRC.includes("vsc.postMessage({ command: 'run-test', names: _ctxNames });"), 'run-test names[] postMessage missing');
 });
 

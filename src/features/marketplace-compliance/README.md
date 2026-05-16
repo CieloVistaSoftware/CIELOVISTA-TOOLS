@@ -1,5 +1,5 @@
 ---
-docid: auto.marketplace-compliance-dir
+docid: 150.1.marketplace-compliance-dir
 id: feature-marketplace-compliance
 title: "Feature: Marketplace Compliance"
 project: cielovista-tools

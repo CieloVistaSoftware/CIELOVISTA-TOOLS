@@ -56,6 +56,16 @@ expect('normalizer preserves fenced blocks', src.includes('Decode escaped newlin
 expect('postIssueComment normalizes body', src.includes('JSON.stringify({ body: normalizeGithubMarkdownBody(body) })'));
 expect('postIssue normalizes body', src.includes('body: normalizeGithubMarkdownBody(body)'));
 
+// ── Project label enforcement ────────────────────────────────────────────────
+console.log('\n=== project label enforcement ===');
+expect('PROJECT_LABEL constant exists', src.includes('const PROJECT_LABEL = `project:${REPO_NAME}`'));
+expect('withRequiredProjectLabel helper exists', src.includes('function withRequiredProjectLabel'));
+expect('helper detects project:* labels', src.includes('/^project:/i.test'));
+expect('fileErrorAsIssue enforces project label', src.includes("withRequiredProjectLabel(['type:bug', 'auto-filed'])"));
+expect('fileRegressionAsIssue enforces project label', src.includes("withRequiredProjectLabel(['type:regression', 'auto-filed'])"));
+expect('fileHealthBugAsIssue enforces project label', src.includes("withRequiredProjectLabel(['type:bug', 'auto-filed', `area:${bug.category.toLowerCase().replace(/\\s+/g, '-')}`])"));
+expect('fileFrontmatterViolationAsIssue enforces project label', src.includes("withRequiredProjectLabel(input.labels ?? ['type:bug', 'auto-filed', 'area:frontmatter'])"));
+
 // ── Bundle check ──────────────────────────────────────────────────────────────
 console.log('\n=== Bundle ===');
 if (bundle.length === 0) {

@@ -27,6 +27,7 @@ import type { ErrorEntry } from './error-log-adapter';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
+const PROJECT_LABEL = `project:${REPO_NAME}`;
 
 export interface FileIssueResult {
     ok:        boolean;
@@ -137,6 +138,15 @@ function normalizeGithubMarkdownBody(input: string): string {
         .replace(/\\r\\n/g, '\n')
         .replace(/\\n/g, '\n');
     return out;
+}
+
+function withRequiredProjectLabel(labels: readonly string[]): string[] {
+    const normalized = labels.map((l) => String(l).trim()).filter(Boolean);
+    const hasProject = normalized.some((l) => /^project:/i.test(l));
+    if (!hasProject) {
+        normalized.push(PROJECT_LABEL);
+    }
+    return [...new Set(normalized)];
 }
 
 /**
@@ -282,7 +292,7 @@ export async function fileErrorAsIssue(e: ErrorEntry): Promise<FileIssueResult> 
 
     const title  = buildTitle(e);
     const body   = buildBody(e);
-    const labels = ['type:bug', 'auto-filed'];
+    const labels = withRequiredProjectLabel(['type:bug', 'auto-filed']);
 
     // Dedup: if an open auto-filed issue with the same title already
     // exists, drop a +1 comment instead of opening a duplicate. This
@@ -340,7 +350,7 @@ export async function fileRegressionAsIssue(r: RegressionEntry): Promise<FileIss
     lines.push('---');
     lines.push('*Filed from `cvs.tools.regressionLog` viewer on ' + new Date().toISOString() + '*');
     const body   = lines.join('\n');
-    const labels = ['type:regression', 'auto-filed'];
+    const labels = withRequiredProjectLabel(['type:regression', 'auto-filed']);
 
     try {
         const res = await postIssue(token, title, body, labels);
@@ -381,7 +391,7 @@ export async function fileHealthBugAsIssue(bug: { id: string; title: string; det
     lines.push('', '---', '*Filed from CVT Background Health Runner on ' + new Date().toISOString() + '*');
 
     const body   = lines.join('\n');
-    const labels = ['type:bug', 'auto-filed', `area:${bug.category.toLowerCase().replace(/\s+/g, '-')}`];
+    const labels = withRequiredProjectLabel(['type:bug', 'auto-filed', `area:${bug.category.toLowerCase().replace(/\s+/g, '-')}`]);
 
     const existing = await findOpenAutoFiledIssue(token, title);
     if (existing) {
@@ -458,7 +468,7 @@ export async function fileFrontmatterViolationAsIssue(input: FrontmatterIssueInp
 
     const title = input.title.trim();
     const body = input.body;
-    const labels = input.labels ?? ['type:bug', 'auto-filed', 'area:frontmatter'];
+    const labels = withRequiredProjectLabel(input.labels ?? ['type:bug', 'auto-filed', 'area:frontmatter']);
 
     const existing = await findOpenAutoFiledIssue(token, title);
     if (existing) {
