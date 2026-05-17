@@ -21,6 +21,12 @@ import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { loadRegistry }  from '../shared/registry';
+import {
+    refreshDiskCleanupAnswerArtifacts,
+    setDiskCleanupScanCacheProvider,
+    startDiskCleanupAnswerArtifactService,
+    stopDiskCleanupAnswerArtifactService,
+} from '../shared/diskcleanup-answer-artifacts';
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
 
@@ -98,6 +104,21 @@ function saveState(): void {
         ensureDataDir();
         _state.lastRun = new Date().toISOString();
         fs.writeFileSync(HEALTH_FILE, JSON.stringify(_state, null, 2), 'utf8');
+        refreshDiskCleanupAnswerArtifacts({
+            updatedAt: _state.lastRun,
+            items: _state.bugs.map((bug) => ({
+                section: bug.category,
+                id: bug.id,
+                checkId: bug.checkId,
+                title: bug.title,
+                detail: bug.detail,
+                priority: bug.priority,
+                fixed: bug.fixed,
+                detectedAt: bug.detectedAt,
+                recommendation: bug.recommendation,
+                evidence: bug.evidence ?? [],
+            })),
+        });
     } catch (e) {
         logError('Failed to save health state', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
     }
@@ -805,6 +826,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
     log(FEATURE, 'Background health runner starting');
     loadState();
+    setDiskCleanupScanCacheProvider(() => ({
+        updatedAt: _state.lastRun || new Date().toISOString(),
+        items: _state.bugs.map((bug) => ({
+            section: bug.category,
+            id: bug.id,
+            checkId: bug.checkId,
+            title: bug.title,
+            detail: bug.detail,
+            priority: bug.priority,
+            fixed: bug.fixed,
+            detectedAt: bug.detectedAt,
+            recommendation: bug.recommendation,
+            evidence: bug.evidence ?? [],
+        })),
+    }));
+    startDiskCleanupAnswerArtifactService();
     _running = true;
     claimSingleton();
 
@@ -823,6 +860,8 @@ export function deactivate(): void {
     if (_timer) { clearTimeout(_timer); _timer = undefined; }
     _panel?.dispose();
     _panel = undefined;
+    stopDiskCleanupAnswerArtifactService();
+    setDiskCleanupScanCacheProvider(undefined);
     releaseSingleton();
     log(FEATURE, 'Background health runner stopped');
 }

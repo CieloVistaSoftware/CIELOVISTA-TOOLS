@@ -32,6 +32,10 @@ import {
     type SymbolKind,
     type SymbolRole,
 } from './symbol-index';
+import {
+    readDiskCleanupAnswerManifest,
+    refreshDiskCleanupAnswerArtifacts,
+} from '../../shared/diskcleanup-answer-artifacts';
 
 const FEATURE = 'mcp-viewer';
 
@@ -895,6 +899,16 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
     if (p === '/api/list_markdown_paths') {
         jsonResponse(res, 200, await handleListMarkdownPaths(url.searchParams));
+        return;
+    }
+
+    if (p === '/api/diskcleanup_answers_manifest') {
+        jsonResponse(res, 200, readDiskCleanupAnswerManifest());
+        return;
+    }
+
+    if (p === '/api/diskcleanup_answers_refresh') {
+        jsonResponse(res, 200, refreshDiskCleanupAnswerArtifacts());
         return;
     }
 
