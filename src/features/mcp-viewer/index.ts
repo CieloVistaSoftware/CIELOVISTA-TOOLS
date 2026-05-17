@@ -867,7 +867,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             jsonResponse(res, 200, await handleValidateDoc(url.searchParams));
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
-            jsonResponse(res, 400, { error: message });
+            log(FEATURE, `validate_doc request rejected: ${message}`);
+            jsonResponse(res, 400, { error: 'Invalid request' });
         }
         return;
     }
@@ -877,7 +878,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             jsonResponse(res, 200, await handleNormalizeDoc(url.searchParams));
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
-            jsonResponse(res, 400, { error: message });
+            log(FEATURE, `normalize_doc request rejected: ${message}`);
+            jsonResponse(res, 400, { error: 'Invalid request' });
         }
         return;
     }
