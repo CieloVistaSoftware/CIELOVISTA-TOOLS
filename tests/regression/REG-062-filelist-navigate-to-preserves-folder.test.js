@@ -130,6 +130,7 @@ function loadFileListViewer(rootDir) {
         }
         if (request === '../shared/webview-utils') {
             return {
+                getNonce() { return 'testnonce'; },
                 esc(value) {
                     return String(value == null ? '' : value)
                         .replace(/&/g, '&amp;')

@@ -31,7 +31,7 @@ import {
     type SortColumn,
     type SortDirection,
 } from '../shared/file-list-sort';
-import { esc } from '../shared/webview-utils';
+import { esc, getNonce } from '../shared/webview-utils';
 
 const FEATURE = 'file-list-viewer';
 let _panel: vscode.WebviewPanel | undefined;
@@ -163,6 +163,7 @@ function renderInitialRows(entries: FileListEntry[], selectedNames: string[]): s
 }
 
 function buildHtml(initialState: FileListViewState | undefined): string {
+  const nonce = getNonce();
   const bootstrapState = JSON.stringify(initialState ?? null).replace(/</g, '\\u003c');
   const initialDir = initialState?.dir ?? '';
   const initialRows = renderInitialRows(initialState?.entries ?? [], initialState?.selectedNames ?? []);
@@ -171,7 +172,8 @@ function buildHtml(initialState: FileListViewState | undefined): string {
   const hiddenClass = initialState?.showHidden ?? true ? 'toggle-btn on' : 'toggle-btn';
   const excludesClass = initialState?.showExcludes ? 'toggle-btn on' : 'toggle-btn';
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'nonce-${nonce}';">
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -240,7 +242,7 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
   </table>
   <div class="empty" id="empty" style="${emptyStyle}">(empty folder)</div>
 </div>
-<script>(function(){
+<script nonce="${nonce}">(function(){
 const vsc = acquireVsCodeApi();
 const bootstrap = ${bootstrapState};
 let state = bootstrap || { dir: '', entries: [], canGoUp: false, sortCol: 'name', sortDir: 'asc', showHidden: true, showExcludes: false, selectedNames: [] };

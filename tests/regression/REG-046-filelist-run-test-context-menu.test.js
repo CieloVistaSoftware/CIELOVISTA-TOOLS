@@ -72,7 +72,13 @@ const src = fs.readFileSync(FEATURE, 'utf8');
 // 5. Runnable test helper keeps tests-dir normalization in one place
 (function checkRunnableHelperPathNormalization() {
     const hasHelper = src.includes('function isRunnableTestFile(name)');
-    const hasDirNormalize = src.includes("state.dir.replace(/\\\\/g, '/').includes('/tests')");
+    // Accept either replace(/\\/g,'/') or split('\\').join('/') — both normalize Windows paths.
+    // In the template literal source, backslashes are doubled, so the on-disk forms are
+    // replace(/\\\\/g,'/') or split('\\\\').join('/') (4 backslashes each).
+    const hasDirNormalize = src.includes("includes('/tests')") && (
+        src.includes("replace(/\\\\/g, '/').includes('/tests')") ||
+        src.includes("split('\\\\\\\\').join('/').includes('/tests')")
+    );
     if (hasHelper && hasDirNormalize) {
         pass('isRunnableTestFile helper normalizes path and gates to /tests');
     } else {
