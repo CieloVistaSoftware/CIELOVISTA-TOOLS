@@ -32,6 +32,10 @@ import {
     type SymbolKind,
     type SymbolRole,
 } from './symbol-index';
+import {
+    readDiskCleanupAnswerManifest,
+    refreshDiskCleanupAnswerArtifacts,
+} from '../../shared/diskcleanup-answer-artifacts';
 
 const FEATURE = 'mcp-viewer';
 
@@ -746,7 +750,25 @@ async function handleListMarkdownPaths(params: URLSearchParams): Promise<{
 /* ── HTTP server wiring ───────────────────────────────────────────────────── */
 
 function jsonResponse(res: http.ServerResponse, status: number, body: unknown): void {
-    const text = JSON.stringify(body);
+    const sanitize = (value: unknown): unknown => {
+        if (value instanceof Error) {
+            return { name: value.name, message: value.message };
+        }
+        if (Array.isArray(value)) {
+            return value.map((entry) => sanitize(entry));
+        }
+        if (value && typeof value === 'object') {
+            const input = value as Record<string, unknown>;
+            const out: Record<string, unknown> = {};
+            for (const [key, entry] of Object.entries(input)) {
+                if (key === 'stack' || key === 'stackTrace') { continue; }
+                out[key] = sanitize(entry);
+            }
+            return out;
+        }
+        return value;
+    };
+    const text = JSON.stringify(sanitize(body));
     res.writeHead(status, {
         'Content-Type':                'application/json; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
@@ -863,7 +885,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             jsonResponse(res, 200, await handleValidateDoc(url.searchParams));
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
-            jsonResponse(res, 400, { error: message });
+            log(FEATURE, `validate_doc request rejected: ${message}`);
+            jsonResponse(res, 400, { error: 'Invalid request' });
         }
         return;
     }
@@ -873,7 +896,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
             jsonResponse(res, 200, await handleNormalizeDoc(url.searchParams));
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
-            jsonResponse(res, 400, { error: message });
+            log(FEATURE, `normalize_doc request rejected: ${message}`);
+            jsonResponse(res, 400, { error: 'Invalid request' });
         }
         return;
     }
@@ -895,6 +919,16 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
     if (p === '/api/list_markdown_paths') {
         jsonResponse(res, 200, await handleListMarkdownPaths(url.searchParams));
+        return;
+    }
+
+    if (p === '/api/diskcleanup_answers_manifest') {
+        jsonResponse(res, 200, readDiskCleanupAnswerManifest());
+        return;
+    }
+
+    if (p === '/api/diskcleanup_answers_refresh') {
+        jsonResponse(res, 200, refreshDiskCleanupAnswerArtifacts());
         return;
     }
 
