@@ -750,7 +750,25 @@ async function handleListMarkdownPaths(params: URLSearchParams): Promise<{
 /* ── HTTP server wiring ───────────────────────────────────────────────────── */
 
 function jsonResponse(res: http.ServerResponse, status: number, body: unknown): void {
-    const text = JSON.stringify(body);
+    const sanitize = (value: unknown): unknown => {
+        if (value instanceof Error) {
+            return { name: value.name, message: value.message };
+        }
+        if (Array.isArray(value)) {
+            return value.map((entry) => sanitize(entry));
+        }
+        if (value && typeof value === 'object') {
+            const input = value as Record<string, unknown>;
+            const out: Record<string, unknown> = {};
+            for (const [key, entry] of Object.entries(input)) {
+                if (key === 'stack' || key === 'stackTrace') { continue; }
+                out[key] = sanitize(entry);
+            }
+            return out;
+        }
+        return value;
+    };
+    const text = JSON.stringify(sanitize(body));
     res.writeHead(status, {
         'Content-Type':                'application/json; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
