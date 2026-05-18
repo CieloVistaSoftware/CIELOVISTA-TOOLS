@@ -7,7 +7,7 @@ import { extractTitle, extractDescription, extractTags, extractDocType, stripTyp
 import { extractDeweyAndHelp } from '../../shared/help-utils';
 import type { CatalogCard } from './types';
 
-const SKIP_DIRS  = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
+const SKIP_DIRS  = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
 const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 
 let _cardIdCounter = 0;

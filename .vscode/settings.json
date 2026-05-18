@@ -25,6 +25,15 @@
     "/^node tests/regression/REG-047-frontmatter-viewer-rescan-preserves-filed-issues\\.test\\.js$/": {
       "approve": true,
       "matchCommandLine": true
-    }
+    },
+    "/^npm start$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^& npm --prefix \"C:\\\\Users\\\\jwpmi\\\\source\\\\repos\\\\DiskCleanUp\" start$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "dotnet build": true
   }
 }

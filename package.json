@@ -733,6 +733,18 @@
         "description": "Open the regression log viewer - review regressions, file as issues, mark fixed with release version."
       },
       {
+        "command": "cvs.issues.openViewer",
+        "title": "Issues: Open Issue Viewer",
+        "category": "CieloVista",
+        "description": "Open the CieloVista Tools GitHub Issue Viewer panel."
+      },
+      {
+        "command": "cvs.issues.newIssue",
+        "title": "Issues: New Issue for Current Project",
+        "category": "CieloVista",
+        "description": "Open GitHub to file a new issue, pre-filled with the current project name."
+      },
+      {
         "command": "cvs.tools.fileList",
         "title": "Tools: FileList",
         "category": "CieloVista",

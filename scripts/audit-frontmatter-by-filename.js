@@ -25,6 +25,48 @@ const SKIP_DIRS = new Set([
   'out', 'dist', 'reports', 'playwright-report', 'test-results',
 ]);
 
+const ALLOWED_MARKDOWN_ROOT_DIRS = new Set([
+  'data',
+  'docs',
+  'mcp-server',
+  'scripts',
+  'src',
+  'tests',
+]);
+
+const UNPACKED_EXTENSION_DIR_RE = /^[a-z0-9-]+\.[a-z0-9-]+-\d+\.\d+\.\d+(?:[-.][a-z0-9-]+)*$/i;
+
+function shouldIncludeMarkdown(filePath) {
+  const rel = toRel(filePath);
+  if (!rel || rel.startsWith('..')) {
+    return false;
+  }
+
+  const parts = rel.split('/').filter(Boolean);
+  if (parts.length === 0) {
+    return false;
+  }
+
+  const filename = parts[parts.length - 1];
+  if (/^\.tmp_issue_\d+_comment\.md$/i.test(filename)) {
+    return false;
+  }
+
+  if (parts.length === 1) {
+    return true;
+  }
+
+  const top = parts[0];
+  if (UNPACKED_EXTENSION_DIR_RE.test(top)) {
+    return false;
+  }
+  if (!ALLOWED_MARKDOWN_ROOT_DIRS.has(top.toLowerCase())) {
+    return false;
+  }
+
+  return true;
+}
+
 function walkMarkdownFiles(dir, acc = []) {
   let entries;
   try {
@@ -41,7 +83,7 @@ function walkMarkdownFiles(dir, acc = []) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walkMarkdownFiles(full, acc);
-    } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+    } else if (entry.isFile() && /\.md$/i.test(entry.name) && shouldIncludeMarkdown(full)) {
       acc.push(full);
     }
   }

@@ -23,6 +23,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { spawn }   from 'child_process';
+import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'http';
 import { log, logError } from '../shared/output-channel';
 import {
     sortEntries,
@@ -43,6 +44,9 @@ let _showExcludes = false;
 let _selectedNames: string[] = [];
 let _lastViewState: FileListViewState | undefined;
 let _activationDisposables: vscode.Disposable[] = [];
+let _htmlServer: Server | undefined;
+let _htmlServerPort: number | undefined;
+let _htmlServerRoot: string | undefined;
 
 const MARKDOWN_EXTENSIONS = new Set([
   '.md',
@@ -55,6 +59,17 @@ const JAVASCRIPT_EXTENSIONS = new Set([
   '.js',
   '.mjs',
   '.cjs',
+]);
+
+const RUNNABLE_EXTENSIONS = new Set([
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.ts',
+  '.mts',
+  '.cts',
+  '.ps1',
+  '.html',
 ]);
 
 type FileListViewState = {
@@ -78,6 +93,133 @@ function workspaceRoot(): string | undefined {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) { return undefined; }
     return folders[0].uri.fsPath;
+}
+
+function getHtmlServerRoot(targetPath?: string): string | undefined {
+  const targetUri = targetPath ? vscode.Uri.file(targetPath) : undefined;
+  const folder = targetUri ? vscode.workspace.getWorkspaceFolder(targetUri) : undefined;
+  return folder?.uri.fsPath ?? workspaceRoot() ?? _currentDir;
+}
+
+function getContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8';
+    case '.css': return 'text/css; charset=utf-8';
+    case '.js': return 'application/javascript; charset=utf-8';
+    case '.mjs': return 'application/javascript; charset=utf-8';
+    case '.json': return 'application/json; charset=utf-8';
+    case '.svg': return 'image/svg+xml';
+    case '.png': return 'image/png';
+    case '.jpg': return 'image/jpeg';
+    case '.jpeg': return 'image/jpeg';
+    case '.gif': return 'image/gif';
+    case '.webp': return 'image/webp';
+    default: return 'application/octet-stream';
+  }
+}
+
+function isPathInsideRoot(root: string, candidate: string): boolean {
+  const normalizedRoot = path.resolve(root).toLowerCase();
+  const normalizedCandidate = path.resolve(candidate).toLowerCase();
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(normalizedRoot + path.sep);
+}
+
+function sendServerResponse(res: ServerResponse, statusCode: number, body: string): void {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.end(body);
+}
+
+function handleHtmlServerRequest(root: string, req: IncomingMessage, res: ServerResponse): void {
+  const reqUrl = req.url || '/';
+  const pathname = decodeURIComponent(reqUrl.split('?')[0] || '/');
+  const relativePath = pathname.replace(/^\/+/, '');
+  let targetPath = path.join(root, relativePath);
+
+  if (!isPathInsideRoot(root, targetPath)) {
+    sendServerResponse(res, 403, 'Forbidden');
+    return;
+  }
+
+  try {
+    if (fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()) {
+      targetPath = path.join(targetPath, 'index.html');
+    }
+    if (!fs.existsSync(targetPath)) {
+      sendServerResponse(res, 404, 'Not found');
+      return;
+    }
+    const data = fs.readFileSync(targetPath);
+    res.statusCode = 200;
+    res.setHeader('Content-Type', getContentType(targetPath));
+    res.end(data);
+  } catch (err) {
+    const details = err instanceof Error ? err.message : String(err);
+    sendServerResponse(res, 500, `Server error: ${details}`);
+  }
+}
+
+async function stopHtmlServer(): Promise<void> {
+  if (!_htmlServer) { return; }
+  const server = _htmlServer;
+  _htmlServer = undefined;
+  _htmlServerPort = undefined;
+  _htmlServerRoot = undefined;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+}
+
+async function ensureHtmlServer(targetPath?: string): Promise<number | undefined> {
+  const root = getHtmlServerRoot(targetPath);
+  if (!root) { return undefined; }
+
+  if (_htmlServer && _htmlServerPort && _htmlServerRoot && path.resolve(_htmlServerRoot) === path.resolve(root)) {
+    return _htmlServerPort;
+  }
+
+  if (_htmlServer) {
+    await stopHtmlServer();
+  }
+
+  const server = createHttpServer((req: IncomingMessage, res: ServerResponse) => {
+    handleHtmlServerRequest(root, req, res);
+  });
+
+  const port = await new Promise<number>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        reject(new Error('Unable to resolve HTML server port'));
+        return;
+      }
+      resolve(address.port);
+    });
+  });
+
+  _htmlServer = server;
+  _htmlServerPort = port;
+  _htmlServerRoot = root;
+  log(FEATURE, `HTML server ready at http://127.0.0.1:${port}/ (root: ${root})`);
+  return port;
+}
+
+async function openHtmlViaServer(targetPath: string): Promise<void> {
+  const port = await ensureHtmlServer(targetPath);
+  const root = _htmlServerRoot;
+  if (!port || !root) {
+    vscode.window.showErrorMessage('FileList: HTML server is not available.');
+    return;
+  }
+
+  const relativePath = path.relative(root, targetPath).split(path.sep).join('/');
+  if (relativePath.startsWith('..')) {
+    vscode.window.showErrorMessage('FileList: HTML file is outside the server root.');
+    return;
+  }
+
+  const url = vscode.Uri.parse(`http://127.0.0.1:${port}/${encodeURI(relativePath)}`);
+  await vscode.env.openExternal(url);
 }
 
 function readDirEntries(dir: string): FileListEntry[] {
@@ -227,6 +369,7 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
   <button id="ctx-navigate" style="display:none">📂 Open here</button>
   <button id="ctx-reveal">🔍 Reveal in Explorer</button>
   <button id="ctx-copy-path">📋 Copy path</button>
+  <button id="ctx-run" style="display:none">▶ Run</button>
   <div id="ctx-sep" style="border-top:1px solid rgba(255,255,255,.1);margin:4px 0"></div>
   <button id="ctx-run-test" style="display:none">▶ Run Test</button>
 </div>
@@ -324,6 +467,17 @@ function isRunnableTestFile(name) {
   return inTestsDir && /\.(js|ts)$/i.test(name || '');
 }
 
+const RUNNABLE_EXTENSIONS_WV = new Set(['.js','.mjs','.cjs','.ts','.mts','.cts','.ps1','.html']);
+
+function getFileExtension(name) {
+  return (name.match(/\.[^.]*$/) || [''])[0].toLowerCase();
+}
+
+function isRunnableFile(name) {
+  const ext = getFileExtension(name);
+  return RUNNABLE_EXTENSIONS_WV.has(ext);
+}
+
 document.getElementById('tbody').addEventListener('click', ev => {
   const tr = ev.target.closest('tr');
   if (!tr) return;
@@ -348,6 +502,10 @@ document.getElementById('tbody').addEventListener('click', ev => {
 
   state.lastSelectedName = name;
   setSelected([name]);
+  // HTML opens on single-click. Other runnable files require double-click to run.
+  if (!isDir && isRunnableFile(name) && getFileExtension(name) !== '.html') {
+    return;
+  }
   vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name, isDir: isDir });
 });
 
@@ -356,6 +514,11 @@ document.getElementById('tbody').addEventListener('dblclick', function(ev) {
   if (!tr) { return; }
   var name = tr.dataset.name || '';
   var isDir = tr.dataset.isDir === '1';
+  // For runnable files, double-click runs them
+  if (!isDir && isRunnableFile(name)) {
+    vsc.postMessage({ command: 'run-file', name: name });
+    return;
+  }
   vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name, isDir: isDir });
 });
 
@@ -381,6 +544,14 @@ document.getElementById('tbody').addEventListener('contextmenu', function(ev) {
 
   document.getElementById('ctx-open').style.display = isDir ? 'none' : 'block';
   document.getElementById('ctx-navigate').style.display = isDir ? 'block' : 'none';
+
+  // Show ctx-run for runnable files
+  var runBtn = document.getElementById('ctx-run');
+  if (!isDir && isRunnableFile(clickedName)) {
+    runBtn.style.display = 'block';
+  } else {
+    runBtn.style.display = 'none';
+  }
 
   var selected = state.selectedNames || [];
   _ctxNames = selected.filter(function(name){
@@ -421,6 +592,10 @@ document.getElementById('ctx-copy-path').addEventListener('click', function() {
   if (_ctxEntry && state.dir) {
     vsc.postMessage({ command: 'copy-path', path: state.dir + '/' + _ctxEntry.name });
   }
+});
+document.getElementById('ctx-run').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry) { vsc.postMessage({ command: 'run-file', name: _ctxEntry.name }); }
 });
 document.getElementById('ctx-run-test').addEventListener('click', function() {
   hideCtxMenu();
@@ -504,6 +679,30 @@ function navigateTo(target: string): void {
     pushUpdate();
 }
 
+async function focusExistingEditor(uri: vscode.Uri): Promise<boolean> {
+  const uriKey = uri.toString();
+  const visibleEditor = vscode.window.visibleTextEditors.find((editor: vscode.TextEditor) => editor.document.uri.toString() === uriKey);
+  if (visibleEditor) {
+    await vscode.window.showTextDocument(visibleEditor.document, {
+      viewColumn: visibleEditor.viewColumn,
+      preserveFocus: false,
+      preview: false,
+    });
+    return true;
+  }
+
+  const openDoc = vscode.workspace.textDocuments.find((doc: vscode.TextDocument) => doc.uri.toString() === uriKey);
+  if (openDoc) {
+    await vscode.window.showTextDocument(openDoc, {
+      preserveFocus: false,
+      preview: false,
+    });
+    return true;
+  }
+
+  return false;
+}
+
 async function openFile(target: string): Promise<void> {
   if (!fs.existsSync(target)) { return; }
   const uri = vscode.Uri.file(target);
@@ -539,9 +738,13 @@ async function openFile(target: string): Promise<void> {
           cwd: path.dirname(target),
         });
         terminal.show(true);
-        terminal.sendText(`"${process.execPath}" "${target}"`);
+        terminal.sendText(`node "${target}"`);
         return;
       }
+    }
+
+    if (await focusExistingEditor(uri)) {
+      return;
     }
 
     // Respect VS Code editor associations so each file type opens in its default viewer.
@@ -589,6 +792,7 @@ export function openFileListPanel(): void {
     }
     // Preserve a directory pre-set by navigateFileListToFolder; fall back to workspace root.
     if (!_currentDir) { _currentDir = root!; }
+    void ensureHtmlServer(_currentDir);
 
     _panel = vscode.window.createWebviewPanel(
         'cvsFileList',
@@ -620,6 +824,33 @@ export function openFileListPanel(): void {
             }
             if (msg.command === 'open-file') {
                 await openEntryFromCurrentDir(String(msg.name), 'open');
+                return;
+            }
+            if (msg.command === 'run-file') {
+                if (!_currentDir) { return; }
+                const target = path.join(_currentDir, String(msg.name ?? ''));
+                if (!fs.existsSync(target)) { return; }
+                
+                const ext = path.extname(target).toLowerCase();
+                
+                // For .html files, run through the local file-list server.
+                if (ext === '.html') {
+                  await openHtmlViaServer(target);
+                    return;
+                }
+                
+                // For .ps1 files, run with PowerShell
+                let runtime = 'node';
+                if (ext === '.ps1') {
+                    runtime = 'powershell.exe -ExecutionPolicy Bypass -File';
+                }
+                
+                const terminal = vscode.window.createTerminal({
+                    name: `Run ${path.basename(target)}`,
+                    cwd: path.dirname(target),
+                });
+                terminal.show(true);
+                terminal.sendText(`${runtime} "${target}"`);
                 return;
             }
             if (msg.command === 'up') {
@@ -794,6 +1025,7 @@ export function deactivate(): void {
     }
     _activationDisposables = [];
   }
+    void stopHtmlServer();
     if (_panel) { _panel.dispose(); _panel = undefined; }
 }
 

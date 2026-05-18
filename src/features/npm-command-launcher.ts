@@ -37,6 +37,37 @@ function normalizeFsPath(value: string): string {
     return path.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
 }
 
+function resolveCurrentProjectPath(cards: ProjectCardData[]): string {
+    if (!cards.length) { return ''; }
+
+    const pickBestMatch = (candidatePath?: string): string | undefined => {
+        if (!candidatePath) { return undefined; }
+        const normalizedCandidate = normalizeFsPath(candidatePath);
+        let best: ProjectCardData | undefined;
+        for (const card of cards) {
+            const normalizedRoot = normalizeFsPath(card.rootPath);
+            if (normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(normalizedRoot + path.sep)) {
+                if (!best || normalizedRoot.length > normalizeFsPath(best.rootPath).length) {
+                    best = card;
+                }
+            }
+        }
+        return best?.rootPath;
+    };
+
+    const activeUri = vscode.window.activeTextEditor?.document?.uri;
+    if (activeUri?.scheme === 'file') {
+        const activeMatch = pickBestMatch(activeUri.fsPath);
+        if (activeMatch) { return activeMatch; }
+    }
+
+    const firstWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const workspaceMatch = pickBestMatch(firstWorkspacePath);
+    if (workspaceMatch) { return workspaceMatch; }
+
+    return cards[0].rootPath;
+}
+
 function postRegistryToPanel(): void {
     if (!_panel) { return; }
     const registry = loadRegistry();
@@ -172,6 +203,13 @@ async function collectCards(): Promise<ProjectCardData[]> {
         }
         cards.push(card);
     }
+
+    cards.sort((left, right) => {
+        const byName = left.name.localeCompare(right.name);
+        if (byName !== 0) { return byName; }
+        return left.rootPath.localeCompare(right.rootPath);
+    });
+
     return cards;
 }
 
@@ -247,9 +285,15 @@ async function openPanel(): Promise<void> {
     }
 
     _latestCards = cards;
+    const currentProjectPath = resolveCurrentProjectPath(_latestCards);
     const sendInit = () => {
         const folderSuffix = _latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : '';
-        _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix, cards: _latestCards });
+        _panel?.webview.postMessage({
+            type: 'init',
+            title: 'package.json Scripts' + folderSuffix,
+            cards: _latestCards,
+            currentProjectPath,
+        });
     };
 
     if (_panel) {
@@ -375,7 +419,13 @@ async function openPanel(): Promise<void> {
                 break;
             case 'ready': {
                 const folderSuffix2 = _latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : '';
-                void _panel?.webview.postMessage({ type: 'init', title: 'package.json Scripts' + folderSuffix2, cards: _latestCards });
+                const currentProjectPath2 = resolveCurrentProjectPath(_latestCards);
+                void _panel?.webview.postMessage({
+                    type: 'init',
+                    title: 'package.json Scripts' + folderSuffix2,
+                    cards: _latestCards,
+                    currentProjectPath: currentProjectPath2,
+                });
                 void pushPortStatuses(_latestCards);
                 if (_portPollTimer) { clearInterval(_portPollTimer); }
                 _portPollTimer = setInterval(() => { void pushPortStatuses(_latestCards); }, 5000);

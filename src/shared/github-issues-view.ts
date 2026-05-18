@@ -86,6 +86,17 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
  * Function name is `showGithubIssues` (lowercase h) to match the existing
  * import in home-page.ts.
  */
+
+/**
+ * Open the GitHub new-issue page, pre-filling the body with the project name
+ * when one is provided.
+ */
+export function newIssueForProject(projectName?: string): void {
+    const body = projectName ? `**Project:** ${projectName}\n\n` : '';
+    const url = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new?body=${encodeURIComponent(body)}`;
+    void vscode.env.openExternal(vscode.Uri.parse(url));
+}
+
 export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColumn.Two): void {
     if (activePanel) {
         activePanel.reveal(viewColumn);

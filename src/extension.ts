@@ -62,6 +62,9 @@ import { runCodebaseAudit   } from './features/codebase-auditor';
 import { openErrorLogViewer }      from './features/error-log-viewer';
 import { openRegressionLogViewer } from './features/regression-log-viewer';
 import { activate as activateFileListViewer, deactivate as deactivateFileListViewer } from './features/file-list-viewer';
+import { showGithubIssues, newIssueForProject } from './shared/github-issues-view';
+import { loadRegistry } from './features/doc-catalog/registry';
+import { getCurrentWorkspaceProjectName } from './features/doc-catalog/commands';
 
 
 // Force inclusion of 'diff' in VSIX bundle
@@ -157,6 +160,12 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.tools.errorLog', openErrorLogViewer),
         vscode.commands.registerCommand('cvs.tools.regressionLog', openRegressionLogViewer),
         vscode.commands.registerCommand('cvs.tools.results',  () => { /* placeholder */ }),
+        vscode.commands.registerCommand('cvs.issues.openViewer', () => showGithubIssues()),
+        vscode.commands.registerCommand('cvs.issues.newIssue', () => {
+            const registry = loadRegistry();
+            const projName = getCurrentWorkspaceProjectName(registry?.projects ?? []);
+            newIssueForProject(projName || undefined);
+        }),
     );
 
 }

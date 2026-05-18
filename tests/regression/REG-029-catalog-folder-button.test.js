@@ -1,8 +1,8 @@
 // Copyright (c) CieloVista Software. All rights reserved.
 // REG-029: Issue #76 — Doc Catalog Folder button should open the project in VS Code
 //
-// openProjectFolderSmart() must call vscode.openFolder with forceNewWindow:false,
-// not vscode.env.openExternal or revealInExplorer.
+// openProjectFolderSmart() must call vscode.openFolder with forceNewWindow:true
+// so the current workspace is never replaced. Not openExternal or revealInExplorer.
 //
 // Run: node tests/regression/REG-029-catalog-folder-button.test.js
 
@@ -66,7 +66,7 @@ test('openProjectFolderSmart does NOT call revealInExplorer', () => {
     );
 });
 
-test('openProjectFolderSmart reuses the current window', () => {
+test('openProjectFolderSmart opens in a new window', () => {
     const fnStart = SRC.indexOf('function openProjectFolderSmart');
     let depth = 0, i = fnStart;
     while (i < SRC.length) {
@@ -76,8 +76,8 @@ test('openProjectFolderSmart reuses the current window', () => {
     }
     const fnBody = SRC.slice(fnStart, i + 1);
     assert(
-        fnBody.includes('forceNewWindow: false'),
-        'openProjectFolderSmart must reuse the current window when opening the project (#76)'
+        fnBody.includes('forceNewWindow: true'),
+        'openProjectFolderSmart must open in a new window so the current workspace is not replaced (#76)'
     );
 });
 

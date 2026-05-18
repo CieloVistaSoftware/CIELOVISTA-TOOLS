@@ -43,6 +43,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 /* ── Toolbar ── */
 #topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;position:sticky;top:0;background:var(--vscode-editor-background);padding:8px 0;z-index:10;border-bottom:1px solid var(--vscode-panel-border)}
 #topbar h1{font-size:1em;font-weight:700;flex:1}
+#project-filter{min-width:180px;max-width:260px;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;font-size:12px;font-family:inherit}
+#project-filter:focus{outline:none;border-color:var(--vscode-focusBorder)}
 #search{flex:1;max-width:260px;padding:4px 8px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#555);border-radius:3px;font-size:12px;font-family:inherit}
 #search:focus{outline:none;border-color:var(--vscode-focusBorder)}
 #btn-configure{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px}
@@ -132,6 +134,9 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 <div id="topbar">
   <h1 id="panel-title">package.json Scripts</h1>
+  <select id="project-filter" title="Filter by project">
+    <option value="__all__">All Projects</option>
+  </select>
   <input id="search" type="text" placeholder="Filter projects and scripts…" autocomplete="off">
   <button id="btn-configure">⚙️ Configure</button>
   <span id="count"></span>
@@ -222,8 +227,10 @@ var grid = document.getElementById('grid');
 var empty = document.getElementById('empty');
 var countEl = document.getElementById('count');
 var search = document.getElementById('search');
+var projectFilter = document.getElementById('project-filter');
 var cardTmpl = document.getElementById('proj-card');
 var btnTmpl  = document.getElementById('script-btn');
+var _allCards = [];
 
 // ── Message listener MUST be first — before sending 'ready' ──────────────────
 // VS Code delivers the extension's 'init' reply synchronously in Electron.
@@ -231,7 +238,7 @@ var btnTmpl  = document.getElementById('script-btn');
 window.addEventListener('message', function(ev) {
   var m = ev.data;
   if (m.type === 'init') {
-    render(m.cards || [], m.title || '');
+    render(m.cards || [], m.title || '', m.currentProjectPath || '');
     return;
   }
   if (m.type === 'status') {
@@ -347,20 +354,55 @@ document.addEventListener('mouseout', function(e) {
 
 // ── Search ──
 search.addEventListener('input', function() {
+  applyFilters();
+});
+
+projectFilter.addEventListener('change', function() {
+  applyFilters();
+});
+
+function normalizePath(p) {
+  return String(p || '').replace(/\\\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+function refreshProjectDropdown(cards, currentProjectPath) {
+  if (!projectFilter) return;
+  var current = normalizePath(currentProjectPath);
+  var options = ['<option value="__all__">All Projects</option>'];
+  cards.forEach(function(c) {
+    var value = normalizePath(c.rootPath);
+    options.push('<option value="' + cfgEsc(value) + '">' + cfgEsc(c.name) + '</option>');
+  });
+  projectFilter.innerHTML = options.join('');
+
+  var hasCurrent = !!cards.find(function(c) { return normalizePath(c.rootPath) === current; });
+  if (hasCurrent) {
+    projectFilter.value = current;
+  } else if (cards.length) {
+    projectFilter.value = normalizePath(cards[0].rootPath);
+  } else {
+    projectFilter.value = '__all__';
+  }
+}
+
+function applyFilters() {
   var q = search.value.toLowerCase().trim();
+  var selectedProject = projectFilter ? projectFilter.value : '__all__';
   var vis = 0;
   document.querySelectorAll('.pc').forEach(function(c) {
-    var match = !q
+    var projectMatch = selectedProject === '__all__' || normalizePath(c.dataset.path) === selectedProject;
+    var textMatch = !q
       || c.dataset.name.toLowerCase().includes(q)
       || c.dataset.type.toLowerCase().includes(q)
       || c.dataset.path.toLowerCase().includes(q);
+    var match = projectMatch && textMatch;
     c.classList.toggle('hidden', !match);
     if (match) vis++;
   });
   var total = document.querySelectorAll('.pc').length;
-  countEl.textContent = q ? (vis + ' of ' + total) : (total + ' projects');
+  countEl.textContent = (q || selectedProject !== '__all__') ? (vis + ' of ' + total) : (total + ' projects');
   empty.style.display = vis === 0 ? 'block' : 'none';
-});
+}
 
 // ── Port badge click — open browser when green ──
 document.addEventListener('click', function(e) {
@@ -414,13 +456,13 @@ document.addEventListener('click', function(e) {
 });
 
 // ── Render ──
-function render(cards, title) {
+function render(cards, title, currentProjectPath) {
   if (title) { document.getElementById('panel-title').textContent = title; }
+  _allCards = cards.slice();
   grid.innerHTML = '';
-  cards.forEach(function(c) { grid.appendChild(buildCard(c)); });
-  var n = cards.length;
-  countEl.textContent = n + ' project' + (n === 1 ? '' : 's');
-  empty.style.display = n === 0 ? 'block' : 'none';
+  _allCards.forEach(function(c) { grid.appendChild(buildCard(c)); });
+  refreshProjectDropdown(_allCards, currentProjectPath);
+  applyFilters();
   search.focus();
 }
 

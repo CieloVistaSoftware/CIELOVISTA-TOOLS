@@ -90,6 +90,36 @@ const SKIP_DIRS = new Set([
     'out', 'dist', 'reports', 'playwright-report', 'test-results',
 ]);
 
+const ALLOWED_MARKDOWN_ROOT_DIRS = new Set([
+    'data',
+    'docs',
+    'mcp-server',
+    'scripts',
+    'src',
+    'tests',
+]);
+
+const UNPACKED_EXTENSION_DIR_RE = /^[a-z0-9-]+\.[a-z0-9-]+-\d+\.\d+\.\d+(?:[-.][a-z0-9-]+)*$/i;
+
+function shouldIncludeMarkdown(root: string, absFilePath: string): boolean {
+    const rel = path.relative(root, absFilePath).replace(/\\/g, '/');
+    if (!rel || rel.startsWith('..')) { return false; }
+
+    const parts = rel.split('/').filter(Boolean);
+    if (parts.length === 0) { return false; }
+
+    const filename = parts[parts.length - 1];
+    if (/^\.tmp_issue_\d+_comment\.md$/i.test(filename)) { return false; }
+
+    if (parts.length === 1) { return true; }
+
+    const top = parts[0];
+    if (UNPACKED_EXTENSION_DIR_RE.test(top)) { return false; }
+    if (!ALLOWED_MARKDOWN_ROOT_DIRS.has(top.toLowerCase())) { return false; }
+
+    return true;
+}
+
 // ─── Scanner ─────────────────────────────────────────────────────────────────
 
 interface FmFile {
@@ -118,14 +148,16 @@ interface Report {
     files: FmFile[];
 }
 
-function walkMd(dir: string, acc: string[] = []): string[] {
+function walkMd(dir: string, root: string, acc: string[] = []): string[] {
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return acc; }
     for (const e of entries) {
         if (SKIP_DIRS.has(e.name)) { continue; }
         const full = path.join(dir, e.name);
-        if (e.isDirectory()) { walkMd(full, acc); }
-        else if (e.isFile() && /\.md$/i.test(e.name)) { acc.push(full); }
+        if (e.isDirectory()) { walkMd(full, root, acc); }
+        else if (e.isFile() && /\.md$/i.test(e.name) && shouldIncludeMarkdown(root, full)) {
+            acc.push(full);
+        }
     }
     return acc;
 }
@@ -143,7 +175,7 @@ function parseFm(content: string): { hasFrontmatter: boolean; fields: Record<str
 }
 
 function scanProject(root: string): Report {
-    const files = walkMd(root);
+    const files = walkMd(root, root);
     const rows: FmFile[] = files.map(fp => {
         const content = fs.readFileSync(fp, 'utf8');
         const { hasFrontmatter, fields, error } = parseFm(content);

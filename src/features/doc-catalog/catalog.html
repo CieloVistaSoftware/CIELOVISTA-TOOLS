@@ -73,6 +73,7 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
   <select id="section-filter" disabled><option value="">All sections</option></select>
   <button id="btn-reset">&#10005; Clear</button>
   <button id="btn-npm-scripts" title="Open NPM Scripts panel" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128230; Projects</button>
+  <button id="btn-report-issue" title="Report an issue for the current project" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128030; Report Issue</button>
   <span id="stat-bar"></span>
 </div>
 <div id="catalog"></div>
@@ -117,11 +118,19 @@ window.addEventListener('message', function(ev) {
             _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
         buildSectionMap();
         populateProjectDropdown();
-        // Restore sticky project filter from localStorage
+        // Prefer the active workspace project, then fall back to sticky state.
+        var currentProj = msg.currentProject || '';
         var savedProj = localStorage.getItem('catalog-proj-filter') || '';
         var projSel = document.getElementById('proj-filter');
-        if (savedProj && projSel) {
-            projSel.value = savedProj;
+        var desiredProj = '';
+        if (projSel && currentProj && Array.from(projSel.options).some(function(opt) { return opt.value === currentProj; })) {
+            desiredProj = currentProj;
+        } else if (savedProj && projSel && Array.from(projSel.options).some(function(opt) { return opt.value === savedProj; })) {
+            desiredProj = savedProj;
+        }
+        if (projSel && desiredProj) {
+            projSel.value = desiredProj;
+            localStorage.setItem('catalog-proj-filter', desiredProj);
             updateSectionDropdown();
             applyFilters();
         }
@@ -372,6 +381,10 @@ document.getElementById('proj-filter').addEventListener('change', function() {
 document.getElementById('section-filter').addEventListener('change', applyFilters);
 document.getElementById('btn-reset').addEventListener('click', resetFilters);
 document.getElementById('btn-npm-scripts').addEventListener('click', function() { vscode.postMessage({ command: 'open-npm-scripts' }); });
+document.getElementById('btn-report-issue').addEventListener('click', function() {
+  var proj = document.getElementById('proj-filter').value || '';
+  vscode.postMessage({ command: 'new-issue', project: proj || undefined });
+});
 
 // ── Click handler ─────────────────────────────────────────────────────────────
 

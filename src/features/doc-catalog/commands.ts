@@ -50,7 +50,29 @@ function trySendPendingCatalogInit(panel: vscode.WebviewPanel): void {
 
 async function openProjectFolderSmart(folderPath: string): Promise<void> {
     const target = path.resolve(folderPath);
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), { forceNewWindow: false });
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), { forceNewWindow: true });
+}
+
+export function getCurrentWorkspaceProjectName(
+    registryEntries: Array<{ name: string; path: string; type: string; description: string }>
+): string {
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspacePath || !Array.isArray(registryEntries)) { return ''; }
+
+    const normalizedWorkspacePath = path.resolve(workspacePath).toLowerCase();
+    for (const entry of registryEntries) {
+        if (!entry?.name || !entry.path) { continue; }
+        const normalizedEntryPath = path.resolve(entry.path).toLowerCase();
+        if (
+            normalizedWorkspacePath === normalizedEntryPath ||
+            normalizedWorkspacePath.startsWith(normalizedEntryPath + path.sep) ||
+            normalizedEntryPath.startsWith(normalizedWorkspacePath + path.sep)
+        ) {
+            return entry.name;
+        }
+    }
+
+    return '';
 }
 
 function sendCatalogInit(
@@ -60,7 +82,8 @@ function sendCatalogInit(
     registryEntries: Array<{ name: string; path: string; type: string; description: string }>
 ): void {
     const payload = buildCatalogInitPayload(cards, projectInfos, new Date().toLocaleString(), registryEntries);
-    void panel.webview.postMessage({ command: 'init', ...payload });
+    const currentProject = getCurrentWorkspaceProjectName(registryEntries);
+    void panel.webview.postMessage({ command: 'init', currentProject, ...payload });
 }
 
 export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] | undefined> {
@@ -358,6 +381,11 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             case 'rebuild-catalog': {
                 clearCachedCards();
                 await openCatalog(true);
+                break;
+            }
+            case 'new-issue': {
+                const { newIssueForProject } = await import('../../shared/github-issues-view');
+                newIssueForProject(msg.project as string | undefined);
                 break;
             }
         }
