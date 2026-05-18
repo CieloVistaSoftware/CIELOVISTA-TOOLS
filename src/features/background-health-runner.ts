@@ -691,6 +691,65 @@ export async function showFixBugsPanel(): Promise<void> {
         );
         _panel.webview.html = html;
         _panel.onDidDispose(() => { _panel = undefined; });
+
+        _panel.webview.onDidReceiveMessage(async msg => {
+            try {
+                if (msg.command === 'fix' && msg.cmdId) {
+                    await vscode.commands.executeCommand(msg.cmdId);
+                    clearBug(msg.bugId);
+                    saveState();
+                }
+                if (msg.command === 'dismiss') {
+                    clearBug(msg.bugId);
+                    saveState();
+                }
+                if (msg.command === 'file-issue') {
+                    const bug = _state.bugs.find(b => b.id === msg.bugId && !b.fixed);
+                    if (!bug) { return; }
+                    const result = await fileHealthBugAsIssue(bug);
+                    if (result.ok && result.issueNumber && result.issueUrl) {
+                        bug.githubIssueNumber = result.issueNumber;
+                        bug.githubIssueUrl    = result.issueUrl;
+                        saveState();
+                        _panel?.webview.postMessage({
+                            type:   'issue-filed',
+                            bugId:  msg.bugId,
+                            number: result.issueNumber,
+                            url:    result.issueUrl,
+                        });
+                        void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
+                    } else {
+                        _panel?.webview.postMessage({ type: 'issue-filed-error', bugId: msg.bugId });
+                        void vscode.window.showErrorMessage(`Couldn't file issue: ${result.error ?? 'unknown error'}`);
+                    }
+                }
+                if (msg.command === 'open-issue') {
+                    if (msg.url) { void vscode.env.openExternal(vscode.Uri.parse(msg.url)); }
+                }
+                if (msg.command === 'open-evidence' && msg.path) {
+                    const doc = await vscode.workspace.openTextDocument(msg.path);
+                    const line = Math.max(0, (msg.line ?? 1) - 1);
+                    const column = Math.max(0, (msg.column ?? 1) - 1);
+                    const pos = new vscode.Position(line, column);
+                    const editor = await vscode.window.showTextDocument(doc, {
+                        viewColumn: vscode.ViewColumn.Beside,
+                        preview: true,
+                        preserveFocus: false,
+                    });
+                    editor.selection = new vscode.Selection(pos, pos);
+                    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+                }
+                if (msg.command === 'reload') {
+                    if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
+                }
+                if (msg.command === 'checkMcpPort') {
+                    const open = await isPortOpen(3000);
+                    _panel?.webview.postMessage({ type: 'mcpPortStatus', open });
+                }
+            } catch (e) {
+                logError('Fix Bugs panel message error', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+            }
+        });
     }
 
     // Silently sync issue numbers from GitHub for any unlinked active bugs.
@@ -719,70 +778,6 @@ export async function showFixBugsPanel(): Promise<void> {
         if (changed) { saveState(); }
     })();
 
-    _panel.webview.onDidReceiveMessage(async msg => {
-        if (msg.command === 'fix' && msg.cmdId) {
-            try {
-                await vscode.commands.executeCommand(msg.cmdId);
-                clearBug(msg.bugId);
-                saveState();
-            } catch (e) {
-                logError(`Fix command failed: ${msg.cmdId}`, e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-            }
-        }
-        if (msg.command === 'dismiss') {
-            clearBug(msg.bugId);
-            saveState();
-        }
-        if (msg.command === 'file-issue') {
-            const bug = _state.bugs.find(b => b.id === msg.bugId && !b.fixed);
-            if (bug) {
-                const result = await fileHealthBugAsIssue(bug);
-                if (result.ok && result.issueNumber && result.issueUrl) {
-                    bug.githubIssueNumber = result.issueNumber;
-                    bug.githubIssueUrl    = result.issueUrl;
-                    saveState();
-                    _panel?.webview.postMessage({
-                        type:   'issue-filed',
-                        bugId:  msg.bugId,
-                        number: result.issueNumber,
-                        url:    result.issueUrl,
-                    });
-                    void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
-                } else {
-                    _panel?.webview.postMessage({ type: 'issue-filed-error', bugId: msg.bugId });
-                    void vscode.window.showErrorMessage(`Couldn't file issue: ${result.error ?? 'unknown error'}`);
-                }
-            }
-        }
-        if (msg.command === 'open-issue') {
-            if (msg.url) { void vscode.env.openExternal(vscode.Uri.parse(msg.url)); }
-        }
-        if (msg.command === 'open-evidence' && msg.path) {
-            try {
-                const doc = await vscode.workspace.openTextDocument(msg.path);
-                const line = Math.max(0, (msg.line ?? 1) - 1);
-                const column = Math.max(0, (msg.column ?? 1) - 1);
-                const pos = new vscode.Position(line, column);
-                const editor = await vscode.window.showTextDocument(doc, {
-                    viewColumn: vscode.ViewColumn.Beside,
-                    preview: true,
-                    preserveFocus: false,
-                });
-                editor.selection = new vscode.Selection(pos, pos);
-                editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-            } catch (e) {
-                logError('Failed to open evidence location', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-            }
-        }
-        if (msg.command === 'reload') {
-            if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
-        }
-        if (msg.command === 'checkMcpPort') {
-            // Check MCP port and post result
-            const open = await isPortOpen(3000);
-            _panel?.webview.postMessage({ type: 'mcpPortStatus', open });
-        }
-    });
 }
 
 // ── Activate / Deactivate ─────────────────────────────────────────────────────

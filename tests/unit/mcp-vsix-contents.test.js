@@ -34,7 +34,10 @@ if (files.length === 0) {
 const latest = files[0];
 
 function getZipEntries(vsixPath) {
-    const output = cp.execFileSync('tar', ['-tf', vsixPath], { encoding: 'utf8' });
+    const script = `Add-Type -Assembly System.IO.Compression.FileSystem; ` +
+        `[System.IO.Compression.ZipFile]::OpenRead('${vsixPath.replace(/'/g, "''")}').Entries | ` +
+        `ForEach-Object { $_.FullName }`;
+    const output = cp.execFileSync('pwsh', ['-NoProfile', '-Command', script], { encoding: 'utf8' });
     return output
         .split(/\r?\n/)
         .map((s) => s.trim())
