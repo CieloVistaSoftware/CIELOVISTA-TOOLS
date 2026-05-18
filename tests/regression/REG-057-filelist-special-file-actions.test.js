@@ -81,6 +81,16 @@ function fail(msg) { console.error(`FAIL: ${msg}`); failed += 1; }
     }
 })();
 
+(function checkTypescriptRunsViaTsx() {
+    const hasTsRoute = SRC.includes("ext === '.ts' || ext === '.mts' || ext === '.cts'") &&
+                       SRC.includes("runtime = 'npx tsx'");
+    if (hasTsRoute) {
+        pass('.ts/.mts/.cts run-file routes to npx tsx');
+    } else {
+        fail('.ts/.mts/.cts run-file must use npx tsx, not node');
+    }
+})();
+
 (function checkNoDuplicateOpenGuard() {
     const hasFocusHelper = SRC.includes('async function focusExistingEditor(uri: vscode.Uri): Promise<boolean>');
     const hasGuardCall = SRC.includes('if (await focusExistingEditor(uri)) {');

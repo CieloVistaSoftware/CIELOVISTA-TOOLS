@@ -839,10 +839,11 @@ export function openFileListPanel(): void {
                     return;
                 }
                 
-                // For .ps1 files, run with PowerShell
                 let runtime = 'node';
                 if (ext === '.ps1') {
                     runtime = 'powershell.exe -ExecutionPolicy Bypass -File';
+                } else if (ext === '.ts' || ext === '.mts' || ext === '.cts') {
+                    runtime = 'npx tsx';
                 }
                 
                 const terminal = vscode.window.createTerminal({
