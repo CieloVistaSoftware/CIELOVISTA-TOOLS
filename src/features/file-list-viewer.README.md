@@ -73,7 +73,7 @@ _TODO: one paragraph describing the single responsibility of this file._
 
 ## Internal architecture
 
-```
+```text
 activate()
   └── TODO: describe call flow
 ```

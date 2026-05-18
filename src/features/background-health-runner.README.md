@@ -32,7 +32,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 ## Internal architecture
 
-```
+```text
 activate(context)
   └── registers 1 command(s)
   └── Health: FixBugs → cvs.health.fixBugs

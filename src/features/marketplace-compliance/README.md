@@ -34,7 +34,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 ## Internal architecture
 
-```
+```text
 activate(context)
   └── registers 3 command(s)
   └── Marketplace: Scan → cvs.marketplace.scan

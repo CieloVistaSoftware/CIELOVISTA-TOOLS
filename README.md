@@ -146,7 +146,7 @@ All settings are under the `cielovistaTools` namespace in VS Code settings.
 
 ## Project structure
 
-```
+```text
 cielovista-tools/
   package.json              <- all command declarations, settings, keybindings
   tsconfig.json             <- TypeScript config

@@ -142,6 +142,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
       const OPEN_DIRECT = [
         'cvs.commands.showAll',
         'cvs.catalog.open',
+        'cvs.catalog.viewArchived',
         'cvs.npm.showAndRunScripts',
         'cvs.claude.processMonitor',
         'cvs.catalog.view',

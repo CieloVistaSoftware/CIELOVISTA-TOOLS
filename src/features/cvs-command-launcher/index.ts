@@ -43,6 +43,7 @@ const DIRECT_PANEL_COMMANDS = new Set<string>([
     'cvs.audit.testCoverage',
     'cvs.audit.testCoverage.refresh',
     'cvs.audit.testCoverage.export',
+    'cvs.catalog.viewArchived',
 ]);
 
 function isCancellationError(err: unknown): boolean {

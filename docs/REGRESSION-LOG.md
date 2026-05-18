@@ -99,7 +99,7 @@ Sub-panels always open with `ViewColumn.Beside`.
 **Status:** Fixed + automated test added (REG-011)
 
 ### Error signature
-```
+```text
 Cannot find module 'diff'
 Require stack:
   - c:\...\cielovista-tools\out\features\js-error-audit.js

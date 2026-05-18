@@ -98,7 +98,7 @@ Uses `.\node_modules\.bin\tsc` — never `npx tsc` (picks up wrong global packag
 
 ## Project Structure
 
-```
+```text
 src/
   extension.ts          ← wiring only — imports all features, calls activate()
   features/             ← one file per feature, each with a .README.md

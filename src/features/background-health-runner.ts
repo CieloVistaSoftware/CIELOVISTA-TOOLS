@@ -384,7 +384,7 @@ const CHECKS: Check[] = [
                 if (depth > 3) { return; }
                 try {
                     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                        if (entry.name === 'node_modules' || entry.name === '.git') { continue; }
+                        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.claude' || entry.name === 'out') { continue; }
                         const full = path.join(dir, entry.name);
                         if (entry.isDirectory()) { scan(full, depth + 1); }
                         else if (entry.name.endsWith('.md')) {
