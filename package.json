@@ -1019,6 +1019,11 @@
           "default": true,
           "description": "Enable the Editor: Copy JSON to Copilot Chat feature."
         },
+        "cielovistaTools.features.playwrightRunner": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Playwright Runner feature (run/stop/clean Playwright tests from the command palette)."
+        },
         "cielovistaTools.features.mcpViewer": {
           "type": "boolean",
           "default": true,

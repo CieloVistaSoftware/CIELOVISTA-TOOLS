@@ -55,6 +55,7 @@ import { activate as codeAuditorActivate,           deactivate as codeAuditorDea
 import { activate as registryPromoteActivate, deactivate as registryPromoteDeactivate      } from './features/registry-promote';
 import { activate as corequisiteCheckerActivate, deactivate as corequisiteCheckerDeactivate } from './features/corequisite-checker';
 import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeactivate       } from './features/json-copy-to-chat';
+import { activate as playwrightRunnerActivate, deactivate as playwrightRunnerDeactivate     } from './features/playwright-runner';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -152,6 +153,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate,        context);
     activateIfEnabled('corequisiteChecker',      'Corequisite Checker',                 corequisiteCheckerActivate,     context);
     activateIfEnabled('jsonCopyToChat',          'Editor: Copy JSON to Copilot Chat',   jsonCopyToChatActivate,         context);
+    activateIfEnabled('playwrightRunner',        'Playwright Runner',                   playwrightRunnerActivate,        context);
     worktreeCleanerActivate(context);
 
     context.subscriptions.push(
@@ -209,6 +211,7 @@ export function deactivate(): void {
     registryPromoteDeactivate();
     corequisiteCheckerDeactivate();
     jsonCopyToChatDeactivate();
+    playwrightRunnerDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
     deactivateProjectLauncher();
