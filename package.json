@@ -753,6 +753,12 @@
         "description": "Launch the DiskCleanUp dashboard in the default browser. Starts the --serve process if it is not already running."
       },
       {
+        "command": "cvs.tools.runningTasks",
+        "title": "Tools: Running Tasks",
+        "category": "CieloVista",
+        "description": "Open the Running Tasks panel — shows all running Windows processes with safety classification (Safe/Caution/Critical). Click a window-title cell to bring that window into focus. Multi-select and kill processes."
+      },
+      {
         "command": "cvs.tools.fileList",
         "title": "Tools: FileList",
         "category": "CieloVista",

@@ -56,6 +56,8 @@ import { activate as registryPromoteActivate, deactivate as registryPromoteDeact
 import { activate as corequisiteCheckerActivate, deactivate as corequisiteCheckerDeactivate } from './features/corequisite-checker';
 import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeactivate       } from './features/json-copy-to-chat';
 import { activate as playwrightRunnerActivate, deactivate as playwrightRunnerDeactivate     } from './features/playwright-runner';
+import { activate as diskCleanupDashboardActivate, deactivate as diskCleanupDashboardDeactivate } from './features/disk-cleanup-dashboard';
+import { activate as runningTasksActivate,         deactivate as runningTasksDeactivate           } from './features/running-tasks';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -154,6 +156,8 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('corequisiteChecker',      'Corequisite Checker',                 corequisiteCheckerActivate,     context);
     activateIfEnabled('jsonCopyToChat',          'Editor: Copy JSON to Copilot Chat',   jsonCopyToChatActivate,         context);
     activateIfEnabled('playwrightRunner',        'Playwright Runner',                   playwrightRunnerActivate,        context);
+    activateIfEnabled('diskCleanupDashboard',    'DiskCleanUp Dashboard',               diskCleanupDashboardActivate,    context);
+    activateIfEnabled('runningTasks',            'Running Tasks',                       runningTasksActivate,            context);
     worktreeCleanerActivate(context);
 
     context.subscriptions.push(
@@ -212,6 +216,8 @@ export function deactivate(): void {
     corequisiteCheckerDeactivate();
     jsonCopyToChatDeactivate();
     playwrightRunnerDeactivate();
+    diskCleanupDashboardDeactivate();
+    runningTasksDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
     deactivateProjectLauncher();
