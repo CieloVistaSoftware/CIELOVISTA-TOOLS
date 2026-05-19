@@ -44,6 +44,7 @@ let _showExcludes = false;
 let _selectedNames: string[] = [];
 let _lastViewState: FileListViewState | undefined;
 let _activationDisposables: vscode.Disposable[] = [];
+let _watcher: vscode.FileSystemWatcher | undefined;
 let _htmlServer: Server | undefined;
 let _htmlServerPort: number | undefined;
 let _htmlServerRoot: string | undefined;
@@ -366,9 +367,11 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
 </div>
 <div id="ctx-menu">
   <button id="ctx-open" style="display:none">📄 Open</button>
+  <button id="ctx-edit" style="display:none">✏️ Edit</button>
   <button id="ctx-navigate" style="display:none">📂 Open here</button>
   <button id="ctx-reveal">🔍 Reveal in Explorer</button>
   <button id="ctx-copy-path">📋 Copy path</button>
+  <button id="ctx-delete" style="color:#f48771">🗑️ Delete</button>
   <button id="ctx-run" style="display:none">▶ Run</button>
   <div id="ctx-sep" style="border-top:1px solid rgba(255,255,255,.1);margin:4px 0"></div>
   <button id="ctx-run-test" style="display:none">▶ Run Test</button>
@@ -502,11 +505,11 @@ document.getElementById('tbody').addEventListener('click', ev => {
 
   state.lastSelectedName = name;
   setSelected([name]);
-  // HTML opens on single-click. Other runnable files require double-click to run.
-  if (!isDir && isRunnableFile(name) && getFileExtension(name) !== '.html') {
-    return;
+  if (isDir) {
+    vsc.postMessage({ command: 'navigate-to', name: name, isDir: true });
+  } else {
+    vsc.postMessage({ command: 'open-file', name: name, isDir: false });
   }
-  vsc.postMessage({ command: isDir ? 'navigate-to' : 'open-file', name: name, isDir: isDir });
 });
 
 document.getElementById('tbody').addEventListener('dblclick', function(ev) {
@@ -543,6 +546,7 @@ document.getElementById('tbody').addEventListener('contextmenu', function(ev) {
   var isDir = _ctxEntry.isDir;
 
   document.getElementById('ctx-open').style.display = isDir ? 'none' : 'block';
+  document.getElementById('ctx-edit').style.display = isDir ? 'none' : 'block';
   document.getElementById('ctx-navigate').style.display = isDir ? 'block' : 'none';
 
   // Show ctx-run for runnable files
@@ -579,6 +583,10 @@ document.getElementById('ctx-open').addEventListener('click', function() {
   hideCtxMenu();
   if (_ctxEntry) { vsc.postMessage({ command: 'open-file', name: _ctxEntry.name }); }
 });
+document.getElementById('ctx-edit').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry) { vsc.postMessage({ command: 'edit-file', name: _ctxEntry.name }); }
+});
 document.getElementById('ctx-navigate').addEventListener('click', function() {
   hideCtxMenu();
   if (_ctxEntry) { vsc.postMessage({ command: 'navigate-to', name: _ctxEntry.name }); }
@@ -592,6 +600,10 @@ document.getElementById('ctx-copy-path').addEventListener('click', function() {
   if (_ctxEntry && state.dir) {
     vsc.postMessage({ command: 'copy-path', path: state.dir + '/' + _ctxEntry.name });
   }
+});
+document.getElementById('ctx-delete').addEventListener('click', function() {
+  hideCtxMenu();
+  if (_ctxEntry) { vsc.postMessage({ command: 'delete-file', name: _ctxEntry.name, isDir: _ctxEntry.isDir }); }
 });
 document.getElementById('ctx-run').addEventListener('click', function() {
   hideCtxMenu();
@@ -653,6 +665,18 @@ vsc.postMessage({ command: 'ready' });
 })();</script></body></html>`;
 }
 
+function watchCurrentDir(): void {
+    _watcher?.dispose();
+    _watcher = undefined;
+    if (!_currentDir) { return; }
+    const pattern = new vscode.RelativePattern(_currentDir, '*');
+    _watcher = vscode.workspace.createFileSystemWatcher(pattern);
+    const refresh = () => pushUpdate();
+    _watcher.onDidCreate(refresh);
+    _watcher.onDidDelete(refresh);
+    _watcher.onDidChange(refresh);
+}
+
 function pushUpdate(): void {
   if (!_panel) { return; }
   const state = makeViewState();
@@ -672,6 +696,7 @@ function navigateTo(target: string): void {
     if (!st.isDirectory()) { return; }
     _currentDir = target;
     _selectedNames = [];
+    watchCurrentDir();
     if (_panel) {
         const base = path.basename(target);
         _panel.title = `FileList — ${base}`;
@@ -717,30 +742,6 @@ async function openFile(target: string): Promise<void> {
     if (MARKDOWN_EXTENSIONS.has(ext)) {
       await vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
       return;
-    }
-
-    if (JAVASCRIPT_EXTENSIONS.has(ext)) {
-      const pick = await vscode.window.showQuickPick(
-        [
-          { label: 'Run', description: `Execute ${path.basename(target)} with Node.js`, value: 'run' },
-          { label: 'View', description: 'Open source in editor/default viewer', value: 'view' },
-        ],
-        {
-          placeHolder: `Open ${path.basename(target)} as:`,
-          ignoreFocusOut: true,
-        }
-      );
-
-      if (!pick) { return; }
-      if (pick.value === 'run') {
-        const terminal = vscode.window.createTerminal({
-          name: `Run ${path.basename(target)}`,
-          cwd: path.dirname(target),
-        });
-        terminal.show(true);
-        terminal.sendText(`node "${target}"`);
-        return;
-      }
     }
 
     if (await focusExistingEditor(uri)) {
@@ -792,6 +793,7 @@ export function openFileListPanel(): void {
     }
     // Preserve a directory pre-set by navigateFileListToFolder; fall back to workspace root.
     if (!_currentDir) { _currentDir = root!; }
+    watchCurrentDir();
     void ensureHtmlServer(_currentDir);
 
     _panel = vscode.window.createWebviewPanel(
@@ -804,6 +806,8 @@ export function openFileListPanel(): void {
     _panel.onDidDispose(() => {
         _panel = undefined;
         _currentDir = undefined;
+        _watcher?.dispose();
+        _watcher = undefined;
     });
 
     _panel.webview.onDidReceiveMessage(async msg => {
@@ -824,6 +828,13 @@ export function openFileListPanel(): void {
             }
             if (msg.command === 'open-file') {
                 await openEntryFromCurrentDir(String(msg.name), 'open');
+                return;
+            }
+            if (msg.command === 'edit-file') {
+                if (!_currentDir) { return; }
+                const target = path.join(_currentDir, String(msg.name ?? ''));
+                if (!fs.existsSync(target)) { return; }
+                await vscode.window.showTextDocument(vscode.Uri.file(target), { preview: false });
                 return;
             }
             if (msg.command === 'run-file') {
@@ -915,6 +926,26 @@ export function openFileListPanel(): void {
                 vscode.window.showErrorMessage(`\u274C ${summary} (${failedFiles} ${failedFiles === 1 ? 'file' : 'files'} failed)`);
               }
               return;
+            }
+            if (msg.command === 'delete-file') {
+                if (!_currentDir) { return; }
+                const target = path.join(_currentDir, String(msg.name ?? ''));
+                if (!fs.existsSync(target)) { return; }
+                const label = path.basename(target);
+                const answer = await vscode.window.showWarningMessage(
+                    `Delete "${label}"?`,
+                    { modal: true },
+                    'Delete'
+                );
+                if (answer !== 'Delete') { return; }
+                try {
+                    const isDir = fs.statSync(target).isDirectory();
+                    await vscode.workspace.fs.delete(vscode.Uri.file(target), { recursive: isDir, useTrash: true });
+                    pushUpdate();
+                } catch (err) {
+                    vscode.window.showErrorMessage(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+                }
+                return;
             }
             if (msg.command === 'copy-path') {
               const text = String(msg.path ?? '').trim();
@@ -1020,6 +1051,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   _lastViewState = undefined;
+  _watcher?.dispose();
+  _watcher = undefined;
   if (_activationDisposables.length > 0) {
     for (const disposable of _activationDisposables) {
       try { disposable.dispose(); } catch {}
