@@ -32,6 +32,8 @@
     "build": "npm run compile",
     "package": "vsce package",
     "rebuild": "npm run clean && npm run clean:artifacts && npm run compile && npm run test:preflight && npm run copy:commandhelp && npm run docs:generate && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog:no-mutate && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:doc-contract && npm run test:doc-auditor-html && npm run test:doc-auditor-duplicates && npm run test:mcp-viewer-path-links && npm run test:md-preview-no-cdn && npm run test:daily-audit-progress && npm run test:test-coverage-auditor && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
+    "clean:project": "node scripts/clean-project.js",
+    "clean:project:apply": "node scripts/clean-project.js --apply",
     "docs:generate": "node scripts/generate-feature-docs.js",
     "copy:commandhelp": "node scripts/copy-commandhelp.js",
     "validate:package-json": "node scripts/validate-package-json.js",
@@ -745,6 +747,12 @@
         "description": "Open GitHub to file a new issue, pre-filled with the current project name."
       },
       {
+        "command": "cvs.diskcleanup.openDashboard",
+        "title": "DiskCleanUp: Open Dashboard",
+        "category": "CieloVista",
+        "description": "Launch the DiskCleanUp dashboard in the default browser. Starts the --serve process if it is not already running."
+      },
+      {
         "command": "cvs.tools.fileList",
         "title": "Tools: FileList",
         "category": "CieloVista",
@@ -899,6 +907,11 @@
     "configuration": {
       "title": "CieloVista Tools",
       "properties": {
+        "cvs.diskcleanup.exePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to DiskCleanUp.Service.exe. Leave blank to auto-detect from the Windows Service registry or the default debug build location."
+        },
         "cielovistaTools.copilotRulesEnforcer.autoEnforce": {
           "type": "boolean",
           "default": false,
