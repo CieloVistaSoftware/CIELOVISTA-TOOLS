@@ -17,13 +17,33 @@
 
 import * as vscode from 'vscode';
 import * as https  from 'https';
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getChannel } from './output-channel';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
+
+let currentRepo = { owner: REPO_OWNER, name: REPO_NAME };
+
+function repoDisplayName(name: string): string {
+    if (name.toLowerCase() === 'cielovista-tools') { return 'CieloVista Tools'; }
+    return name;
+}
+
+function detectRepoFromWorkspace(): { owner: string; name: string } {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) { return { owner: REPO_OWNER, name: REPO_NAME }; }
+    try {
+        const output = execFileSync('git', ['remote', 'get-url', 'origin'], {
+            cwd: workspaceRoot, timeout: 3000, windowsHide: true,
+        }).toString().trim();
+        const match = output.match(/github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/);
+        if (match) { return { owner: match[1], name: match[2] }; }
+    } catch { /* not a git repo or no remote — fall through */ }
+    return { owner: REPO_OWNER, name: REPO_NAME };
+}
 
 interface GHLabel    { name: string; color: string; }
 interface GHUser     { login: string; }
@@ -52,6 +72,7 @@ interface LocalFixRef {
 
 let activePanel: vscode.WebviewPanel | undefined;
 let activeRefresh: (() => Promise<void>) | undefined;
+let activeRepo: { owner: string; name: string } | undefined;
 
 function formatIssuesForClipboard(issues: GHIssue[]): string {
     return issues.map((issue) => {
@@ -92,12 +113,22 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
  * when one is provided.
  */
 export function newIssueForProject(projectName?: string): void {
+    const repo = detectRepoFromWorkspace();
     const body = projectName ? `**Project:** ${projectName}\n\n` : '';
-    const url = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new?body=${encodeURIComponent(body)}`;
+    const url = `https://github.com/${repo.owner}/${repo.name}/issues/new?body=${encodeURIComponent(body)}`;
     void vscode.env.openExternal(vscode.Uri.parse(url));
 }
 
 export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColumn.Two): void {
+    const detected = detectRepoFromWorkspace();
+    // If the panel is already open for a different repo, close it so we reopen for the new one.
+    if (activePanel && activeRepo && (activeRepo.owner !== detected.owner || activeRepo.name !== detected.name)) {
+        activePanel.dispose();
+        activePanel = undefined;
+    }
+    currentRepo = detected;
+    activeRepo = detected;
+
     if (activePanel) {
         activePanel.reveal(viewColumn);
         if (activeRefresh) {
@@ -108,21 +139,24 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
 
     const panel = vscode.window.createWebviewPanel(
         'cvtIssues',
-        'CieloVista Tools \u2014 Open Issues',
+        `${repoDisplayName(currentRepo.name)} \u2014 Open Issues`,
         viewColumn,
         { enableScripts: true }
     );
     activePanel = panel;
+    let workspaceListener: vscode.Disposable | undefined;
     panel.onDidDispose(() => {
         activePanel = undefined;
         activeRefresh = undefined;
+        activeRepo = undefined;
+        workspaceListener?.dispose();
     });
 
     let latestIssues: GHIssue[] = [];
     let currentState: IssueState = 'open';
 
     function panelTitleFor(state: IssueState): string {
-        return `CieloVista Tools \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
+        return `${repoDisplayName(currentRepo.name)} \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
     }
 
     const setHtml = (loading: boolean, issues: GHIssue[] | null, error: string | null): void => {
@@ -142,6 +176,17 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
         }
     };
     activeRefresh = refresh;
+
+    // Auto-refresh when workspace folders change (e.g. user opens a different project).
+    workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        const newRepo = detectRepoFromWorkspace();
+        if (newRepo.owner !== currentRepo.owner || newRepo.name !== currentRepo.name) {
+            currentRepo = newRepo;
+            activeRepo = newRepo;
+            panel.title = panelTitleFor(currentState);
+            void refresh();
+        }
+    });
 
     panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number; testRef?: string }) => {
         if (!msg?.type) { return; }
@@ -164,7 +209,7 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
         } else if (msg.type === 'openLocal' && typeof (msg as { relativePath?: string }).relativePath === 'string') {
             void openLocalFixPath(String((msg as { relativePath?: string }).relativePath));
         } else if (msg.type === 'newIssue') {
-            void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new`));
+            void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/new`));
         }
     });
 
@@ -178,8 +223,8 @@ async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<v
         execFile('gh', args, { shell: true }, (err) => err ? reject(err) : resolve());
     });
     try {
-        await run(['issue', 'edit', String(number), '--add-label', 'status:in-progress', '--repo', `${REPO_OWNER}/${REPO_NAME}`]);
-        await run(['issue', 'edit', String(number), '--add-assignee', '@me',             '--repo', `${REPO_OWNER}/${REPO_NAME}`]);
+        await run(['issue', 'edit', String(number), '--add-label', 'status:in-progress', '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
+        await run(['issue', 'edit', String(number), '--add-assignee', '@me',             '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
         panel.webview.postMessage({ type: 'claimed', number });
         void vscode.window.showInformationMessage(`Issue #${number} claimed — status:in-progress applied.`);
     } catch (err: unknown) {
@@ -327,7 +372,7 @@ function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
 
         const args = [
             'issue', 'list',
-            '-R', `${REPO_OWNER}/${REPO_NAME}`,
+            '-R', `${currentRepo.owner}/${currentRepo.name}`,
             '--state', state,
             '--limit', '50',
             '--json', 'number,title,url,state,createdAt,updatedAt,closedAt,author,labels,assignees,body,comments',
@@ -371,7 +416,7 @@ function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
 
 function fetchIssuesPage(page: number, perPage: number, state: IssueState): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
-        const path = `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}`;
+        const path = `/repos/${currentRepo.owner}/${currentRepo.name}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}`;
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path,
@@ -552,7 +597,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 
     let bodyHtml: string;
     if (loading) {
-        bodyHtml = `<div class="loading">Loading ${viewState} issues from github.com/${REPO_OWNER}/${REPO_NAME}\u2026</div>`;
+        bodyHtml = `<div class="loading">Loading ${viewState} issues from github.com/${currentRepo.owner}/${currentRepo.name}\u2026</div>`;
     } else if (error) {
         bodyHtml = `<div class="error"><strong>Couldn't fetch issues.</strong><br>${esc(error)}<br><br>Click <em>\u21bb Reload</em> to try again.</div>`;
     } else if (!issues || issues.length === 0) {
@@ -874,7 +919,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 <div id="hd">
   <div id="hd-text">
         <h1>\u{1F4CB} Issue Viewer</h1>
-        <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${REPO_OWNER}/${REPO_NAME}" class="repo-link" title="Open repository on GitHub">github.com/${REPO_OWNER}/${REPO_NAME}</a></div>
+        <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${currentRepo.owner}/${currentRepo.name}" class="repo-link" title="Open repository on GitHub">github.com/${currentRepo.owner}/${currentRepo.name}</a></div>
   </div>
     <div id="hd-actions">
         <button id="state-open" class="action-btn" type="button" title="Show open issues"${viewState === 'open' ? ' style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)"' : ''}>Open</button>

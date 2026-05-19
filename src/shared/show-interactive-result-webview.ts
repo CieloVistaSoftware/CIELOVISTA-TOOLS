@@ -73,7 +73,7 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
     const panel = vscode.window.createWebviewPanel(
       viewType,
       opts.title,
-      vscode.ViewColumn.Beside,
+      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
       { enableScripts: true }
     );
 

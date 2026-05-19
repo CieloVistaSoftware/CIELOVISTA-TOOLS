@@ -154,7 +154,8 @@ export function activate(context: vscode.ExtensionContext): void {
                         // First line: Projects audited
                         output += `Projects audited (${result.projectNames.length}): ${result.projectNames.join(', ')}\n`;
                         output += `\n=== Daily Audit Results ===\n`;
-                        output += `Run at: ${runAt}\n`;
+                        const runAtLocal = new Date(runAt).toLocaleTimeString();
+                        output += `Fresh scan — ran at ${runAtLocal}\n`;
                         output += `Scanned ${checks.length} checks in ${result.report.durationMs}ms\n`;
                         output += `Summary: ${r.red} red, ${r.yellow} yellow, ${r.green} green, ${r.grey} grey\n`;
                         output += `\n---\n`;

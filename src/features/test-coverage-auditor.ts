@@ -124,6 +124,7 @@ const COMMAND_EXPORT = 'cvs.audit.testCoverage.export';
 
 let currentWebviewPanel: vscode.WebviewPanel | undefined;
 let currentReport: AuditReport | undefined;
+let _extensionPath = '';
 
 // ============================================================================
 // AUDIT EXECUTION
@@ -144,10 +145,11 @@ async function runAudit(): Promise<AuditReport> {
     throw err;
   }
 
-  const scriptPath = path.join(workspaceRoot, 'scripts', 'audit-test-coverage.js');
+  const scriptBase = _extensionPath || workspaceRoot;
+  const scriptPath = path.join(scriptBase, 'scripts', 'audit-test-coverage.js');
   if (!require('fs').existsSync(scriptPath)) {
-    const err = new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project, not in ${path.basename(workspaceRoot)}`);
-    logError(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project, not in ${path.basename(workspaceRoot)}`, err.stack || String(err), { context: 'test-coverage-auditor' });
+    const err = new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project`);
+    logError(`audit-test-coverage.js not found at: ${scriptPath}`, err.stack || String(err), { context: 'test-coverage-auditor' });
     throw err;
   }
 
@@ -1161,7 +1163,7 @@ async function exportReportAsMarkdown(): Promise<void> {
     }
 
     // Run the audit script to generate the markdown report
-    const cmd = `node "${path.join(workspaceRoot.uri.fsPath, 'scripts', 'audit-test-coverage.js')}"`;
+    const cmd = `node "${path.join(_extensionPath, 'scripts', 'audit-test-coverage.js')}"`;
     execSync(cmd, { cwd: workspaceRoot.uri.fsPath });
 
     // Find the generated report
@@ -1193,6 +1195,7 @@ async function exportReportAsMarkdown(): Promise<void> {
  * Activate the test coverage auditor feature
  */
 export function activate(context: vscode.ExtensionContext): void {
+  _extensionPath = context.extensionPath;
   const output = getChannel();
   output.appendLine('✅ Test Coverage Auditor activated');
 
