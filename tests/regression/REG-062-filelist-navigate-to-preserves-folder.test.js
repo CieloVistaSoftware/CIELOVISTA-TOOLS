@@ -111,6 +111,17 @@ function loadFileListViewer(rootDir) {
             getConfiguration() {
                 return { get() { return undefined; } };
             },
+            createFileSystemWatcher() {
+                return {
+                    onDidCreate() { return { dispose() {} }; },
+                    onDidDelete() { return { dispose() {} }; },
+                    onDidChange() { return { dispose() {} }; },
+                    dispose() {},
+                };
+            },
+        },
+        RelativePattern: class {
+            constructor(base, pattern) { this.base = base; this.pattern = pattern; }
         },
     };
 

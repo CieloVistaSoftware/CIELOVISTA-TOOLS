@@ -60,10 +60,12 @@ function buildTestHtml(entries) {
 <button id="toggle-excludes" class="toggle-btn"></button>
 <div id="ctx-menu">
   <button id="ctx-open"></button>
+  <button id="ctx-edit"></button>
   <button id="ctx-navigate"></button>
   <button id="ctx-reveal"></button>
   <button id="ctx-copy-path"></button>
   <button id="ctx-run"></button>
+  <button id="ctx-delete"></button>
   <div id="ctx-sep"></div>
   <button id="ctx-run-test"></button>
 </div>
@@ -175,14 +177,14 @@ const ENTRIES = [
 // ---------------------------------------------------------------------------
 // Tests: single-click on runnable non-HTML files — no postMessage (only selection)
 // ---------------------------------------------------------------------------
-console.log('\nSingle-click on runnable non-HTML files (should NOT post any message):');
+console.log('\nSingle-click on runnable non-HTML files (should post open-file):');
 (function testSingleClickRunnable() {
     const runnableFiles = ['script.js', 'types.ts', 'deploy.ps1'];
     for (const name of runnableFiles) {
         const { dom, posted } = createWebviewEnv(ENTRIES);
         click(dom, name);
-        assert(posted.length === 0,
-            `single-click on ${name} → no postMessage (got: ${JSON.stringify(posted)})`);
+        assert(posted.length === 1 && posted[0].command === 'open-file' && posted[0].name === name,
+            `single-click on ${name} → open-file (got: ${JSON.stringify(posted)})`);
     }
 })();
 
