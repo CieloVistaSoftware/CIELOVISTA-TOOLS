@@ -206,7 +206,7 @@ function buildHtml(data: TaskData): string {
         const safetyDot = t.safety === 'critical' ? 'dot-critical' : t.safety === 'caution' ? 'dot-caution' : 'dot-safe';
         const hasWindow = t.windowTitle ? ' data-has-window="1"' : '';
         const windowCls = t.windowTitle ? ' has-window' : '';
-        return `<tr data-pid="${t.pid}" data-safety="${esc(t.safety)}"${hasWindow}>
+        return `<tr data-pid="${t.pid}" data-safety="${esc(t.safety)}"${hasWindow} data-mem="${t.memoryMb}" data-threads="${t.threads}">
   <td class="col-check"><input type="checkbox" class="row-check" data-pid="${t.pid}"></td>
   <td class="col-dot"><span class="dot ${safetyDot}" title="${esc(t.safety)}"></span></td>
   <td class="col-pid">${t.pid}</td>
@@ -245,8 +245,12 @@ select{background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-
 .scroll-wrap{flex:1;overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead{position:sticky;top:0;z-index:10}
-th{text-align:left;padding:7px 8px;background:var(--vscode-textCodeBlock-background);border-bottom:2px solid var(--vscode-focusBorder);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;cursor:pointer;user-select:none}
-th:hover{background:var(--vscode-list-hoverBackground)}
+th{text-align:left;padding:7px 8px;background:var(--vscode-textCodeBlock-background);border-bottom:2px solid var(--vscode-focusBorder);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;user-select:none}
+th[data-col]{cursor:pointer}
+th[data-col]:hover{background:var(--vscode-list-hoverBackground)}
+th[data-col]::after{content:' ⇅';opacity:0.3;font-size:9px}
+th.sort-asc::after{content:' ▲';opacity:1;color:var(--vscode-focusBorder)}
+th.sort-desc::after{content:' ▼';opacity:1;color:var(--vscode-focusBorder)}
 td{padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 tr:hover td{background:var(--vscode-list-hoverBackground)}
 tr.selected td{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
@@ -377,6 +381,51 @@ function doRefresh(){
     vsc.postMessage({ command: 'refresh' });
 }
 
+// ── Column sort ───────────────────────────────────────────────────────────────
+var _sortCol = null;
+var _sortAsc = true;
+var NUMERIC_COLS = new Set(['pid','mem','threads']);
+
+function cellValue(tr, col) {
+    switch(col) {
+        case 'pid':     return parseInt(tr.dataset.pid, 10);
+        case 'mem':     return parseFloat(tr.dataset.mem);
+        case 'threads': return parseInt(tr.dataset.threads, 10);
+        case 'name':    return (tr.querySelector('.col-name')?.textContent || '').toLowerCase();
+        case 'wintitle':return (tr.querySelector('.col-wintitle')?.textContent || '').toLowerCase();
+        case 'company': return (tr.querySelector('.col-company')?.textContent || '').toLowerCase();
+        case 'desc':    return (tr.querySelector('.col-desc')?.textContent || '').toLowerCase();
+        case 'path':    return (tr.querySelector('.col-path')?.textContent || '').toLowerCase();
+        default:        return '';
+    }
+}
+
+document.querySelector('thead').addEventListener('click', function(e) {
+    var th = e.target.closest('th[data-col]');
+    if (!th) { return; }
+    var col = th.dataset.col;
+    if (_sortCol === col) { _sortAsc = !_sortAsc; }
+    else { _sortCol = col; _sortAsc = NUMERIC_COLS.has(col) ? false : true; }
+
+    // Update header indicators
+    document.querySelectorAll('th[data-col]').forEach(function(h) {
+        h.classList.remove('sort-asc','sort-desc');
+    });
+    th.classList.add(_sortAsc ? 'sort-asc' : 'sort-desc');
+
+    // Sort rows in tbody
+    var tbody = document.getElementById('tbody');
+    var rows  = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort(function(a, b) {
+        var av = cellValue(a, col);
+        var bv = cellValue(b, col);
+        var cmp = (typeof av === 'number') ? (av - bv) : av.localeCompare(bv);
+        return _sortAsc ? cmp : -cmp;
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
+    status('Sorted by ' + col + ' (' + (_sortAsc ? '▲ asc' : '▼ desc') + ')');
+});
+
 // Initial filter pass
 applyFilter();
 })();
@@ -418,14 +467,14 @@ applyFilter();
   <thead><tr>
     <th><input type="checkbox" id="check-all"></th>
     <th></th>
-    <th>PID</th>
-    <th>NAME</th>
-    <th>WINDOW TITLE</th>
-    <th>MEMORY</th>
-    <th>THREADS</th>
-    <th>COMPANY</th>
-    <th>DESCRIPTION</th>
-    <th>PATH</th>
+    <th data-col="pid">PID</th>
+    <th data-col="name">NAME</th>
+    <th data-col="wintitle">WINDOW TITLE</th>
+    <th data-col="mem">MEMORY</th>
+    <th data-col="threads">THREADS</th>
+    <th data-col="company">COMPANY</th>
+    <th data-col="desc">DESCRIPTION</th>
+    <th data-col="path">PATH</th>
   </tr></thead>
   <tbody id="tbody">${rows}</tbody>
 </table>
