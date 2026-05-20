@@ -54,6 +54,40 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone doc-catalog projects module — no vscode dep, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-catalog/projects.ts'],
+    outfile:     'out/features/doc-catalog/projects.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
+  // Standalone doc-catalog commands module — vscode external, consumed by view-doc tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-catalog/commands.ts'],
+    outfile:     'out/features/doc-catalog/commands.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
+  // Standalone shared modules — vscode external, consumed by view-doc tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/doc-preview.ts'],
+    outfile:     'out/shared/doc-preview.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/output-channel.ts'],
+    outfile:     'out/shared/output-channel.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Standalone doc-auditor scanner — no vscode dep, consumed by unit tests
   await esbuild.build({
     ...nodeBase,
