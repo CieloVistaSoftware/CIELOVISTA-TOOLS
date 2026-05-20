@@ -68,8 +68,6 @@ import { activate as activateFileListViewer, deactivate as deactivateFileListVie
 import { showGithubIssues, newIssueForProject } from './shared/github-issues-view';
 import { loadRegistry } from './features/doc-catalog/registry';
 import { getCurrentWorkspaceProjectName } from './features/doc-catalog/commands';
-import { registerCommandWithLogging } from './shared/command-logger';
-
 // Force inclusion of 'diff' in VSIX bundle
 import * as _forceDiffBundle from 'diff';
 

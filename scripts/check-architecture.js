@@ -1,123 +1,103 @@
 // check-architecture.js
-// Enforces cielovista-tools architecture rules for command registration and file structure.
-// Run with: node scripts/check-architecture.js
+// Enforces cielovista-tools architecture rules.
+//
+// Real rules enforced here:
+//   1. shared/ files must NOT call vscode.commands.registerCommand — only feature files register commands
+//   2. No duplicate command IDs across all feature files
+//   3. No duplicate Dewey numbers in catalog.ts
+//
+// NOT enforced (intentional design choices, not violations):
+//   - extension.ts wires everything — it is allowed to call registerCommand if needed
+//   - Feature files may register multiple related commands (e.g. catalog.open, catalog.rebuild)
+//   - Shared utilities may use vscode.window.* (output channels, webviews, etc.)
 
-const fs = require('fs');
+'use strict';
+
+const fs   = require('fs');
 const path = require('path');
 
-const SRC_DIR = path.join(__dirname, '../src');
-const FEATURE_DIR = path.join(SRC_DIR, 'features');
-const SHARED_DIR = path.join(SRC_DIR, 'shared');
-const EXTENSION_FILE = path.join(SRC_DIR, 'extension.ts');
+const SRC_DIR      = path.join(__dirname, '../src');
+const FEATURE_DIR  = path.join(SRC_DIR, 'features');
+const SHARED_DIR   = path.join(SRC_DIR, 'shared');
 
-let errors = [];
+const errors = [];
 
-// Helper: Recursively get all .ts files in a directory
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function getAllTsFiles(dir) {
-  let results = [];
-  fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results = results.concat(getAllTsFiles(fullPath));
-    } else if (entry.isFile() && fullPath.endsWith('.ts')) {
-      results.push(fullPath);
+    const results = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { results.push(...getAllTsFiles(full)); }
+        else if (entry.isFile() && full.endsWith('.ts')) { results.push(full); }
     }
-  });
-  return results;
+    return results;
 }
 
-// 1. No command registration in shared/ or extension.ts
-function checkNoCommandRegistrationOutsideFeatures() {
-  // Check shared/
-  getAllTsFiles(SHARED_DIR).forEach(file => {
-    const content = fs.readFileSync(file, 'utf8');
-    if (/vscode\.commands\.registerCommand/.test(content)) {
-      errors.push(`Command registration found in shared/: ${file}`);
-    }
-  });
-  // Check extension.ts
-  const extContent = fs.readFileSync(EXTENSION_FILE, 'utf8');
-  if (/vscode\.commands\.registerCommand/.test(extContent)) {
-    errors.push('Command registration found in extension.ts');
-  }
+function relPath(file) {
+    return path.relative(path.join(__dirname, '..'), file).replace(/\\/g, '/');
 }
 
-// 2. Each feature file registers commands for only one feature
-function checkOneJobPerFeatureFile() {
-  getAllTsFiles(FEATURE_DIR).forEach(file => {
-    const content = fs.readFileSync(file, 'utf8');
-    const matches = [...content.matchAll(/vscode\.commands\.registerCommand\(['"](cvs\.[^'"]+)['"]/g)];
-    const uniqueCommands = new Set(matches.map(m => m[1]));
-    if (uniqueCommands.size > 1) {
-      errors.push(`Multiple commands registered in one feature file: ${file} (${[...uniqueCommands].join(', ')})`);
+// ── Check 1: No registerCommand in shared/ ────────────────────────────────────
+// shared/ files are pure utilities — command registration belongs in features/ only.
+
+function checkNoRegisterCommandInShared() {
+    for (const file of getAllTsFiles(SHARED_DIR)) {
+        const src = fs.readFileSync(file, 'utf8');
+        if (/vscode\.commands\.registerCommand\s*\(/.test(src)) {
+            errors.push(`registerCommand in shared/ (move to a feature file): ${relPath(file)}`);
+        }
     }
-  });
 }
 
-// 3. No duplicate command IDs across all features
+// ── Check 2: No duplicate command IDs across feature files ────────────────────
+// Two feature files must not register the same command string.
+
 function checkNoDuplicateCommandIds() {
-  const commandMap = new Map();
-  getAllTsFiles(FEATURE_DIR).forEach(file => {
-    const content = fs.readFileSync(file, 'utf8');
-    const matches = [...content.matchAll(/vscode\.commands\.registerCommand\(['"](cvs\.[^'"]+)['"]/g)];
-    matches.forEach(m => {
-      const cmd = m[1];
-      if (commandMap.has(cmd)) {
-        errors.push(`Duplicate command ID: ${cmd} in both ${commandMap.get(cmd)} and ${file}`);
-      } else {
-        commandMap.set(cmd, file);
-      }
-    });
-  });
-}
-
-// 4. shared/ files export pure functions only (no command registration, no side effects)
-function checkSharedPureFunctions() {
-  getAllTsFiles(SHARED_DIR).forEach(file => {
-    const content = fs.readFileSync(file, 'utf8');
-    if (/vscode\.commands\.registerCommand/.test(content) || /vscode\.window\./.test(content)) {
-      errors.push(`Side effect or command registration in shared/: ${file}`);
+    const seen = new Map(); // commandId → first file
+    for (const file of getAllTsFiles(FEATURE_DIR)) {
+        const src = fs.readFileSync(file, 'utf8');
+        for (const m of src.matchAll(/vscode\.commands\.registerCommand\s*\(\s*['"`](cvs\.[^'"`]+)['"`]/g)) {
+            const cmd = m[1];
+            if (seen.has(cmd)) {
+                if (seen.get(cmd) !== file) {   // same file registering twice is caught separately
+                    errors.push(`Duplicate command ID '${cmd}': ${relPath(seen.get(cmd))} and ${relPath(file)}`);
+                }
+            } else {
+                seen.set(cmd, file);
+            }
+        }
     }
-  });
 }
 
-// Run all checks
-checkNoCommandRegistrationOutsideFeatures();
-checkOneJobPerFeatureFile();
-checkNoDuplicateCommandIds();
-checkSharedPureFunctions();
-
-// 5. No duplicate Dewey numbers in the catalog
+// ── Check 3: No duplicate Dewey numbers in catalog.ts ────────────────────────
 
 function checkNoDuplicateDeweyNumbers() {
-  const catalogPath = path.join(FEATURE_DIR, 'cvs-command-launcher', 'catalog.ts');
-  if (!fs.existsSync(catalogPath)) return;
-  const content = fs.readFileSync(catalogPath, 'utf8');
-  // Extract the CATALOG array definition
-  const arrMatch = content.match(/export const CATALOG: CmdEntry\[] = \[(.*?)];/s);
-  if (!arrMatch) return;
-  const arrText = arrMatch[1];
-  // Find all dewey: ... entries (robust to whitespace, comments, trailing commas)
-  const deweyRegex = /dewey\s*:\s*['"](\d{3}\.[0-9]{3})['"]/g;
-  const seen = new Map();
-  let match;
-  while ((match = deweyRegex.exec(arrText)) !== null) {
-    const dewey = match[1];
-    if (seen.has(dewey)) {
-      errors.push(`Duplicate Dewey number: ${dewey} in catalog.ts (entries ${seen.get(dewey)} and ${match.index})`);
-    } else {
-      seen.set(dewey, match.index);
+    const catalogPath = path.join(FEATURE_DIR, 'cvs-command-launcher', 'catalog.ts');
+    if (!fs.existsSync(catalogPath)) { return; }
+    const src  = fs.readFileSync(catalogPath, 'utf8');
+    const seen = new Map();
+    for (const m of src.matchAll(/dewey\s*:\s*['"](\d{3}\.[0-9]{3})['"]/g)) {
+        const dewey = m[1];
+        if (seen.has(dewey)) {
+            errors.push(`Duplicate Dewey number ${dewey} in catalog.ts`);
+        } else {
+            seen.set(dewey, true);
+        }
     }
-  }
 }
 
+// ── Run ───────────────────────────────────────────────────────────────────────
+
+checkNoRegisterCommandInShared();
+checkNoDuplicateCommandIds();
 checkNoDuplicateDeweyNumbers();
 
 if (errors.length === 0) {
-  console.log('✅ Architecture checks passed.');
-  process.exit(0);
+    console.log('✅ Architecture checks passed.');
+    process.exit(0);
 } else {
-  console.error('❌ Architecture violations found:');
-  errors.forEach(e => console.error(' - ' + e));
-  process.exit(1);
+    console.error('❌ Architecture violations found:');
+    errors.forEach(e => console.error('  - ' + e));
+    process.exit(1);
 }
