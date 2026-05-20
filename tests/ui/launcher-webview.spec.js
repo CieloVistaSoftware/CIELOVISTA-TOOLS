@@ -116,7 +116,7 @@ test('Search input filters cards', async ({ page }) => {
     const allCards = await page.locator('.cmd-card').count();
     await page.fill('#search', 'readme');
     await page.waitForTimeout(150);
-    const visible = await page.locator('.cmd-card:not([style*="display: none"])').count();
+    const visible = await page.locator('.cmd-card:not(.hidden)').count();
     expect(visible).toBeLessThan(allCards);
     expect(visible).toBeGreaterThan(0);
 });
