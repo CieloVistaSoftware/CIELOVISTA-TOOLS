@@ -133,13 +133,17 @@ async function openPanel(): Promise<void> {
             }
             case 'run': {
                 if (!msg.dir || !msg.script) { break; }
+                // Open in the integrated terminal panel (bottom) — NOT in the editor area.
+                // Editor-area terminals (ViewColumn.Beside) can displace or replace the
+                // webview tab. The terminal panel is a separate surface that never
+                // interferes with editor panels. show(true) reveals it without stealing focus.
                 const term = vscode.window.createTerminal({
                     name: `npm: ${msg.script}`,
                     cwd:  msg.dir,
-                    location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+                    location: vscode.TerminalLocation.Panel,
                 });
                 _termMap.set(term, { dir: msg.dir, script: msg.script });
-                term.show(true);
+                term.show(/* preserveFocus= */ true);
                 term.sendText(`npm run ${msg.script}`);
                 // Tell the webview this script is now running
                 void _panel?.webview.postMessage({
