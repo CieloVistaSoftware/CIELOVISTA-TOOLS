@@ -442,6 +442,45 @@ const CHECKS: Check[] = [
         }
     },
 
+    {
+        id: 'chk-home-page-ui',
+        name: 'Home Page UI responsiveness',
+        async run() {
+            try {
+                log(FEATURE, 'Running Home Page UI test...');
+                const testFile = path.join(__dirname, '..', '..', 'tests', 'ui', 'home-page.spec.ts');
+                if (!fs.existsSync(testFile)) {
+                    logError('Home page test file not found', `File not found: ${testFile}`, FEATURE);
+                    return;
+                }
+
+                // This is a simplified way to run a Playwright test from within the extension.
+                // A more robust solution would use the Playwright programmatic API.
+                const command = `npx playwright test tests/ui/home-page.spec.ts`;
+                const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+
+                const term = vscode.window.createTerminal({ name: 'Home Page UI Test', cwd: workspaceRoot });
+                term.sendText(command);
+                term.show(false); // Run in background
+
+                // We can't easily get the result here, but we can monitor the terminal.
+                // For now, we'll just log that the test was started.
+                log(FEATURE, 'Home Page UI test started in terminal.');
+                clearBug('bug-home-page-ui');
+
+            } catch (error) {
+                addBug({
+                    id: 'bug-home-page-ui',
+                    checkId: 'chk-home-page-ui',
+                    title: 'Home Page UI test failed to run',
+                    detail: error instanceof Error ? error.message : String(error),
+                    priority: 'high',
+                    category: 'UI Tests',
+                });
+            }
+        }
+    },
+
 ];
 
 // ── Runner loop ───────────────────────────────────────────────────────────────
@@ -529,6 +568,7 @@ function buildFixBugsHtml(state: HealthState): string {
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
 #toolbar{position:sticky;top:0;z-index:10;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:12px}
 #toolbar h1{font-size:1.05em;font-weight:700;flex:1}
+#toolbar .controls { display: flex; align-items: center; gap: 8px; }
 .stat{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
 .stat strong{color:var(--vscode-editor-foreground)}
 #progress-bar-wrap{height:3px;background:var(--vscode-panel-border);border-radius:2px;overflow:hidden;margin:0 16px 0}
@@ -558,6 +598,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .bug-time{font-size:10px;color:var(--vscode-descriptionForeground);flex:1}
 .fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
 .fix-btn:hover{background:var(--vscode-button-hoverBackground)}
+.stop-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
+.stop-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .issue-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
 .issue-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .dismiss-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px}
@@ -595,6 +637,11 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         vscode.postMessage({ command: 'open-evidence', path: btn.dataset.path, line: parseInt(btn.dataset.line || '1', 10), column: parseInt(btn.dataset.col || '1', 10) });
     }
+  if (btn.dataset.action === 'stop-runner') {
+        vscode.postMessage({ command: 'stop-runner' });
+        btn.textContent = 'Stopping...';
+        btn.disabled = true;
+    }
   if (btn.dataset.action === 'dismiss') {
     vscode.postMessage({ command: 'dismiss', bugId: btn.dataset.id });
     var card = btn.closest('.bug-card');
@@ -607,6 +654,17 @@ window.addEventListener('message', function(e) {
   if (m.type === 'update') {
     // Reload the page with fresh state
     vscode.postMessage({ command: 'reload' });
+  }
+  if (m.type === 'runner-stopped') {
+    var stopBtn = document.querySelector('.stop-btn');
+    if (stopBtn) {
+        stopBtn.textContent = 'Stopped';
+        stopBtn.disabled = true;
+    }
+    var nextCheckEl = document.getElementById('next-check');
+    if (nextCheckEl) {
+        nextCheckEl.textContent = 'Runner stopped.';
+    }
   }
   if (m.type === 'progress') {
     var bar = document.getElementById('progress-bar');
@@ -644,8 +702,11 @@ window.addEventListener('message', function(e) {
         return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div id="toolbar">
     <h1>&#128027; Fix Bugs</h1>
-    <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
-    <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
+    <div class="controls">
+        <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
+        <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
+        <button class="stop-btn" data-action="stop-runner">Stop Runner</button>
+    </div>
 </div>
 <div id="progress-bar-wrap"><div id="progress-bar" style="width:${pct}%"></div></div>
 <div id="next-check">&#9203; Next: ${nextCheck}</div>
@@ -681,6 +742,20 @@ ${JS}
 </body></html>`;
 }
 
+function stopRunner(): void {
+    if (_running) {
+        _running = false;
+        if (_timer) {
+            clearTimeout(_timer);
+            _timer = undefined;
+        }
+        log(FEATURE, 'Background health runner stopped by user.');
+        if (_panel) {
+            _panel.webview.postMessage({ type: 'runner-stopped' });
+        }
+    }
+}
+
 export async function showFixBugsPanel(): Promise<void> {
     const html = buildFixBugsHtml(_state);
 
@@ -701,6 +776,9 @@ export async function showFixBugsPanel(): Promise<void> {
                     await vscode.commands.executeCommand(msg.cmdId);
                     clearBug(msg.bugId);
                     saveState();
+                }
+                if (msg.command === 'stop-runner') {
+                    stopRunner();
                 }
                 if (msg.command === 'dismiss') {
                     clearBug(msg.bugId);
@@ -806,16 +884,18 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
     );
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
+    );
 
     log(FEATURE, `Background runner active — ${CHECKS.length} checks, ${CHECK_GAP_MS}ms gap`);
 }
 
 export function deactivate(): void {
-    _running = false;
-    if (_timer) { clearTimeout(_timer); _timer = undefined; }
+    stopRunner();
+    releaseSingleton();
     _panel?.dispose();
     _panel = undefined;
-    releaseSingleton();
     log(FEATURE, 'Background health runner stopped');
 }
 

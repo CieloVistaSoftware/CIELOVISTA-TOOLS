@@ -382,23 +382,48 @@ function doRefresh(){
 }
 
 // ── Column sort ───────────────────────────────────────────────────────────────
-var _sortCol = null;
-var _sortAsc = true;
 var NUMERIC_COLS = new Set(['pid','mem','threads']);
+
+// Restore sort state across full HTML refreshes (vsc.getState survives webview reload)
+var _savedState = vsc.getState() || {};
+var _sortCol = _savedState.sortCol || null;
+var _sortAsc = (_savedState.sortAsc !== undefined) ? _savedState.sortAsc : true;
 
 function cellValue(tr, col) {
     switch(col) {
         case 'pid':     return parseInt(tr.dataset.pid, 10);
         case 'mem':     return parseFloat(tr.dataset.mem);
         case 'threads': return parseInt(tr.dataset.threads, 10);
-        case 'name':    return (tr.querySelector('.col-name')?.textContent || '').toLowerCase();
-        case 'wintitle':return (tr.querySelector('.col-wintitle')?.textContent || '').toLowerCase();
-        case 'company': return (tr.querySelector('.col-company')?.textContent || '').toLowerCase();
-        case 'desc':    return (tr.querySelector('.col-desc')?.textContent || '').toLowerCase();
-        case 'path':    return (tr.querySelector('.col-path')?.textContent || '').toLowerCase();
+        case 'name':    return (tr.querySelector('.col-name') ? tr.querySelector('.col-name').textContent : '').toLowerCase();
+        case 'wintitle':return (tr.querySelector('.col-wintitle') ? tr.querySelector('.col-wintitle').textContent : '').toLowerCase();
+        case 'company': return (tr.querySelector('.col-company') ? tr.querySelector('.col-company').textContent : '').toLowerCase();
+        case 'desc':    return (tr.querySelector('.col-desc') ? tr.querySelector('.col-desc').textContent : '').toLowerCase();
+        case 'path':    return (tr.querySelector('.col-path') ? tr.querySelector('.col-path').textContent : '').toLowerCase();
         default:        return '';
     }
 }
+
+function applySort(col, asc) {
+    // Update header indicators
+    document.querySelectorAll('th[data-col]').forEach(function(h) {
+        h.classList.remove('sort-asc','sort-desc');
+    });
+    var th = document.querySelector('th[data-col="' + col + '"]');
+    if (th) { th.classList.add(asc ? 'sort-asc' : 'sort-desc'); }
+    // Sort rows in tbody
+    var tbody = document.getElementById('tbody');
+    var rows  = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort(function(a, b) {
+        var av = cellValue(a, col);
+        var bv = cellValue(b, col);
+        var cmp = (typeof av === 'number') ? (av - bv) : String(av).localeCompare(String(bv));
+        return asc ? cmp : -cmp;
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
+}
+
+// Reapply saved sort immediately on load (after every HTML refresh)
+if (_sortCol) { applySort(_sortCol, _sortAsc); }
 
 document.querySelector('thead').addEventListener('click', function(e) {
     var th = e.target.closest('th[data-col]');
@@ -407,22 +432,9 @@ document.querySelector('thead').addEventListener('click', function(e) {
     if (_sortCol === col) { _sortAsc = !_sortAsc; }
     else { _sortCol = col; _sortAsc = NUMERIC_COLS.has(col) ? false : true; }
 
-    // Update header indicators
-    document.querySelectorAll('th[data-col]').forEach(function(h) {
-        h.classList.remove('sort-asc','sort-desc');
-    });
-    th.classList.add(_sortAsc ? 'sort-asc' : 'sort-desc');
-
-    // Sort rows in tbody
-    var tbody = document.getElementById('tbody');
-    var rows  = Array.from(tbody.querySelectorAll('tr'));
-    rows.sort(function(a, b) {
-        var av = cellValue(a, col);
-        var bv = cellValue(b, col);
-        var cmp = (typeof av === 'number') ? (av - bv) : av.localeCompare(bv);
-        return _sortAsc ? cmp : -cmp;
-    });
-    rows.forEach(function(r) { tbody.appendChild(r); });
+    applySort(_sortCol, _sortAsc);
+    // Persist so next refresh restores the same sort
+    vsc.setState({ sortCol: _sortCol, sortAsc: _sortAsc });
     status('Sorted by ' + col + ' (' + (_sortAsc ? '▲ asc' : '▼ desc') + ')');
 });
 
