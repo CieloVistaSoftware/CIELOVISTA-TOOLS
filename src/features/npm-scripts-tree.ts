@@ -26,6 +26,9 @@ const COMMAND  = 'cvs.npm.tree';
 
 let _panel: vscode.WebviewPanel | undefined;
 
+// Map from terminal → { dir, script } for exit-status tracking
+const _termMap = new Map<vscode.Terminal, { dir: string; script: string }>();
+
 interface ScriptEntry { name: string; cmd: string; }
 interface PkgEntry    { label: string; relPath: string; absDir: string; scripts: ScriptEntry[]; }
 
@@ -135,8 +138,13 @@ async function openPanel(): Promise<void> {
                     cwd:  msg.dir,
                     location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
                 });
+                _termMap.set(term, { dir: msg.dir, script: msg.script });
                 term.show(true);
                 term.sendText(`npm run ${msg.script}`);
+                // Tell the webview this script is now running
+                void _panel?.webview.postMessage({
+                    type: 'run-state', dir: msg.dir, script: msg.script, state: 'running',
+                });
                 log(FEATURE, `run: ${msg.script} in ${msg.dir}`);
                 break;
             }
@@ -150,7 +158,22 @@ async function openPanel(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
-        vscode.commands.registerCommand(COMMAND, openPanel)
+        vscode.commands.registerCommand(COMMAND, openPanel),
+
+        // Track terminal exit codes → send run-state back to webview
+        vscode.window.onDidCloseTerminal(terminal => {
+            const info = _termMap.get(terminal);
+            if (!info) { return; }
+            _termMap.delete(terminal);
+            const code = terminal.exitStatus?.code;
+            // code===undefined means the terminal was closed manually (signal kill / user X)
+            // treat as ok so the button doesn't flash red when the user closes the tab
+            const state: 'ok' | 'error' = (code === undefined || code === 0) ? 'ok' : 'error';
+            void _panel?.webview.postMessage({
+                type: 'run-state', dir: info.dir, script: info.script, state,
+            });
+            log(FEATURE, `exit: ${info.script} code=${code ?? 'closed'} → ${state}`);
+        }),
     );
     log(FEATURE, 'activated');
 }
