@@ -121,9 +121,6 @@ async function collectCards(): Promise<ProjectCardData[]> {
     const byDir = new Map<string, Record<string, string>>();
     const seen  = new Set<string>();
 
-    // Always check the root package.json of every open workspace folder first.
-    // vscode.workspace.findFiles can miss the root-level package.json in some
-    // workspace configurations (e.g. multi-root, no folder open, extension host).
     for (const wsFolder of vscode.workspace.workspaceFolders ?? []) {
         const pkgPath = path.join(wsFolder.uri.fsPath, 'package.json');
         if (!fs.existsSync(pkgPath)) { continue; }
@@ -139,8 +136,7 @@ async function collectCards(): Promise<ProjectCardData[]> {
         }
     }
 
-    // Also scan deeper via glob to pick up nested packages (monorepos etc)
-    const files = await vscode.workspace.findFiles('**/package.json', '**/node_modules/**');
+    const files = await vscode.workspace.findFiles('**/package.json', '{**/node_modules/**,**/.claude/**}');
 
     for (const file of files) {
         const dir = path.dirname(file.fsPath);
@@ -156,8 +152,6 @@ async function collectCards(): Promise<ProjectCardData[]> {
         }
     }
 
-    // Fallback: if the workspace has no npm scripts, scan all registered projects instead.
-    // This happens when the current workspace (e.g. DrAlex) has no package.json.
     if (byDir.size === 0) {
         const registry = loadRegistry();
         if (registry?.projects) {
@@ -176,7 +170,6 @@ async function collectCards(): Promise<ProjectCardData[]> {
         }
     }
 
-    // Final fallback: include known local roots even when no workspace folders are open.
     if (byDir.size === 0) {
         const fallbackDirs = [path.resolve(__dirname, '../'), process.cwd()];
         for (const dir of fallbackDirs) {
@@ -210,6 +203,7 @@ async function collectCards(): Promise<ProjectCardData[]> {
         return left.rootPath.localeCompare(right.rootPath);
     });
 
+    log(FEATURE, `collectCards: ${cards.length} projects found`);
     return cards;
 }
 
@@ -278,6 +272,7 @@ async function pushPortStatuses(cards: ProjectCardData[]): Promise<void> {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 async function openPanel(): Promise<void> {
+    log(FEATURE, `openPanel called — existing panel: ${!!_panel}`);
     const cards = await collectCards();
     if (!cards.length) {
         vscode.window.showWarningMessage('No npm scripts found in workspace.');
@@ -287,10 +282,9 @@ async function openPanel(): Promise<void> {
     _latestCards = cards;
     const currentProjectPath = resolveCurrentProjectPath(_latestCards);
     const sendInit = () => {
-        const folderSuffix = _latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : '';
         _panel?.webview.postMessage({
             type: 'init',
-            title: 'package.json Scripts' + folderSuffix,
+            title: 'package.json Scripts' + (_latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : ''),
             cards: _latestCards,
             currentProjectPath,
         });
@@ -301,6 +295,10 @@ async function openPanel(): Promise<void> {
         _panel.reveal(vscode.ViewColumn.One, false);
         return;
     }
+
+    // Track whether the webview's 'ready' handshake arrived.
+    // The fallback timeout below posts init if it never does.
+    let _readyReceived = false;
 
     _panel = vscode.window.createWebviewPanel(
         'npmScripts', 'package.json',
@@ -418,6 +416,7 @@ async function openPanel(): Promise<void> {
                 postRegistryToPanel();
                 break;
             case 'ready': {
+                _readyReceived = true;
                 const folderSuffix2 = _latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : '';
                 const currentProjectPath2 = resolveCurrentProjectPath(_latestCards);
                 void _panel?.webview.postMessage({
@@ -492,6 +491,21 @@ async function openPanel(): Promise<void> {
     // Keep init payload handshake-driven via the webview's 'ready' message.
     // This avoids timing races where a fixed-delay postMessage can be missed.
     _panel.webview.html = PROJECT_CARD_SHELL_HTML;
+
+    // Fallback: if the webview never sends 'ready', push init after a delay.
+    setTimeout(() => {
+        if (!_readyReceived && _panel && _latestCards.length) {
+            void _panel.webview.postMessage({
+                type: 'init',
+                title: 'package.json Scripts' + (_latestCards.length === 1 ? '  ·  ' + _latestCards[0].name : ''),
+                cards: _latestCards,
+                currentProjectPath: resolveCurrentProjectPath(_latestCards),
+            });
+            void pushPortStatuses(_latestCards);
+            if (_portPollTimer) { clearInterval(_portPollTimer); }
+            _portPollTimer = setInterval(() => { void pushPortStatuses(_latestCards); }, 5000);
+        }
+    }, 1500);
 
     log(FEATURE, `Opened with ${cards.length} project cards`);
 }
