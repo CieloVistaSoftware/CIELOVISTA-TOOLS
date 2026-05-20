@@ -324,6 +324,40 @@ ok('#307 batch review panel disposed on deactivate',
     readmeFeatureSrc.includes('_batchPanel?.dispose()'),
     '_batchPanel must exist and be disposed in deactivate()');
 
+// ── Installed HTML files — webview panels that are NOT bundled into extension.js ──
+// These files must be physically present in out/ of the INSTALLED extension.
+// A missing HTML file produces a blank "file missing" error panel at runtime.
+// This catches the class of bug where copy-commandhelp.js has the wrong dest path.
+
+if (fs.existsSync(installedRoot)) {
+    const installedOut = path.join(installedRoot, 'out');
+    const requiredHtmlFiles = [
+        { file: 'npm-scripts-tree.html',  desc: 'NPM Scripts Tree panel — Run buttons will be dead without this' },
+        { file: 'catalog.html',           desc: 'Doc Catalog panel shell' },
+    ];
+    console.log('\n-- Installed HTML Webview Files --\n');
+    for (const { file, desc } of requiredHtmlFiles) {
+        const fullPath = path.join(installedOut, file);
+        const exists   = fs.existsSync(fullPath);
+        ok(`Installed: out/${file}`, exists, exists ? desc : `MISSING — ${fullPath}\n         Run button and panel will show error. Fix: check scripts/copy-commandhelp.js destination path.`);
+
+        // Content smoke-test — verify key interactive elements are present
+        if (exists) {
+            const html = fs.readFileSync(fullPath, 'utf8');
+            if (file === 'npm-scripts-tree.html') {
+                ok(`  out/${file} contains Run button (.btn-run)`,      html.includes('btn-run'),   'Run buttons must be present for script execution');
+                ok(`  out/${file} contains filter input (#filter)`,     html.includes('id="filter"'), 'Filter input must be present');
+                ok(`  out/${file} contains Refresh button`,             html.includes('btn-refresh'), 'Refresh button must be present');
+                ok(`  out/${file} handles run-state messages`,          html.includes('run-state'),  'Must handle run-state for color feedback');
+                ok(`  out/${file} handles init message from host`,      html.includes("'init'"),     'Must handle init to render script groups');
+            }
+            if (file === 'catalog.html') {
+                ok(`  out/${file} contains catalog shell structure`,    html.includes('cat-section') || html.includes('catalog'), 'Catalog shell must have section structure');
+            }
+        }
+    }
+}
+
 // #313 — Doc Intelligence kind pills filter the findings list
 ok('#313 Doc Intelligence kind pills are buttons with data-filter="kind:..."',
     bundleSrc.includes('data-filter="kind:'),
