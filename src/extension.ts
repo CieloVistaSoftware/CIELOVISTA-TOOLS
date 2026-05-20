@@ -1,4 +1,4 @@
-// Copyright (c) 2025 CieloVista Software. All rights reserved.
+﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 /**
  * extension.ts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â CieloVista Tools root entry point.
@@ -36,6 +36,7 @@ import { activate as projectLauncher,         deactivate as deactivateProjectLau
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
 import { activate as projectHomeOpener,       deactivate as deactivateProjectHomeOpener  } from './features/project-home-opener';
 import { activate as npmCommandLauncher,      deactivate as deactivateNpmCommandLauncher } from './features/npm-command-launcher';
+import { activate as npmScriptsTree,          deactivate as deactivateNpmScriptsTree      } from './features/npm-scripts-tree';
 import { activate as mcpServerScaffolder,     deactivate as deactivateMcpServerScaffolder } from './features/mcp-server-scaffolder';
 import { activate as openFolderAsRoot,        deactivate as deactivateOpenFolderAsRoot    } from './features/open-folder-as-root';
 import { activate as testCoverageAuditor,     deactivate as deactivateTestCoverageAuditor } from './features/test-coverage-auditor';
@@ -68,12 +69,10 @@ import { activate as activateFileListViewer, deactivate as deactivateFileListVie
 import { showGithubIssues, newIssueForProject } from './shared/github-issues-view';
 import { loadRegistry } from './features/doc-catalog/registry';
 import { getCurrentWorkspaceProjectName } from './features/doc-catalog/commands';
-
+import { registerCommandWithLogging } from './shared/command-logger';
 
 // Force inclusion of 'diff' in VSIX bundle
 import * as _forceDiffBundle from 'diff';
-
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
 function activateIfEnabled(
     key: string,
@@ -140,6 +139,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('cvsCommandLauncher',      'CVS Command Launcher',          cvsCommandLauncher,      context);
     activateIfEnabled('projectHomeOpener',       'Project Home Opener',           projectHomeOpener,       context);
     activateIfEnabled('npmCommandLauncher',      'NPM Command Launcher',          npmCommandLauncher,      context);
+    activateIfEnabled('npmScriptsTree',          'NPM Scripts Tree',              npmScriptsTree,          context);
     activateIfEnabled('mcpServerScaffolder',     'MCP Server Scaffolder',         mcpServerScaffolder,     context);
     activateIfEnabled('openFolderAsRoot',        'Explorer: Open Folder as Root', openFolderAsRoot,        context);
     activateIfEnabled('testCoverageAuditor',     'Test Coverage Auditor',         testCoverageAuditor,     context);
@@ -185,6 +185,7 @@ export function deactivate(): void {
     deactivateOpenFolderAsRoot();
     deactivateMcpServerScaffolder();
     deactivateNpmCommandLauncher();
+    deactivateNpmScriptsTree();
     deactivateProjectHomeOpener();
     deactivateCvsCommandLauncher();
     deactivateOpenaiChat();

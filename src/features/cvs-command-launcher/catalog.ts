@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cmd
+
 import type { CmdEntry } from './types';
 import { buildRunTooltip } from './tooltip-builder';
 
@@ -102,6 +104,7 @@ const RAW_CATALOG: CmdEntry[] = [
     { id: 'cvs.openai.generateDocstring',  title: 'OpenAI: Generate Docstring',   description: 'Generate a JSDoc for the selected function via OpenAI.', tags: ['openai', 'docs', 'ai'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.304', scope: 'workspace', helpDoc: README('openai-chat'), location: 'features/openai-chat.ts' },
     { id: 'cvs.openai.openChat',           title: 'OpenAI: Open Chat Panel',      description: 'Open a full OpenAI chat panel inside VS Code.', tags: ['openai', 'chat', 'ai'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.305', scope: 'workspace', helpDoc: README('openai-chat'), location: 'features/openai-chat.ts' },
     { id: 'cvs.npm.showAndRunScripts',     title: 'NPM Scripts: Show and Run',    description: 'Browse and run npm scripts from package.json.', tags: ['npm', 'scripts', 'run'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.306', scope: 'workspace', action: 'read', helpDoc: README('npm-command-launcher'), location: 'features/npm-command-launcher.ts' },
+    { id: 'cvs.npm.tree',                  title: 'NPM Scripts: Tree View',       description: 'All workspace npm scripts grouped by package.json — simple tree, click to run.', tags: ['npm', 'scripts', 'tree', 'run'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.319', scope: 'workspace', action: 'read', helpDoc: README('npm-scripts-tree'), location: 'features/npm-scripts-tree.ts' },
     { id: 'cvs.mcp.createServer',          title: 'MCP Server: Create',           description: 'Scaffold a new MCP server project.', tags: ['mcp', 'create server', 'scaffold'], group: 'Other Tools', groupIcon: '🧰', dewey: '600.307', scope: 'workspace', location: 'features/cvs-command-launcher/index.ts' },
     // ── MCP Server Control (600) — workspace ────────────────────────────────
     { id: 'cvs.mcp.startServer',           title: 'Restart MCP Server',           description: 'Restart the MCP server (dist/index.js) and show real-time status.', tags: ['mcp', 'server', 'restart', 'status'], group: 'Other Tools', groupIcon: '🟢', dewey: '600.310', scope: 'workspace', location: 'features/cvs-command-launcher/index.ts' },

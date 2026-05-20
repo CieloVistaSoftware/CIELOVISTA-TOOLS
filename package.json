@@ -149,6 +149,12 @@
         "description": "Open your configured CieloVista home project root in VS Code."
       },
       {
+        "command": "cvs.npm.tree",
+        "title": "NPM Scripts: Tree View",
+        "category": "CieloVista NPM",
+        "description": "Show all workspace npm scripts grouped by package.json — simple tree view, click to run."
+      },
+      {
         "command": "cvs.npm.showAndRunScripts",
         "title": "NPM Scripts: Show and Run",
         "category": "CieloVista NPM",
