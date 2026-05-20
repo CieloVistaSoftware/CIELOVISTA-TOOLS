@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: log
+
 /**
  * output-channel.ts
  * ONE shared OutputChannel for the entire CieloVista Tools extension.
@@ -19,6 +22,7 @@ let _channel: vscode.OutputChannel | undefined;
 export function getChannel(): vscode.OutputChannel {
     if (!_channel) {
         _channel = vscode.window.createOutputChannel('CieloVista Tools');
+        _channel.show(false);
     }
     return _channel;
 }

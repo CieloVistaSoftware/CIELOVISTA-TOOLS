@@ -17,8 +17,7 @@ relativepath: src/features/code-auditor.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Runs `scripts/code-auditor.js --json` to detect duplicate code clusters (exact, near-duplicate, and pattern-based) across the codebase. Renders a clickable webview report with cluster type, similarity percentage, file locations, and a suggested shared path. Individual clusters can be filed as GitHub issues directly from the panel.
 
 ---
 

@@ -5,7 +5,7 @@ title: CLAUDE.md — cielovista-tools
 project: cielovista-tools
 description: 1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…
 status: active
-tags: [claude, claudemd, cielovistatools]
+tags: [claude, claudemd, cielovistatools, AI]
 category: 150.5 — AI Coordination
 created: 2026-04-22
 updated: 2026-04-27

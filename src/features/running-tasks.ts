@@ -1,5 +1,8 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: tasks
+
 /**
  * running-tasks.ts
  *
@@ -161,6 +164,9 @@ using System.Runtime.InteropServices;
 public class CvsWinFocus {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
 }
 '@ -ErrorAction SilentlyContinue
 `;
@@ -170,8 +176,13 @@ function focusWindowByPid(pid: number): boolean {
 ${WIN_FOCUS_TYPE}
 $proc = Get-Process -Id ${pid} -ErrorAction SilentlyContinue
 if ($proc -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
-    [CvsWinFocus]::ShowWindow($proc.MainWindowHandle, 9) | Out-Null
-    [CvsWinFocus]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+    $handle = $proc.MainWindowHandle
+    if ([CvsWinFocus]::IsIconic($handle)) {
+        [CvsWinFocus]::ShowWindow($handle, 9) | Out-Null # SW_RESTORE
+    }
+    [CvsWinFocus]::BringWindowToTop($handle) | Out-Null
+    [CvsWinFocus]::SetForegroundWindow($handle) | Out-Null
+    [CvsWinFocus]::SwitchToThisWindow($handle, $true)
     Write-Output 'ok'
 } else {
     Write-Output 'no-window'
@@ -319,6 +330,25 @@ document.getElementById('tbody').addEventListener('change', function(e){
     if (e.target.classList.contains('row-check')){ updateKillBtn(); }
 });
 
+document.getElementById('tbody').addEventListener('click', function(e) {
+    // If the click was on a checkbox or a window title link, let the other handlers manage it.
+    if (e.target.type === 'checkbox' || e.target.closest('.col-wintitle.has-window')) {
+        return;
+    }
+
+    // Find the table row that was clicked.
+    const tr = e.target.closest('tr');
+    if (!tr) { return; }
+
+    // Find the checkbox in that row and toggle its state.
+    const checkbox = tr.querySelector('.row-check');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        // Manually trigger a 'change' event on the checkbox so the updateKillBtn handler fires.
+        checkbox.dispatchEvent(new Event('change'));
+    }
+});
+
 document.getElementById('btn-refresh').addEventListener('click', function(){
     status('Refreshing...');
     doRefresh();
@@ -428,7 +458,7 @@ function showPanel(): void {
     _panel = vscode.window.createWebviewPanel(
         'runningTasks',
         '🖥️ Running Tasks',
-        { viewColumn: vscode.ViewColumn.One, preserveFocus: true },
+        { viewColumn: vscode.ViewColumn.One, preserveFocus: false },
         { enableScripts: true, retainContextWhenHidden: true }
     );
 

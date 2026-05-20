@@ -17,8 +17,7 @@ relativepath: src/features/doc-header-scan.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Scans all markdown files in registered projects for YAML frontmatter compliance, checking for required fields (title, description, project, category, relativePath, created, updated, author, status, tags). Logs results to the CieloVista Tools output channel grouped by project, making it easy to spot docs missing required metadata.
 
 ---
 

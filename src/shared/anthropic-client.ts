@@ -1,4 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
+// component: ref
 /**
  * anthropic-client.ts
  *

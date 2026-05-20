@@ -17,8 +17,7 @@ relativepath: src/features/config-editor.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Provides a webview UI for editing the extension's `config.json` with documented per-key descriptions. The editor is currently a placeholder pending full implementation.
 
 ---
 

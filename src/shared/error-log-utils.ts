@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: err
+
 /**
  * error-log-utils.ts
  * Persistent error tracking to a JSON file in the workspace.

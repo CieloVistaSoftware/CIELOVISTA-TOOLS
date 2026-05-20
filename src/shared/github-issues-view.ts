@@ -1,5 +1,8 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: issv
+
 /**
  * github-issues-view.ts
  *
@@ -318,7 +321,7 @@ function fetchIssuesViaRest(state: IssueState): Promise<GHIssue[]> {
     // filtering. Scan a few pages to find real issues before giving up.
     return (async () => {
         const perPage = 50;
-        const maxPages = 5;
+        const maxPages = 10; // Increased from 5 to 10
         const byNumber = new Map<number, GHIssue>();
 
         for (let page = 1; page <= maxPages; page++) {
@@ -328,6 +331,7 @@ function fetchIssuesViaRest(state: IssueState): Promise<GHIssue[]> {
                 byNumber.set(issue.number, issue);
             }
 
+            // Only break if we have enough *issues*, not just items
             if (byNumber.size >= perPage) { break; }
         }
 
@@ -416,7 +420,7 @@ function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
 
 function fetchIssuesPage(page: number, perPage: number, state: IssueState): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
-        const path = `/repos/${currentRepo.owner}/${currentRepo.name}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}`;
+        const path = `/repos/${currentRepo.owner}/${currentRepo.name}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}&pulls=false`;
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path,
@@ -550,6 +554,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .repo-link:hover{opacity:.9}
 .repo-link:focus{outline:1px solid var(--vscode-focusBorder);outline-offset:2px;border-radius:2px}
 #hd-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.state-toggle-group{display:flex;align-items:center;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;overflow:hidden}
+.state-toggle-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;cursor:pointer;font-size:12px;font-family:inherit;border-left:1px solid var(--vscode-input-border, var(--vscode-panel-border))}
+.state-toggle-btn:first-child{border-left:none}
+.state-toggle-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+.state-toggle-btn:hover:not(.active){background:var(--vscode-button-secondaryHoverBackground)}
 .action-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
 .action-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .action-btn:disabled{opacity:.5;cursor:default}
@@ -777,6 +786,14 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (countTotal) { countTotal.textContent = String(total); }
     }
 
+    var openBtn = document.getElementById('state-open');
+    var closedBtn = document.getElementById('state-closed');
+    if (openBtn) {
+        openBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'open' }); });
+    }
+    if (closedBtn) {
+        closedBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'closed' }); });
+    }
     var refresh = document.getElementById('refresh');
   if (refresh) {
     refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
@@ -810,18 +827,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     var projFilter = document.getElementById('proj-filter');
     if (projFilter) {
         projFilter.addEventListener('change', applyFilter);
-    }
-    var stateOpenBtn = document.getElementById('state-open');
-    if (stateOpenBtn) {
-        stateOpenBtn.addEventListener('click', function(){
-            vsc.postMessage({ type: 'setState', state: 'open' });
-        });
-    }
-    var stateClosedBtn = document.getElementById('state-closed');
-    if (stateClosedBtn) {
-        stateClosedBtn.addEventListener('click', function(){
-            vsc.postMessage({ type: 'setState', state: 'closed' });
-        });
     }
     document.querySelectorAll('th button[data-sort]').forEach(function(btn){
         btn.addEventListener('click', function(){
@@ -922,11 +927,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${currentRepo.owner}/${currentRepo.name}" class="repo-link" title="Open repository on GitHub">github.com/${currentRepo.owner}/${currentRepo.name}</a></div>
   </div>
     <div id="hd-actions">
-        <button id="state-open" class="action-btn" type="button" title="Show open issues"${viewState === 'open' ? ' style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)"' : ''}>Open</button>
-        <button id="state-closed" class="action-btn" type="button" title="Show closed issues"${viewState === 'closed' ? ' style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)"' : ''}>Closed</button>
+        <div class="state-toggle-group">
+            <button id="state-open" class="state-toggle-btn${viewState === 'open' ? ' active' : ''}" type="button">Open</button>
+            <button id="state-closed" class="state-toggle-btn${viewState === 'closed' ? ' active' : ''}" type="button">Closed</button>
+        </div>
+        <button id="new-issue" class="action-btn" type="button" title="Create a new issue on GitHub">New Issue</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
-        <button id="new-issue" class="action-btn" type="button" title="Create a new GitHub issue" style="background:var(--vscode-button-background);color:var(--vscode-button-foreground)">+ New Issue</button>
     </div>
 </div>
 <div id="body">${bodyHtml}</div>

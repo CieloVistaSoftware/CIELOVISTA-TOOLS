@@ -17,8 +17,7 @@ relativepath: src/features/claude-process-monitor.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Monitors all running Claude.exe processes on Windows via PowerShell/WMI, showing PID, memory usage, uptime, and parent process for each instance. Detects overload (>3 instances), memory pressure (>500 MB), orphaned processes, and MCP port contention on ports 52100/52101. Auto-refreshes every 5 seconds with per-process kill and kill-all options.
 
 ---
 

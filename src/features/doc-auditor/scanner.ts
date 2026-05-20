@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 import * as fs   from 'fs';
 import * as path from 'path';
 import type { DocFile } from './types';

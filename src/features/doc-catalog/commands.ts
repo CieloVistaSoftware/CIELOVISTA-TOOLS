@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as http from 'http';
@@ -245,7 +247,7 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
             case 'open-npm-scripts':
-                await vscode.commands.executeCommand('cvs.npm.showAndRunScripts');
+                await vscode.commands.executeCommand('cvs.npm.tree');
                 break;
             case 'preview':
                 if (msg.data) { openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open'); }

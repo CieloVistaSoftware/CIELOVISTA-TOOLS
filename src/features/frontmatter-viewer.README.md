@@ -17,8 +17,7 @@ relativepath: src/features/frontmatter-viewer.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Scans all markdown files in the cielovista-tools project for frontmatter violations: missing frontmatter, missing/empty docid, and legacy `dewey`/`subject` fields. Displays results in a sortable, filterable table with a per-row Fix button that creates a failing regression test and files a GitHub issue to track the repair.
 
 ---
 

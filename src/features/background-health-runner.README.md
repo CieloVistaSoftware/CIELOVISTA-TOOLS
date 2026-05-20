@@ -17,8 +17,7 @@ relativepath: src/features/background-health-runner.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Runs continuous background health checks every 8 seconds (round-robin) across the extension and registered projects, writing results to `data/bg-health.json`. Checks include catalog command registration, project registry integrity, CLAUDE.md presence, duplicate command IDs, untagged code blocks, and data-dir writability. Surfaces failures in a "Fix Bugs" webview panel with per-check auto-fix buttons and GitHub issue filing.
 
 ---
 
@@ -26,7 +25,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-| [`cvs.health.fixBugs`](command:cvs.health.fixBugs) | Health: FixBugs |
+| [`cvs.health.fixBugs`](command:cvs.health.fixBugs) | Health: Fix Bugs |
 
 ---
 

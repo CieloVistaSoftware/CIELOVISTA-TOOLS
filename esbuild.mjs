@@ -73,6 +73,14 @@ async function buildMcpServer() {
     format:      'esm',
     sourcemap:   false,
   });
+  // HTTP server entry for MCP server HTTP mode
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['mcp-server/src/http.ts'],
+    outfile:     'mcp-server/dist/http.js',
+    format:      'esm',
+    sourcemap:   false,
+  });
 }
 
 if (mcpOnly) {

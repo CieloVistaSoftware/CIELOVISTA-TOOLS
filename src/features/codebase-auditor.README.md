@@ -17,8 +17,7 @@ relativepath: src/features/codebase-auditor.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Scans `src/` for nine categories of structural health issues: oversized files (300/600-line thresholds), long functions (40/60-line thresholds), duplicate exports, dead monolith files (both `.ts` and folder/`index.ts` exist), missing READMEs, one-time-one-place violations (inline helpers, hardcoded paths), improper shared-utils usage, dead files not imported in `extension.ts`, and duplicate code blocks in folder features. Results are shown in an interactive webview panel.
 
 ---
 

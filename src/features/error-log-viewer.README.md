@@ -17,8 +17,7 @@ relativepath: src/features/error-log-viewer.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Shows the persistent CieloVista Tools error log in a webview panel, displaying error type, context, triggering command, timestamp, and stack trace for each entry. Supports refresh, clear all, open raw JSON, and filing selected errors directly as GitHub issues.
 
 ---
 
@@ -26,7 +25,8 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-_No commands registered — utility/shared module._
+| [`cvs.tools.errorLog`](command:cvs.tools.errorLog) | Tools: Error Log |
+
 
 ---
 

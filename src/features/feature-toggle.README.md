@@ -17,8 +17,7 @@ relativepath: src/features/feature-toggle.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Provides a webview panel listing all toggleable features with checkboxes, showing which are enabled or disabled via `cielovistaTools.features.*` settings. Changing a toggle writes the setting immediately and prompts for a window reload to activate or deactivate the feature.
 
 ---
 

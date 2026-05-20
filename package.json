@@ -155,18 +155,6 @@
         "description": "Show all workspace npm scripts grouped by package.json — simple tree view, click to run."
       },
       {
-        "command": "cvs.npm.showAndRunScripts",
-        "title": "NPM Scripts: Show and Run",
-        "category": "CieloVista NPM",
-        "description": "Show all npm scripts in the workspace and run any script instantly."
-      },
-      {
-        "command": "cvs.npm.addScriptDescription",
-        "title": "NPM Scripts: Add/Edit Description",
-        "category": "CieloVista NPM",
-        "description": "Add or edit a custom description for any npm script in your workspace."
-      },
-      {
         "command": "cvs.copilotRules.enable",
         "title": "Copilot Rules: Enable",
         "category": "CieloVista",

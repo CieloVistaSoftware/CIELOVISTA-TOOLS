@@ -74,6 +74,7 @@ function loadMod() {
         }
         if (req === '../shared/webview-utils') {
             return {
+                getNonce: () => 'test-nonce',
                 esc: s => String(s == null ? '' : s)
                     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
@@ -188,6 +189,13 @@ test('single-click on folder row sends navigate-to message', () => {
        `Messages: ${JSON.stringify(messages)}`);
 });
 
+test('single-click on runnable file row sends open-file message', () => {
+    const { row, messages } = makeDOM();
+    row('index.ts').click();
+    ok(messages.some(m => m.command === 'open-file' && m.name === 'index.ts'),
+       `single-click on runnable file should open in editor. Messages: ${JSON.stringify(messages)}`);
+});
+
 // ── Double-click ──────────────────────────────────────────────────────────────
 test('double-click on file row sends open-file message', () => {
     const { row, dblClick, messages } = makeDOM();
@@ -201,6 +209,13 @@ test('double-click on folder row sends navigate-to message', () => {
     dblClick(row('src'));
     ok(messages.some(m => m.command === 'navigate-to' && m.name === 'src'),
        `dblclick on folder sent nothing. Messages: ${JSON.stringify(messages)}`);
+});
+
+test('double-click on runnable file sends run-file message', () => {
+    const { row, dblClick, messages } = makeDOM();
+    dblClick(row('index.ts'));
+    ok(messages.some(m => m.command === 'run-file' && m.name === 'index.ts'),
+       `dblclick on runnable file should send run-file. Messages: ${JSON.stringify(messages)}`);
 });
 
 // ── Right-click context menu ──────────────────────────────────────────────────

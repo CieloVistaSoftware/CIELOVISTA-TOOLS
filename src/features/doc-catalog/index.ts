@@ -1,5 +1,7 @@
-﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
+// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: cat
 
 /**
  * doc-catalog — activate/deactivate only.

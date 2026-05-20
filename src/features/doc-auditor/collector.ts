@@ -1,6 +1,8 @@
 // Copyright (c) Cielo Vista Software. All rights reserved.
 // collector.ts — doc collection utilities for doc-auditor
 
+// component: aud
+
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';

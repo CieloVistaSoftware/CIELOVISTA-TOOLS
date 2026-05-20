@@ -44,8 +44,8 @@ check('gh CLI path is resolved before exec (avoids missing-binary crash)',
     src.includes('ghCandidates') && src.includes('ghPath'));
 
 // ── Pagination (REST fetcher walks up to 5 pages, deduplicates) ───────────────
-check('REST fetcher declares maxPages = 5',
-    src.includes('maxPages = 5'));
+check('REST fetcher declares maxPages = 10',
+    src.includes('maxPages = 10'));
 
 check('REST fetcher uses a Map to deduplicate by issue number',
     src.includes('byNumber') && src.includes('new Map'));

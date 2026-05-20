@@ -1,6 +1,8 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 /**
  * doc-consolidator split entrypoint.
  *

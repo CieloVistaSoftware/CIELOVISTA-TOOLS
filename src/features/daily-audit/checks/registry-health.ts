@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 /** Registry health check — are all registered project paths still valid? */
 
 import * as fs from 'fs';

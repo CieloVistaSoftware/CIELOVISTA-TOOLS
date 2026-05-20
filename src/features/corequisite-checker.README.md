@@ -17,8 +17,7 @@ relativepath: src/features/corequisite-checker.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Reads the `cieloRequires` block from `package.json` and verifies that each declared peer extension is installed at the required minimum version. Offers one-click install via the VS Code extension API (with a CLI fallback). A silent background check runs automatically 3 seconds after activation to catch missing dependencies early.
 
 ---
 

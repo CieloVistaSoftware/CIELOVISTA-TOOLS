@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 /** Shared types for the doc-catalog feature. */
 
 export interface ProjectEntry {

@@ -17,8 +17,7 @@ relativepath: src/features/code-highlight-audit.README.md
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Scans all markdown files in registered projects for fenced code blocks missing a language tag (bare triple-backtick fences). Displays results as a table with file, project, line number, and content preview. Guesses the language from context and provides per-block Fix and Fix All buttons that rewrite the opening fence in place.
 
 ---
 

@@ -1,4 +1,6 @@
 // Copyright (c) Cielo Vista Software. All rights reserved.
 // audit.ts — audit pipeline for doc-auditor
 
+// component: aud
+
 // TODO: Move runAudit and related logic here

@@ -35,7 +35,6 @@ import { activate as frontmatterViewer,       deactivate as deactivateFrontmatte
 import { activate as projectLauncher,         deactivate as deactivateProjectLauncher  } from './features/project-launcher';
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
 import { activate as projectHomeOpener,       deactivate as deactivateProjectHomeOpener  } from './features/project-home-opener';
-import { activate as npmCommandLauncher,      deactivate as deactivateNpmCommandLauncher } from './features/npm-command-launcher';
 import { activate as npmScriptsTree,          deactivate as deactivateNpmScriptsTree      } from './features/npm-scripts-tree';
 import { activate as mcpServerScaffolder,     deactivate as deactivateMcpServerScaffolder } from './features/mcp-server-scaffolder';
 import { activate as openFolderAsRoot,        deactivate as deactivateOpenFolderAsRoot    } from './features/open-folder-as-root';
@@ -138,7 +137,6 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('projectLauncher',         'Project Launcher',              projectLauncher,         context);
     activateIfEnabled('cvsCommandLauncher',      'CVS Command Launcher',          cvsCommandLauncher,      context);
     activateIfEnabled('projectHomeOpener',       'Project Home Opener',           projectHomeOpener,       context);
-    activateIfEnabled('npmCommandLauncher',      'NPM Command Launcher',          npmCommandLauncher,      context);
     activateIfEnabled('npmScriptsTree',          'NPM Scripts Tree',              npmScriptsTree,          context);
     activateIfEnabled('mcpServerScaffolder',     'MCP Server Scaffolder',         mcpServerScaffolder,     context);
     activateIfEnabled('openFolderAsRoot',        'Explorer: Open Folder as Root', openFolderAsRoot,        context);
@@ -184,7 +182,6 @@ export function deactivate(): void {
     deactivateCodeHighlightAudit();
     deactivateOpenFolderAsRoot();
     deactivateMcpServerScaffolder();
-    deactivateNpmCommandLauncher();
     deactivateNpmScriptsTree();
     deactivateProjectHomeOpener();
     deactivateCvsCommandLauncher();

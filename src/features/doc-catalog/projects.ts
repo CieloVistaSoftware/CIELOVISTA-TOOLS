@@ -1,12 +1,13 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 /**
  * projects.ts
  *
  * Builds the Projects section for the Doc Catalog.
- * Project cards are owned by the NPM Scripts panel (cvs.npm.showAndRunScripts).
- * This section just provides a launch point and the Configure tab.
+ * This section provides a launch point into the NPM Scripts Tree (cvs.npm.tree) and the Configure tab.
  */
 
 import * as fs   from 'fs';

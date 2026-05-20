@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 import type { DocFile } from './types';
 
 /** Jaccard word-overlap similarity, 0.0–1.0. */
