@@ -61,7 +61,7 @@ export function logError(message: string, stacktrace: string, context: string, s
         persistError(message, stacktrace, context);
     } catch {
         // Fallback: just write to output channel if error-log-utils module isn't ready
-        log(context, `ERROR: ${message}\n${stacktrace}`);
+        log(context, `❌ ${message}\n${stacktrace}`);
     }
     if (showPanel) { getChannel().show(true); }
 }

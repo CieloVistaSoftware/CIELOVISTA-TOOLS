@@ -111,8 +111,15 @@ async function refactorCode(): Promise<void> {
         if (!code?.trim()) { return; }
     }
     await runWithProgress('Refactoring…', [
-        { role: 'system', content: 'You are a senior engineer. Suggest clean, idiomatic refactoring.' },
-        { role: 'user',   content: `Suggest refactoring for:\n\n\`\`\`\n${code}\n\`\`\`` },
+        { role: 'system', content: [
+            'You are a senior software engineer performing a code review and refactor.',
+            'Your response must have two parts:',
+            '1. REFACTORED CODE — the complete, drop-in replacement (full function or block, not snippets).',
+            '2. EXPLANATION — a bulleted list of every change you made and why.',
+            'Rules: prefer clarity over cleverness; remove duplication; use meaningful names;',
+            'keep the same public API unless a rename is clearly better; do not add features.',
+        ].join(' ') },
+        { role: 'user', content: `Refactor the following code. Return the full replacement first, then explain each change:\n\n\`\`\`\n${code}\n\`\`\`` },
     ]);
 }
 

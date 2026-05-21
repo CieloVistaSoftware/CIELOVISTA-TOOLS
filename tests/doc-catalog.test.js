@@ -84,6 +84,17 @@ test('card-title tooltip uses deweyNum in footer line', () => {
     includes(htmlSrc, 'Dewey: ${deweyNum}', 'tooltip footer must embed the computed deweyNum');
 });
 
+test('catalog shell has a Rebuild Catalog button in the toolbar', () => {
+    includes(shellSrc, 'btn-rebuild-catalog', 'toolbar must contain #btn-rebuild-catalog button');
+    includes(shellSrc, '⏳ Rebuilding', 'rebuild button must show pending state while rebuilding');
+    includes(shellSrc, "command: 'rebuild-catalog'", 'rebuild button must post rebuild-catalog message to host');
+});
+
+test('commands.ts handles rebuild-catalog message', () => {
+    includes(commandsSrc, "case 'rebuild-catalog':", 'message handler must handle rebuild-catalog command');
+    includes(commandsSrc, 'clearCachedCards()', 'rebuild-catalog handler must clear cache before reopening');
+});
+
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) {
     process.exit(1);

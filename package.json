@@ -42,7 +42,7 @@
     "test:commands": "node tests/command-validation.test.js",
     "test:preflight": "node scripts/run-preflight-regressions.js",
     "test:regression": "node scripts/run-regression-tests.js",
-    "test:activation": "node tests/activation.test.js",
+    "test:activation": "node tests/vscode/runActivationTest.js",
     "test:vscode": "node tests/vscode/runTests.js",
     "start": "npm run rebuild",
     "vscode:prepublish": "node esbuild.mjs --production",

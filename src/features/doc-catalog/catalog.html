@@ -60,6 +60,9 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .btn-run{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(63,185,80,0.15);color:#3fb950;border:1px solid rgba(63,185,80,0.35)}
 .btn-run:hover{background:rgba(63,185,80,0.3);color:#fff}
 mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
+#btn-sort-newest.sort-active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+#sorted-view{padding:0}
+#sorted-view .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(24rem,100%),1fr));gap:10px;width:100%;padding:12px 16px}
 .card.selected{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px;background:var(--vscode-list-activeSelectionBackground,rgba(0,120,215,0.12))}
 #clipboard-toast{position:fixed;bottom:18px;right:18px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:7px 14px;font-size:12px;color:var(--vscode-editor-foreground);box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:999}
 #clipboard-toast.show{opacity:1}
@@ -74,6 +77,8 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
   <button id="btn-reset">&#10005; Clear</button>
   <button id="btn-npm-scripts" title="Open NPM Scripts panel" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128230; Projects</button>
   <button id="btn-report-issue" title="Report an issue for the current project" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128030; Report Issue</button>
+  <button id="btn-rebuild-catalog" title="Re-scan all projects and rebuild the catalog from disk" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#8635; Rebuild</button>
+  <button id="btn-sort-newest" title="Sort all docs by most recently modified" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128336; Newest</button>
   <span id="stat-bar"></span>
 </div>
 <div id="catalog"></div>
@@ -372,7 +377,20 @@ function resetFilters() {
 
 // ── Toolbar listeners ─────────────────────────────────────────────────────────
 
-document.getElementById('search').addEventListener('input', applyFilters);
+var _searchHitIndex = -1;
+document.getElementById('search').addEventListener('input', function() { _searchHitIndex = -1; applyFilters(); });
+document.getElementById('search').addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') { return; }
+    e.preventDefault();
+    var hits = Array.from(document.querySelectorAll('.card:not(.hidden)'));
+    if (hits.length === 0) { return; }
+    // Remove previous highlight
+    hits.forEach(function(c) { c.style.outline = ''; });
+    _searchHitIndex = (_searchHitIndex + 1) % hits.length;
+    var target = hits[_searchHitIndex];
+    target.style.outline = '2px solid var(--vscode-focusBorder)';
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
 document.getElementById('proj-filter').addEventListener('change', function() {
   // Persist selected project across catalog opens
   localStorage.setItem('catalog-proj-filter', document.getElementById('proj-filter').value);
@@ -384,6 +402,70 @@ document.getElementById('btn-npm-scripts').addEventListener('click', function() 
 document.getElementById('btn-report-issue').addEventListener('click', function() {
   var proj = document.getElementById('proj-filter').value || '';
   vscode.postMessage({ command: 'new-issue', project: proj || undefined });
+});
+document.getElementById('btn-rebuild-catalog').addEventListener('click', function() {
+  var btn = document.getElementById('btn-rebuild-catalog');
+  btn.textContent = '⏳ Rebuilding…';
+  btn.disabled = true;
+  vscode.postMessage({ command: 'rebuild-catalog' });
+});
+
+// ── Sort by Newest ────────────────────────────────────────────────────────────
+var _sortNewest = false;
+// Remembers each card's original parent grid and next sibling so we can restore
+var _cardOrigins = new WeakMap();
+
+document.getElementById('btn-sort-newest').addEventListener('click', function() {
+  var btn = document.getElementById('btn-sort-newest');
+  var catalog = document.getElementById('catalog');
+  _sortNewest = !_sortNewest;
+
+  if (_sortNewest) {
+    btn.classList.add('sort-active');
+    btn.textContent = '↩ Restore';
+
+    // Collect all cards and save their origin
+    var allCards = Array.from(document.querySelectorAll('.card'));
+    allCards.forEach(function(c) {
+      _cardOrigins.set(c, { parent: c.parentNode, next: c.nextSibling });
+    });
+
+    // Sort descending by data-modified (ISO date strings sort lexicographically)
+    allCards.sort(function(a, b) {
+      return (b.dataset.modified || '').localeCompare(a.dataset.modified || '');
+    });
+
+    // Build a flat sorted view replacing the catalog content
+    var grid = document.createElement('div');
+    grid.className = 'card-grid';
+    allCards.forEach(function(c) { grid.appendChild(c); });
+    var wrapper = document.createElement('div');
+    wrapper.id = 'sorted-view';
+    wrapper.appendChild(grid);
+
+    // Hide existing sections and show sorted view
+    Array.from(catalog.children).forEach(function(el) { el.style.display = 'none'; });
+    catalog.appendChild(wrapper);
+    applyFilters();
+  } else {
+    btn.classList.remove('sort-active');
+    btn.textContent = '🕐 Newest';
+
+    // Restore cards to original positions
+    var sortedView = document.getElementById('sorted-view');
+    if (sortedView) {
+      Array.from(sortedView.querySelectorAll('.card')).forEach(function(c) {
+        var origin = _cardOrigins.get(c);
+        if (origin && origin.parent) {
+          origin.parent.insertBefore(c, origin.next || null);
+        }
+      });
+      sortedView.remove();
+    }
+    // Restore section visibility
+    Array.from(catalog.children).forEach(function(el) { el.style.display = ''; });
+    applyFilters();
+  }
 });
 
 // ── Click handler ─────────────────────────────────────────────────────────────

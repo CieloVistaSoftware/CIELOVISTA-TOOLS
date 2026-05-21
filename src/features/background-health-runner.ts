@@ -442,45 +442,6 @@ const CHECKS: Check[] = [
         }
     },
 
-    {
-        id: 'chk-home-page-ui',
-        name: 'Home Page UI responsiveness',
-        async run() {
-            try {
-                log(FEATURE, 'Running Home Page UI test...');
-                const testFile = path.join(__dirname, '..', '..', 'tests', 'ui', 'home-page.spec.ts');
-                if (!fs.existsSync(testFile)) {
-                    logError('Home page test file not found', `File not found: ${testFile}`, FEATURE);
-                    return;
-                }
-
-                // This is a simplified way to run a Playwright test from within the extension.
-                // A more robust solution would use the Playwright programmatic API.
-                const command = `npx playwright test tests/ui/home-page.spec.ts`;
-                const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-
-                const term = vscode.window.createTerminal({ name: 'Home Page UI Test', cwd: workspaceRoot });
-                term.sendText(command);
-                term.show(false); // Run in background
-
-                // We can't easily get the result here, but we can monitor the terminal.
-                // For now, we'll just log that the test was started.
-                log(FEATURE, 'Home Page UI test started in terminal.');
-                clearBug('bug-home-page-ui');
-
-            } catch (error) {
-                addBug({
-                    id: 'bug-home-page-ui',
-                    checkId: 'chk-home-page-ui',
-                    title: 'Home Page UI test failed to run',
-                    detail: error instanceof Error ? error.message : String(error),
-                    priority: 'high',
-                    category: 'UI Tests',
-                });
-            }
-        }
-    },
-
 ];
 
 // ── Runner loop ───────────────────────────────────────────────────────────────

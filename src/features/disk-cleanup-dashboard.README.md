@@ -31,7 +31,7 @@ Locates the DiskCleanUp service executable via VS Code settings, Windows registr
 
 ## Internal architecture
 
-```
+```text
 activate(context)
   └── registers 1 command(s)
   └── Diskcleanup: OpenDashboard → cvs.diskcleanup.openDashboard

@@ -24,8 +24,8 @@ async function main() {
             extensionDevelopmentPath,
             extensionTestsPath,
 
-            // Open a throwaway empty folder — no workspace needed
-            launchArgs: ['--new-window', '--disable-extensions'],
+            // Open the extension root as a workspace so FileList tests have a folder context
+            launchArgs: [extensionDevelopmentPath, '--new-window', '--disable-extensions'],
 
             // Don't reuse an existing instance
             extensionTestsEnv: {
