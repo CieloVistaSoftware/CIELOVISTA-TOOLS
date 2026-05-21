@@ -213,4 +213,5 @@ if (failed > 0) {
     process.exit(1);
 } else {
     console.log(`REG-076 passed (${passed} checks)`);
+    process.exit(0);   // jsdom internal timers keep event loop alive without this
 }
