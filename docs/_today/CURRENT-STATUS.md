@@ -17,6 +17,49 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-20 (open issues triage + fixes)
+
+**TASK:** Work through open GitHub issues
+**STATUS:** ✅ Committed — 80 regressions green, 7/7 Playwright tests pass
+
+**FILES TOUCHED THIS SESSION:**
+- `src/features/background-health-runner.ts` — removed `chk-home-page-ui` check (#440)
+- `src/features/openai-chat.ts` — improved refactor prompt to return full code + explanation (#444)
+- `package.json` — updated `test:activation` script to use new runner (#449)
+- `tests/vscode/runActivationTest.js` — new runner for activation-only tests (#449)
+- `tests/vscode/suite/activation-only.index.js` — new activation-only index (#449)
+- `tests/ui/all-cards-webview.spec.ts` — rewritten to serve catalog.html directly (#450)
+- `tests/vscode/runTests.js` — open extensionDevelopmentPath as workspace (#448)
+- `src/features/notify-server.ts` — new: HTTP listener on 52199 for MCP→VS Code bridge
+- `src/features/notify-server.README.md` — new
+- `src/extension.ts` — wired notify-server activate/deactivate
+- `mcp-server/src/tools/definitions.ts` — added NotifyToolSchema
+- `mcp-server/src/tools/index.ts` — added notify MCP tool
+- `src/features/doc-catalog/catalog.html` — sort-by-newest button, rebuild button, Enter key search
+- `src/features/doc-catalog/html.ts` — minor doc catalog build improvements
+- `src/features/cvs-command-launcher/index.ts` — launcher panel opens Beside not column 1
+
+**COMMITS THIS SESSION:**
+- `411cd2f` — fix: resolve open issues #440 #444 #449 #450 + add notify-server + catalog improvements
+
+**ISSUES CLOSED:**
+- #440 — wrong path for home-page.spec.ts (removed check entirely)
+- #444 — OpenAI refactor prompt too vague (improved with explicit rules)
+- #445 — output channel ❌ prefix (already implemented — closed)
+- #447 — doc catalog sort by newest (already implemented — closed)
+- #449 — test:activation missing file (created dedicated runner)
+- #450 — all-cards-webview Playwright test broken (rewritten using serve-HTML approach)
+
+**REMAINING OPEN ISSUES:**
+- #448 — VSCode integration tests: home-filelist-gui 2 failures (webview disposed race condition; workspace fix applied but timing issue may persist)
+- #430 — Global Debug Logging System (large refactor, not started)
+
+**LAST ACTION:** Committed 411cd2f with all fixes, 80 regressions green
+**NEXT STEP:** Test #448 by running `npm run test:vscode` — if still failing investigate FileList webview timing. Then consider #430.
+**OPEN QUESTIONS:** None
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-15 (MCP HTTP migration cleanup #390/#392)
 
 **TASK:** Finish MCP HTTP transport migration — remove residual `/api/...` calls, migrate transport tests
