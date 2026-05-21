@@ -125,6 +125,18 @@
   "contributes": {
     "commands": [
       {
+        "command": "cvs.registry.showCommands",
+        "title": "Command Registry: Open Viewer",
+        "category": "CieloVista",
+        "description": "Open the Command Registry viewer — searchable table of all CVS commands linked to their feature components."
+      },
+      {
+        "command": "cvs.registry.rebuild",
+        "title": "Command Registry: Rebuild",
+        "category": "CieloVista",
+        "description": "Re-run scan-commands.js to refresh data/commands-registry.json from package.json and feature READMEs."
+      },
+      {
         "command": "cvs.tools.home",
         "title": "Open Home Dashboard",
         "category": "CieloVista",

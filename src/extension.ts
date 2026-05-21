@@ -59,6 +59,7 @@ import { activate as playwrightRunnerActivate, deactivate as playwrightRunnerDea
 import { activate as diskCleanupDashboardActivate, deactivate as diskCleanupDashboardDeactivate } from './features/disk-cleanup-dashboard';
 import { activate as runningTasksActivate,         deactivate as runningTasksDeactivate           } from './features/running-tasks';
 import { activate as notifyServerActivate,         deactivate as notifyServerDeactivate           } from './features/notify-server';
+import { activate as commandRegistryActivate,      deactivate as commandRegistryDeactivate        } from './features/command-registry-viewer';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -103,6 +104,7 @@ export function activate(context: vscode.ExtensionContext): void {
     runStartupStep('MCP Server Path Init', () => initMcpServerPath(context.extensionPath));
     runStartupStep('MCP Server Start', () => startMcpServer());
     runStartupStep('Notify Server', () => notifyServerActivate(context));
+    runStartupStep('Command Registry', () => commandRegistryActivate(context));
     // Initialize history and recents BEFORE home page renders so it gets real data
     runStartupStep('Command History Init', () => initHistory(context));
     runStartupStep('Recent Projects Init', () => initRecentProjects(context));
@@ -217,6 +219,7 @@ export function deactivate(): void {
     diskCleanupDashboardDeactivate();
     runningTasksDeactivate();
     notifyServerDeactivate();
+    commandRegistryDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
     deactivateProjectLauncher();
