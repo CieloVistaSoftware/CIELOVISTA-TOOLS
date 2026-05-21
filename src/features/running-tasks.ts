@@ -338,7 +338,10 @@ function updateKillBtn(){
 }
 
 function saveUiState(){
-    vsc.setState({ sortCol: _sortCol, sortAsc: _sortAsc,
+    // _sortCol/_sortAsc are declared later in the IIFE but are in scope via var hoisting
+    // eslint-disable-next-line no-use-before-define
+    vsc.setState({ sortCol: typeof _sortCol !== 'undefined' ? _sortCol : null,
+                   sortAsc: typeof _sortAsc !== 'undefined' ? _sortAsc : true,
                    filterText: filterInput.value, safetyMode: safetySelect.value });
 }
 
@@ -405,8 +408,8 @@ document.getElementById('tbody').addEventListener('click', function(e) {
     const checkbox = tr.querySelector('.row-check');
     if (checkbox) {
         checkbox.checked = !checkbox.checked;
-        // Manually trigger a 'change' event on the checkbox so the updateKillBtn handler fires.
-        checkbox.dispatchEvent(new Event('change'));
+        // bubbles:true required — the change handler is on #tbody (event delegation)
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     }
 });
 
