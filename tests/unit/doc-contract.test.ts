@@ -5,10 +5,10 @@
 /**
  * tests/unit/doc-contract.test.ts
  *
- * Validates every .md doc in cielovista-tools conforms to the CDC doc contract:
- *   - docid    present
- *   - dewey    present, hundreds match project prefix (150)
- *   - category present, equals "{dewey} — {label}"
+ * Validates every .md doc in all registry projects conforms to the doc contract:
+ *   - docid    present (the canonical identifier — IS the Dewey number)
+ *   - dewey    ABSENT  (duplicate alias removed per issue #321)
+ *   - category present, equals "{docid} — {label}"
  *
  * Run: node tests/unit/doc-contract.test.ts
  */
@@ -103,38 +103,33 @@ for (const { file, fm } of docsWithFrontmatter) {
         assert.ok(fm!['docid'], `missing docid in ${rel}`);
     });
 
-    test(`${path.basename(file)} (${hundreds}) — has dewey`, () => {
-        assert.ok(fm!['dewey'], `missing dewey in ${rel}`);
+    test(`${path.basename(file)} — dewey field is absent (use docid only)`, () => {
+        assert.ok(!fm!['dewey'],
+            `dewey: field must be removed — use docid: only. Found in ${rel}`);
     });
 
-    test(`${path.basename(file)} (${hundreds}) — dewey hundreds match project`, () => {
-        const dewey = fm!['dewey'];
-        if (!dewey || !hundreds) { return; }
-        const docHundreds = parseInt(dewey.split('.')[0], 10);
+    test(`${path.basename(file)} (${hundreds}) — docid hundreds match project`, () => {
+        const docid = fm!['docid'];
+        if (!docid || !hundreds) { return; }
+        const docHundreds = parseInt(docid.split('.')[0], 10);
         assert.strictEqual(docHundreds, hundreds,
-            `dewey "${dewey}" hundreds ${docHundreds} !== ${hundreds}`);
+            `docid "${docid}" hundreds ${docHundreds} !== ${hundreds}`);
     });
 
     test(`${path.basename(file)} (${hundreds}) — has category`, () => {
         assert.ok(fm!['category'], `missing category in ${rel}`);
     });
 
-    test(`${path.basename(file)} (${hundreds}) — docid matches dewey`, () => {
-        const docid = fm!['docid'];
-        const dewey = fm!['dewey'];
-        if (!docid || !dewey) { return; }
-        assert.strictEqual(docid, dewey,
-            `docid "${docid}" !== dewey "${dewey}" in ${rel}`);
-    });
-
-    test(`${path.basename(file)} (${hundreds}) — category matches dewey`, () => {
-        const dewey    = fm!['dewey'];
+    test(`${path.basename(file)} (${hundreds}) — category matches docid`, () => {
+        const docid    = fm!['docid'];
         const category = fm!['category'];
-        if (!dewey || !category) { return; }
-        const sub   = dewey.split('.')[1];
+        if (!docid || !category) { return; }
+        const parts    = docid.split('.');
+        const numericId = parts.slice(0, 2).join('.');  // e.g. "150.1" from "150.1.some-slug"
+        const sub   = parts[1];
         const label = TAXONOMY[sub];
         if (!label) { return; }
-        const expected = `${dewey} — ${label}`;
+        const expected = `${numericId} — ${label}`;
         assert.strictEqual(category, expected,
             `category "${category}" !== "${expected}" in ${rel}`);
     });

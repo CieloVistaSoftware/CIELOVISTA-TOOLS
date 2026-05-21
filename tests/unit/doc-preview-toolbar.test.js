@@ -39,12 +39,12 @@ test("btn-edit posts 'edit-file' (not generic 'open')", () => {
 });
 
 test("btn-edit does NOT post generic 'open' command", () => {
-    // The old broken wiring: btn-edit sent command:'open' on the same line which re-opened the doc preview
+    // Guard against regressing back to command:'open' for the toolbar edit action.
     const lines = src.split('\n');
-    const btnEditLine = lines.find(l => l.includes("safeAddListener('btn-edit'"));
-    assert.ok(btnEditLine, "safeAddListener for btn-edit not found");
+    const btnEditLine = lines.find(l => l.includes("action === 'edit-file'"));
+    assert.ok(btnEditLine, "delegated edit-file toolbar branch not found");
     assert.ok(
-        !btnEditLine.includes("command: 'open'") && !btnEditLine.includes("command:'open'"),
+        !src.includes("command: 'open', path: '${jsPath}'") && !src.includes("command:'open',path:'${jsPath}'"),
         "btn-edit must NOT post command:'open' — that would reopen the preview instead of the editor"
     );
 });
@@ -89,11 +89,13 @@ test("all four button IDs are in the HTML", () => {
     assert.ok(src.includes("id=\"btn-explorer\""), 'btn-explorer missing from HTML');
 });
 
-test("safeAddListener wires all four toolbar buttons", () => {
-    assert.ok(src.includes("safeAddListener('btn-edit'"),     "safeAddListener for btn-edit missing");
-    assert.ok(src.includes("safeAddListener('btn-vscode'"),   "safeAddListener for btn-vscode missing");
-    assert.ok(src.includes("safeAddListener('btn-terminal'"), "safeAddListener for btn-terminal missing");
-    assert.ok(src.includes("safeAddListener('btn-explorer'"), "safeAddListener for btn-explorer missing");
+test("delegated toolbar handler wires all four buttons", () => {
+    assert.ok(src.includes("data-toolbar-action=\"edit-file\""), 'btn-edit data-toolbar-action missing');
+    assert.ok(src.includes("data-toolbar-action=\"open-in-vscode\""), 'btn-vscode data-toolbar-action missing');
+    assert.ok(src.includes("data-toolbar-action=\"open-terminal\""), 'btn-terminal data-toolbar-action missing');
+    assert.ok(src.includes("data-toolbar-action=\"reveal-folder-os\""), 'btn-explorer data-toolbar-action missing');
+    assert.ok(src.includes("topbarRow.addEventListener('click'"), 'delegated click handler on topbar row missing');
+    assert.ok(src.includes("closest('[data-toolbar-action]')"), 'delegated handler must use closest() for toolbar action buttons');
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────

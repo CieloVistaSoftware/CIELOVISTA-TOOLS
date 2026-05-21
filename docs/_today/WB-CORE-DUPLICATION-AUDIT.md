@@ -1,6 +1,5 @@
 ---
 docid: 150.9.wb-core-duplication-audit
-dewey: 150.9.wb-core-duplication-audit
 id: wb-core-duplication-audit-cielovista-tools
 title: WB-Core Duplication Audit — cielovista-tools
 project: cielovista-tools

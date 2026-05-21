@@ -34,11 +34,12 @@ const FEATURE_EXPLANATIONS: Record<string, string> = {
     fileListViewer: 'Opens the FileList webview — a sortable details-view alternative to the Explorer tree, with Name / Date modified / Type / Size columns. Quick Launch button on the Home page.',
     cvsCommandLauncher: 'Shows a status bar launcher for all CieloVista commands, making them easily accessible.',
     projectHomeOpener: 'Lets you open the configured CieloVista home project folder with a single command.',
-    npmCommandLauncher: 'Adds a status bar launcher for npm scripts, so you can run them without opening a terminal.',
+    npmScriptsTree: 'Tree panel showing all workspace npm scripts grouped by package.json, click to run.',
     mcpServerScaffolder: 'Scaffold a new Model Context Protocol (MCP) server project with all required files.',
     openFolderAsRoot: 'Right-click any folder and open it as the new workspace root in VS Code.',
     explorerCopyPathToChat: 'Right-click any file and send its absolute path into GitHub Copilot Chat input.',
     registryPromote: 'Right-click a folder to register it as a CieloVista product — adds a registry entry with status=product, scaffolds CLAUDE.md and README.md if they are missing.',
+    codeAuditor: 'Runs the Code Auditor panel to detect duplicate code clusters and suggest one-time-one-place abstractions.',
 };
 
 const FEATURE = 'feature-toggle';
@@ -78,11 +79,12 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     { key: 'fileListViewer',         label: 'FileList Viewer',                description: 'Sortable alternative to the Explorer tree (issue #68)' },
     { key: 'cvsCommandLauncher',     label: 'CVS Command Launcher',        description: 'Status bar launcher for all CieloVista commands' },
     { key: 'projectHomeOpener',      label: 'Project Home Opener',         description: 'Open configured CieloVista home project' },
-    { key: 'npmCommandLauncher',     label: 'NPM Command Launcher',        description: 'Status bar launcher for npm scripts' },
+    { key: 'npmScriptsTree',         label: 'NPM Scripts Tree',            description: 'Tree panel for all workspace npm scripts' },
     { key: 'mcpServerScaffolder',    label: 'MCP Server Scaffolder',       description: 'Scaffold a new MCP server project' },
     { key: 'openFolderAsRoot',       label: 'Explorer: Open Folder as Root',         description: 'Right-click folder → open as workspace root' },
     { key: 'explorerCopyPathToChat', label: 'Explorer: Copy Path to Copilot Chat',   description: 'Right-click file -> send path to Copilot chat' },
     { key: 'registryPromote',        label: 'Registry: Promote Folder to Product',   description: 'Right-click folder -> register as CieloVista product' },
+    { key: 'codeAuditor',            label: 'Code Auditor',                           description: 'Scan for duplicate code clusters and abstraction opportunities' },
 ];
 
 // ─── Settings helpers ─────────────────────────────────────────────────────

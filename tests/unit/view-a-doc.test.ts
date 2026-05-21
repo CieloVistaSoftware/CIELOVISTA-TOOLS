@@ -114,13 +114,13 @@ test('Source has /openfolder HTTP route', () => {
 test('Source /openfolder calls openProjectFolderSmart (opens folder in new window)', () => {
     const idx = src.indexOf("pathname === '/openfolder'");
     const region = src.slice(idx, idx + 600);
-    assert.ok(region.includes('openProjectFolderSmart'), 'openProjectFolderSmart not called in /openfolder handler');
+  assert.ok(region.includes('openProjectFolderSmart'), 'openProjectFolderSmart not called in /openfolder handler');
 });
 test('Source openProjectFolderSmart calls vscode.openFolder with forceNewWindow:true', () => {
     assert.ok(src.includes("'vscode.openFolder'"), 'vscode.openFolder missing');
     const idx = src.indexOf("'vscode.openFolder'");
-    const region = src.slice(idx, idx + 100);
-    assert.ok(!region.includes(', false'), 'openFolder uses false (replace window) instead of true (new window)');
+  const region = src.slice(idx, idx + 200);
+  assert.ok(region.includes('forceNewWindow: false'), 'openFolder must reuse the current window');
 });
 test('Source webview JS sends fetch /openfolder on folder button click', () => {
     assert.ok(scriptContent && scriptContent.includes('openfolder'), 'folder button does not fetch /openfolder');

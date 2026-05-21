@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: aud
+
 /**
  * background-health-runner.ts
  *
@@ -23,6 +26,7 @@ import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-i
 import { loadRegistry }  from '../shared/registry';
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
+import { esc }           from '../shared/webview-utils';
 
 function isPortOpen(port: number): Promise<boolean> {
     return new Promise(resolve => {
@@ -118,13 +122,6 @@ function clearBug(id: string): void {
     if (b) { b.fixed = true; }
 }
 
-function esc(s: string): string {
-    return String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
 
 function parseEvidenceLocation(line: string): { filePath: string; line: number; column: number } | null {
     const match = line.match(/^([A-Za-z]:[\\/].*?|\/.+?):(\d+)(?::(\d+))?$/);
@@ -390,7 +387,7 @@ const CHECKS: Check[] = [
                 if (depth > 3) { return; }
                 try {
                     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                        if (entry.name === 'node_modules' || entry.name === '.git') { continue; }
+                        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.claude' || entry.name === 'out') { continue; }
                         const full = path.join(dir, entry.name);
                         if (entry.isDirectory()) { scan(full, depth + 1); }
                         else if (entry.name.endsWith('.md')) {
@@ -532,6 +529,7 @@ function buildFixBugsHtml(state: HealthState): string {
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}
 #toolbar{position:sticky;top:0;z-index:10;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:12px}
 #toolbar h1{font-size:1.05em;font-weight:700;flex:1}
+#toolbar .controls { display: flex; align-items: center; gap: 8px; }
 .stat{font-size:11px;color:var(--vscode-descriptionForeground);white-space:nowrap}
 .stat strong{color:var(--vscode-editor-foreground)}
 #progress-bar-wrap{height:3px;background:var(--vscode-panel-border);border-radius:2px;overflow:hidden;margin:0 16px 0}
@@ -561,6 +559,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .bug-time{font-size:10px;color:var(--vscode-descriptionForeground);flex:1}
 .fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
 .fix-btn:hover{background:var(--vscode-button-hoverBackground)}
+.stop-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
+.stop-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .issue-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
 .issue-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .dismiss-btn{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px}
@@ -598,6 +598,11 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         vscode.postMessage({ command: 'open-evidence', path: btn.dataset.path, line: parseInt(btn.dataset.line || '1', 10), column: parseInt(btn.dataset.col || '1', 10) });
     }
+  if (btn.dataset.action === 'stop-runner') {
+        vscode.postMessage({ command: 'stop-runner' });
+        btn.textContent = 'Stopping...';
+        btn.disabled = true;
+    }
   if (btn.dataset.action === 'dismiss') {
     vscode.postMessage({ command: 'dismiss', bugId: btn.dataset.id });
     var card = btn.closest('.bug-card');
@@ -610,6 +615,17 @@ window.addEventListener('message', function(e) {
   if (m.type === 'update') {
     // Reload the page with fresh state
     vscode.postMessage({ command: 'reload' });
+  }
+  if (m.type === 'runner-stopped') {
+    var stopBtn = document.querySelector('.stop-btn');
+    if (stopBtn) {
+        stopBtn.textContent = 'Stopped';
+        stopBtn.disabled = true;
+    }
+    var nextCheckEl = document.getElementById('next-check');
+    if (nextCheckEl) {
+        nextCheckEl.textContent = 'Runner stopped.';
+    }
   }
   if (m.type === 'progress') {
     var bar = document.getElementById('progress-bar');
@@ -647,8 +663,11 @@ window.addEventListener('message', function(e) {
         return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div id="toolbar">
     <h1>&#128027; Fix Bugs</h1>
-    <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
-    <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
+    <div class="controls">
+        <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
+        <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
+        <button class="stop-btn" data-action="stop-runner">Stop Runner</button>
+    </div>
 </div>
 <div id="progress-bar-wrap"><div id="progress-bar" style="width:${pct}%"></div></div>
 <div id="next-check">&#9203; Next: ${nextCheck}</div>
@@ -684,6 +703,20 @@ ${JS}
 </body></html>`;
 }
 
+function stopRunner(): void {
+    if (_running) {
+        _running = false;
+        if (_timer) {
+            clearTimeout(_timer);
+            _timer = undefined;
+        }
+        log(FEATURE, 'Background health runner stopped by user.');
+        if (_panel) {
+            _panel.webview.postMessage({ type: 'runner-stopped' });
+        }
+    }
+}
+
 export async function showFixBugsPanel(): Promise<void> {
     const html = buildFixBugsHtml(_state);
 
@@ -697,6 +730,68 @@ export async function showFixBugsPanel(): Promise<void> {
         );
         _panel.webview.html = html;
         _panel.onDidDispose(() => { _panel = undefined; });
+
+        _panel.webview.onDidReceiveMessage(async msg => {
+            try {
+                if (msg.command === 'fix' && msg.cmdId) {
+                    await vscode.commands.executeCommand(msg.cmdId);
+                    clearBug(msg.bugId);
+                    saveState();
+                }
+                if (msg.command === 'stop-runner') {
+                    stopRunner();
+                }
+                if (msg.command === 'dismiss') {
+                    clearBug(msg.bugId);
+                    saveState();
+                }
+                if (msg.command === 'file-issue') {
+                    const bug = _state.bugs.find(b => b.id === msg.bugId && !b.fixed);
+                    if (!bug) { return; }
+                    const result = await fileHealthBugAsIssue(bug);
+                    if (result.ok && result.issueNumber && result.issueUrl) {
+                        bug.githubIssueNumber = result.issueNumber;
+                        bug.githubIssueUrl    = result.issueUrl;
+                        saveState();
+                        _panel?.webview.postMessage({
+                            type:   'issue-filed',
+                            bugId:  msg.bugId,
+                            number: result.issueNumber,
+                            url:    result.issueUrl,
+                        });
+                        void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
+                    } else {
+                        _panel?.webview.postMessage({ type: 'issue-filed-error', bugId: msg.bugId });
+                        void vscode.window.showErrorMessage(`Couldn't file issue: ${result.error ?? 'unknown error'}`);
+                    }
+                }
+                if (msg.command === 'open-issue') {
+                    if (msg.url) { void vscode.env.openExternal(vscode.Uri.parse(msg.url)); }
+                }
+                if (msg.command === 'open-evidence' && msg.path) {
+                    const doc = await vscode.workspace.openTextDocument(msg.path);
+                    const line = Math.max(0, (msg.line ?? 1) - 1);
+                    const column = Math.max(0, (msg.column ?? 1) - 1);
+                    const pos = new vscode.Position(line, column);
+                    const editor = await vscode.window.showTextDocument(doc, {
+                        viewColumn: vscode.ViewColumn.Beside,
+                        preview: true,
+                        preserveFocus: false,
+                    });
+                    editor.selection = new vscode.Selection(pos, pos);
+                    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+                }
+                if (msg.command === 'reload') {
+                    if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
+                }
+                if (msg.command === 'checkMcpPort') {
+                    const open = await isPortOpen(3000);
+                    _panel?.webview.postMessage({ type: 'mcpPortStatus', open });
+                }
+            } catch (e) {
+                logError('Fix Bugs panel message error', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+            }
+        });
     }
 
     // Silently sync issue numbers from GitHub for any unlinked active bugs.
@@ -725,70 +820,6 @@ export async function showFixBugsPanel(): Promise<void> {
         if (changed) { saveState(); }
     })();
 
-    _panel.webview.onDidReceiveMessage(async msg => {
-        if (msg.command === 'fix' && msg.cmdId) {
-            try {
-                await vscode.commands.executeCommand(msg.cmdId);
-                clearBug(msg.bugId);
-                saveState();
-            } catch (e) {
-                logError(`Fix command failed: ${msg.cmdId}`, e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-            }
-        }
-        if (msg.command === 'dismiss') {
-            clearBug(msg.bugId);
-            saveState();
-        }
-        if (msg.command === 'file-issue') {
-            const bug = _state.bugs.find(b => b.id === msg.bugId && !b.fixed);
-            if (bug) {
-                const result = await fileHealthBugAsIssue(bug);
-                if (result.ok && result.issueNumber && result.issueUrl) {
-                    bug.githubIssueNumber = result.issueNumber;
-                    bug.githubIssueUrl    = result.issueUrl;
-                    saveState();
-                    _panel?.webview.postMessage({
-                        type:   'issue-filed',
-                        bugId:  msg.bugId,
-                        number: result.issueNumber,
-                        url:    result.issueUrl,
-                    });
-                    void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
-                } else {
-                    _panel?.webview.postMessage({ type: 'issue-filed-error', bugId: msg.bugId });
-                    void vscode.window.showErrorMessage(`Couldn't file issue: ${result.error ?? 'unknown error'}`);
-                }
-            }
-        }
-        if (msg.command === 'open-issue') {
-            if (msg.url) { void vscode.env.openExternal(vscode.Uri.parse(msg.url)); }
-        }
-        if (msg.command === 'open-evidence' && msg.path) {
-            try {
-                const doc = await vscode.workspace.openTextDocument(msg.path);
-                const line = Math.max(0, (msg.line ?? 1) - 1);
-                const column = Math.max(0, (msg.column ?? 1) - 1);
-                const pos = new vscode.Position(line, column);
-                const editor = await vscode.window.showTextDocument(doc, {
-                    viewColumn: vscode.ViewColumn.Beside,
-                    preview: true,
-                    preserveFocus: false,
-                });
-                editor.selection = new vscode.Selection(pos, pos);
-                editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-            } catch (e) {
-                logError('Failed to open evidence location', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-            }
-        }
-        if (msg.command === 'reload') {
-            if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
-        }
-        if (msg.command === 'checkMcpPort') {
-            // Check MCP port and post result
-            const open = await isPortOpen(3000);
-            _panel?.webview.postMessage({ type: 'mcpPortStatus', open });
-        }
-    });
 }
 
 // ── Activate / Deactivate ─────────────────────────────────────────────────────
@@ -814,16 +845,18 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
     );
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
+    );
 
     log(FEATURE, `Background runner active — ${CHECKS.length} checks, ${CHECK_GAP_MS}ms gap`);
 }
 
 export function deactivate(): void {
-    _running = false;
-    if (_timer) { clearTimeout(_timer); _timer = undefined; }
+    stopRunner();
+    releaseSingleton();
     _panel?.dispose();
     _panel = undefined;
-    releaseSingleton();
     log(FEATURE, 'Background health runner stopped');
 }
 

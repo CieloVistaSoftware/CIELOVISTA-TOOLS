@@ -49,6 +49,23 @@ expect('skips empty command',            src.includes("if (e.command)") || src.i
 expect('skips empty stack',              src.includes("if (e.stack)") || src.includes('e.stack &&') || src.includes('e.stack?.'));
 expect('skips empty filename',           src.includes("if (e.filename)") || src.includes('e.filename &&') || src.includes('e.filename?'));
 
+// ── Newline normalization behavior ───────────────────────────────────────────
+console.log('\n=== newline normalization behavior ===');
+expect('normalizeGithubMarkdownBody helper exists', src.includes('function normalizeGithubMarkdownBody'));
+expect('normalizer preserves fenced blocks', src.includes('Decode escaped newlines only outside fenced blocks'));
+expect('postIssueComment normalizes body', src.includes('JSON.stringify({ body: normalizeGithubMarkdownBody(body) })'));
+expect('postIssue normalizes body', src.includes('body: normalizeGithubMarkdownBody(body)'));
+
+// ── Project label enforcement ────────────────────────────────────────────────
+console.log('\n=== project label enforcement ===');
+expect('PROJECT_LABEL constant exists', src.includes('const PROJECT_LABEL = `project:${REPO_NAME}`'));
+expect('withRequiredProjectLabel helper exists', src.includes('function withRequiredProjectLabel'));
+expect('helper detects project:* labels', src.includes('/^project:/i.test'));
+expect('fileErrorAsIssue enforces project label', src.includes("withRequiredProjectLabel(['type:bug', 'auto-filed'])"));
+expect('fileRegressionAsIssue enforces project label', src.includes("withRequiredProjectLabel(['type:regression', 'auto-filed'])"));
+expect('fileHealthBugAsIssue enforces project label', src.includes("withRequiredProjectLabel(['type:bug', 'auto-filed', `area:${bug.category.toLowerCase().replace(/\\s+/g, '-')}`])"));
+expect('fileFrontmatterViolationAsIssue enforces project label', src.includes("withRequiredProjectLabel(input.labels ?? ['type:bug', 'auto-filed', 'area:frontmatter'])"));
+
 // ── Bundle check ──────────────────────────────────────────────────────────────
 console.log('\n=== Bundle ===');
 if (bundle.length === 0) {

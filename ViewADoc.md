@@ -1,59 +1,18 @@
----
-docid: 150.9.viewadoc
-dewey: 150.9.viewadoc
-id: view-a-doc-current-design
-title: View a Doc — Current Design
-project: cielovista-tools
-description: The "View a Doc" feature provides a searchable, interactive catalog of documentation files (primarily Markdown) across all registered projects and …
-status: active
-tags: [viewadoc, view, current]
-category: 150.9 — Meta
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: ViewADoc.md
----
-# View a Doc — Current Design
+# ViewADoc — View Any Project Document
 
-## Overview
-The "View a Doc" feature provides a searchable, interactive catalog of documentation files (primarily Markdown) across all registered projects and the global standards folder. It is implemented as a VS Code webview panel, replacing the old quick pick UI.
+**Command:** `cvs.catalog.view`
 
-## UI Structure
-- **Toolbar**
-  - Title: 📄 View a Doc
-  - Search bar: Filters docs and folders in real time
-  - Stats: Shows total docs and projects, or matching count when searching
-- **Content Table**
-  - Columns: Folder | Documents
-  - Each row: One folder (global or project) and its docs as clickable links
-  - Docs are grouped by folder/project, sorted by priority (Dewey number), then name
-- **Responsive Design**
-  - At ≤600px width, table reflows to a single column for narrow panels
+Opens any `.md` file from any registered project in the built-in browser-based viewer.
+Links are rewritten so relative references navigate within the viewer; external links open in the system browser.
 
-## Interactivity
-- **Search**
-  - Typing in the search bar filters rows and highlights matching doc links in yellow
-  - If no matches, a "No docs match your search" message appears
-- **Selection**
-  - Ctrl/Cmd+Click: Multi-select doc links
-  - Ctrl/Cmd+A: Select all visible doc links
-  - Ctrl/Cmd+C/X: Copy/cut selected doc paths to clipboard
-  - Escape: Clears selection
-- **Navigation**
-  - Clicking a doc link opens it in the doc preview webview
-  - Clicking a folder button opens the folder in a new VS Code window
-- **State Persistence**
-  - Remembers last active doc and scroll position per session
+## How to Use
 
-## Error Handling
-- If initialization fails, a red error banner appears at the top with the error message
+1. Open the Doc Catalog (`cvs.catalog.open`)
+2. Browse to any doc and click **Open**
+3. A local HTTP server starts on `127.0.0.1` and the file opens in your browser
 
-## Implementation Notes
-- Catalog is built from a registry of global and project docs
-- Uses cached catalog for performance, with rebuild on demand
-- All logic and UI are in `src/features/doc-catalog/commands.ts`
-- No TypeScript errors currently detected in the implementation
+## Notes
 
----
-_Last updated: 2026-04-01_
+- Server binds to `127.0.0.1` only — not exposed to the network
+- Port is OS-assigned (random available port)
+- Server shuts down automatically when the VS Code window closes

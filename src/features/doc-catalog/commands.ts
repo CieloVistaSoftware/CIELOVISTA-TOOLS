@@ -1,49 +1,80 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
 import { loadRegistry } from './registry';
+import { loadArchiveEntries, restoreDoc } from './archive';
 import { scanForCards, resetCardCounter } from './scanner';
 import { buildProjectDeweyMap, lookupDewey } from './categories';
 import { loadProjectInfo } from './projects';
 import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
-import { revealFileInPanel } from '../file-list-viewer';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
-import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
+import { isPortOpen } from '../../shared/port-check';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
 
 let _catalogPanel: vscode.WebviewPanel | undefined;
 let _cachedCards: CatalogCard[] | undefined;
-
-type RegistryEntry = { name: string; path: string; type: string; description: string };
-let _pendingInitCards: CatalogCard[] = [];
-let _pendingInitProjectInfos: ReturnType<typeof loadProjectInfo>[] = [];
-let _pendingInitRegistryEntries: RegistryEntry[] = [];
+let _pendingInitCards: CatalogCard[] | undefined;
+let _pendingInitProjectInfos: ReturnType<typeof loadProjectInfo>[] | undefined;
+let _pendingInitRegistryEntries: Array<{ name: string; path: string; type: string; description: string }> | undefined;
 
 export function getCatalogPanel(): vscode.WebviewPanel | undefined { return _catalogPanel; }
 export function clearCachedCards(): void { _cachedCards = undefined; }
 
-function isCurrentWorkspacePath(folderPath: string): boolean {
-    const target = path.resolve(folderPath).toLowerCase();
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    return folders.some((wf) => path.resolve(wf.uri.fsPath).toLowerCase() === target);
+function queueCatalogInit(
+    cards: CatalogCard[],
+    projectInfos: ReturnType<typeof loadProjectInfo>[],
+    registryEntries: Array<{ name: string; path: string; type: string; description: string }>
+): void {
+    _pendingInitCards = cards;
+    _pendingInitProjectInfos = projectInfos;
+    _pendingInitRegistryEntries = registryEntries;
 }
+
+function trySendPendingCatalogInit(panel: vscode.WebviewPanel): void {
+    if (!_pendingInitCards || !_pendingInitProjectInfos || !_pendingInitRegistryEntries) { return; }
+    sendCatalogInit(panel, _pendingInitCards, _pendingInitProjectInfos, _pendingInitRegistryEntries);
+    _pendingInitCards = undefined;
+    _pendingInitProjectInfos = undefined;
+    _pendingInitRegistryEntries = undefined;
+}
+
 
 async function openProjectFolderSmart(folderPath: string): Promise<void> {
     const target = path.resolve(folderPath);
-    if (isCurrentWorkspacePath(target)) {
-        await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
-        return;
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), { forceNewWindow: true });
+}
+
+export function getCurrentWorkspaceProjectName(
+    registryEntries: Array<{ name: string; path: string; type: string; description: string }>
+): string {
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspacePath || !Array.isArray(registryEntries)) { return ''; }
+
+    const normalizedWorkspacePath = path.resolve(workspacePath).toLowerCase();
+    for (const entry of registryEntries) {
+        if (!entry?.name || !entry.path) { continue; }
+        const normalizedEntryPath = path.resolve(entry.path).toLowerCase();
+        if (
+            normalizedWorkspacePath === normalizedEntryPath ||
+            normalizedWorkspacePath.startsWith(normalizedEntryPath + path.sep) ||
+            normalizedEntryPath.startsWith(normalizedWorkspacePath + path.sep)
+        ) {
+            return entry.name;
+        }
     }
-    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), true);
+
+    return '';
 }
 
 function sendCatalogInit(
@@ -53,7 +84,8 @@ function sendCatalogInit(
     registryEntries: Array<{ name: string; path: string; type: string; description: string }>
 ): void {
     const payload = buildCatalogInitPayload(cards, projectInfos, new Date().toLocaleString(), registryEntries);
-    void panel.webview.postMessage({ command: 'init', ...payload });
+    const currentProject = getCurrentWorkspaceProjectName(registryEntries);
+    void panel.webview.postMessage({ command: 'init', currentProject, ...payload });
 }
 
 export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] | undefined> {
@@ -65,16 +97,15 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
         { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog\u2026', cancellable: false },
         async (progress) => {
             const deweyMap = buildProjectDeweyMap(registry.projects.map(p => p.name));
-            const archivedPaths = loadArchivedPaths();
             const cards: CatalogCard[] = scanForCards(
                 registry.globalDocsPath, 'global', registry.globalDocsPath,
-                lookupDewey(deweyMap, 'global').num, 3, archivedPaths
+                lookupDewey(deweyMap, 'global').num
             );
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}\u2026` });
                 if (fs.existsSync(project.path)) {
                     const dewey = lookupDewey(deweyMap, project.name);
-                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num, 3, archivedPaths));
+                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num));
                 }
             }
             cards.sort((a, b) => {
@@ -82,17 +113,6 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
                 if (a.projectName !== b.projectName) { return a.projectName.localeCompare(b.projectName); }
                 return a.fileName.localeCompare(b.fileName);
             });
-            // Mark docid collisions — each docid must be globally unique.
-            const docIdCount = new Map<string, number>();
-            for (const c of cards) {
-                const docId = (c.dewey ?? '').trim().toLowerCase();
-                if (!docId || docId === 'missing-docid') { continue; }
-                docIdCount.set(docId, (docIdCount.get(docId) ?? 0) + 1);
-            }
-            for (const c of cards) {
-                const docId = (c.dewey ?? '').trim().toLowerCase();
-                c.docIdCollision = !!docId && docId !== 'missing-docid' && (docIdCount.get(docId) ?? 0) > 1;
-            }
             _cachedCards = cards;
             log(FEATURE, `Catalog built: ${cards.length} cards`);
             return cards;
@@ -120,7 +140,7 @@ function buildRebuildSummaryHtml(
     const totalProjects = projectCounts.length;
     const elapsedSec    = (elapsedMs / 1000).toFixed(2);
     const projectRows   = projectCounts.map(p =>
-        `<tr class="rb-proj-row" data-action="open-project-vscode" data-path="${_rbEsc(p.path)}" title="Open ${_rbEsc(p.name)} in VS Code" style="cursor:pointer"><td class="rb-dw">${_rbEsc(p.dewey)}</td><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
+        `<tr data-action="open-project-vscode" data-path="${_rbEsc(p.path)}" style="cursor:pointer" title="Open in VS Code"><td class="rb-dw">${_rbEsc(p.dewey)}</td><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
     ).join('');
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';"><style>
@@ -167,11 +187,7 @@ tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{
 var vs=acquireVsCodeApi();
 document.getElementById('btn-open').addEventListener('click',function(){vs.postMessage({command:'open-catalog'});});
 document.getElementById('btn-again').addEventListener('click',function(){vs.postMessage({command:'rebuild-again'});});
-document.querySelectorAll('.rb-proj-row').forEach(function(row){
-  row.addEventListener('click',function(){vs.postMessage({command:'open-project-vscode',data:row.dataset.path});});
-  row.addEventListener('mouseenter',function(){row.style.background='var(--vscode-list-hoverBackground)';});
-  row.addEventListener('mouseleave',function(){row.style.background='';});
-});
+document.querySelectorAll('tr[data-action]').forEach(function(r){r.addEventListener('click',function(){vs.postMessage({command:r.getAttribute('data-action'),data:r.getAttribute('data-path')});});});
 })();</script></body></html>`;
 }
 
@@ -192,7 +208,7 @@ export async function rebuildCatalog(): Promise<void> {
     }
     const projectCounts = [...projectMap.entries()]
         .sort((a, b) => Number(a[1].dewey) - Number(b[1].dewey))
-        .map(([name, { count, dewey, path: projPath }]) => ({ name, count, dewey, path: projPath }));
+        .map(([name, { count, dewey, path }]) => ({ name, count, dewey, path }));
     const html  = buildRebuildSummaryHtml(cards, elapsed, projectCounts, new Date().toLocaleTimeString());
     const title = '\u{1F4CA} Catalog Rebuilt';
     if (_rebuildPanel) {
@@ -211,7 +227,9 @@ export async function rebuildCatalog(): Promise<void> {
     _rebuildPanel.webview.onDidReceiveMessage(async msg => {
         if (msg.command === 'open-catalog')        { await openCatalog(false); }
         if (msg.command === 'rebuild-again')       { await rebuildCatalog(); }
-        if (msg.command === 'open-project-vscode') { if (msg.data) { await openProjectFolderSmart(msg.data as string); } }
+        if (msg.command === 'open-project-vscode' && msg.data) {
+            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data as string), { forceNewWindow: true });
+        }
     });
     log(FEATURE, `Catalog rebuilt: ${cards.length} cards in ${elapsed}ms`);
 }
@@ -223,20 +241,16 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
     panel.webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
             case 'ready':
-                sendCatalogInit(panel, _pendingInitCards, _pendingInitProjectInfos, _pendingInitRegistryEntries);
+                trySendPendingCatalogInit(panel);
                 break;
             case 'openProjectFolder':
                 if (msg.data) { await openProjectFolderSmart(msg.data as string); }
                 break;
             case 'open-npm-scripts':
-                await vscode.commands.executeCommand('cvs.npm.showAndRunScripts');
+                await vscode.commands.executeCommand('cvs.npm.tree');
                 break;
             case 'preview':
-                if (msg.data) {
-                    openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open');
-                    void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(msg.data));
-                    revealFileInPanel(msg.data);
-                }
+                if (msg.data) { openDocPreview(msg.data, '\u{1F4DA} Doc Catalog', 'cvs.catalog.open'); }
                 break;
             case 'open':
                 if (msg.data && fs.existsSync(msg.data)) {
@@ -257,12 +271,6 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             }
             case 'openFolder':
                 if (msg.data) { await openProjectFolderSmart(msg.data as string); }
-                break;
-            case 'openSrcFile':
-                if (msg.data && fs.existsSync(msg.data)) {
-                    const doc = await vscode.workspace.openTextDocument(msg.data);
-                    await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
-                }
                 break;
             case 'openClaude': {
                 const claudePath = path.join(msg.data, 'CLAUDE.md');
@@ -311,27 +319,21 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             }
             case 'wb-demo': {
                 // Ensure the wb-core demo server is running, then open the harness in the browser.
-                // The harness at http://localhost:3000/wb-harness.html?md=<path>&name=<name>
-                // fetches the markdown file, extracts HTML blocks, and runs WB.init live.
-                const demoPort = 3000;
-                const mdPath   = msg.data as string;
-                const compName = (msg.name as string) || path.basename(mdPath, '.md');
+                const demoPort   = 3000;
+                const mdPath     = msg.data as string;
+                const compName   = (msg.name as string) || path.basename(mdPath, '.md');
                 const harnessUrl = `http://localhost:${demoPort}/wb-harness.html?md=${encodeURIComponent(mdPath)}&name=${encodeURIComponent(compName)}`;
 
-                // Check if the demo server is already up; if not, start it
-                const net = require('net') as typeof import('net');
-                const checkPort = (port: number): Promise<boolean> => new Promise(resolve => {
-                    const sock = new net.Socket();
-                    sock.setTimeout(500);
-                    sock.once('connect', () => { sock.destroy(); resolve(true); });
-                    sock.once('error',   () => { sock.destroy(); resolve(false); });
-                    sock.once('timeout', () => { sock.destroy(); resolve(false); });
-                    sock.connect(port, '127.0.0.1');
-                });
+                const pollUntilUp = async (port: number, attempts: number, intervalMs: number): Promise<boolean> => {
+                    for (let i = 0; i < attempts; i++) {
+                        if (await isPortOpen(port, 500)) { return true; }
+                        await new Promise(r => setTimeout(r, intervalMs));
+                    }
+                    return false;
+                };
 
-                const serverUp = await checkPort(demoPort);
+                let serverUp = await isPortOpen(demoPort, 500);
                 if (!serverUp) {
-                    // Start the demo server as a background process
                     const cp = require('child_process') as typeof import('child_process');
                     const wbCorePath = 'C:\\dev\\wb-core';
                     cp.spawn('node', ['demo-server.js'], {
@@ -339,12 +341,43 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                         detached: true,
                         stdio: 'ignore',
                     }).unref();
-                    // Give it a moment to start
-                    await new Promise(r => setTimeout(r, 1200));
+                    log(FEATURE, `Demo server not running — starting from ${wbCorePath}`);
+                    // Poll up to 5 seconds (10 × 500 ms) for the server to come up
+                    serverUp = await pollUntilUp(demoPort, 10, 500);
+                }
+
+                if (!serverUp) {
+                    const retry = await vscode.window.showErrorMessage(
+                        `Demo server did not start on port ${demoPort}. ` +
+                        `Make sure wb-core is at C:\\dev\\wb-core and run \`node demo-server.js\` manually.`,
+                        'Retry', 'Cancel'
+                    );
+                    if (retry === 'Retry') {
+                        // Re-poll once more (user may have manually started it)
+                        serverUp = await pollUntilUp(demoPort, 6, 500);
+                        if (!serverUp) {
+                            vscode.window.showErrorMessage(`Demo server still not reachable on port ${demoPort}.`);
+                            log(FEATURE, `Demo aborted — server unreachable on port ${demoPort}`);
+                            break;
+                        }
+                    } else {
+                        log(FEATURE, `Demo cancelled — server not running on port ${demoPort}`);
+                        break;
+                    }
                 }
 
                 await vscode.env.openExternal(vscode.Uri.parse(harnessUrl));
                 log(FEATURE, `Demo opened: ${harnessUrl}`);
+                break;
+            }
+            case 'run-command': {
+                const cmdId = msg.commandId as string;
+                if (cmdId) { await vscode.commands.executeCommand(cmdId); }
+                break;
+            }
+            case 'open-project-vscode': {
+                if (!msg.data) { break; }
+                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.data as string), { forceNewWindow: true });
                 break;
             }
             case 'rebuild-catalog': {
@@ -352,41 +385,9 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await openCatalog(true);
                 break;
             }
-            case 'archive-doc-confirm': {
-                const filePath   = msg.data as string;
-                const docTitle   = msg.title as string;
-                const projName   = msg.project as string;
-                if (!filePath) { break; }
-                const label = docTitle || filePath;
-                const choice = await vscode.window.showWarningMessage(
-                    `Archive "${label}"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived.`,
-                    { modal: true },
-                    'Archive'
-                );
-                if (choice !== 'Archive') { break; }
-                archiveDoc(filePath, docTitle, projName);
-                clearCachedCards();
-                log(FEATURE, `Archived: ${filePath}`);
-                void panel.webview.postMessage({ command: 'remove-card', filePath });
-                break;
-            }
-            case 'archive-doc': {
-                const filePath   = msg.data as string;
-                const docTitle   = msg.title as string;
-                const projName   = msg.project as string;
-                if (!filePath) { break; }
-                archiveDoc(filePath, docTitle, projName);
-                clearCachedCards();
-                log(FEATURE, `Archived: ${filePath}`);
-                void panel.webview.postMessage({ command: 'remove-card', filePath });
-                break;
-            }
-            case 'copy-paths': {
-                const paths = msg.paths as string[];
-                if (!paths?.length) { break; }
-                await vscode.env.clipboard.writeText(paths.join('\n'));
-                vscode.window.showInformationMessage(`Copied ${paths.length} path${paths.length === 1 ? '' : 's'} to clipboard.`);
-                log(FEATURE, `Clipboard: copied ${paths.length} path(s)`);
+            case 'new-issue': {
+                const { newIssueForProject } = await import('../../shared/github-issues-view');
+                newIssueForProject(msg.project as string | undefined);
                 break;
             }
         }
@@ -399,20 +400,20 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
     const projectInfos = registry ? registry.projects.filter(p => fs.existsSync(p.path)).map(loadProjectInfo) : [];
     const cards = await buildCatalog(forceRebuild);
     if (!cards?.length) { vscode.window.showWarningMessage('No docs found to catalog.'); return; }
+    queueCatalogInit(cards, projectInfos, registry?.projects ?? []);
     const html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
-    _pendingInitCards           = cards;
-    _pendingInitProjectInfos    = projectInfos;
-    _pendingInitRegistryEntries = registry?.projects ?? [];
     const hadPanel = Boolean(_catalogPanel);
     if (_catalogPanel) {
         _catalogPanel.webview.html = html;
         _catalogPanel.reveal(vscode.ViewColumn.Beside);
+        trySendPendingCatalogInit(_catalogPanel);
     } else {
         _catalogPanel = vscode.window.createWebviewPanel('docCatalog', '\u{1F4DA} Doc Catalog', vscode.ViewColumn.Beside,
             { enableScripts: true, retainContextWhenHidden: true });
+        // Attach listener before setting HTML so an immediate webview 'ready' message is never missed.
+        attachMessageHandler(_catalogPanel);
         _catalogPanel.webview.html = html;
         _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
-        attachMessageHandler(_catalogPanel);
     }
     if (hadPanel) {
         log(FEATURE, 'Catalog revealed');
@@ -450,8 +451,7 @@ function _escV(s: string): string {
 
 function rewriteDocLinks(html: string, filePath: string, port: number, backQ = ''): string {
     const dir = path.dirname(filePath);
-    // Rewrite href= for navigation links
-    let out = html.replace(/href="([^"]*)"/g, (match, href) => {
+    return html.replace(/href="([^"]*)"/g, (match, href) => {
         if (!href || href.startsWith('#') || /^(https?|vscode|mailto|data|ftp):/i.test(href)) {
             return match;
         }
@@ -459,14 +459,6 @@ function rewriteDocLinks(html: string, filePath: string, port: number, backQ = '
         const qParam   = backQ ? `&q=${encodeURIComponent(backQ)}` : '';
         return `href="http://127.0.0.1:${port}/doc?path=${encodeURIComponent(resolved)}${qParam}"`;
     });
-    // Rewrite src= for images — serve them via /asset so relative paths resolve
-    out = out.replace(/src="([^"]*)"/g, (match, src) => {
-        if (!src || /^(https?|data|ftp):/i.test(src)) { return match; }
-        const resolved = path.resolve(dir, src);
-        if (!fs.existsSync(resolved)) { return match; }
-        return `src="http://127.0.0.1:${port}/asset?path=${encodeURIComponent(resolved)}"`;
-    });
-    return out;
 }
 
 function buildDocPageHtml(filePath: string, rendered: string, port: number, backQ = ''): string {
@@ -483,32 +475,32 @@ function buildDocPageHtml(filePath: string, rendered: string, port: number, back
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:14px;color:#5ab4e8;background:#1e1e1e;display:flex;flex-direction:column;min-height:100vh}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column;min-height:100vh}
 #bar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0}
-#back{background:#2d2d2d;color:#5ab4e8;border:1px solid #555;border-radius:3px;padding:4px 12px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap;text-transform:capitalize}
+#back{background:#2d2d2d;color:#9cdcfe;border:1px solid #555;border-radius:3px;padding:4px 12px;cursor:pointer;font-size:12px;text-decoration:none;white-space:nowrap}
 #back:hover{background:#3c3c3c;border-color:#0078d4}
-#copy-path{background:#2d2d2d;color:#3a8fc1;border:1px solid #555;border-radius:3px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap;text-transform:capitalize}
-#copy-path:hover{background:#3c3c3c;border-color:#0078d4;color:#5ab4e8}
+#copy-path{background:#2d2d2d;color:#858585;border:1px solid #555;border-radius:3px;padding:4px 10px;cursor:pointer;font-size:12px;white-space:nowrap}
+#copy-path:hover{background:#3c3c3c;border-color:#0078d4;color:#d4d4d4}
 #copy-path.copied{color:#3fb950;border-color:#3fb950;background:#2d2d2d}
-#path{font-family:monospace;font-size:10px;color:#3a8fc1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.seg{color:#3a8fc1}.sep{color:#2a6fa0;margin:0 2px}.cur{color:#5ab4e8;font-weight:700}
+#path{font-family:monospace;font-size:10px;color:#858585;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.seg{color:#858585}.sep{color:#555;margin:0 2px}.cur{color:#d4d4d4;font-weight:700}
 #content{flex:1;padding:24px 40px 64px;max-width:900px;width:100%;margin:0 auto}
-h1,h2,h3,h4{margin:1.1em 0 .45em;line-height:1.3;font-weight:700;text-transform:capitalize}
-h1{font-size:1.8em;border-bottom:2px solid #0078d4;padding-bottom:8px;color:#7ec8f0}
-h2{font-size:1.3em;border-bottom:1px solid #404040;padding-bottom:4px;color:#6ab8e8}
-h3{font-size:1.1em;color:#5ab4e8}h4{font-size:.95em;color:#3a8fc1}
+h1,h2,h3,h4{margin:1.1em 0 .45em;line-height:1.3;font-weight:700}
+h1{font-size:1.8em;border-bottom:2px solid #0078d4;padding-bottom:8px}
+h2{font-size:1.3em;border-bottom:1px solid #404040;padding-bottom:4px}
+h3{font-size:1.1em}h4{font-size:.95em;color:#858585}
 p{margin:.55em 0;line-height:1.75}
 blockquote{border-left:4px solid #0078d4;padding:6px 14px;margin:10px 0;background:#252526;border-radius:0 4px 4px 0;font-style:italic}
 code{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.87em;background:#2d2d2d;padding:1px 6px;border-radius:3px;border:1px solid #404040;color:#ce9178}
 pre{background:#1f1f1f;border:1px solid #404040;border-radius:5px;padding:14px 16px;overflow-x:auto;margin:12px 0}
-pre code{background:none;padding:0;font-size:12px;line-height:1.6;border:none;color:#5ab4e8}
+pre code{background:none;padding:0;font-size:12px;line-height:1.6;border:none;color:#d4d4d4}
 li{margin:4px 0 4px 22px;line-height:1.65}ul,ol{margin:6px 0}
 table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
 td,th{border:1px solid #404040;padding:7px 12px;text-align:left}
-th{background:#252526;font-weight:700;font-size:12px;color:#5ab4e8;text-transform:capitalize}
+th{background:#252526;font-weight:700;font-size:12px}
 tr:nth-child(even) td{background:rgba(255,255,255,.03)}
 hr{border:none;border-top:1px solid #404040;margin:18px 0}
-a{color:#5ab4e8}a:hover{text-decoration:underline}
+a{color:#4ec9b0}a:hover{text-decoration:underline}
 strong{font-weight:700}em{font-style:italic}del{opacity:.6;text-decoration:line-through}
 img{max-width:100%;height:auto}
 </style>
@@ -587,15 +579,15 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number): string {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#5ab4e8;background:#1e1e1e;display:flex;flex-direction:column}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column}
 
 /* \u2500\u2500 Top bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 #topbar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0;height:40px}
-#topbar h1{font-size:.9em;font-weight:700;color:#5ab4e8;white-space:nowrap;text-transform:capitalize}
-#search{flex:1;padding:4px 8px;background:#3c3c3c;color:#5ab4e8;border:1px solid #555;border-radius:3px;font-size:12px;font-family:inherit;outline:none}
+#topbar h1{font-size:.9em;font-weight:700;color:#d4d4d4;white-space:nowrap}
+#search{flex:1;padding:4px 8px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:12px;font-family:inherit;outline:none}
 #search:focus{border-color:#0078d4}
-#stat{font-size:10px;color:#3a8fc1;white-space:nowrap}
-#proj-filter{padding:3px 6px;background:#3c3c3c;color:#5ab4e8;border:1px solid #555;border-radius:3px;font-size:11px;font-family:inherit;outline:none;cursor:pointer;max-width:140px}
+#stat{font-size:10px;color:#858585;white-space:nowrap}
+#proj-filter{padding:3px 6px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:11px;font-family:inherit;outline:none;cursor:pointer;max-width:140px}
 #proj-filter:focus{border-color:#0078d4}
 #proj-filter option{background:#252526}
 
@@ -607,14 +599,14 @@ body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#
 .proj-group{}
 .proj-hd{display:flex;align-items:center;gap:4px;padding:6px 8px 4px;background:#1e1e1e;border-bottom:1px solid #333;position:sticky;top:0;z-index:1}
 .dw{font-family:monospace;font-size:8px;font-weight:700;background:#0078d4;color:#fff;border-radius:2px;padding:1px 4px;flex-shrink:0}
-.fn{font-weight:700;font-size:10px;color:#5ab4e8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:capitalize}
+.fn{font-weight:700;font-size:10px;color:#9cdcfe;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .folder-btn{background:none;border:none;cursor:pointer;font-size:11px;padding:0 2px;opacity:.6}
 .folder-btn:hover{opacity:1}
 .cnt{font-size:9px;background:#1b6ac9;color:#fff;border-radius:8px;padding:0 4px;flex-shrink:0}
 .proj-links{display:flex;flex-direction:column;padding:2px 0 6px}
-.doc-link{display:block;padding:3px 10px 3px 16px;color:#3a8fc1;text-decoration:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid transparent;transition:all .1s;text-transform:capitalize}
-.doc-link:hover{background:#2a2d2e;color:#5ab4e8;border-left-color:#0078d4}
-.doc-link.pri{color:#7ec8f0;font-weight:600}
+.doc-link{display:block;padding:3px 10px 3px 16px;color:#a0c4c4;text-decoration:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid transparent;transition:all .1s}
+.doc-link:hover{background:#2a2d2e;color:#9cdcfe;border-left-color:#0078d4}
+.doc-link.pri{color:#d4d4d4;font-weight:600}
 .doc-link.active{background:rgba(63,185,80,.12)!important;border-left-color:#3fb950!important;color:#3fb950!important;font-weight:700}
 .doc-link.hi{background:#ffe066!important;color:#1a1a00!important;font-weight:700}
 .index-searching .doc-link:not(.hi){display:none}
@@ -628,19 +620,19 @@ body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#
 /* \u2500\u2500 Doc viewer (88vw iframe) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 #viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
-#viewer-path{font-family:monospace;font-size:10px;color:#3a8fc1;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#btn-copy-path,#btn-open-vscode,#btn-set-cwd,#btn-explorer{background:#2d2d2d;color:#3a8fc1;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
-#btn-copy-path:hover,#btn-open-vscode:hover,#btn-set-cwd:hover,#btn-explorer:hover{border-color:#0078d4;color:#5ab4e8}
+#viewer-path{font-family:monospace;font-size:10px;color:#858585;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#btn-copy-path{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
+#btn-copy-path:hover{border-color:#0078d4;color:#d4d4d4}
 #doc-frame{flex:1;border:none;background:#1e1e1e;}
-#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#3a8fc1;font-size:13px;gap:8px;text-transform:capitalize}
+#welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;gap:8px;}
 #welcome svg{opacity:.25}
 
 /* \u2500\u2500 Empty state \u2500\u2500 */
-#idx-empty{padding:20px 10px;text-align:center;color:#3a8fc1;font-size:11px;display:none}
+#idx-empty{padding:20px 10px;text-align:center;color:#555;font-size:11px;display:none}
 #idx-empty.show{display:block}
 
 /* \u2500\u2500 Toast \u2500\u2500 */
-#toast{position:fixed;bottom:14px;right:14px;background:#2d333b;color:#5ab4e8;border:1px solid #58a6ff;border-radius:4px;padding:5px 12px;font-size:11px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast{position:fixed;bottom:14px;right:14px;background:#2d333b;color:#cae8ff;border:1px solid #58a6ff;border-radius:4px;padding:5px 12px;font-size:11px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 </style>
 </head>
@@ -667,16 +659,13 @@ body{font-family:'Segoe Script','Brush Script MT',cursive;font-size:13px;color:#
   <div id="viewer">
     <div id="viewer-bar">
       <span id="viewer-path">Select a document from the index</span>
-      <button id="btn-open-vscode" style="display:none" title="Open folder in VS Code">&#128193; VS Code</button>
-      <button id="btn-set-cwd"     style="display:none" title="Set terminal CWD to this folder">&#128196; Set CWD</button>
-      <button id="btn-explorer"    style="display:none" title="Reveal file in Explorer">&#128269; Explorer</button>
-      <button id="btn-copy-path"   style="display:none" title="Copy file path">&#128203; Copy Path</button>
+      <button id="btn-copy-path" style="display:none" title="Copy file path">&#128203; Copy Path</button>
     </div>
     <div id="welcome">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#888" stroke-width="2"/><line x1="11" y1="12" x2="29" y2="12" stroke="#888" stroke-width="1.5"/><line x1="11" y1="17" x2="29" y2="17" stroke="#888" stroke-width="1.5"/><line x1="11" y1="22" x2="22" y2="22" stroke="#888" stroke-width="1.5"/></svg>
       <span>Select a document from the index</span>
     </div>
-    <iframe id="doc-frame" style="display:none" sandbox="allow-scripts"></iframe>
+    <iframe id="doc-frame" style="display:none" sandbox="allow-scripts allow-same-origin"></iframe>
   </div>
 
 </div>
@@ -692,11 +681,8 @@ var idxEl     = document.getElementById('index');
 var idxEmpty  = document.getElementById('idx-empty');
 var frame     = document.getElementById('doc-frame');
 var welcome   = document.getElementById('welcome');
-var viewerPath  = document.getElementById('viewer-path');
-var btnCopy     = document.getElementById('btn-copy-path');
-var btnVSCode   = document.getElementById('btn-open-vscode');
-var btnCwd      = document.getElementById('btn-set-cwd');
-var btnExplorer = document.getElementById('btn-explorer');
+var viewerPath= document.getElementById('viewer-path');
+var btnCopy   = document.getElementById('btn-copy-path');
 var TOTAL     = ${totalDocs};
 var _currentPath = '';
 
@@ -749,9 +735,6 @@ function openDoc(docPath, linkEl) {
   // Update viewer bar
   viewerPath.textContent = docPath;
   btnCopy.style.display = '';
-  if (btnVSCode) { btnVSCode.style.display = ''; }
-  if (btnCwd)    { btnCwd.style.display = ''; }
-  if (btnExplorer) { btnExplorer.style.display = ''; }
 
   // Load in iframe
   var docUrl = BASE + '/doc?path=' + encodeURIComponent(docPath);
@@ -777,21 +760,6 @@ document.addEventListener('click', function(e) {
 });
 
 // \u2500\u2500 Copy path \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-if (btnVSCode) { btnVSCode.addEventListener('click', function() {
-  if (!_currentPath) { return; }
-  fetch(BASE + '/open-in-vscode?path=' + encodeURIComponent(_currentPath)).catch(function(){});
-  toast('Opening folder in VS Code\u2026');
-}); }
-if (btnCwd) { btnCwd.addEventListener('click', function() {
-  if (!_currentPath) { return; }
-  fetch(BASE + '/set-cwd?path=' + encodeURIComponent(_currentPath)).catch(function(){});
-  toast('Setting terminal CWD\u2026');
-}); }
-if (btnExplorer) { btnExplorer.addEventListener('click', function() {
-  if (!_currentPath) { return; }
-  fetch(BASE + '/reveal?path=' + encodeURIComponent(_currentPath)).catch(function(){});
-  toast('Revealing in Explorer\u2026');
-}); }
 btnCopy.addEventListener('click', function() {
   if (!_currentPath) { return; }
   navigator.clipboard.writeText(_currentPath).then(function() {
@@ -891,60 +859,12 @@ export async function viewSpecificDoc(): Promise<void> {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(buildDocPageHtml(filePath, rendered, port, backQ));
 
-        } else if (url.pathname === '/asset') {
-            // Serve local image/svg/binary assets referenced by markdown docs
-            const assetPath = decodeURIComponent(url.searchParams.get('path') || '');
-            if (!assetPath || !fs.existsSync(assetPath)) {
-                res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Asset not found'); return;
-            }
-            const ext = path.extname(assetPath).toLowerCase();
-            const mimeMap: Record<string, string> = {
-                '.png':  'image/png',
-                '.jpg':  'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.gif':  'image/gif',
-                '.svg':  'image/svg+xml',
-                '.webp': 'image/webp',
-                '.ico':  'image/x-icon',
-                '.bmp':  'image/bmp',
-            };
-            const mime = mimeMap[ext] ?? 'application/octet-stream';
-            res.writeHead(200, { 'Content-Type': mime });
-            res.end(fs.readFileSync(assetPath));
-
         } else if (url.pathname === '/openfolder') {
             const folderPath = decodeURIComponent(url.searchParams.get('path') || '');
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('OK');
             if (folderPath) {
                 void openProjectFolderSmart(folderPath);
-            }
-
-        } else if (url.pathname === '/open-in-vscode') {
-            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('OK');
-            if (filePath) {
-                void openProjectFolderSmart(path.dirname(filePath));
-            }
-
-        } else if (url.pathname === '/set-cwd') {
-            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('OK');
-            if (filePath) {
-                const folder = path.dirname(filePath);
-                const term = vscode.window.terminals[0] ?? vscode.window.createTerminal({ name: 'CieloVista', cwd: folder });
-                term.sendText(`cd "${folder}"`);
-                term.show();
-            }
-
-        } else if (url.pathname === '/reveal') {
-            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('OK');
-            if (filePath && fs.existsSync(filePath)) {
-                void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(filePath));
             }
 
         } else {
@@ -968,6 +888,32 @@ export async function viewSpecificDoc(): Promise<void> {
 // ---------------------------------------------------------------------------
 // deserializeCatalogPanel
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// viewArchivedCatalog
+// ---------------------------------------------------------------------------
+export async function viewArchivedCatalog(): Promise<void> {
+    const entries = loadArchiveEntries();
+    if (!entries.length) {
+        void vscode.window.showInformationMessage('No archived docs found.');
+        return;
+    }
+    const items = entries.map(e => ({
+        label: e.title || path.basename(e.filePath),
+        description: e.projectName,
+        detail: `Archived ${e.archivedAt} — ${e.filePath}`,
+        filePath: e.filePath,
+    }));
+    const pick = await vscode.window.showQuickPick(items, {
+        title: 'Archived Docs',
+        placeHolder: 'Select a doc to restore or press Escape to dismiss',
+    });
+    if (!pick) { return; }
+    restoreDoc(pick.filePath);
+    clearCachedCards();
+    log(FEATURE, `Restored archived doc: ${pick.filePath}`);
+    void vscode.window.showInformationMessage(`Restored: ${pick.label}`);
+}
+
 export function deserializeCatalogPanel(panel: vscode.WebviewPanel): void {
     _catalogPanel = panel;
     _catalogPanel.webview.options = { enableScripts: true };
@@ -979,96 +925,9 @@ export function deserializeCatalogPanel(panel: vscode.WebviewPanel): void {
         _pendingInitProjectInfos    = projectInfos;
         _pendingInitRegistryEntries = registry?.projects ?? [];
         _catalogPanel!.webview.html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
+        trySendPendingCatalogInit(_catalogPanel!);
     });
     _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
     attachMessageHandler(_catalogPanel);
     log(FEATURE, 'Doc Catalog panel restored after reload');
-}
-
-// ---------------------------------------------------------------------------
-// viewArchivedCatalog — shows a simple webview listing archived docs.
-// Each row has a Restore button that removes the entry and refreshes.
-// ---------------------------------------------------------------------------
-
-let _archivedPanel: vscode.WebviewPanel | undefined;
-
-function buildArchivedHtml(): string {
-    const nonce   = getNonce();
-    const entries = loadArchiveEntries();
-    const rows = entries.length === 0
-        ? '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--vscode-descriptionForeground)">No archived documents</td></tr>'
-        : entries.map(e => `<tr>
-            <td class="ac-proj">${_rbEsc(e.projectName)}</td>
-            <td class="ac-title">${_rbEsc(e.title)}</td>
-            <td class="ac-path" title="${_rbEsc(e.filePath)}">${_rbEsc(path.basename(e.filePath))}</td>
-            <td class="ac-date">${_rbEsc(e.archivedAt)}</td>
-            <td><button class="btn-restore" data-path="${_rbEsc(e.filePath)}">&#8629; Restore</button></td>
-          </tr>`).join('');
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:20px 24px}
-h2{font-size:1.1em;font-weight:700;margin-bottom:4px}
-.sub{font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:18px}
-.tbl-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto;max-height:520px}
-table{width:100%;border-collapse:collapse}
-thead th{position:sticky;top:0;background:var(--vscode-textCodeBlock-background);padding:6px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border)}
-tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{border-bottom:none}tbody tr:hover{background:var(--vscode-list-hoverBackground)}
-.ac-proj{padding:5px 10px;font-size:10px;font-weight:700;color:var(--vscode-textLink-foreground);text-transform:uppercase;white-space:nowrap}
-.ac-title{padding:5px 10px;font-weight:500}
-.ac-path{padding:5px 10px;font-family:monospace;font-size:10px;color:var(--vscode-descriptionForeground)}
-.ac-date{padding:5px 10px;font-size:10px;color:var(--vscode-descriptionForeground);white-space:nowrap}
-td:last-child{padding:4px 10px}
-.btn-restore{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px}
-.btn-restore:hover{background:var(--vscode-button-secondaryHoverBackground)}
-</style></head><body>
-<h2>&#128190; Archived Documents</h2>
-<div class="sub">Archived docs are excluded from the Doc Catalog. Restore to make them visible again.</div>
-<div class="tbl-wrap"><table>
-  <thead><tr><th>Project</th><th>Title</th><th>File</th><th>Archived</th><th></th></tr></thead>
-  <tbody>${rows}</tbody>
-</table></div>
-<script nonce="${nonce}">(function(){
-var vs = acquireVsCodeApi();
-document.addEventListener('click', function(e) {
-    var btn = e.target.closest('.btn-restore');
-    if (!btn) { return; }
-    vs.postMessage({ command: 'restore-doc', data: btn.dataset.path });
-    btn.closest('tr').remove();
-    var tbody = document.querySelector('tbody');
-    if (!tbody.querySelector('tr')) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--vscode-descriptionForeground)">No archived documents</td></tr>';
-    }
-});
-})();</script></body></html>`;
-}
-
-export function viewArchivedCatalog(): void {
-    const html  = buildArchivedHtml();
-    const title = '\u{1F4BE} Archived Docs';
-    if (_archivedPanel) {
-        _archivedPanel.webview.html = html;
-        _archivedPanel.reveal(vscode.ViewColumn.Beside, true);
-    } else {
-        _archivedPanel = vscode.window.createWebviewPanel(
-            'catalogArchived', title,
-            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-            { enableScripts: true, retainContextWhenHidden: false }
-        );
-        _archivedPanel.webview.html = html;
-        _archivedPanel.onDidDispose(() => { _archivedPanel = undefined; });
-    }
-    _archivedPanel.webview.onDidReceiveMessage(async msg => {
-        if (msg.command === 'restore-doc' && msg.data) {
-            restoreDoc(msg.data as string);
-            clearCachedCards();
-            log(FEATURE, `Restored: ${msg.data as string}`);
-            // Refresh the archived panel HTML after restore
-            if (_archivedPanel) { _archivedPanel.webview.html = buildArchivedHtml(); }
-            // If catalog is open, prompt refresh
-            if (_catalogPanel) { await openCatalog(true); }
-        }
-    });
-    log(FEATURE, `Archived docs panel opened (${loadArchiveEntries().length} entries)`);
 }

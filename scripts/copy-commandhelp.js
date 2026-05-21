@@ -9,7 +9,9 @@ const dest = path.join(__dirname, '../out/features/CommandHelp');
 
 // Copy static HTML files that TypeScript doesn't touch
 const staticFiles = [
-    ['src/features/doc-catalog/catalog.html', 'out/catalog.html'],
+    ['src/features/doc-catalog/catalog.html',   'out/catalog.html'],
+    ['src/features/npm-scripts-tree.html',       'out/npm-scripts-tree.html'],
+    ['docs/_today/test.html',                    'out/cvt-demo.html'],
 ];
 for (const [rel, dest] of staticFiles) {
     const s = path.join(__dirname, '..', rel);

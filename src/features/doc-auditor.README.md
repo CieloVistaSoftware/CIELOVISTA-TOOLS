@@ -1,8 +1,7 @@
 ---
 docid: 150.1.doc-auditor-readme
-dewey: 150.1.doc-auditor-readme
 id: feature-doc-auditorts-advanced-developer-guide
-title: feature: doc-auditor.ts — Advanced Developer Guide
+title: "feature: doc-auditor.ts — Advanced Developer Guide"
 project: cielovista-tools
 description: The doc-auditor is a comprehensive, interactive tool for auditing documentation health across all CieloVista projects and the global standards fold…
 status: active
@@ -99,7 +98,7 @@ The doc-auditor is a comprehensive, interactive tool for auditing documentation 
 
 ## Internal architecture
 
-```
+```text
 activate()
   └── registers 9 commands: docs, findDuplicates, findSimilar,
       findOrphans, mergeFiles, moveToGlobal, openReport,
@@ -128,7 +127,7 @@ walkThroughFindings(results)
 actOnReport()
   └── pick report file → parseReportActions() → AUDIT-ACTION tags
   └── showQuickPick(actions) → execute chosen action
-```
+```text
 
 ---
 
@@ -138,3 +137,9 @@ actOnReport()
 2. In the Duplicates section, click the tab for each copy to read it, then click `⬛ Diff` to compare two copies side-by-side in VS Code's native diff viewer.
 3. Run [`cvs.audit.findOrphans`](command:cvs.audit.findOrphans) — any unreferenced `.md` files should appear. Select one; it opens in the editor for review.
 4. After running a full audit, run [`cvs.audit.actOnReport`](command:cvs.audit.actOnReport) — pick the saved report and select an action to execute from it.
+
+---
+
+## What it does
+
+_TODO: one paragraph describing the single responsibility of this file._

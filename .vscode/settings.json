@@ -8,6 +8,7 @@
     "package.json::start": "Start local extension rebuild workflow",
     "package.json::vscode:prepublish": "Prepublish hook to compile before packaging"
   },
+  "npm.exclude": "**/.vscode-test/**",
   "chat.tools.terminal.autoApprove": {
     "/^node --check core/events\\.js$/": {
       "approve": true,
@@ -21,6 +22,19 @@
     "/^node tests/unit/mcp-viewer\\.test\\.js$/": {
       "approve": true,
       "matchCommandLine": true
-    }
+    },
+    "/^node tests/regression/REG-047-frontmatter-viewer-rescan-preserves-filed-issues\\.test\\.js$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^npm start$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^& npm --prefix \"C:\\\\Users\\\\jwpmi\\\\source\\\\repos\\\\DiskCleanUp\" start$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "dotnet build": true
   }
 }

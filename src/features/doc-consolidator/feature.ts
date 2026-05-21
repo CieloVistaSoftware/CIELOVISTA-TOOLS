@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: cat
+
 /**
  * doc-consolidator.ts
  *
@@ -384,7 +387,7 @@ function buildGroupPickerHtml(groups: ConsolidationGroup[]): string {
     function e(s: string) { return String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]??c)); }
     const rows = groups.map((g, i) => {
         const files = g.files.map(f =>
-            `<span style="font-size:10px;font-family:monospace;color:var(--vscode-descriptionForeground)">${e(f.projectName)}/${e(f.fileName)}</span>`
+            `<button class="file-link" data-action="open-file" data-path="${e(f.filePath)}" title="${e(f.filePath)}">${e(f.projectName)}/${e(f.fileName)}</button>`
         ).join('<br>');
         const badge = g.reason === 'same-name'
             ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground)">exact name</span>`
@@ -417,6 +420,8 @@ h1{font-size:1.05em;font-weight:700;margin-bottom:4px}
 #btn-cancel{background:transparent;border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);padding:6px 14px;border-radius:3px;cursor:pointer;font-size:12px;font-family:inherit}
 #btn-cancel:hover{border-color:var(--vscode-focusBorder)}
 .group-card:hover{border-color:var(--vscode-focusBorder) !important}
+.file-link{background:none;border:none;padding:0;font-size:10px;font-family:monospace;color:var(--vscode-textLink-foreground);cursor:pointer;text-align:left;text-decoration:underline;opacity:0.85}
+.file-link:hover{opacity:1;color:var(--vscode-textLink-activeForeground)}
 </style></head><body>
 <h1>Consolidation Opportunities</h1>
 <div id="subtitle">Found ${groups.length} groups — select which to consolidate, then click Consolidate.</div>
@@ -452,6 +457,10 @@ document.getElementById('btn-go').addEventListener('click', function() {
 document.getElementById('btn-cancel').addEventListener('click', function() {
   vscode.postMessage({ command: 'cancel' });
 });
+document.getElementById('list').addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-action="open-file"]');
+  if (btn) { e.stopPropagation(); vscode.postMessage({ command: 'open-file', path: btn.dataset.path }); }
+});
 })();</script></body></html>`;
 }
 
@@ -465,6 +474,10 @@ async function pickGroupsWebview(groups: ConsolidationGroup[]): Promise<Consolid
         );
         panel.webview.html = buildGroupPickerHtml(groups);
         panel.webview.onDidReceiveMessage(msg => {
+            if (msg.command === 'open-file' && msg.path) {
+                vscode.workspace.openTextDocument(msg.path).then(doc => vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true }));
+                return;
+            }
             panel.dispose();
             if (msg.command === 'select-groups' && Array.isArray(msg.indices) && msg.indices.length > 0) {
                 resolve((msg.indices as number[]).map(i => groups[i]));

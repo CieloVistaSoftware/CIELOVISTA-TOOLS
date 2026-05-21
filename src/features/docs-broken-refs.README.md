@@ -1,8 +1,7 @@
 ---
 docid: 150.1.docs-broken-refs-readme
-dewey: 150.1.docs-broken-refs-readme
 id: feature-docs-broken-refsts
-title: feature: docs-broken-refs.ts
+title: "feature: docs-broken-refs.ts"
 project: cielovista-tools
 description: Scans markdown docs across all registered projects and reports broken image and markdown links. The report includes likely candidate files by filen…
 status: active

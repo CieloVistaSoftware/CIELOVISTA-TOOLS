@@ -16,8 +16,9 @@ mcp-server/src/**
 mcp-server/tsconfig.json
 mcp-server/install-config.mjs
 
-# Dev scripts — not needed at runtime
+# Dev scripts — not needed at runtime (audit-test-coverage.js IS bundled — it runs at _extensionPath)
 scripts/**
+!scripts/audit-test-coverage.js
 patch-help-docs.js
 install.js
 rebuild.ps1

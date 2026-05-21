@@ -1,8 +1,7 @@
 ---
 docid: 150.1.html-template-downloader-readme
-dewey: 150.1.html-template-downloader-readme
 id: feature-html-template-downloaderts
-title: feature: html-template-downloader.ts
+title: "feature: html-template-downloader.ts"
 project: cielovista-tools
 description: Downloads HTML starter templates from the CieloVistaSoftware GitHub repository into your workspace. Also provides a utility to open any path curren…
 status: active

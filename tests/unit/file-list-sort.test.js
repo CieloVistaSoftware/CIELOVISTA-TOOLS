@@ -69,11 +69,11 @@ function entry(name, isDir, size, mtime, type) {
 
 const sample = [
     entry('readme.md',     false, 1200,  Date.parse('2026-04-10T10:00:00Z'), 'md'),
-    entry('src',           true,  0,     Date.parse('2026-04-26T12:00:00Z'), '<dir>'),
+    entry('src',           true,  0,     Date.parse('2026-04-26T12:00:00Z'), 'dir'),
     entry('package.json',  false, 5800,  Date.parse('2026-04-26T15:00:00Z'), 'json'),
-    entry('docs',          true,  0,     Date.parse('2026-04-15T09:00:00Z'), '<dir>'),
+    entry('docs',          true,  0,     Date.parse('2026-04-15T09:00:00Z'), 'dir'),
     entry('CHANGELOG.md',  false, 800,   Date.parse('2026-04-26T15:00:00Z'), 'md'),
-    entry('node_modules',  true,  0,     Date.parse('2026-04-25T08:00:00Z'), '<dir>'),
+    entry('node_modules',  true,  0,     Date.parse('2026-04-25T08:00:00Z'), 'dir'),
     entry('app.ts',        false, 12000, Date.parse('2026-04-25T18:00:00Z'), 'ts'),
 ];
 

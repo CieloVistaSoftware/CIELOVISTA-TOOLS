@@ -28,7 +28,7 @@ for (const step of steps) {
     const r = spawnSync(step.cmd, step.args, {
         cwd: root,
         stdio: 'inherit',
-        shell: false,
+        shell: true,
     });
 
     if (r.status !== 0) {

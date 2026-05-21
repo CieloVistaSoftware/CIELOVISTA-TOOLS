@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   EchoToolSchema,
+  NotifyToolSchema,
   ListFilesToolSchema,
   ReadFileToolSchema,
   ProjectStatusToolSchema,
@@ -20,6 +21,7 @@ import {
   ListSymbolsToolSchema,
   FindSymbolToolSchema,
   ListCvtCommandsToolSchema,
+  AuditDuplicationToolSchema,
   NormalizeDocToolSchema,
   GetDocByIdentityToolSchema,
   RefreshDocLedgerToolSchema,
@@ -50,6 +52,7 @@ import {
 } from "../symbol-index.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execFileSync } from "node:child_process";
 
 export function registerTools(server: McpServer): void {
   server.tool(
@@ -60,6 +63,29 @@ export function registerTools(server: McpServer): void {
       return {
         content: [{ type: "text" as const, text: `Echo: ${message}` }],
       };
+    }
+  );
+
+  server.tool(
+    "notify",
+    "Send a message to the CieloVista Tools output channel in VS Code. Use this to report status updates, findings, or notes directly into John's VS Code window without interrupting the chat.",
+    NotifyToolSchema.shape,
+    async ({ message, level }) => {
+      try {
+        const res = await fetch("http://127.0.0.1:52199/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, level: level ?? "info" }),
+        });
+        if (res.ok) {
+          return { content: [{ type: "text" as const, text: "✓ Message sent to VS Code output channel." }] };
+        } else {
+          return { content: [{ type: "text" as const, text: `Failed: HTTP ${res.status} — is the extension running?` }] };
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text" as const, text: `Failed to reach notify server: ${msg}` }] };
+      }
     }
   );
 
@@ -621,6 +647,57 @@ export function registerTools(server: McpServer): void {
         const msg: string = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `Error listing CVT commands: ${msg}` }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "cvs_audit_duplication",
+    "Runs the CieloVista code duplication auditor across registered projects. Detects exact, near, and repeated-pattern duplicate code blocks and returns suggested shared abstraction paths.",
+    AuditDuplicationToolSchema.shape,
+    async ({ json, minLines, minStatements, nearThreshold, registryPath }) => {
+      try {
+        const mcpRoot = path.resolve(__dirname, "..", "..");
+        const repoRoot = path.resolve(mcpRoot, "..");
+        const scriptPath = path.resolve(repoRoot, "scripts", "code-auditor.js");
+
+        if (!fs.existsSync(scriptPath)) {
+          return {
+            content: [{ type: "text" as const, text: `Error: code auditor script not found: ${scriptPath}` }],
+          };
+        }
+
+        const args: string[] = [];
+        if (json !== false) {
+          args.push("--json");
+        }
+        if (typeof minLines === "number") {
+          args.push(`--min-lines=${minLines}`);
+        }
+        if (typeof minStatements === "number") {
+          args.push(`--min-statements=${minStatements}`);
+        }
+        if (typeof nearThreshold === "number") {
+          args.push(`--near-threshold=${nearThreshold}`);
+        }
+        if (registryPath && registryPath.trim()) {
+          args.push(`--registry=${registryPath.trim()}`);
+        }
+
+        const output = execFileSync(process.execPath, [scriptPath, ...args], {
+          cwd: repoRoot,
+          encoding: "utf8",
+          maxBuffer: 16 * 1024 * 1024,
+        });
+
+        return {
+          content: [{ type: "text" as const, text: output }],
+        };
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error running duplication audit: ${msg}` }],
         };
       }
     }

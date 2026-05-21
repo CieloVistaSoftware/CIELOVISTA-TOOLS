@@ -1,8 +1,7 @@
 ---
 docid: 150.1.copilot-rules-enforcer-readme
-dewey: 150.1.copilot-rules-enforcer-readme
 id: feature-copilot-rules-enforcerts
-title: feature: copilot-rules-enforcer.ts
+title: "feature: copilot-rules-enforcer.ts"
 project: cielovista-tools
 description: Injects your custom Copilot instruction rules into the workspace (or user) settings on startup. Rules are read from copilot-rules.md in the workspa…
 status: active

@@ -1,8 +1,7 @@
 ---
 docid: 150.9.docs-audit-utils-readme
-dewey: 150.9.docs-audit-utils-readme
 id: feature-docs-audit-utilsts-developer-guide
-title: feature: docs-audit-utils.ts — Developer Guide
+title: "feature: docs-audit-utils.ts — Developer Guide"
 project: cielovista-tools
 description: Shared pure utility functions and types for scanning, analyzing, and recommending actions for documentation health across all CieloVista projects a…
 status: active

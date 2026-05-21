@@ -1,5 +1,8 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: issv
+
 /**
  * github-issues-view.ts
  *
@@ -17,13 +20,33 @@
 
 import * as vscode from 'vscode';
 import * as https  from 'https';
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getChannel } from './output-channel';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
+
+let currentRepo = { owner: REPO_OWNER, name: REPO_NAME };
+
+function repoDisplayName(name: string): string {
+    if (name.toLowerCase() === 'cielovista-tools') { return 'CieloVista Tools'; }
+    return name;
+}
+
+function detectRepoFromWorkspace(): { owner: string; name: string } {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) { return { owner: REPO_OWNER, name: REPO_NAME }; }
+    try {
+        const output = execFileSync('git', ['remote', 'get-url', 'origin'], {
+            cwd: workspaceRoot, timeout: 3000, windowsHide: true,
+        }).toString().trim();
+        const match = output.match(/github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/);
+        if (match) { return { owner: match[1], name: match[2] }; }
+    } catch { /* not a git repo or no remote — fall through */ }
+    return { owner: REPO_OWNER, name: REPO_NAME };
+}
 
 interface GHLabel    { name: string; color: string; }
 interface GHUser     { login: string; }
@@ -45,8 +68,14 @@ interface GHIssue {
     comments:     number;
 }
 
+interface LocalFixRef {
+    label: string;
+    relativePath: string;
+}
+
 let activePanel: vscode.WebviewPanel | undefined;
 let activeRefresh: (() => Promise<void>) | undefined;
+let activeRepo: { owner: string; name: string } | undefined;
 
 function formatIssuesForClipboard(issues: GHIssue[]): string {
     return issues.map((issue) => {
@@ -81,7 +110,28 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
  * Function name is `showGithubIssues` (lowercase h) to match the existing
  * import in home-page.ts.
  */
+
+/**
+ * Open the GitHub new-issue page, pre-filling the body with the project name
+ * when one is provided.
+ */
+export function newIssueForProject(projectName?: string): void {
+    const repo = detectRepoFromWorkspace();
+    const body = projectName ? `**Project:** ${projectName}\n\n` : '';
+    const url = `https://github.com/${repo.owner}/${repo.name}/issues/new?body=${encodeURIComponent(body)}`;
+    void vscode.env.openExternal(vscode.Uri.parse(url));
+}
+
 export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColumn.Two): void {
+    const detected = detectRepoFromWorkspace();
+    // If the panel is already open for a different repo, close it so we reopen for the new one.
+    if (activePanel && activeRepo && (activeRepo.owner !== detected.owner || activeRepo.name !== detected.name)) {
+        activePanel.dispose();
+        activePanel = undefined;
+    }
+    currentRepo = detected;
+    activeRepo = detected;
+
     if (activePanel) {
         activePanel.reveal(viewColumn);
         if (activeRefresh) {
@@ -92,21 +142,24 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
 
     const panel = vscode.window.createWebviewPanel(
         'cvtIssues',
-        'cielovista-tools \u2014 Open Issues',
+        `${repoDisplayName(currentRepo.name)} \u2014 Open Issues`,
         viewColumn,
         { enableScripts: true }
     );
     activePanel = panel;
+    let workspaceListener: vscode.Disposable | undefined;
     panel.onDidDispose(() => {
         activePanel = undefined;
         activeRefresh = undefined;
+        activeRepo = undefined;
+        workspaceListener?.dispose();
     });
 
     let latestIssues: GHIssue[] = [];
     let currentState: IssueState = 'open';
 
     function panelTitleFor(state: IssueState): string {
-        return `cielovista-tools \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
+        return `${repoDisplayName(currentRepo.name)} \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
     }
 
     const setHtml = (loading: boolean, issues: GHIssue[] | null, error: string | null): void => {
@@ -127,6 +180,17 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
     };
     activeRefresh = refresh;
 
+    // Auto-refresh when workspace folders change (e.g. user opens a different project).
+    workspaceListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        const newRepo = detectRepoFromWorkspace();
+        if (newRepo.owner !== currentRepo.owner || newRepo.name !== currentRepo.name) {
+            currentRepo = newRepo;
+            activeRepo = newRepo;
+            panel.title = panelTitleFor(currentState);
+            void refresh();
+        }
+    });
+
     panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number; testRef?: string }) => {
         if (!msg?.type) { return; }
         if (msg.type === 'refresh') {
@@ -145,6 +209,10 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void claimIssue(msg.number, panel);
         } else if (msg.type === 'runTest' && msg.testRef) {
             void runLinkedTest(String(msg.testRef));
+        } else if (msg.type === 'openLocal' && typeof (msg as { relativePath?: string }).relativePath === 'string') {
+            void openLocalFixPath(String((msg as { relativePath?: string }).relativePath));
+        } else if (msg.type === 'newIssue') {
+            void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/new`));
         }
     });
 
@@ -158,8 +226,8 @@ async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<v
         execFile('gh', args, { shell: true }, (err) => err ? reject(err) : resolve());
     });
     try {
-        await run(['issue', 'edit', String(number), '--add-label', 'status:in-progress', '--repo', `${REPO_OWNER}/${REPO_NAME}`]);
-        await run(['issue', 'edit', String(number), '--add-assignee', '@me',             '--repo', `${REPO_OWNER}/${REPO_NAME}`]);
+        await run(['issue', 'edit', String(number), '--add-label', 'status:in-progress', '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
+        await run(['issue', 'edit', String(number), '--add-assignee', '@me',             '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
         panel.webview.postMessage({ type: 'claimed', number });
         void vscode.window.showInformationMessage(`Issue #${number} claimed — status:in-progress applied.`);
     } catch (err: unknown) {
@@ -200,6 +268,26 @@ async function runLinkedTest(testRef: string): Promise<void> {
     });
 }
 
+async function openLocalFixPath(relativePath: string): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        void vscode.window.showWarningMessage('Open a workspace folder to view local fix links.');
+        return;
+    }
+
+    const normalized = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!normalized) { return; }
+
+    const fullPath = path.join(workspaceRoot, normalized);
+    if (!fs.existsSync(fullPath)) {
+        void vscode.window.showWarningMessage(`Local fix path not found: ${normalized}`);
+        return;
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(fullPath));
+    await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.One });
+}
+
 // ─── Fetch ──────────────────────────────────────────────────────────────────
 
 async function fetchIssues(state: IssueState): Promise<GHIssue[]> {
@@ -233,7 +321,7 @@ function fetchIssuesViaRest(state: IssueState): Promise<GHIssue[]> {
     // filtering. Scan a few pages to find real issues before giving up.
     return (async () => {
         const perPage = 50;
-        const maxPages = 5;
+        const maxPages = 10; // Increased from 5 to 10
         const byNumber = new Map<number, GHIssue>();
 
         for (let page = 1; page <= maxPages; page++) {
@@ -243,6 +331,7 @@ function fetchIssuesViaRest(state: IssueState): Promise<GHIssue[]> {
                 byNumber.set(issue.number, issue);
             }
 
+            // Only break if we have enough *issues*, not just items
             if (byNumber.size >= perPage) { break; }
         }
 
@@ -287,7 +376,7 @@ function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
 
         const args = [
             'issue', 'list',
-            '-R', `${REPO_OWNER}/${REPO_NAME}`,
+            '-R', `${currentRepo.owner}/${currentRepo.name}`,
             '--state', state,
             '--limit', '50',
             '--json', 'number,title,url,state,createdAt,updatedAt,closedAt,author,labels,assignees,body,comments',
@@ -331,7 +420,7 @@ function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
 
 function fetchIssuesPage(page: number, perPage: number, state: IssueState): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
-        const path = `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}`;
+        const path = `/repos/${currentRepo.owner}/${currentRepo.name}/issues?state=${state}&per_page=${perPage}&sort=updated&page=${page}&pulls=false`;
         const opts: https.RequestOptions = {
             hostname: 'api.github.com',
             path,
@@ -410,6 +499,47 @@ function extractTestRef(body: string | null): string {
     return '';
 }
 
+function extractLocalFixRefs(issue: GHIssue): LocalFixRef[] {
+    const workspaceRoot = workspaceRootPath();
+    if (!workspaceRoot) { return []; }
+
+    const source = `${issue.title}\n${issue.body ?? ''}`;
+    const pattern = /(?:[A-Za-z]:\\[^\s`"'<>|]+|[\\/]*(?:src|tests|docs|scripts|data|resources|mcp-server(?:[\\/]src)?|out)[\\/][A-Za-z0-9._\-/\\]+(?:\.[A-Za-z0-9]+)?|[\\/]*(?:package\.json|README\.md|CHANGELOG\.md|LICENSE|tsconfig\.json|install\.js))/g;
+    const seen = new Set<string>();
+    const refs: LocalFixRef[] = [];
+
+    for (const match of source.match(pattern) || []) {
+        const normalized = normalizeIssuePath(match, workspaceRoot);
+        if (!normalized || seen.has(normalized)) { continue; }
+        seen.add(normalized);
+        refs.push({
+            label: path.posix.basename(normalized),
+            relativePath: normalized,
+        });
+    }
+
+    return refs.slice(0, 3);
+}
+
+function workspaceRootPath(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+function normalizeIssuePath(rawPath: string, workspaceRoot: string): string | undefined {
+    const trimmed = String(rawPath || '').trim().replace(/^['"`(]+|['"`),.:;]+$/g, '');
+    if (!trimmed) { return undefined; }
+
+    const slashPath = trimmed.replace(/\\/g, '/').replace(/^\/+/, '');
+    const absolutePath = path.isAbsolute(trimmed)
+        ? trimmed
+        : path.join(workspaceRoot, slashPath);
+
+    if (!fs.existsSync(absolutePath)) { return undefined; }
+    const rel = path.relative(workspaceRoot, absolutePath).replace(/\\/g, '/');
+    if (!rel || rel.startsWith('..')) { return undefined; }
+    return rel;
+}
+
 // ─── HTML ───────────────────────────────────────────────────────────────────
 
 function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null, viewState: IssueState = 'open'): string {
@@ -424,6 +554,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .repo-link:hover{opacity:.9}
 .repo-link:focus{outline:1px solid var(--vscode-focusBorder);outline-offset:2px;border-radius:2px}
 #hd-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.state-toggle-group{display:flex;align-items:center;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;overflow:hidden}
+.state-toggle-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;cursor:pointer;font-size:12px;font-family:inherit;border-left:1px solid var(--vscode-input-border, var(--vscode-panel-border))}
+.state-toggle-btn:first-child{border-left:none}
+.state-toggle-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+.state-toggle-btn:hover:not(.active){background:var(--vscode-button-secondaryHoverBackground)}
 .action-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
 .action-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .action-btn:disabled{opacity:.5;cursor:default}
@@ -456,19 +591,23 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .claim-btn{margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(88,166,255,.14);color:#58a6ff;border:1px solid rgba(88,166,255,.45);cursor:pointer;font-family:inherit}
 .claim-btn:hover{background:rgba(88,166,255,.28)}
 .claim-btn:disabled{opacity:.5;cursor:wait}
+.in-progress-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(240,180,41,.18);color:#f0b429;border:1px solid rgba(240,180,41,.5);white-space:nowrap;margin-bottom:3px}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
 .proj-missing{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.5);white-space:nowrap}
 .run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
 .run-test-btn:hover{background:rgba(63,185,80,.28)}
 .run-test-btn:disabled{opacity:.4;cursor:default}
-#proj-filter,#state-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
+.fix-link-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(100,181,246,.14);color:#90caf9;border:1px solid rgba(100,181,246,.4);cursor:pointer;font-family:inherit;white-space:nowrap}
+.fix-link-btn:hover{background:rgba(100,181,246,.28)}
+.actions-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#proj-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
 `;
 
     const copyDisabled = loading || !!error || !issues || issues.length === 0 ? ' disabled' : '';
 
     let bodyHtml: string;
     if (loading) {
-        bodyHtml = `<div class="loading">Loading ${viewState} issues from github.com/${REPO_OWNER}/${REPO_NAME}\u2026</div>`;
+        bodyHtml = `<div class="loading">Loading ${viewState} issues from github.com/${currentRepo.owner}/${currentRepo.name}\u2026</div>`;
     } else if (error) {
         bodyHtml = `<div class="error"><strong>Couldn't fetch issues.</strong><br>${esc(error)}<br><br>Click <em>\u21bb Reload</em> to try again.</div>`;
     } else if (!issues || issues.length === 0) {
@@ -484,9 +623,12 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 
                 const summary = `<div class="summary"><span><strong id="countShown">${issues.length}</strong> / <strong id="countTotal">${issues.length}</strong> ${viewState} ${issues.length === 1 ? 'issue' : 'issues'}</span><span>\u2022</span><span>sticky field headers + sortable columns</span><span>\u2022</span><span>priority 1 = highest</span></div>`;
                 const projectOptions = allProjects.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="state-filter" aria-label="Filter by issue state"><option value="open"${viewState === 'open' ? ' selected' : ''}>open</option><option value="closed"${viewState === 'closed' ? ' selected' : ''}>closed</option></select><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
+                const controls = `<div class="controls"><input id="search" type="text" placeholder="Filter by number, title, body, labels, assignees, author" aria-label="Search issues"><select id="proj-filter" aria-label="Filter by project"><option value="">all projects</option>${projectOptions}</select><button id="clear" type="button">Clear</button></div>`;
                 const rows = issues.map((iss) => {
             const testRef   = extractTestRef(iss.body);
+            const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
+            const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress');
+            const inProgressChip = isInProgress ? '<span class="in-progress-chip">in-progress</span>' : '';
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
@@ -499,6 +641,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                         const assigneesText = iss.assignees.map((a) => '@' + a.login).join(', ');
                         const labelsText = iss.labels.map((l) => l.name).join(' ');
                         const filterText = `${iss.number} ${iss.title} ${iss.body ?? ''} ${iss.user.login} ${labelsText} ${assigneesText}`.toLowerCase().replace(/\s+/g, ' ').trim();
+                        const fixLinksHtml = fixRefs.map((ref) => `<button class="fix-link-btn" type="button" data-local-path="${esc(ref.relativePath)}" title="Open ${esc(ref.relativePath)}">${esc(ref.label)}</button>`).join('');
                         return `<tr class="issue-row"
     data-number="${iss.number}"
     data-title="${esc(iss.title.toLowerCase())}"
@@ -512,6 +655,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-priority="3"
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
+    <td>${inProgressChip}${labels ? `<span class="tags">${labels}</span>` : (isInProgress ? '' : `<span class="muted">-</span>`)}</td>
     <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="proj-missing">⚠ No project</span>`}</td>
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
@@ -519,23 +663,22 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></td>
     <td><span class="state-pill">${esc(iss.state)}</span>${iss.state === 'open' ? `<button class="claim-btn" type="button" data-number="${iss.number}" title="Assign to me and set status:in-progress">Claim</button>` : ''}</td>
     <td><span class="muted">@${esc(iss.user.login)}</span></td>
-    <td>${labels ? `<span class="tags">${labels}</span>` : `<span class="muted">-</span>`}</td>
     <td>${assigneesText ? `<span class="muted">${esc(assigneesText)}</span>` : `<span class="muted">-</span>`}</td>
     <td>${iss.comments}</td>
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
-    <td>${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}</td>
+    <td><div class="actions-cell">${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
 <th><button type="button" data-sort="number">number <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="labels">Status <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="project">project <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="title">title <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="priority">priority <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="state">state <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="author">user.login <span class="sort-ind"></span></button></th>
-<th><button type="button" data-sort="labels">labels[].name <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="assignees">assignees[].login <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="comments">comments <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="created">created_at <span class="sort-ind"></span></button></th>
@@ -583,7 +726,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (key === 'priority')  { return Number(row.dataset.priority || 3); }
         if (key === 'state')     { return String(row.dataset.state || ''); }
         if (key === 'author')    { return String(row.dataset.author || ''); }
-        if (key === 'labels')    { var c = row.children[6]; return c ? c.textContent || '' : ''; }
+        if (key === 'labels')    { var c = row.children[1]; return c ? c.textContent || '' : ''; }
         if (key === 'assignees') { var a = row.children[7]; return a ? a.textContent || '' : ''; }
         if (key === 'comments')  { return Number(row.dataset.comments || 0); }
         if (key === 'created')   { return Number(row.dataset.created || 0); }
@@ -646,10 +789,22 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (countTotal) { countTotal.textContent = String(total); }
     }
 
+    var openBtn = document.getElementById('state-open');
+    var closedBtn = document.getElementById('state-closed');
+    if (openBtn) {
+        openBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'open' }); });
+    }
+    if (closedBtn) {
+        closedBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'closed' }); });
+    }
     var refresh = document.getElementById('refresh');
   if (refresh) {
     refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
   }
+    var newIssue = document.getElementById('new-issue');
+    if (newIssue) {
+        newIssue.addEventListener('click', function(){ vsc.postMessage({ type: 'newIssue' }); });
+    }
         var copyAll = document.getElementById('copy-all');
         if (copyAll) {
                 copyAll.addEventListener('click', function(){
@@ -675,13 +830,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     var projFilter = document.getElementById('proj-filter');
     if (projFilter) {
         projFilter.addEventListener('change', applyFilter);
-    }
-    var stateFilter = document.getElementById('state-filter');
-    if (stateFilter) {
-        stateFilter.addEventListener('change', function(){
-            var state = String(stateFilter.value || 'open').toLowerCase();
-            vsc.postMessage({ type: 'setState', state: state === 'closed' ? 'closed' : 'open' });
-        });
     }
     document.querySelectorAll('th button[data-sort]').forEach(function(btn){
         btn.addEventListener('click', function(){
@@ -743,6 +891,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             setTimeout(function(){ b.disabled = false; b.textContent = '\u25B6 Run Test'; }, 3000);
         });
     });
+    document.querySelectorAll('.fix-link-btn').forEach(function(b){
+        b.addEventListener('click', function(){
+            var relativePath = String(b.getAttribute('data-local-path') || '');
+            if (!relativePath) { return; }
+            vsc.postMessage({ type: 'openLocal', relativePath: relativePath });
+        });
+    });
     document.querySelectorAll('.claim-btn').forEach(function(b){
         b.addEventListener('click', function(){
             var num = Number(b.getAttribute('data-number'));
@@ -772,9 +927,14 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 <div id="hd">
   <div id="hd-text">
         <h1>\u{1F4CB} Issue Viewer</h1>
-        <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${REPO_OWNER}/${REPO_NAME}" class="repo-link" title="Open repository on GitHub">github.com/${REPO_OWNER}/${REPO_NAME}</a></div>
+        <div class="subtitle" title="Open repository on GitHub"><a id="repo-link" href="https://github.com/${currentRepo.owner}/${currentRepo.name}" class="repo-link" title="Open repository on GitHub">github.com/${currentRepo.owner}/${currentRepo.name}</a></div>
   </div>
     <div id="hd-actions">
+        <div class="state-toggle-group">
+            <button id="state-open" class="state-toggle-btn${viewState === 'open' ? ' active' : ''}" type="button">Open</button>
+            <button id="state-closed" class="state-toggle-btn${viewState === 'closed' ? ' active' : ''}" type="button">Closed</button>
+        </div>
+        <button id="new-issue" class="action-btn" type="button" title="Create a new issue on GitHub">New Issue</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
     </div>
@@ -787,5 +947,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 /** @internal — exported for unit/integration test assertions only */
 export const _test = {
     buildHtml,
-        formatIssuesForClipboard,
+    formatIssuesForClipboard,
+    extractLocalFixRefs,
 };

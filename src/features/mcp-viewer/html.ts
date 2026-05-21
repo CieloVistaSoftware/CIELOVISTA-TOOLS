@@ -5,8 +5,8 @@
  * mcp-viewer/html.ts
  *
  * Builds the browser HTML for the MCP Endpoint Viewer. Served by the local
- * HTTP server in `index.ts`. Four tabs, each calls the matching `/api/*`
- * endpoint and renders the JSON result.
+ * HTTP server in `index.ts`. Viewer requests now use JSON-RPC `POST /mcp`
+ * and render the unwrapped result data.
  *
  * Follows the View a Doc visual convention: dark theme, same colors.
  * Links rendered in yellow (#FFD700) per project link-visibility rule.
@@ -619,12 +619,23 @@ function renderOldDewey(data){
 
 function loadActiveMarkdownPath(filePathEl){
   if (!filePathEl) { return; }
-  fetch(BASE + '/api/active_markdown')
+  var requestBody = {
+    jsonrpc: '2.0',
+    id: Math.floor(Math.random() * 1000000),
+    method: 'active_markdown',
+    params: {}
+  };
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  })
     .then(function(res){ return res.json(); })
     .then(function(json){
-      if (!json || !json.hasActiveMarkdown || !json.filePath) { return; }
+      var result = (json && json.result) || {};
+      if (!result.hasActiveMarkdown || !result.filePath) { return; }
       if (!filePathEl.value.trim()) {
-        filePathEl.value = json.filePath;
+        filePathEl.value = result.filePath;
       }
     })
     .catch(function(){
@@ -634,11 +645,21 @@ function loadActiveMarkdownPath(filePathEl){
 
 function loadWorkspaceMarkdownOptions(selectEl){
   if (!selectEl) { return; }
-
-  fetch(BASE + '/api/list_markdown_paths?limit=300')
+  var requestBody = {
+    jsonrpc: '2.0',
+    id: Math.floor(Math.random() * 1000000),
+    method: 'list_markdown_paths',
+    params: { limit: 300 }
+  };
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  })
     .then(function(res){ return res.json(); })
     .then(function(json){
-      var rows = (json && json.paths) || [];
+      var result = (json && json.result) || {};
+      var rows = result.paths || [];
       if (!rows.length) {
         selectEl.innerHTML = '<option value="">no markdown files found</option>';
         return;
@@ -656,38 +677,56 @@ function loadWorkspaceMarkdownOptions(selectEl){
     });
 }
 
-/* Fetch and render the current endpoint. */
+/* Fetch and render the current endpoint using JSON-RPC POST. */
 function runEndpoint(params){
-  var qs = params ? ('?' + new URLSearchParams(params).toString()) : '';
-  var url = BASE + '/api/' + currentEndpoint + qs;
+  var url = BASE + '/mcp';
+  var requestBody = {
+    jsonrpc: '2.0',
+    id: Math.floor(Math.random() * 1000000),
+    method: currentEndpoint,
+    params: params || {}
+  };
   resultEl.innerHTML = '<div class="state">Loading&hellip;</div>';
-  metaEl.textContent = 'GET ' + url + ' ...';
+  metaEl.textContent = 'POST ' + url + ' (method: ' + currentEndpoint + ') ...';
   var t0 = Date.now();
-  fetch(url)
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  })
     .then(function(res){
       var ms = Date.now() - t0;
       return res.text().then(function(body){
         var json;
         try { json = JSON.parse(body); } catch (e) { json = null; }
-        setMeta(url, res.status, ms, json ? (countSummary(json)) : 'non-JSON response');
+        setMeta(url, res.status, ms, json && json.result ? (countSummary(json.result)) : (json && json.error ? ('error: ' + json.error.message) : 'non-JSON response'));
         if (!res.ok || !json) {
           resultEl.innerHTML = '<div class="state err">' + esc(body) + '</div>';
           return;
         }
-        if (currentEndpoint === 'list_projects')  { renderProjectsTable(json); return; }
-        if (currentEndpoint === 'find_project')   { renderFindProjectTable(json); return; }
-        if (currentEndpoint === 'search_docs')    { renderDocsTable(json); return; }
-        if (currentEndpoint === 'get_catalog')    { renderDocsTable(json); return; }
-        if (currentEndpoint === 'list_doc_violations') { renderDocViolations(json); return; }
-        if (currentEndpoint === 'validate_doc')   { renderValidateDoc(json); return; }
-        if (currentEndpoint === 'normalize_doc')  { renderNormalizeDoc(json); return; }
-        if (currentEndpoint === 'get_doc_by_identity') { renderDocIdentity(json); return; }
-        if (currentEndpoint === 'list_old_dewey') { renderOldDewey(json); return; }
-        if (currentEndpoint === 'list_symbols')   { renderSymbolsTable(json); return; }
-        if (currentEndpoint === 'find_symbol')    { renderSymbolsTable(json); return; }
-        if (currentEndpoint === 'list_cvt_commands') { renderCvtCommandsTable(json); return; }
-        if (currentEndpoint === 'lookup_dewey')   { renderLookupDewey(json); return; }
-        resultEl.innerHTML = '<pre class="json">' + esc(JSON.stringify(json, null, 2)) + '</pre>';
+        if (json.error) {
+          resultEl.innerHTML = '<div class="state err">' + esc(json.error.message || 'JSON-RPC error') + '</div>';
+          return;
+        }
+        var result = json.result;
+        if (!result) {
+          resultEl.innerHTML = '<div class="state err">No result in response</div>';
+          return;
+        }
+        if (currentEndpoint === 'list_projects')  { renderProjectsTable(result); return; }
+        if (currentEndpoint === 'find_project')   { renderFindProjectTable(result); return; }
+        if (currentEndpoint === 'search_docs')    { renderDocsTable(result); return; }
+        if (currentEndpoint === 'get_catalog')    { renderDocsTable(result); return; }
+        if (currentEndpoint === 'list_doc_violations') { renderDocViolations(result); return; }
+        if (currentEndpoint === 'validate_doc')   { renderValidateDoc(result); return; }
+        if (currentEndpoint === 'normalize_doc')  { renderNormalizeDoc(result); return; }
+        if (currentEndpoint === 'get_doc_by_identity') { renderDocIdentity(result); return; }
+        if (currentEndpoint === 'list_old_dewey') { renderOldDewey(result); return; }
+        if (currentEndpoint === 'list_symbols')   { renderSymbolsTable(result); return; }
+        if (currentEndpoint === 'find_symbol')    { renderSymbolsTable(result); return; }
+        if (currentEndpoint === 'list_cvt_commands') { renderCvtCommandsTable(result); return; }
+        if (currentEndpoint === 'lookup_dewey')   { renderLookupDewey(result); return; }
+        resultEl.innerHTML = '<pre class="json">' + esc(JSON.stringify(result, null, 2)) + '</pre>';
       });
     })
     .catch(function(err){
@@ -765,10 +804,15 @@ function loadProjectOptions(selectEl){
     return;
   }
 
-  fetch(BASE + '/api/list_projects')
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000), method: 'list_projects', params: {} })
+  })
     .then(function(res){ return res.json(); })
     .then(function(json){
-      var rows = (json && json.projects) || [];
+      var result = (json && json.result) || {};
+      var rows = (result && result.projects) || [];
       projectOptions = rows.map(function(p){ return p.name; }).sort();
       renderOptions(projectOptions);
     })
@@ -894,14 +938,19 @@ function selectTab(endpoint){
   if (btn) { btn.addEventListener('click', runFromControls); }
   if (activeFileBtn && filePathEl) {
     activeFileBtn.addEventListener('click', function(){
-      fetch(BASE + '/api/active_markdown')
+      fetch(BASE + '/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000), method: 'active_markdown', params: {} })
+      })
         .then(function(res){ return res.json(); })
         .then(function(json){
-          if (!json || !json.hasActiveMarkdown || !json.filePath) {
+          var result = (json && json.result) || {};
+          if (!result || !result.hasActiveMarkdown || !result.filePath) {
             toast('No active markdown editor found');
             return;
           }
-          filePathEl.value = json.filePath;
+          filePathEl.value = result.filePath;
           toast('Loaded active markdown file');
           filePathEl.focus();
         })

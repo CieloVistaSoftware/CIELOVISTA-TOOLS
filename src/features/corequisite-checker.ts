@@ -109,6 +109,29 @@ function findCodeInsidersBin(): string {
     return 'code-insiders';
 }
 
+function installViaCli(bin: string, vsix: string): string {
+    const args = ['--install-extension', vsix];
+    const isWindowsCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
+    const result = isWindowsCmd
+        ? cp.spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${bin}" --install-extension "${vsix}"`], {
+            encoding: 'utf8',
+            windowsHide: true,
+        })
+        : cp.spawnSync(bin, args, {
+            encoding: 'utf8',
+            windowsHide: true,
+        });
+
+    if (result.error) {
+        throw result.error;
+    }
+    if (typeof result.status === 'number' && result.status !== 0) {
+        const detail = (result.stderr || result.stdout || `exit ${result.status}`).trim();
+        throw new Error(detail || `code-insiders returned exit code ${result.status}`);
+    }
+    return (result.stdout || '').trim();
+}
+
 /** Show the user a notification offering to install/upgrade a peer. */
 async function offerInstall(result: CheckResult): Promise<void> {
     const verb = result.status === 'missing' ? 'Install' : 'Upgrade';
@@ -139,11 +162,11 @@ async function runInstall(result: CheckResult, silent: boolean): Promise<void> {
         log(FEATURE, msg);
         return;
     }
-    const bin = findCodeInsidersBin();
-    log(FEATURE, `Installing ${display} from ${vsix} via ${bin}`);
     try {
-        const out = cp.execFileSync(bin, ['--install-extension', vsix], { stdio: 'pipe' }).toString();
-        log(FEATURE, `Install output: ${out.trim()}`);
+        log(FEATURE, `Installing ${display} from ${vsix} via VS Code command`);
+        await vscode.commands.executeCommand('workbench.extensions.installExtension', vscode.Uri.file(vsix));
+        log(FEATURE, `Install completed for ${display} via VS Code command`);
+
         const reload = await vscode.window.showInformationMessage(
             `Installed ${display}. Reload window to activate?`,
             'Reload', 'Later'
@@ -152,8 +175,31 @@ async function runInstall(result: CheckResult, silent: boolean): Promise<void> {
             await vscode.commands.executeCommand('workbench.action.reloadWindow');
         }
     } catch (err: any) {
-        const msg = (err?.stderr?.toString && err.stderr.toString()) || err?.message || String(err);
-        logError(`Failed to install ${display}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE, true);
+        log(FEATURE, `VS Code command install failed for ${display}; falling back to CLI. ${err instanceof Error ? err.message : String(err)}`);
+
+        const bin = findCodeInsidersBin();
+        log(FEATURE, `Installing ${display} from ${vsix} via ${bin}`);
+        try {
+            const out = installViaCli(bin, vsix);
+            if (out) {
+                log(FEATURE, `Install output: ${out}`);
+            }
+
+            const reload = await vscode.window.showInformationMessage(
+                `Installed ${display}. Reload window to activate?`,
+                'Reload', 'Later'
+            );
+            if (reload === 'Reload') {
+                await vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+        } catch (fallbackErr: any) {
+            logError(
+                `Failed to install ${display}`,
+                fallbackErr instanceof Error ? fallbackErr.stack || String(fallbackErr) : String(fallbackErr),
+                FEATURE,
+                true
+            );
+        }
     }
 }
 

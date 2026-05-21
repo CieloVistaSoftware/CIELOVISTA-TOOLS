@@ -17,7 +17,7 @@
  *   - VS Code notification on first error in a session
  *
  * Command to view:  cvs.tools.errorLog
- * Log file:        <tools-root>/data/tools-errors.json
+ * Log file:        tools-root/data/tools-errors.json
  */
 
 import * as fs      from 'fs';

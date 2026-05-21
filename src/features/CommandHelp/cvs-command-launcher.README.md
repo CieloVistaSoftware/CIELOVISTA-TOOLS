@@ -2,7 +2,6 @@
 
 ---
 docid: 150.1  
-dewey: 150.1  
 id: cvs-command-launcher-readme  
 title: cvs command launcher README  
 project: cielovista-tools  

@@ -1,9 +1,12 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import { log }     from '../../shared/output-channel';
+import { esc }     from '../../shared/webview-utils';
 import { mergeFiles, moveToGlobal, deleteDoc, diffFiles } from './actions';
 import type { AuditResults, Finding, FindingKind } from './types';
 
@@ -24,10 +27,6 @@ export function buildFindingsList(results: AuditResults): Finding[] {
         findings.push({ kind:'orphan', title:`Orphan: ${o.file.fileName}`, description:`${o.file.projectName} · ${o.reason}`, primaryPaths:[o.file.filePath], secondaryPath:o.file.filePath });
     }
     return findings;
-}
-
-function esc(s: string): string {
-    return String(s ?? '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c] ?? c));
 }
 
 const KIND_ICON: Record<FindingKind, string>  = { duplicate:'📄', similar:'🔀', move:'📦', orphan:'👻' };

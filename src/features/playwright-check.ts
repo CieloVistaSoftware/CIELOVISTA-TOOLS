@@ -24,12 +24,9 @@ import { callClaude } from '../shared/anthropic-client';
 import { REGISTRY_PATH, loadRegistry } from '../shared/registry';
 import { checkTestCoverage } from './daily-audit/checks/test-coverage';
 import type { TestCoverageResult } from './daily-audit/checks/test-coverage';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE = 'playwright-check';
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 // ─── Fix helpers ─────────────────────────────────────────────────────────────
 

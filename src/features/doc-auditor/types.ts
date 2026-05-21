@@ -1,11 +1,14 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 export interface DocFile {
     filePath:    string;
     fileName:    string;
     projectName: string;
     sizeBytes:   number;
+    modifiedAt?: string;
     content:     string;
     normalized:  string;
 }

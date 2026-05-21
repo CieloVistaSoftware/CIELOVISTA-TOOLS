@@ -1,8 +1,7 @@
 ---
 docid: 150.1.terminal-copy-output-readme
-dewey: 150.1.terminal-copy-output-readme
 id: feature-terminal-copy-outputts
-title: feature: terminal-copy-output.ts
+title: "feature: terminal-copy-output.ts"
 project: cielovista-tools
 description: Captures the output of the most recently executed terminal command. Uses VS Code's shell integration (selectToPreviousCommand) to select only the l…
 status: active

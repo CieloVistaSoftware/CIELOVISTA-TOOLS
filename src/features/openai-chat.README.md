@@ -1,8 +1,7 @@
 ---
 docid: 150.1.openai-chat-readme
-dewey: 150.1.openai-chat-readme
 id: feature-openai-chatts
-title: feature: openai-chat.ts
+title: "feature: openai-chat.ts"
 project: cielovista-tools
 description: Adds OpenAI-powered commands to VS Code: explain selected code, suggest refactoring, generate a JSDoc docstring, and open a persistent chat panel. …
 status: active

@@ -1,12 +1,11 @@
 ---
 docid: 150.5.claude
-dewey: 150.5.claude
 id: claudemd-cielovista-tools
 title: CLAUDE.md — cielovista-tools
 project: cielovista-tools
 description: 1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…
 status: active
-tags: [claude, claudemd, cielovistatools]
+tags: [claude, claudemd, cielovistatools, AI]
 category: 150.5 — AI Coordination
 created: 2026-04-22
 updated: 2026-04-27
@@ -22,6 +21,11 @@ relativepath: CLAUDE.md
 2. Read `docs/_today/CURRENT-STATUS.md` — current project state and parking lot
 3. Use `recent_chats` — continue from last session, never start blind
 4. Start working — no questions, no fumbling
+
+> **Git worktree note:** If working in a worktree (`.claude/worktrees/…`), `out/` and
+> `node_modules/` are not shared. The regression runner auto-builds `out/` on first run.
+> Always run `node scripts/run-regression-tests.js` **before the first commit** to establish
+> a clean baseline — do not assume the suite is green without running it.
 
 ## End of Session
 
@@ -94,7 +98,7 @@ Uses `.\node_modules\.bin\tsc` — never `npx tsc` (picks up wrong global packag
 
 ## Project Structure
 
-```
+```text
 src/
   extension.ts          ← wiring only — imports all features, calls activate()
   features/             ← one file per feature, each with a .README.md
@@ -130,3 +134,4 @@ If the feature needs a shared utility → add it to `src/shared/`, never inline 
 - Never use `npx tsc` — use `.\node_modules\.bin\tsc`
 - Never duplicate logic between feature files — shared/ exists for a reason
 - Never create a second OutputChannel
+- Never commit without running `node scripts/run-regression-tests.js` first — all tests must be green

@@ -1,19 +1,29 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { log }     from '../../shared/output-channel';
 import { loadRegistry } from '../../shared/registry';
 import { collectDocs }  from './scanner';
-import { computeSimilarity, isGlobalCandidate, isOrphan } from './analyzer';
+import { computeSimilarity, isGlobalCandidate, isOrphan, filterDuplicates } from './analyzer';
 import type { DocFile, AuditResults, MoveCandidate } from './types';
 
 const FEATURE = 'doc-auditor';
 const STANDARD_CLAUDE_PATH = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\CLAUDE.md';
 
-export async function runAudit(): Promise<AuditResults | undefined> {
+export interface AuditProgressReporter {
+    report(message: string): void;
+}
+
+export async function runAudit(progressReporter?: AuditProgressReporter): Promise<AuditResults | undefined> {
+    const report = (message: string): void => {
+        progressReporter?.report(message);
+    };
+
     // Load the standard CLAUDE.md for drift-detection
     let standardClaude: DocFile | undefined;
     if (fs.existsSync(STANDARD_CLAUDE_PATH)) {
@@ -31,25 +41,36 @@ export async function runAudit(): Promise<AuditResults | undefined> {
     return vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'Auditing CieloVista docs…', cancellable: false },
         async (progress) => {
+            report('Collecting global docs…');
             progress.report({ message: 'Collecting global docs…' });
             const allDocs: DocFile[] = collectDocs(registry.globalDocsPath, 'global');
+            report(`Audited ${allDocs.length} docs (global)…`);
+            progress.report({ message: `Audited ${allDocs.length} docs (global)…` });
             for (const project of registry.projects) {
-                progress.report({ message: `Scanning ${project.name}…` });
-                if (fs.existsSync(project.path)) { allDocs.push(...collectDocs(project.path, project.name)); }
+                const scanMessage = `Scanning ${project.name}…`;
+                report(scanMessage);
+                progress.report({ message: scanMessage });
+                if (fs.existsSync(project.path)) {
+                    const projectDocs = collectDocs(project.path, project.name);
+                    allDocs.push(...projectDocs);
+                    const countedMessage = `Audited ${allDocs.length} docs… (${project.name})`;
+                    report(countedMessage);
+                    progress.report({ message: countedMessage });
+                }
             }
             log(FEATURE, `Collected ${allDocs.length} docs`);
 
-            // 1 — duplicates
+            // 1 — duplicates (per-project files like CLAUDE.md are exempt from cross-project flagging)
             const byName = new Map<string, DocFile[]>();
             for (const doc of allDocs) {
                 const key = doc.fileName.toLowerCase();
                 if (!byName.has(key)) { byName.set(key, []); }
                 byName.get(key)!.push(doc);
             }
-            const duplicates = [...byName.values()].filter(f => f.length > 1)
-                .map(files => ({ fileName: files[0].fileName, files }));
+            const duplicates = filterDuplicates(byName);
 
             // 2 — similar content
+            report('Checking for similar content…');
             progress.report({ message: 'Checking for similar content…' });
             const similar: AuditResults['similar'] = [];
             const compared = new Set<string>();
@@ -70,6 +91,7 @@ export async function runAudit(): Promise<AuditResults | undefined> {
             similar.sort((a, b) => b.similarity - a.similarity);
 
             // 3 — move candidates + CLAUDE.md drift
+            report('Checking for misplaced docs…');
             progress.report({ message: 'Checking for misplaced docs…' });
             const moveCandidates: MoveCandidate[] = [];
             const warningCandidates: MoveCandidate[] = [];
@@ -85,6 +107,7 @@ export async function runAudit(): Promise<AuditResults | undefined> {
             }
 
             // 4 — orphans
+            report('Checking for orphaned docs…');
             progress.report({ message: 'Checking for orphaned docs…' });
             const orphans = allDocs
                 .map(doc => ({ file: doc, reason: isOrphan(doc, allDocs) }))

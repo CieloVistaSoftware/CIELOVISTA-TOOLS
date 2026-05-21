@@ -11,6 +11,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node --experimental-vm-modules dist/index.js",
+    "start:http": "node --experimental-vm-modules dist/http.js",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
   },
   "keywords": ["mcp", "cielovista"],

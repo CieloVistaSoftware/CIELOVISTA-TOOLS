@@ -31,13 +31,18 @@
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
     "package": "vsce package",
-    "rebuild": "npm run clean && npm run clean:artifacts && npm run compile && npm run copy:commandhelp && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:daily-audit-progress && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
+    "rebuild": "npm run clean && npm run clean:artifacts && npm run compile && npm run test:preflight && npm run copy:commandhelp && npm run docs:generate && npm run test:mcp-packaging && npm run test:mcp-viewer-runtime && npm run test:mcp-viewer && npm run test:mcp-status && npm run test:catalog:no-mutate && npm run test:regression && npm run test:doc-preview-toolbar && npm run test:frontmatter-header && npm run test:doc-contract && npm run test:doc-auditor-html && npm run test:doc-auditor-duplicates && npm run test:mcp-viewer-path-links && npm run test:md-preview-no-cdn && npm run test:daily-audit-progress && npm run test:test-coverage-auditor && npm run test:pick && npm run package && npm run test:mcp-vsix && npm run test:assets && node install.js && npm run test:post-install && node tests/install-verify.test.js && npm run validate:package-json",
+    "clean:project": "node scripts/clean-project.js",
+    "clean:project:apply": "node scripts/clean-project.js --apply",
+    "docs:generate": "node scripts/generate-feature-docs.js",
     "copy:commandhelp": "node scripts/copy-commandhelp.js",
     "validate:package-json": "node scripts/validate-package-json.js",
     "test:catalog": "node tests/catalog-integrity.test.js",
+    "test:catalog:no-mutate": "node scripts/test-catalog-no-mutate.js",
     "test:commands": "node tests/command-validation.test.js",
+    "test:preflight": "node scripts/run-preflight-regressions.js",
     "test:regression": "node scripts/run-regression-tests.js",
-    "test:activation": "node tests/activation.test.js",
+    "test:activation": "node tests/vscode/runActivationTest.js",
     "test:vscode": "node tests/vscode/runTests.js",
     "start": "npm run rebuild",
     "vscode:prepublish": "node esbuild.mjs --production",
@@ -59,7 +64,13 @@
     "test:claude-key": "node scripts/test-claude-key.js",
     "test:doc-preview-toolbar": "node tests/unit/doc-preview-toolbar.test.js",
     "test:frontmatter-header": "node tests/unit/frontmatter-header.test.js",
+    "test:doc-contract": "node tests/unit/doc-contract.test.ts",
+    "test:md-preview-no-cdn": "node tests/unit/md-preview-no-cdn.test.js",
+    "test:doc-auditor-html": "node tests/unit/doc-auditor-html.test.js",
+    "test:doc-auditor-duplicates": "node tests/unit/doc-auditor-duplicates.test.js",
+    "test:mcp-viewer-path-links": "node tests/unit/mcp-viewer-path-links.test.js",
     "test:daily-audit-progress": "node tests/unit/daily-audit-progress.test.js",
+    "test:test-coverage-auditor": "node tests/unit/test-coverage-auditor.test.js",
     "test:pick": "node tests/unit/pick-list.test.js",
     "test:post-install": "node tests/unit/post-install.test.js",
     "test:assets": "node tests/unit/runtime-assets.test.js",
@@ -68,12 +79,14 @@
     "test:mcp-viewer-runtime": "node tests/unit/mcp-viewer-runtime-script.test.js",
     "test:mcp-vsix": "node tests/unit/mcp-vsix-contents.test.js",
     "test:mcp-status": "node tests/unit/mcp-server-status.test.js",
-    "test:all": "node tests/catalog-integrity.test.js && node tests/command-validation.test.js && node tests/doc-catalog.test.js && node tests/launcher-script.test.js && node tests/launcher-test-coverage.test.js && node tests/unit/background-health-runner.test.js && node tests/unit/webview-utils.test.js && node tests/unit/docs-audit-utils.test.js && node tests/unit/error-log.test.js && node tests/unit/error-log-utils.test.js && node tests/unit/shared-source.test.js && node tests/unit/doc-auditor-analyzer.test.js && node tests/unit/doc-auditor-scanner.test.js && node tests/unit/feature-toggle.test.js && node tests/unit/doc-header.test.js && node tests/unit/license-sync.test.js && node tests/unit/readme-compliance.test.js && node tests/unit/js-error-audit.test.js && node tests/unit/codebase-auditor.test.js && node tests/unit/marketplace-compliance.test.js && node tests/unit/doc-consolidator.test.js && node tests/unit/daily-audit-checks.test.js && node tests/unit/thin-features.test.js && node tests/unit/github-issues-view-ui.test.js && node tests/regression/REG-001-extension-activation.test.js && node tests/test-coverage-commands.integration.test.js",
+    "test:filelist-webview": "node tests/unit/file-list-viewer-webview.test.js",
+    "test:all": "node tests/catalog-integrity.test.js && node tests/command-validation.test.js && node tests/doc-catalog.test.js && node tests/launcher-script.test.js && node tests/launcher-test-coverage.test.js && node tests/unit/background-health-runner.test.js && node tests/unit/webview-utils.test.js && node tests/unit/docs-audit-utils.test.js && node tests/unit/error-log.test.js && node tests/unit/error-log-utils.test.js && node tests/unit/shared-source.test.js && node tests/unit/doc-auditor-analyzer.test.js && node tests/unit/doc-auditor-scanner.test.js && node tests/unit/feature-toggle.test.js && node tests/unit/doc-header.test.js && node tests/unit/license-sync.test.js && node tests/unit/readme-compliance.test.js && node tests/unit/js-error-audit.test.js && node tests/unit/codebase-auditor.test.js && node tests/unit/marketplace-compliance.test.js && node tests/unit/doc-consolidator.test.js && node tests/unit/daily-audit-checks.test.js && node tests/unit/thin-features.test.js && node tests/unit/github-issues-view-ui.test.js && node tests/regression/REG-001-extension-activation.test.js && node tests/regression/REG-029-catalog-folder-button.test.js && node tests/regression/REG-031-catalog-dewey-badges-clickable.test.js && node tests/regression/REG-032-frontmatter-viewer-clickable.test.js && node tests/regression/REG-033-no-dewey-field-in-src-docs.test.js && node tests/test-coverage-commands.integration.test.js",
     "test:ui:launcher": "npx playwright test tests/ui/launcher-webview.spec.js",
     "test:ui:cards": "npx playwright test tests/ui/all-cards-webview.spec.ts",
     "audit:coverage": "node scripts/audit-test-coverage.js",
     "audit:coverage:detailed": "node scripts/audit-test-coverage.js --detailed",
     "audit:coverage:json": "node scripts/audit-test-coverage.js --json",
+    "repair:frontmatter-filed-issues": "node scripts/repair-frontmatter-filed-issues.js",
     "clean:artifacts:dry": "node scripts/clean-generated-artifacts.js",
     "clean:artifacts": "node scripts/clean-generated-artifacts.js --apply",
     "clean:artifacts:with-audit-docs": "node scripts/clean-generated-artifacts.js --apply --include-audit-docs",
@@ -92,6 +105,7 @@
     "cross-env": "^10.1.0",
     "esbuild": "^0.27.4",
     "jsdom": "^29.0.1",
+    "mocha": "^11.7.5",
     "sinon": "^21.0.3",
     "typescript": "^5.3.0",
     "zod": "^3.24.2"
@@ -135,16 +149,10 @@
         "description": "Open your configured CieloVista home project root in VS Code."
       },
       {
-        "command": "cvs.npm.showAndRunScripts",
-        "title": "NPM Scripts: Show and Run",
+        "command": "cvs.npm.tree",
+        "title": "NPM Scripts: Tree View",
         "category": "CieloVista NPM",
-        "description": "Show all npm scripts in the workspace and run any script instantly."
-      },
-      {
-        "command": "cvs.npm.addScriptDescription",
-        "title": "NPM Scripts: Add/Edit Description",
-        "category": "CieloVista NPM",
-        "description": "Add or edit a custom description for any npm script in your workspace."
+        "description": "Show all workspace npm scripts grouped by package.json — simple tree view, click to run."
       },
       {
         "command": "cvs.copilotRules.enable",
@@ -525,6 +533,12 @@
         "description": "Scan documentation files for header/frontmatter compliance."
       },
       {
+        "command": "cvs.headers.frontmatterViewer",
+        "title": "Headers: Frontmatter Viewer",
+        "category": "CieloVista Headers",
+        "description": "Scan all .md files and open an interactive viewer showing frontmatter fields and violations."
+      },
+      {
         "command": "cvs.headers.fixAll",
         "title": "Headers: Add/Fix All Headers",
         "category": "CieloVista Headers",
@@ -679,6 +693,12 @@
         "description": "Open the error log viewer for CieloVista Tools."
       },
       {
+        "command": "cvs.tools.codeAuditor",
+        "title": "Tools: Code Auditor",
+        "category": "CieloVista",
+        "description": "Scan registered projects for duplicate code clusters and abstraction opportunities."
+      },
+      {
         "command": "cvs.tools.cleanWorktrees",
         "title": "Tools: Clean Claude Worktrees",
         "category": "CieloVista",
@@ -709,10 +729,40 @@
         "description": "Open the regression log viewer - review regressions, file as issues, mark fixed with release version."
       },
       {
+        "command": "cvs.issues.openViewer",
+        "title": "Issues: Open Issue Viewer",
+        "category": "CieloVista",
+        "description": "Open the CieloVista Tools GitHub Issue Viewer panel."
+      },
+      {
+        "command": "cvs.issues.newIssue",
+        "title": "Issues: New Issue for Current Project",
+        "category": "CieloVista",
+        "description": "Open GitHub to file a new issue, pre-filled with the current project name."
+      },
+      {
+        "command": "cvs.diskcleanup.openDashboard",
+        "title": "DiskCleanUp: Open Dashboard",
+        "category": "CieloVista",
+        "description": "Launch the DiskCleanUp dashboard in the default browser. Starts the --serve process if it is not already running."
+      },
+      {
+        "command": "cvs.tools.runningTasks",
+        "title": "Tools: Running Tasks",
+        "category": "CieloVista",
+        "description": "Open the Running Tasks panel — shows all running Windows processes with safety classification (Safe/Caution/Critical). Click a window-title cell to bring that window into focus. Multi-select and kill processes."
+      },
+      {
         "command": "cvs.tools.fileList",
         "title": "Tools: FileList",
         "category": "CieloVista",
         "description": "Open the FileList viewer — a sortable, table-based alternative to the Explorer tree (Name, Date modified, Type, Size)."
+      },
+      {
+        "command": "cvs.tools.fileList.navigateTo",
+        "title": "FileList: Open folder here",
+        "category": "CieloVista",
+        "description": "Navigate the open FileList panel to this folder (or open FileList at this folder)."
       },
       {
         "command": "cvs.claude.processMonitor",
@@ -788,6 +838,11 @@
           "group": "navigation@99"
         },
         {
+          "command": "cvs.tools.fileList.navigateTo",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@98"
+        },
+        {
           "command": "cvs.python.runFile",
           "when": "resourceExtname == .py",
           "group": "navigation@90"
@@ -852,6 +907,11 @@
     "configuration": {
       "title": "CieloVista Tools",
       "properties": {
+        "cvs.diskcleanup.exePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to DiskCleanUp.Service.exe. Leave blank to auto-detect from the Windows Service registry or the default debug build location."
+        },
         "cielovistaTools.copilotRulesEnforcer.autoEnforce": {
           "type": "boolean",
           "default": false,
@@ -972,6 +1032,11 @@
           "default": true,
           "description": "Enable the Editor: Copy JSON to Copilot Chat feature."
         },
+        "cielovistaTools.features.playwrightRunner": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Playwright Runner feature (run/stop/clean Playwright tests from the command palette)."
+        },
         "cielovistaTools.features.mcpViewer": {
           "type": "boolean",
           "default": true,
@@ -981,6 +1046,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable the Registry Promote feature — right-click a folder to register it as a CieloVista product."
+        },
+        "cielovista-tools.debug.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, verbose debug output is written to the CieloVista Tools output channel."
         }
       }
     }

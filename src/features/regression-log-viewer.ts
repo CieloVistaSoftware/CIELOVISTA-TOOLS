@@ -16,6 +16,7 @@ import * as path   from 'path';
 import { fileRegressionAsIssue } from '../shared/github-issue-filer';
 import type { RegressionEntry }  from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
+import { esc } from '../shared/webview-utils';
 
 const FEATURE    = 'regression-log-viewer';
 const DATA_PATH  = path.join(__dirname, '..', 'data', 'regressions.json');
@@ -47,10 +48,6 @@ function patchEntry(regId: string, patch: Partial<RegressionEntry>): void {
 }
 
 // ─── HTML builder ─────────────────────────────────────────────────────────────
-
-function esc(s: string): string {
-    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 function severityColor(s: string): string {
     const m: Record<string, string> = {

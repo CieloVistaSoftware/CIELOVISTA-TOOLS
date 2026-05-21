@@ -32,7 +32,7 @@ function mustNotContain(haystack, needle, label) {
 
 // Source checks
 mustContain(src, "label: 'Issue Viewer'", 'SOURCE: Home quick-launch Issue Viewer button label must exist');
-mustContain(src, "desc: 'Live GitHub issues for cielovista-tools'", 'SOURCE: Issue Viewer description must indicate GitHub issues');
+mustContain(src, "desc: 'Live GitHub issues for CieloVista Tools'", 'SOURCE: Issue Viewer description must indicate GitHub issues');
 mustContain(src, "cmd: '__openIssues__'", 'SOURCE: Issue Viewer command key must remain wired');
 mustContain(src, "if (msg.command === '__openIssues__')", 'SOURCE: Issue Viewer command handler must exist');
 mustContain(src, 'showGithubIssues(', 'SOURCE: Issue Viewer command must open GitHub issues view');

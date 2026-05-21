@@ -1,11 +1,13 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 import * as fs   from 'fs';
 import * as path from 'path';
 import type { DocFile } from './types';
 
-const SKIP_DIRS = ['node_modules', '.git', 'out', 'dist', '.vscode'];
+const SKIP_DIRS = ['node_modules', '.git', 'out', 'dist', '.vscode', '.claude'];
 
 /** Returns all markdown docs under a directory tree (max 3 levels deep). */
 export function collectDocs(rootPath: string, projectName: string, maxDepth = 3): DocFile[] {
@@ -25,9 +27,12 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
             } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
                 try {
                     const content    = fs.readFileSync(fullPath, 'utf8');
+                    const stat       = fs.statSync(fullPath);
                     const normalized = content.toLowerCase().replace(/\s+/g, ' ').replace(/[#*`_\[\]()]/g, '').trim();
                     results.push({ filePath: fullPath, fileName: entry.name, projectName,
-                                   sizeBytes: Buffer.byteLength(content, 'utf8'), content, normalized });
+                                   sizeBytes: Buffer.byteLength(content, 'utf8'),
+                                   modifiedAt: stat.mtime.toISOString(),
+                                   content, normalized });
                 } catch { /* skip unreadable */ }
             }
         }

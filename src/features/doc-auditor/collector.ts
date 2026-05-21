@@ -1,6 +1,8 @@
 // Copyright (c) Cielo Vista Software. All rights reserved.
 // collector.ts — doc collection utilities for doc-auditor
 
+// component: aud
+
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -49,6 +51,7 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
             } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
                 try {
                     const content = fs.readFileSync(fullPath, 'utf8');
+                    const stat = fs.statSync(fullPath);
                     const normalized = content
                         .toLowerCase()
                         .replace(/\s+/g, ' ')
@@ -60,6 +63,7 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
                         fileName: entry.name,
                         projectName,
                         sizeBytes: Buffer.byteLength(content, 'utf8'),
+                        modifiedAt: stat.mtime.toISOString(),
                         content,
                         normalized,
                     });

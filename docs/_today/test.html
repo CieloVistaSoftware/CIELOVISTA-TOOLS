@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+
+<html lang="en" data-theme="cielo-midnight"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cielo Vista Software | Developer Services</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "rgb(var(--color-surface) / <alpha-value>)",
+                        "background": "rgb(var(--color-background) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-surface-container-lowest) / <alpha-value>)",
+                        "surface-container-low": "rgb(var(--color-surface-container-low) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-container-highest) / <alpha-value>)",
+                        "primary": "rgb(var(--color-primary) / <alpha-value>)",
+                        "on-primary": "rgb(var(--color-on-primary) / <alpha-value>)",
+                        "primary-container": "rgb(var(--color-primary-container) / <alpha-value>)",
+                        "on-primary-container": "rgb(var(--color-on-primary-container) / <alpha-value>)",
+                        "secondary-container": "rgb(var(--color-secondary-container) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-outline-variant) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-on-surface) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-on-surface-variant) / <alpha-value>)",
+                        "primary-fixed": "rgb(var(--color-primary-fixed) / <alpha-value>)",
+                        "on-primary-fixed": "rgb(var(--color-on-primary-fixed) / <alpha-value>)"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "xs": "4px",
+                        "max-width": "1280px",
+                        "base": "8px",
+                        "gutter": "16px",
+                        "margin-mobile": "20px",
+                        "sm": "12px",
+                        "xl": "32px",
+                        "margin-desktop": "auto",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Manrope"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Manrope"],
+                        "display-lg": ["Manrope"],
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        :root,
+        html[data-theme="cielo-midnight"] {
+            --color-surface: 11 15 20;
+            --color-background: 11 15 20;
+            --color-surface-container-lowest: 17 21 27;
+            --color-surface-container-low: 23 28 35;
+            --color-surface-container-highest: 42 50 60;
+            --color-primary: 138 215 230;
+            --color-on-primary: 3 19 23;
+            --color-primary-container: 31 95 105;
+            --color-on-primary-container: 208 242 248;
+            --color-secondary-container: 47 54 63;
+            --color-outline-variant: 62 72 83;
+            --color-on-surface: 228 231 235;
+            --color-on-surface-variant: 174 183 194;
+            --color-primary-fixed: 170 237 251;
+            --color-on-primary-fixed: 0 31 37;
+        }
+        html[data-theme="steel-ocean"] {
+            --color-surface: 14 20 28;
+            --color-background: 14 20 28;
+            --color-surface-container-lowest: 20 28 39;
+            --color-surface-container-low: 28 37 50;
+            --color-surface-container-highest: 49 62 78;
+            --color-primary: 123 201 255;
+            --color-on-primary: 9 20 34;
+            --color-primary-container: 26 86 132;
+            --color-on-primary-container: 214 239 255;
+            --color-secondary-container: 51 65 82;
+            --color-outline-variant: 75 92 113;
+            --color-on-surface: 228 236 245;
+            --color-on-surface-variant: 171 187 205;
+            --color-primary-fixed: 178 224 255;
+            --color-on-primary-fixed: 6 28 50;
+        }
+        html[data-theme="amber-console"] {
+            --color-surface: 20 14 11;
+            --color-background: 20 14 11;
+            --color-surface-container-lowest: 30 21 16;
+            --color-surface-container-low: 42 30 23;
+            --color-surface-container-highest: 68 50 37;
+            --color-primary: 255 193 94;
+            --color-on-primary: 36 21 0;
+            --color-primary-container: 126 82 20;
+            --color-on-primary-container: 255 233 192;
+            --color-secondary-container: 78 56 39;
+            --color-outline-variant: 105 79 57;
+            --color-on-surface: 245 232 220;
+            --color-on-surface-variant: 214 190 166;
+            --color-primary-fixed: 255 223 162;
+            --color-on-primary-fixed: 43 28 0;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: rgb(var(--color-background));
+            color: rgb(var(--color-on-surface));
+        }
+        .backdrop-blur-md {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30">
+<nav class="flex justify-between items-center px-margin-mobile h-16 w-full max-w-7xl mx-auto">
+<button onclick="window.history.length>1?history.back():location.href='index.html'" class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200" aria-label="Go back">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold tracking-tighter text-primary">Cielo Vista Software</span>
+<div class="flex items-center gap-2">
+<button id="nav-hamburger" onclick="openNavDrawer()" class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200" aria-label="Open menu"><span class="material-symbols-outlined">menu</span></button>
+<label class="sr-only" for="theme-select">Theme</label>
+<select class="h-9 px-2 rounded-lg bg-surface-container-low text-on-surface border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" id="theme-select" aria-label="Theme selector">
+<option value="cielo-midnight">Cielo Midnight</option>
+<option value="steel-ocean">Steel Ocean</option>
+<option value="amber-console">Amber Console</option>
+</select>
+<a href="marketplace.html" class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200" aria-label="Go to Marketplace">
+<span class="material-symbols-outlined">shopping_cart</span>
+</a>
+</div>
+</nav>
+</header>
+<main class="pt-24 pb-32 max-w-7xl mx-auto px-margin-mobile md:px-lg">
+<!-- Hero Section -->
+<section class="mb-xl">
+<h1 class="font-display-lg text-display-lg text-primary mb-md tracking-tight">Developer Services</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+            Empower your engineering teams with specialized tools and support. We provide technical excellence to streamline your organization's unique development lifecycle.
+        </p>
+</section>
+<!-- Services Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-gutter mb-xl">
+<!-- Custom Extension Development -->
+<div class="md:col-span-8 bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 group">
+<div class="flex flex-col md:flex-row h-full">
+<div class="md:w-1/2 overflow-hidden h-64 md:h-auto">
+<img alt="Sleek software UI components and code snippets representing bespoke developer tools" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="assets/dev-tooling.svg"/>
+</div>
+<div class="p-lg flex flex-col justify-center md:w-1/2">
+<div class="inline-flex items-center gap-2 text-primary mb-sm">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest">Bespoke Tooling</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-md">Custom Extension Development</h2>
+<p class="text-on-surface-variant font-body-md mb-lg">
+                        We build bespoke VS Code tools for your organization's unique workflow. Enhance productivity with integrated features tailored to your stack.
+                    </p>
+<a href="#inquiry-form" class="self-start h-12 px-6 bg-primary text-on-primary rounded-lg font-label-md hover:opacity-90 transition-opacity active:scale-95 flex items-center">
+                        Consult with Us
+                    </a>
+</div>
+</div>
+</div>
+<!-- Enterprise Onboarding -->
+<div class="md:col-span-4 bg-primary text-on-primary rounded-xl overflow-hidden flex flex-col shadow-sm">
+<div class="p-lg flex-1">
+<div class="inline-flex items-center gap-2 text-on-primary-container mb-sm">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest">Team Success</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg mb-md">Enterprise Onboarding</h2>
+<p class="text-on-primary-container font-body-md mb-lg">
+                    Team-wide training and setup for our suite of tools, ensuring your developers hit the ground running.
+                </p>
+</div>
+<div class="h-48 relative overflow-hidden">
+<img alt="Modern developer workspace showing VS Code interface and productivity overlays" class="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform duration-500" src="assets/onboarding.svg"/>
+</div>
+</div>
+<!-- Priority Support -->
+<div class="md:col-span-12 bg-surface-container-low rounded-xl p-lg flex flex-col md:flex-row items-center gap-lg border border-outline-variant/30">
+<div class="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container shrink-0">
+<span class="material-symbols-outlined text-[32px]">support_agent</span>
+</div>
+<div class="flex-1 text-center md:text-left">
+<h3 class="font-headline-md text-headline-md text-on-surface">Priority Support</h3>
+<p class="text-on-surface-variant font-body-md">
+                    24/7 technical assistance for mission-critical development teams. Our senior engineers are available around the clock to resolve infrastructure or tooling bottlenecks.
+                </p>
+</div>
+<div class="flex gap-md">
+<div class="px-md py-xs rounded-full bg-surface-container-highest border border-outline-variant/30 font-label-sm text-label-sm">Standard: Business Hours</div>
+<div class="px-md py-xs rounded-full bg-primary-container text-on-primary-container font-label-sm text-label-sm">Priority: 24/7 Access</div>
+</div>
+</div>
+</section>
+<!-- Contact Inquiry Form Section -->
+<section class="max-w-3xl mx-auto bg-surface-container-lowest p-lg md:p-xl rounded-xl border border-outline-variant/30 shadow-sm mb-xl">
+<div class="text-center mb-xl">
+<h2 class="font-headline-lg text-headline-lg text-primary mb-xs">Inquire About Services</h2>
+<p class="text-on-surface-variant font-body-md">Have a specific request? Our technical concierge team is ready to assist you.</p>
+</div>
+<form id="inquiry-form" class="space-y-md" novalidate>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface" for="name">Full Name</label>
+<input class="w-full h-12 px-md bg-surface-container-low text-on-surface border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant" id="name" name="name" placeholder="Enter your name" type="text" autocomplete="name"/>
+<span id="name-error" class="hidden font-label-sm text-label-sm" style="color:#f87171">Full name is required.</span>
+</div>
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface" for="email">Work Email Address</label>
+<input class="w-full h-12 px-md bg-surface-container-low text-on-surface border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant" id="email" name="email" placeholder="email@company.com" type="email" autocomplete="email"/>
+<span id="email-error" class="hidden font-label-sm text-label-sm" style="color:#f87171">A valid work email is required.</span>
+</div>
+</div>
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface" for="message">Message</label>
+<textarea class="w-full p-md bg-surface-container-low text-on-surface border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-outline-variant resize-none" id="message" name="message" placeholder="Tell us about your organization's workflow needs" rows="4"></textarea>
+<span id="message-error" class="hidden font-label-sm text-label-sm" style="color:#f87171">Please include a message.</span>
+</div>
+<div id="form-success" class="hidden rounded-lg p-md font-label-md text-label-md text-center" style="background-color:rgb(var(--color-primary-container));color:rgb(var(--color-on-primary-container))">
+    Your inquiry was sent. We'll be in touch within one business day.
+</div>
+<button id="form-submit" class="w-full h-12 bg-primary text-on-primary rounded-lg font-label-md hover:opacity-95 transition-all active:scale-[0.98] mt-md" type="submit">
+    Send Inquiry
+</button>
+</form>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 md:hidden bg-surface/90 backdrop-blur-lg border-t border-outline-variant/30 rounded-t-xl shadow-sm">
+<div class="flex justify-around items-center pt-2 pb-safe px-4 h-16">
+<a href="index.html" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<a href="marketplace.html" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">storefront</span>
+<span class="font-label-sm text-label-sm">Marketplace</span>
+</a>
+<a href="test.html" class="flex flex-col items-center justify-center text-primary bg-secondary-container/50 rounded-full px-4 py-1 transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-label-sm text-label-sm">Services</span>
+</a>
+<a href="console.html" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm">Console</span>
+</a>
+</div>
+</nav>
+<!-- Desktop Navigation Fallback -->
+<div class="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 bg-surface/90 backdrop-blur-lg border border-outline-variant/30 rounded-full px-lg py-sm shadow-lg z-50 gap-xl items-center">
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors" href="index.html">Home</a>
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors" href="marketplace.html">Marketplace</a>
+<a class="text-primary font-label-md bg-secondary-container/50 px-4 py-2 rounded-full" href="test.html">Services</a>
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors" href="console.html">Console</a>
+</div>
+<button id="open-demo-fab" class="fixed right-4 bottom-24 md:bottom-8 z-50 h-12 px-4 rounded-full bg-primary text-on-primary border border-outline-variant/40 shadow-lg hover:opacity-95 active:scale-95 transition-all flex items-center gap-2" type="button" aria-label="Open Demo">
+<span class="material-symbols-outlined text-[20px]">rocket_launch</span>
+<span class="font-label-md text-label-md">Open Demo</span>
+</button>
+<script>
+        (function () {
+            var select = document.getElementById('theme-select');
+            if (!select) { return; }
+
+            var defaultTheme = 'cielo-midnight';
+            var storedTheme;
+            try { storedTheme = localStorage.getItem('cvt-demo-theme'); } catch (e) {}
+            var activeTheme = storedTheme || defaultTheme;
+
+            document.documentElement.setAttribute('data-theme', activeTheme);
+            select.value = activeTheme;
+
+            select.addEventListener('change', function (event) {
+                var target = event.target;
+                if (!target || !target.value) { return; }
+                document.documentElement.setAttribute('data-theme', target.value);
+                try { localStorage.setItem('cvt-demo-theme', target.value); } catch (e) {}
+            });
+        })();
+    </script>
+<script>
+        (function () {
+            var btn = document.getElementById('open-demo-fab');
+            if (!btn) { return; }
+
+            function ping(url) {
+                return new Promise(function (resolve, reject) {
+                    var done = false;
+                    var timeout = setTimeout(function () {
+                        if (!done) {
+                            done = true;
+                            reject(new Error('timeout'));
+                        }
+                    }, 700);
+
+                    fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+                        .then(function () {
+                            if (!done) {
+                                done = true;
+                                clearTimeout(timeout);
+                                resolve(url);
+                            }
+                        })
+                        .catch(function () {
+                            if (!done) {
+                                done = true;
+                                clearTimeout(timeout);
+                                reject(new Error('unreachable'));
+                            }
+                        });
+                });
+            }
+
+            async function findDemoBaseUrl() {
+                var candidates = [];
+                if (window.location.origin && /^https?:/i.test(window.location.origin)) {
+                    candidates.push(window.location.origin);
+                }
+                candidates.push('http://localhost:4200', 'http://localhost:5500');
+
+                var seen = {};
+                for (var i = 0; i < candidates.length; i += 1) {
+                    var base = candidates[i];
+                    if (seen[base]) { continue; }
+                    seen[base] = true;
+                    try {
+                        await ping(base + '/');
+                        return base;
+                    } catch (e) {
+                        // try next candidate
+                    }
+                }
+                return null;
+            }
+
+            btn.addEventListener('click', async function () {
+                btn.disabled = true;
+                var oldText = btn.innerHTML;
+                btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">hourglass_top</span><span class="font-label-md text-label-md">Checking...</span>';
+
+                var base = await findDemoBaseUrl();
+                if (base) {
+                    window.open(base + '/test.html', '_blank');
+                } else {
+                    alert('Demo server is not running yet. Start it first, then try again.');
+                }
+
+                btn.disabled = false;
+                btn.innerHTML = oldText;
+            });
+        })();
+    </script>
+<script>
+        (function () {
+            var form = document.getElementById('inquiry-form');
+            if (!form) { return; }
+            var submitBtn = document.getElementById('form-submit');
+            var successDiv = document.getElementById('form-success');
+
+            function setError(fieldId, show) {
+                var el = document.getElementById(fieldId + '-error');
+                var input = document.getElementById(fieldId);
+                if (!el || !input) { return; }
+                if (show) {
+                    el.classList.remove('hidden');
+                    input.style.borderColor = '#f87171';
+                } else {
+                    el.classList.add('hidden');
+                    input.style.borderColor = '';
+                }
+            }
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var name = document.getElementById('name').value.trim();
+                var email = document.getElementById('email').value.trim();
+                var message = document.getElementById('message').value.trim();
+                var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                var valid = true;
+
+                if (!name) { setError('name', true); valid = false; } else { setError('name', false); }
+                if (!email || !emailOk) { setError('email', true); valid = false; } else { setError('email', false); }
+                if (!message) { setError('message', true); valid = false; } else { setError('message', false); }
+
+                if (!valid) { return; }
+                successDiv.classList.remove('hidden');
+                submitBtn.textContent = 'Inquiry Sent';
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.6';
+            });
+        })();
+    </script>
+<!-- Nav Drawer -->
+<div id="nav-backdrop" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,0.5);" onclick="closeNavDrawer()"></div>
+<aside id="nav-drawer" style="transform:translateX(-100%);transition:transform 0.3s ease;position:fixed;top:0;left:0;height:100%;width:18rem;z-index:70;display:flex;flex-direction:column;" class="bg-surface border-r border-outline-variant/30">
+<div class="flex items-center justify-between px-lg h-16 border-b border-outline-variant/30 shrink-0">
+<span class="font-headline-md text-headline-md font-bold tracking-tighter text-primary">Cielo Vista</span>
+<button onclick="closeNavDrawer()" class="text-on-surface-variant hover:text-primary transition-colors" aria-label="Close menu"><span class="material-symbols-outlined">close</span></button>
+</div>
+<nav style="flex:1;padding:1rem 0.75rem;display:flex;flex-direction:column;gap:0.25rem;">
+<a href="index.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">home</span>Home</a>
+<a href="getting-started.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">rocket_launch</span>Getting Started</a>
+<a href="marketplace.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">storefront</span>Marketplace</a>
+<a href="test.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">terminal</span>Services</a>
+<a href="console.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">person</span>Console</a>
+</nav>
+</aside>
+<script>
+function openNavDrawer(){document.getElementById('nav-drawer').style.transform='translateX(0)';document.getElementById('nav-backdrop').style.display='block';document.body.style.overflow='hidden';}
+function closeNavDrawer(){document.getElementById('nav-drawer').style.transform='translateX(-100%)';document.getElementById('nav-backdrop').style.display='none';document.body.style.overflow='';}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeNavDrawer();});
+</script>
+</body></html>

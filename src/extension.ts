@@ -1,4 +1,4 @@
-// Copyright (c) 2025 CieloVista Software. All rights reserved.
+﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 /**
  * extension.ts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â CieloVista Tools root entry point.
@@ -31,10 +31,11 @@ import { activate as docsBrokenRefs,          deactivate as deactivateDocsBroken
 import { activate as marketplaceCompliance,   deactivate as deactivateMarketplace      } from './features/marketplace-compliance/index';
 import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header/index';
 import { activate as docHeaderScan,           deactivate as deactivateDocHeaderScan    } from './features/doc-header-scan';
+import { activate as frontmatterViewer,       deactivate as deactivateFrontmatterViewer } from './features/frontmatter-viewer';
 import { activate as projectLauncher,         deactivate as deactivateProjectLauncher  } from './features/project-launcher';
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
 import { activate as projectHomeOpener,       deactivate as deactivateProjectHomeOpener  } from './features/project-home-opener';
-import { activate as npmCommandLauncher,      deactivate as deactivateNpmCommandLauncher } from './features/npm-command-launcher';
+import { activate as npmScriptsTree,          deactivate as deactivateNpmScriptsTree      } from './features/npm-scripts-tree';
 import { activate as mcpServerScaffolder,     deactivate as deactivateMcpServerScaffolder } from './features/mcp-server-scaffolder';
 import { activate as openFolderAsRoot,        deactivate as deactivateOpenFolderAsRoot    } from './features/open-folder-as-root';
 import { activate as testCoverageAuditor,     deactivate as deactivateTestCoverageAuditor } from './features/test-coverage-auditor';
@@ -50,9 +51,14 @@ import { activate as imageReaderActivate,     deactivate as imageReaderDeactivat
 import { activate as mcpViewerActivate,       deactivate as mcpViewerDeactivate            } from './features/mcp-viewer';
 import { activate as explorerCopyPathToChatActivate, deactivate as explorerCopyPathToChatDeactivate } from './features/explorer-copy-path-to-chat';
 import { activate as worktreeCleanerActivate,       deactivate as worktreeCleanerDeactivate         } from './features/worktree-cleaner';
+import { activate as codeAuditorActivate,           deactivate as codeAuditorDeactivate            } from './features/code-auditor';
 import { activate as registryPromoteActivate, deactivate as registryPromoteDeactivate      } from './features/registry-promote';
 import { activate as corequisiteCheckerActivate, deactivate as corequisiteCheckerDeactivate } from './features/corequisite-checker';
 import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeactivate       } from './features/json-copy-to-chat';
+import { activate as playwrightRunnerActivate, deactivate as playwrightRunnerDeactivate     } from './features/playwright-runner';
+import { activate as diskCleanupDashboardActivate, deactivate as diskCleanupDashboardDeactivate } from './features/disk-cleanup-dashboard';
+import { activate as runningTasksActivate,         deactivate as runningTasksDeactivate           } from './features/running-tasks';
+import { activate as notifyServerActivate,         deactivate as notifyServerDeactivate           } from './features/notify-server';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -60,12 +66,11 @@ import { runCodebaseAudit   } from './features/codebase-auditor';
 import { openErrorLogViewer }      from './features/error-log-viewer';
 import { openRegressionLogViewer } from './features/regression-log-viewer';
 import { activate as activateFileListViewer, deactivate as deactivateFileListViewer } from './features/file-list-viewer';
-
-
+import { showGithubIssues, newIssueForProject } from './shared/github-issues-view';
+import { loadRegistry } from './features/doc-catalog/registry';
+import { getCurrentWorkspaceProjectName } from './features/doc-catalog/commands';
 // Force inclusion of 'diff' in VSIX bundle
 import * as _forceDiffBundle from 'diff';
-
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
 function activateIfEnabled(
     key: string,
@@ -97,6 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Resolve MCP server path from extension root and start immediately in every workspace.
     runStartupStep('MCP Server Path Init', () => initMcpServerPath(context.extensionPath));
     runStartupStep('MCP Server Start', () => startMcpServer());
+    runStartupStep('Notify Server', () => notifyServerActivate(context));
     // Initialize history and recents BEFORE home page renders so it gets real data
     runStartupStep('Command History Init', () => initHistory(context));
     runStartupStep('Recent Projects Init', () => initRecentProjects(context));
@@ -127,10 +133,11 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('marketplaceCompliance',   'Marketplace Compliance',        marketplaceCompliance,   context);
     activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
     activateIfEnabled('docHeaderScan',           'Doc Header Scan',               docHeaderScan,           context);
+    activateIfEnabled('frontmatterViewer',       'Frontmatter Viewer',            frontmatterViewer,       context);
     activateIfEnabled('projectLauncher',         'Project Launcher',              projectLauncher,         context);
     activateIfEnabled('cvsCommandLauncher',      'CVS Command Launcher',          cvsCommandLauncher,      context);
     activateIfEnabled('projectHomeOpener',       'Project Home Opener',           projectHomeOpener,       context);
-    activateIfEnabled('npmCommandLauncher',      'NPM Command Launcher',          npmCommandLauncher,      context);
+    activateIfEnabled('npmScriptsTree',          'NPM Scripts Tree',              npmScriptsTree,          context);
     activateIfEnabled('mcpServerScaffolder',     'MCP Server Scaffolder',         mcpServerScaffolder,     context);
     activateIfEnabled('openFolderAsRoot',        'Explorer: Open Folder as Root', openFolderAsRoot,        context);
     activateIfEnabled('testCoverageAuditor',     'Test Coverage Auditor',         testCoverageAuditor,     context);
@@ -142,9 +149,13 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('imageReader',             'Image Reader',                  imageReaderActivate,     context);
     activateIfEnabled('mcpViewer',               'MCP Endpoint Viewer',           mcpViewerActivate,       context);
     activateIfEnabled('explorerCopyPathToChat',  'Explorer: Copy Path to Copilot Chat', explorerCopyPathToChatActivate, context);
+    activateIfEnabled('codeAuditor',             'Code Auditor',                                 codeAuditorActivate, context);
     activateIfEnabled('registryPromote',         'Registry: Promote Folder to Product', registryPromoteActivate,        context);
     activateIfEnabled('corequisiteChecker',      'Corequisite Checker',                 corequisiteCheckerActivate,     context);
     activateIfEnabled('jsonCopyToChat',          'Editor: Copy JSON to Copilot Chat',   jsonCopyToChatActivate,         context);
+    activateIfEnabled('playwrightRunner',        'Playwright Runner',                   playwrightRunnerActivate,        context);
+    activateIfEnabled('diskCleanupDashboard',    'DiskCleanUp Dashboard',               diskCleanupDashboardActivate,    context);
+    activateIfEnabled('runningTasks',            'Running Tasks',                       runningTasksActivate,            context);
     worktreeCleanerActivate(context);
 
     context.subscriptions.push(
@@ -153,6 +164,12 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.tools.errorLog', openErrorLogViewer),
         vscode.commands.registerCommand('cvs.tools.regressionLog', openRegressionLogViewer),
         vscode.commands.registerCommand('cvs.tools.results',  () => { /* placeholder */ }),
+        vscode.commands.registerCommand('cvs.issues.openViewer', () => showGithubIssues()),
+        vscode.commands.registerCommand('cvs.issues.newIssue', () => {
+            const registry = loadRegistry();
+            const projName = getCurrentWorkspaceProjectName(registry?.projects ?? []);
+            newIssueForProject(projName || undefined);
+        }),
     );
 
 }
@@ -165,7 +182,7 @@ export function deactivate(): void {
     deactivateCodeHighlightAudit();
     deactivateOpenFolderAsRoot();
     deactivateMcpServerScaffolder();
-    deactivateNpmCommandLauncher();
+    deactivateNpmScriptsTree();
     deactivateProjectHomeOpener();
     deactivateCvsCommandLauncher();
     deactivateOpenaiChat();
@@ -192,10 +209,16 @@ export function deactivate(): void {
     imageReaderDeactivate();
     mcpViewerDeactivate();
     explorerCopyPathToChatDeactivate();
+    codeAuditorDeactivate();
     registryPromoteDeactivate();
     corequisiteCheckerDeactivate();
     jsonCopyToChatDeactivate();
+    playwrightRunnerDeactivate();
+    diskCleanupDashboardDeactivate();
+    runningTasksDeactivate();
+    notifyServerDeactivate();
     deactivateDocHeader();
+    deactivateFrontmatterViewer();
     deactivateProjectLauncher();
     deactivateTestCoverageAuditor();
     deactivateHomePage();

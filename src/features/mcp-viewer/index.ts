@@ -21,6 +21,7 @@ import * as http   from 'http';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { log } from '../../shared/output-channel';
+import { mdToHtml } from '../../shared/md-renderer';
 import { loadRegistry } from '../../shared/registry';
 import { buildCatalog } from '../doc-catalog/commands';
 import type { CatalogCard } from '../doc-catalog/types';
@@ -769,10 +770,12 @@ function escHtml(s: string): string {
 }
 
 function buildMarkdownPreviewHtml(filePath: string, markdown: string, backUrl?: string): string {
-    const safePath = escHtml(filePath);
-    const safeBack = escHtml(backUrl || '');
+    const safePath    = escHtml(filePath);
+    const safeFileName = escHtml(filePath.split(/[\\/]/).pop() ?? filePath);
+    const safeBack    = escHtml(backUrl || '');
+    const renderedHtml = mdToHtml(markdown);
     return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>${safePath}</title>
+<html lang="en"><head><meta charset="UTF-8"><title>${safeFileName}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#1e1e1e;color:#d4d4d4}
@@ -788,27 +791,59 @@ pre{background:#111;border:1px solid #2d2d2d;border-radius:6px;padding:12px;over
 blockquote{border-left:3px solid #0078d4;padding-left:10px;color:#9e9e9e}
 table{border-collapse:collapse;width:100%}
 th,td{border:1px solid #2d2d2d;padding:6px 8px}
+.fm-block{font-family:Georgia,'Times New Roman',serif;font-size:.9rem;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;align-items:baseline;padding:10px 14px;margin-bottom:16px;border:1px solid rgba(77,171,247,0.35);border-radius:5px;background:rgba(77,171,247,0.06)}
+.fm-row{display:contents}
+.fm-label{font-size:11px;font-weight:700;color:#4dabf7;font-variant:small-caps;letter-spacing:.04em;white-space:nowrap}
+.fm-value{font-size:12px;color:#74c7ec;font-style:italic;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 </style></head>
 <body>
 <header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><span class="path-label">${safePath}</span></header>
-<main id="content"></main>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<main>${renderedHtml}</main>
 <script>
-const raw = ${JSON.stringify(markdown)};
-const backUrl = ${JSON.stringify(safeBack)};
-const content = document.getElementById('content');
-content.innerHTML = marked.parse(raw);
+var backUrl = ${JSON.stringify(safeBack)};
 document.getElementById('btn-back').addEventListener('click', function(){
-    if (backUrl) {
-        window.location.href = backUrl;
-        return;
-    }
-    if (window.history.length > 1) {
-        window.history.back();
-        return;
-    }
+    if (backUrl) { window.location.href = backUrl; return; }
+    if (window.history.length > 1) { window.history.back(); return; }
     window.location.href = '/';
 });
+(function(){
+    var pathRe = /[A-Za-z]:\\[^\s<>'"\\|*?]+/g;
+    function linkifyPaths(root) {
+        var nodes = [];
+        var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+        var n;
+        while ((n = walker.nextNode())) { nodes.push(n); }
+        nodes.forEach(function(node) {
+            var text = node.nodeValue || '';
+            pathRe.lastIndex = 0;
+            if (!pathRe.test(text)) { return; }
+            pathRe.lastIndex = 0;
+            var frag = document.createDocumentFragment();
+            var last = 0, m;
+            while ((m = pathRe.exec(text)) !== null) {
+                if (m.index > last) { frag.appendChild(document.createTextNode(text.slice(last, m.index))); }
+                var fp = m[0];
+                if (/\.md$/i.test(fp)) {
+                    var a = document.createElement('a');
+                    a.href = '/md-preview?path=' + encodeURIComponent(fp) + '&back=' + encodeURIComponent(window.location.href);
+                    a.textContent = fp;
+                    frag.appendChild(a);
+                } else {
+                    var span = document.createElement('span');
+                    span.textContent = fp;
+                    span.style.fontFamily = 'Consolas,monospace';
+                    span.style.color = '#ce9178';
+                    frag.appendChild(span);
+                }
+                last = m.index + fp.length;
+            }
+            if (last < text.length) { frag.appendChild(document.createTextNode(text.slice(last))); }
+            node.parentNode.replaceChild(frag, node);
+        });
+    }
+    var main = document.querySelector('main');
+    if (main) { linkifyPaths(main); }
+})();
 </script>
 </body></html>`;
 }
@@ -935,8 +970,132 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         return;
     }
 
+    /* JSON-RPC endpoint for MCP protocol compatibility */
+    if (p === '/mcp' && req.method === 'POST') {
+        try {
+            const body = await readRequestBody(req);
+            const jsonRpc = JSON.parse(body);
+
+            // Validate JSON-RPC structure
+            if (!jsonRpc || jsonRpc.jsonrpc !== '2.0' || !jsonRpc.method) {
+                jsonResponse(res, 400, {
+                    jsonrpc: '2.0',
+                    id: jsonRpc?.id,
+                    error: { code: -32600, message: 'Invalid Request' }
+                });
+                return;
+            }
+
+            const method = jsonRpc.method as string;
+            const params = (jsonRpc.params as Record<string, unknown>) || {};
+            const id = jsonRpc.id;
+
+            // Handle notifications (no response expected)
+            if (id === undefined || id === null) {
+                res.writeHead(202);
+                res.end();
+                return;
+            }
+
+            // Route to appropriate handler based on method name
+            let result: unknown;
+            try {
+                switch (method) {
+                    case 'list_projects':
+                        result = handleListProjects(coerceStatus(params.status as string | null));
+                        break;
+                    case 'find_project':
+                        result = handleFindProject(params.query as string || '', coerceStatus(params.status as string | null));
+                        break;
+                    case 'search_docs':
+                        result = await handleSearchDocs(params.query as string || '', params.projectName as string || '');
+                        break;
+                    case 'get_catalog':
+                        result = await handleGetCatalog(params.projectName as string || '');
+                        break;
+                    case 'list_doc_violations':
+                        result = await handleListDocViolations(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'validate_doc':
+                        result = await handleValidateDoc(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'normalize_doc':
+                        result = await handleNormalizeDoc(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'get_doc_by_identity':
+                        result = await handleGetDocByIdentity(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'list_old_dewey':
+                        result = await handleListOldDewey(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'active_markdown':
+                        result = handleGetActiveMarkdown();
+                        break;
+                    case 'list_markdown_paths':
+                        result = await handleListMarkdownPaths(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'list_symbols':
+                        result = handleListSymbols(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'find_symbol':
+                        result = handleFindSymbol(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'list_cvt_commands':
+                        result = handleListCvtCommands(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    case 'lookup_dewey':
+                        result = await handleLookupDewey(new URLSearchParams(params as Record<string, string>));
+                        break;
+                    default:
+                        jsonResponse(res, 200, {
+                            jsonrpc: '2.0',
+                            id,
+                            error: { code: -32601, message: 'Method not found' }
+                        });
+                        return;
+                }
+
+                jsonResponse(res, 200, {
+                    jsonrpc: '2.0',
+                    id,
+                    result
+                });
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                jsonResponse(res, 200, {
+                    jsonrpc: '2.0',
+                    id,
+                    error: { code: -32603, message }
+                });
+            }
+            return;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            jsonResponse(res, 400, {
+                jsonrpc: '2.0',
+                error: { code: -32603, message }
+            });
+            return;
+        }
+    }
+
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
+}
+
+/** Helper function to read request body */
+async function readRequestBody(req: http.IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+            if (body.length > 1024 * 1024) {
+                reject(new Error('Request body too large'));
+            }
+        });
+        req.on('end', () => resolve(body));
+        req.on('error', reject);
+    });
 }
 
 /** Ensure the HTTP server is running, then open the browser. */

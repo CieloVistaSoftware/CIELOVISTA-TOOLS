@@ -7,5 +7,11 @@
 			"name": "components",
 			"path": "../../../../../../dev/wb-core/docs/components"
 		}
-	]
+	],
+	"settings": {
+		"powershell.cwd": "cielovista-tools",
+		"chat.tools.terminal.autoApprove": {
+			"gh": true
+		}
+	}
 }

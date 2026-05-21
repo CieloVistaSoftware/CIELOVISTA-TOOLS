@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cielo-midnight"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cielo Vista Software | Marketplace</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "rgb(var(--color-surface) / <alpha-value>)",
+                        "background": "rgb(var(--color-background) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-surface-container-lowest) / <alpha-value>)",
+                        "surface-container-low": "rgb(var(--color-surface-container-low) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-container-highest) / <alpha-value>)",
+                        "primary": "rgb(var(--color-primary) / <alpha-value>)",
+                        "on-primary": "rgb(var(--color-on-primary) / <alpha-value>)",
+                        "primary-container": "rgb(var(--color-primary-container) / <alpha-value>)",
+                        "on-primary-container": "rgb(var(--color-on-primary-container) / <alpha-value>)",
+                        "secondary-container": "rgb(var(--color-secondary-container) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-outline-variant) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-on-surface) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-on-surface-variant) / <alpha-value>)",
+                        "primary-fixed": "rgb(var(--color-primary-fixed) / <alpha-value>)",
+                        "on-primary-fixed": "rgb(var(--color-on-primary-fixed) / <alpha-value>)"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "xs": "4px",
+                        "max-width": "1280px",
+                        "base": "8px",
+                        "gutter": "16px",
+                        "margin-mobile": "20px",
+                        "sm": "12px",
+                        "xl": "32px",
+                        "margin-desktop": "auto",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Manrope"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Manrope"],
+                        "display-lg": ["Manrope"],
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        :root,
+        html[data-theme="cielo-midnight"] {
+            --color-surface: 11 15 20;
+            --color-background: 11 15 20;
+            --color-surface-container-lowest: 17 21 27;
+            --color-surface-container-low: 23 28 35;
+            --color-surface-container-highest: 42 50 60;
+            --color-primary: 138 215 230;
+            --color-on-primary: 3 19 23;
+            --color-primary-container: 31 95 105;
+            --color-on-primary-container: 208 242 248;
+            --color-secondary-container: 47 54 63;
+            --color-outline-variant: 62 72 83;
+            --color-on-surface: 228 231 235;
+            --color-on-surface-variant: 174 183 194;
+            --color-primary-fixed: 170 237 251;
+            --color-on-primary-fixed: 0 31 37;
+        }
+        html[data-theme="steel-ocean"] {
+            --color-surface: 14 20 28;
+            --color-background: 14 20 28;
+            --color-surface-container-lowest: 20 28 39;
+            --color-surface-container-low: 28 37 50;
+            --color-surface-container-highest: 49 62 78;
+            --color-primary: 123 201 255;
+            --color-on-primary: 9 20 34;
+            --color-primary-container: 26 86 132;
+            --color-on-primary-container: 214 239 255;
+            --color-secondary-container: 51 65 82;
+            --color-outline-variant: 75 92 113;
+            --color-on-surface: 228 236 245;
+            --color-on-surface-variant: 171 187 205;
+            --color-primary-fixed: 178 224 255;
+            --color-on-primary-fixed: 6 28 50;
+        }
+        html[data-theme="amber-console"] {
+            --color-surface: 20 14 11;
+            --color-background: 20 14 11;
+            --color-surface-container-lowest: 30 21 16;
+            --color-surface-container-low: 42 30 23;
+            --color-surface-container-highest: 68 50 37;
+            --color-primary: 255 193 94;
+            --color-on-primary: 36 21 0;
+            --color-primary-container: 126 82 20;
+            --color-on-primary-container: 255 233 192;
+            --color-secondary-container: 78 56 39;
+            --color-outline-variant: 105 79 57;
+            --color-on-surface: 245 232 220;
+            --color-on-surface-variant: 214 190 166;
+            --color-primary-fixed: 255 223 162;
+            --color-on-primary-fixed: 43 28 0;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: rgb(var(--color-background));
+            color: rgb(var(--color-on-surface));
+            min-height: max(884px, 100dvh);
+        }
+        .backdrop-blur-md {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30">
+<nav class="flex justify-between items-center px-margin-mobile h-16 w-full max-w-7xl mx-auto">
+<button onclick="window.history.length>1?history.back():location.href='index.html'" class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200" aria-label="Go back">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold tracking-tighter text-primary">Cielo Vista Software</span>
+<div class="flex items-center gap-2">
+<button id="nav-hamburger" onclick="openNavDrawer()" class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200" aria-label="Open menu"><span class="material-symbols-outlined">menu</span></button>
+<label class="sr-only" for="theme-select">Theme</label>
+<select class="h-9 px-2 rounded-lg bg-surface-container-low text-on-surface border border-outline-variant/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" id="theme-select" aria-label="Theme selector">
+<option value="cielo-midnight">Cielo Midnight</option>
+<option value="steel-ocean">Steel Ocean</option>
+<option value="amber-console">Amber Console</option>
+</select>
+<a href="marketplace.html" class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200" aria-label="Go to Marketplace">
+<span class="material-symbols-outlined">shopping_cart</span>
+</a>
+</div>
+</nav>
+</header>
+<main class="pt-24 pb-32 max-w-7xl mx-auto px-margin-mobile md:px-lg">
+<!-- Hero -->
+<section class="mb-xl">
+<h1 class="font-display-lg text-display-lg text-primary mb-md tracking-tight">Marketplace</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+    All Cielo Vista developer tools ship in a single VS Code extension — one install, everything included.
+</p>
+</section>
+<!-- Single Extension Install Card -->
+<section class="mb-xl">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden">
+<div class="p-lg flex flex-col md:flex-row md:items-center justify-between gap-lg">
+<div class="flex items-center gap-md">
+<div class="w-16 h-16 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container text-[32px]">extension</span>
+</div>
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">CieloVista Tools</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">v1.0.2 &nbsp;·&nbsp; Free &nbsp;·&nbsp; VS Code Insiders</p>
+</div>
+</div>
+<a href="cielovista-tools-1.0.2.vsix" download class="shrink-0 h-12 px-8 bg-primary text-on-primary rounded-lg font-label-md hover:opacity-90 transition-opacity active:scale-95 flex items-center gap-sm">
+<span class="material-symbols-outlined">download</span>
+Download VSIX
+</a>
+</div>
+<div class="border-t border-outline-variant/20 px-lg py-md">
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-sm">Included features</p>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-sm">
+<div class="flex items-center gap-sm text-on-surface-variant font-body-md">
+<span class="material-symbols-outlined text-primary text-[18px]">folder_open</span>File List
+</div>
+<div class="flex items-center gap-sm text-on-surface-variant font-body-md">
+<span class="material-symbols-outlined text-primary text-[18px]">rule</span>Copilot Rules
+</div>
+<div class="flex items-center gap-sm text-on-surface-variant font-body-md">
+<span class="material-symbols-outlined text-primary text-[18px]">source</span>MCP Viewer
+</div>
+<div class="flex items-center gap-sm text-on-surface-variant font-body-md">
+<span class="material-symbols-outlined text-primary text-[18px]">error_outline</span>Error Log
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Feature Cards -->
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-md">What's inside</h2>
+<section class="grid grid-cols-1 md:grid-cols-2 gap-gutter mb-xl">
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-lg flex flex-col gap-sm">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container">folder_open</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface leading-tight">File List</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Utility</span>
+</div>
+</div>
+<p class="text-on-surface-variant font-body-md">Instantly browse, open, and navigate project files from a searchable panel without leaving the keyboard.</p>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-lg flex flex-col gap-sm">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container">rule</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface leading-tight">Copilot Rules</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">AI</span>
+</div>
+</div>
+<p class="text-on-surface-variant font-body-md">Manage and enforce Copilot instruction files across your projects. Keep AI behavior consistent team-wide.</p>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-lg flex flex-col gap-sm">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container">source</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface leading-tight">MCP Viewer</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Debug</span>
+</div>
+</div>
+<p class="text-on-surface-variant font-body-md">Inspect MCP server traffic and JSON-RPC messages in real time. Essential for debugging AI tool integrations.</p>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-lg flex flex-col gap-sm">
+<div class="flex items-center gap-sm">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container">error_outline</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface leading-tight">Error Log</h3>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Utility</span>
+</div>
+</div>
+<p class="text-on-surface-variant font-body-md">Surface and filter error logs from across your workspace in a unified, searchable panel.</p>
+</div>
+</section>
+<!-- Enterprise -->
+<section class="bg-primary rounded-xl p-lg flex flex-col md:flex-row items-center justify-between gap-lg mb-xl">
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<span class="material-symbols-outlined text-on-primary">star</span>
+<span class="font-label-sm text-label-sm text-on-primary/70 uppercase tracking-widest">Enterprise</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-on-primary mb-xs">Need custom tooling?</h2>
+<p class="text-on-primary/80 font-body-md">Priority support, team onboarding, and bespoke extensions built for your organisation's workflow.</p>
+</div>
+<a href="test.html" class="shrink-0 h-12 px-8 bg-on-primary text-primary rounded-lg font-label-md hover:opacity-90 transition-opacity active:scale-95 flex items-center">Inquire</a>
+</section>
+<!-- Install Modal -->
+<div id="install-modal" class="fixed inset-0 z-[100] flex items-center justify-center px-margin-mobile" style="display:none!important">
+<div class="absolute inset-0 bg-black/60" id="modal-backdrop"></div>
+<div class="relative bg-surface-container-low rounded-xl border border-outline-variant/30 p-lg shadow-xl w-full max-w-md">
+<div class="flex items-center justify-between mb-md">
+<h3 id="modal-title" class="font-headline-md text-headline-md text-on-surface">Install Extension</h3>
+<button id="modal-close" class="text-on-surface-variant hover:text-primary transition-colors" aria-label="Close">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<p class="text-on-surface-variant font-body-md mb-md">All Cielo Vista tools are bundled in one VSIX. Download it then install directly in VS Code.</p>
+<a id="download-btn" href="cielovista-tools-1.0.2.vsix" download class="w-full h-12 bg-primary text-on-primary rounded-lg font-label-md hover:opacity-90 transition-opacity active:scale-95 flex items-center justify-center gap-sm mb-md">
+<span class="material-symbols-outlined">download</span>
+Download VSIX
+</a>
+<div class="bg-surface-container-highest rounded-lg p-md border border-outline-variant/30 space-y-xs">
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">After downloading</p>
+<ol class="text-on-surface-variant font-body-md space-y-xs list-decimal list-inside text-sm">
+<li>Open VS Code</li>
+<li>Go to Extensions panel (<kbd class="px-xs rounded bg-surface-container-low text-on-surface font-label-sm">Ctrl+Shift+X</kbd>)</li>
+<li>Click <strong class="text-on-surface">⋯ → Install from VSIX…</strong></li>
+<li>Select the downloaded file</li>
+</ol>
+</div>
+<button id="modal-done" class="w-full h-10 bg-surface-container-highest text-on-surface rounded-lg font-label-md hover:opacity-90 transition-opacity active:scale-95 mt-md">Close</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 md:hidden bg-surface/90 backdrop-blur-lg border-t border-outline-variant/30 rounded-t-xl shadow-sm">
+<div class="flex justify-around items-center pt-2 pb-safe px-4 h-16">
+<a href="index.html" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<a href="marketplace.html" class="flex flex-col items-center justify-center text-primary bg-secondary-container/50 rounded-full px-4 py-1 transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">storefront</span>
+<span class="font-label-sm text-label-sm">Marketplace</span>
+</a>
+<a href="test.html" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">terminal</span>
+<span class="font-label-sm text-label-sm">Services</span>
+</a>
+<a href="console.html" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90 duration-150">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm">Console</span>
+</a>
+</div>
+</nav>
+<!-- Desktop Nav -->
+<div class="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 bg-surface/90 backdrop-blur-lg border border-outline-variant/30 rounded-full px-lg py-sm shadow-lg z-50 gap-xl items-center">
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors" href="index.html">Home</a>
+<a class="text-primary font-label-md bg-secondary-container/50 px-4 py-2 rounded-full" href="marketplace.html">Marketplace</a>
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors" href="test.html">Services</a>
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors" href="console.html">Console</a>
+</div>
+<script>
+        (function () {
+            var select = document.getElementById('theme-select');
+            if (!select) { return; }
+            var defaultTheme = 'cielo-midnight';
+            var storedTheme;
+            try { storedTheme = localStorage.getItem('cvt-demo-theme'); } catch (e) {}
+            var activeTheme = storedTheme || defaultTheme;
+            document.documentElement.setAttribute('data-theme', activeTheme);
+            select.value = activeTheme;
+            select.addEventListener('change', function (event) {
+                var target = event.target;
+                if (!target || !target.value) { return; }
+                document.documentElement.setAttribute('data-theme', target.value);
+                try { localStorage.setItem('cvt-demo-theme', target.value); } catch (e) {}
+            });
+        })();
+    </script>
+<!-- Nav Drawer -->
+<div id="nav-backdrop" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,0.5);" onclick="closeNavDrawer()"></div>
+<aside id="nav-drawer" style="transform:translateX(-100%);transition:transform 0.3s ease;position:fixed;top:0;left:0;height:100%;width:18rem;z-index:70;display:flex;flex-direction:column;" class="bg-surface border-r border-outline-variant/30">
+<div class="flex items-center justify-between px-lg h-16 border-b border-outline-variant/30 shrink-0">
+<span class="font-headline-md text-headline-md font-bold tracking-tighter text-primary">Cielo Vista</span>
+<button onclick="closeNavDrawer()" class="text-on-surface-variant hover:text-primary transition-colors" aria-label="Close menu"><span class="material-symbols-outlined">close</span></button>
+</div>
+<nav style="flex:1;padding:1rem 0.75rem;display:flex;flex-direction:column;gap:0.25rem;">
+<a href="index.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">home</span>Home</a>
+<a href="getting-started.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">rocket_launch</span>Getting Started</a>
+<a href="marketplace.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">storefront</span>Marketplace</a>
+<a href="test.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">terminal</span>Services</a>
+<a href="console.html" class="flex items-center gap-sm px-md py-sm rounded-lg text-on-surface hover:bg-surface-container-low hover:text-primary font-label-md transition-colors"><span class="material-symbols-outlined text-primary">person</span>Console</a>
+</nav>
+</aside>
+<script>
+function openNavDrawer(){document.getElementById('nav-drawer').style.transform='translateX(0)';document.getElementById('nav-backdrop').style.display='block';document.body.style.overflow='hidden';}
+function closeNavDrawer(){document.getElementById('nav-drawer').style.transform='translateX(-100%)';document.getElementById('nav-backdrop').style.display='none';document.body.style.overflow='';}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeNavDrawer();});
+</script>
+</body></html>

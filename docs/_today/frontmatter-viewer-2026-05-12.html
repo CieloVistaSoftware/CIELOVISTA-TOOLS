@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frontmatter Viewer</title>
+<style>
+:root {
+  --bg: #0f1218;
+  --panel: #171c24;
+  --grid: #2a3140;
+  --text: #e6edf7;
+  --muted: #99a3b3;
+  --accent: #4fb3ff;
+  --bad: #b00020;
+  --bad-text: #ffffff;
+  --ok: #2ea043;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Segoe UI, Tahoma, sans-serif;
+  color: var(--text);
+  background: radial-gradient(1200px 700px at 20% -10%, #1c2431, var(--bg));
+}
+.wrap {
+  width: min(1800px, 96vw);
+  margin: 22px auto;
+  padding: 0 6px 22px;
+}
+h1 {
+  margin: 0 0 8px;
+  letter-spacing: 0.2px;
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.card .label { color: var(--muted); font-size: 12px; }
+.card .value { font-size: 20px; font-weight: 700; margin-top: 3px; }
+.table-wrap {
+  border: 1px solid var(--grid);
+  border-radius: 10px;
+  overflow: auto;
+  background: var(--panel);
+}
+table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #1a2130;
+  text-align: left;
+  border-bottom: 1px solid var(--grid);
+  padding: 10px;
+}
+tbody td {
+  vertical-align: top;
+  border-bottom: 1px solid var(--grid);
+  padding: 10px;
+}
+tbody tr.pass { background: #141a23; }
+tbody tr.violation {
+  background: var(--bad);
+  color: var(--bad-text);
+}
+tbody tr.violation .muted,
+tbody tr.violation .k,
+tbody tr.violation .v,
+tbody tr.violation .reason,
+tbody tr.violation .ok {
+  color: var(--bad-text);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.muted { color: var(--muted); }
+.kv {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(153, 163, 179, 0.25);
+}
+.kv:last-child { border-bottom: none; }
+.k { color: #8bd3ff; font-weight: 600; }
+.v { color: var(--text); word-break: break-word; }
+.reason,
+.ok {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.25);
+  margin: 0 6px 6px 0;
+}
+.ok {
+  background: rgba(46,160,67,0.2);
+  color: #8ce99a;
+  border-color: rgba(46,160,67,0.55);
+}
+.reason {
+  background: rgba(0,0,0,0.2);
+  color: #ffd9de;
+  border-color: rgba(255,217,222,0.4);
+}
+.note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Frontmatter Viewer</h1>
+    <div class="muted">Generated: 2026-05-12T19:40:02.031Z</div>
+
+    <div class="summary">
+      <div class="card"><div class="label">Files scanned</div><div class="value">75</div></div>
+      <div class="card"><div class="label">With frontmatter</div><div class="value">72</div></div>
+      <div class="card"><div class="label">Without frontmatter</div><div class="value">3</div></div>
+      <div class="card"><div class="label">Parse errors</div><div class="value">0</div></div>
+      <div class="card"><div class="label">Duplicate filenames</div><div class="value">1</div></div>
+      <div class="card"><div class="label">Violation rows</div><div class="value">5</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Path</th>
+            <th>Frontmatter</th>
+            <th>Fields + Values</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="pass">
+      <td>_giv-issue.md</td>
+      <td>_giv-issue.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">description</span><span class="v">Polish the GitHub Issues viewer (cvs.tools.githubIssues) and its test: 1. Dual-fetcher with fallback — primary path uses the local gh CLI when available (richer auth, no rate-limit when paired with…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.giv-issue</span></div><div class="kv"><span class="k">id</span><span class="v">giv-issue</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativePath</span><span class="v">_giv-issue.md</span></div><div class="kv"><span class="k">status</span><span class="v">draft</span></div><div class="kv"><span class="k">title</span><span class="v">giv issue</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>_mcp-lifecycle-issue.md</td>
+      <td>_mcp-lifecycle-issue.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">description</span><span class="v">The MCP server hosted by cielovista-tools exits unexpectedly with two distinct failure modes that the auto-filed Error Log Viewer keeps surfacing: - Exit code 1 — captured at #60 (×64), #64 (×64)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.mcp-lifecycle-issue</span></div><div class="kv"><span class="k">id</span><span class="v">mcp-lifecycle-issue</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativePath</span><span class="v">_mcp-lifecycle-issue.md</span></div><div class="kv"><span class="k">status</span><span class="v">draft</span></div><div class="kv"><span class="k">title</span><span class="v">mcp lifecycle issue</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>_reg-log-issue.md</td>
+      <td>_reg-log-issue.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">description</span><span class="v">A new Regression Log Viewer webview surfaces the structured data/regressions.json companion to docs/REGRESSION-LOG.md. Each entry shows severity, status, the linked GitHub issue (if any), and butto…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.reg-log-issue</span></div><div class="kv"><span class="k">id</span><span class="v">reg-log-issue</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativePath</span><span class="v">_reg-log-issue.md</span></div><div class="kv"><span class="k">status</span><span class="v">draft</span></div><div class="kv"><span class="k">title</span><span class="v">reg log issue</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>audit-test-coverage.README.md</td>
+      <td>scripts/audit-test-coverage.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">The audit-test-coverage.js script analyzes your test suite against the tiered testing strategy defined in the CieloVista Standards (testing-strateg…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.audit-test-coverage-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-test-coverage-audit-tool</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">scripts/audit-test-coverage.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[audit, test, coverage]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: Test Coverage Audit Tool</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>CHANGELOG.md</td>
+      <td>CHANGELOG.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.6 — Release &amp; Deployment</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">All notable changes to this project are documented here.</span></div><div class="kv"><span class="k">docid</span><span class="v">150.6</span></div><div class="kv"><span class="k">id</span><span class="v">changelog-cielovista-tools</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">CHANGELOG.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[changelog, cielovistatools, unreleased]</span></div><div class="kv"><span class="k">title</span><span class="v">Changelog — cielovista-tools</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>CLAUDE.md</td>
+      <td>CLAUDE.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.5 — AI Coordination</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.5.claude</span></div><div class="kv"><span class="k">id</span><span class="v">claudemd-cielovista-tools</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">CLAUDE.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[claude, claudemd, cielovistatools]</span></div><div class="kv"><span class="k">title</span><span class="v">CLAUDE.md — cielovista-tools</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>copilot-open-suggested-file.README.md</td>
+      <td>src/features/copilot-open-suggested-file.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">When Copilot mentions a file path in its response (e.g. &quot;see src/utils.ts for the implementation&quot;), this command extracts that path and opens the f…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.copilot-open-suggested-file-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-copilot-open-suggested-filets</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/copilot-open-suggested-file.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[copilot, open, suggested]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: copilot-open-suggested-file.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>copilot-rules-enforcer.README.md</td>
+      <td>src/features/copilot-rules-enforcer.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Injects your custom Copilot instruction rules into the workspace (or user) settings on startup. Rules are read from copilot-rules.md in the workspa…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.copilot-rules-enforcer-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-copilot-rules-enforcerts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/copilot-rules-enforcer.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[copilot, rules, enforcer]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: copilot-rules-enforcer.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>copilot-rules-utils.README.md</td>
+      <td>src/shared/copilot-rules-utils.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">All business logic for reading, applying, and removing Copilot instruction rules. Three different extensions originally duplicated this logic (Rule…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.copilot-rules-utils-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-sharedcopilot-rules-utilsts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/copilot-rules-utils.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[copilot, rules, utils]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: shared/copilot-rules-utils.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="violation">
+      <td>copilot-rules.md</td>
+      <td>copilot-rules.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.5 — AI Coordination</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">1. Always include the full file path in every suggestion. 2. Format suggestions as JSON objects with line numbers. 3. Be friendly, concise, and foc…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.5.cielovista-tools-copilot-rules</span></div><div class="kv"><span class="k">id</span><span class="v">cielovista-code-suggestion-guidelines</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">copilot-rules.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[copilot, rules, cielovista]</span></div><div class="kv"><span class="k">title</span><span class="v">CieloVista Code Suggestion Guidelines</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="reason">duplicate filename</span></td>
+    </tr>
+<tr class="violation">
+      <td>copilot-rules.md</td>
+      <td>src/shared/copilot-rules.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.5 — AI Coordination</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">1. Always include the full file path in every suggestion. 2. Format suggestions as JSON objects with line numbers. 3. Be friendly, concise, and foc…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.5.shared-copilot-rules</span></div><div class="kv"><span class="k">id</span><span class="v">cielovista-code-suggestion-guidelines</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/copilot-rules.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[copilot, rules, cielovista]</span></div><div class="kv"><span class="k">title</span><span class="v">CieloVista Code Suggestion Guidelines</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="reason">duplicate filename</span></td>
+    </tr>
+<tr class="pass">
+      <td>css-class-hover.README.md</td>
+      <td>src/features/css-class-hover.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.css-class-hover-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-css-class-hoverts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/css-class-hover.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[css, class, hover]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: css-class-hover.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>CURRENT-STATUS.md</td>
+      <td>docs/_today/CURRENT-STATUS.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-25</span></div><div class="kv"><span class="k">description</span><span class="v">- Verified live after junction install: ✅ MCP Viewer status column + pills, ✅ Symbol Index (listsymbols / listcvtcommands), ✅ Send Path tooltip + c…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.current-status</span></div><div class="kv"><span class="k">id</span><span class="v">current-statusmd-cielovista-tools</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/CURRENT-STATUS.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[current, status, currentstatusmd]</span></div><div class="kv"><span class="k">title</span><span class="v">CURRENT-STATUS.md — cielovista-tools</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-05-11</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.000.001.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.000.001.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Command ID: cvs.tools.home</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">000001-cielovista-tools-home</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.000.001.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">000.001 — CieloVista Tools — Home</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.000.100.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.000.100.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Command ID: cvs.catalog.open</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">000100-open-doc-catalog</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.000.100.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">000.100 — Open Doc Catalog</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.000.101.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.000.101.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">cvs-command-launcher-000-101</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.000.101.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">cvs command launcher 000 101</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.000.102.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.000.102.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">cvs-command-launcher-000-102</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.000.102.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">cvs command launcher 000 102</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.900.000.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.900.000.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">cvs-command-launcher-900-000</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.900.000.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">cvs command launcher 900 000</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.900.001.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.900.001.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">cvs-command-launcher-900-001</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.900.001.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">cvs command launcher 900 001</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.900.003.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.900.003.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">cvs-command-launcher-900-003</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.900.003.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">cvs command launcher 900 003</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>cvs-command-launcher.900.100.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.900.100.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">cvs-command-launcher-900-100</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/cvs-command-launcher.900.100.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[cvs, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">cvs command launcher 900 100</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="violation">
+      <td>cvs-command-launcher.README.md</td>
+      <td>src/features/CommandHelp/cvs-command-launcher.README.md</td>
+      <td>no</td>
+      <td><span class="muted">none</span></td>
+      <td><span class="reason">missing frontmatter</span><span class="reason">missing docid</span></td>
+    </tr>
+<tr class="pass">
+      <td>doc-auditor.README.md</td>
+      <td>src/features/doc-auditor.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">The doc-auditor is a comprehensive, interactive tool for auditing documentation health across all CieloVista projects and the global standards fold…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.doc-auditor-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-doc-auditorts-advanced-developer-guide</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/doc-auditor.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[doc, auditor, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: doc-auditor.ts — Advanced Developer Guide</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>doc-consolidator.README.md</td>
+      <td>src/features/doc-consolidator.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">The doc-consolidator is a robust, interactive tool for eliminating duplicate documentation across all CieloVista projects and the global standards …</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.doc-consolidator-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-doc-consolidatorts-advanced-developer-guid</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/doc-consolidator.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[doc, consolidator, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: doc-consolidator.ts — Advanced Developer Guide</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>docs-audit-utils.README.md</td>
+      <td>src/shared/docs-audit-utils.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Shared pure utility functions and types for scanning, analyzing, and recommending actions for documentation health across all CieloVista projects a…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.docs-audit-utils-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-docs-audit-utilsts-developer-guide</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/docs-audit-utils.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[docs, audit, utils]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: docs-audit-utils.ts — Developer Guide</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>docs-broken-refs.README.md</td>
+      <td>src/features/docs-broken-refs.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-24</span></div><div class="kv"><span class="k">description</span><span class="v">Scans markdown docs across all registered projects and reports broken image and markdown links. The report includes likely candidate files by filen…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.docs-broken-refs-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-docs-broken-refsts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/docs-broken-refs.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[docs, broken, refs]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: docs-broken-refs.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>docs-manager.README.md</td>
+      <td>src/features/docs-manager.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">The docs-manager is the central orchestrator for all documentation operations across CieloVista projects. It provides a unified, discoverable inter…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.docs-manager-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-docs-managerts-advanced-developer-guide</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/docs-manager.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[docs, manager, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: docs-manager.ts — Advanced Developer Guide</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>error-log-utils.README.md</td>
+      <td>src/shared/error-log-utils.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Persistent error tracking to a JSON file in the workspace. Errors are stored with a unique ID derived from their message. When the same error recur…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.error-log-utils-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-sharederror-log-utilsts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/error-log-utils.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[error, log, utils]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: shared/error-log-utils.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="violation">
+      <td>explorer-copy-path-to-chat.README.md</td>
+      <td>src/features/explorer-copy-path-to-chat.README.md</td>
+      <td>no</td>
+      <td><span class="muted">none</span></td>
+      <td><span class="reason">missing frontmatter</span><span class="reason">missing docid</span></td>
+    </tr>
+<tr class="pass">
+      <td>file-list-viewer.README.md</td>
+      <td>src/features/file-list-viewer.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">description</span><span class="v">Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68). A details-view file browser surfaced as a Quick Launch button on the…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.file-list-viewer-readme</span></div><div class="kv"><span class="k">id</span><span class="v">filelist-sortable-alternative-file-browser</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/file-list-viewer.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[file, list, viewer]</span></div><div class="kv"><span class="k">title</span><span class="v">FileList — Sortable Alternative File Browser</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-05-08</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>html-template-downloader.README.md</td>
+      <td>src/features/html-template-downloader.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Downloads HTML starter templates from the CieloVistaSoftware GitHub repository into your workspace. Also provides a utility to open any path curren…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.html-template-downloader-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-html-template-downloaderts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/html-template-downloader.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[html, template, downloader]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: html-template-downloader.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>image-reader.README.md</td>
+      <td>src/features/image-reader.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">This feature provides an image reader webview panel using HTML, CSS, and JS assets migrated from CodePilot-Wake-Monitor.</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.image-reader-readme</span></div><div class="kv"><span class="k">id</span><span class="v">image-reader-feature</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/image-reader.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[image, reader, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">Image Reader Feature</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md</td>
+      <td>docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Purpose: establish the first pass for moving reusable &quot;keeper&quot; utilities into CieloVista Tools without duplicating weak or app-specific code.</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.keeper-utils-migration-research-2026-04-10</span></div><div class="kv"><span class="k">id</span><span class="v">keeper-utils-migration-research-2026-04-10</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[keeper, utils, migration]</span></div><div class="kv"><span class="k">title</span><span class="v">Keeper Utils Migration Research — 2026-04-10</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.100.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.100.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-100</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.100.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 100</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.101.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.101.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-101</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.101.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 101</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.102.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.102.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-102</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.102.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 102</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.103.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.103.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">...moving canonical file...</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-103</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.103.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 103</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.104.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.104.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.104</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-104</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.104.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 104</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.105.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.105.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.105</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-105</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.105.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 105</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.106.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.106.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.106</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-106</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.106.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 106</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.107.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.107.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.107</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-107</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.107.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 107</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.108.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.108.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.108</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-108</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.108.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 108</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.109.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.109.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.109</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-109</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.109.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 109</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.110.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.110.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.110</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-110</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.110.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 110</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.111.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.111.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.111</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-111</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.111.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 111</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.112.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.112.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.112</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-112</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.112.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 112</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-catalog.200.113.md</td>
+      <td>src/features/CommandHelp/npm-catalog.200.113.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">NPM script: unique Dewey test entry 200.113</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1</span></div><div class="kv"><span class="k">id</span><span class="v">npm-catalog-200-113</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/CommandHelp/npm-catalog.200.113.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, catalog, 200]</span></div><div class="kv"><span class="k">title</span><span class="v">npm catalog 200 113</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="violation">
+      <td>npm-catalog.README.md</td>
+      <td>src/features/CommandHelp/npm-catalog.README.md</td>
+      <td>no</td>
+      <td><span class="muted">none</span></td>
+      <td><span class="reason">missing frontmatter</span><span class="reason">missing docid</span></td>
+    </tr>
+<tr class="pass">
+      <td>npm-command-launcher.README.md</td>
+      <td>src/features/npm-command-launcher.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Adds a NPM Cmds button to the VS Code status bar. When clicked, it discovers every npm script across all workspace package.json files and lets you …</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.npm-command-launcher-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-npm-command-launcher</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/npm-command-launcher.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[npm, command, launcher]</span></div><div class="kv"><span class="k">title</span><span class="v">Feature: NPM Command Launcher</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>openai-chat.README.md</td>
+      <td>src/features/openai-chat.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Adds OpenAI-powered commands to VS Code: explain selected code, suggest refactoring, generate a JSDoc docstring, and open a persistent chat panel. …</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.openai-chat-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-openai-chatts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/openai-chat.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[openai, chat, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: openai-chat.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>output-channel.README.md</td>
+      <td>src/shared/output-channel.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Single shared OutputChannel for the entire CieloVista Tools extension. Every feature writes here. Nobody creates their own channel. Why one channel…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.output-channel-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-sharedoutput-channelts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/output-channel.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[output, channel, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: shared/output-channel.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>project-home-opener.README.md</td>
+      <td>src/features/project-home-opener.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Adds a single command that opens your configured CieloVista home project root in VS Code from any workspace. Useful when you need to jump back to t…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.project-home-opener-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-project-home-opener</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/project-home-opener.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[project, home, opener]</span></div><div class="kv"><span class="k">title</span><span class="v">Feature: Project Home Opener</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>python-runner.README.md</td>
+      <td>src/features/python-runner.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Right-click any .py file in the VS Code Explorer and run it in the terminal with a single click. Uses the Python interpreter configured in VS Code …</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.python-runner-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-python-runnerts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/python-runner.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[python, runner, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: python-runner.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>README.md</td>
+      <td>README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.7 — Getting Started</span></div><div class="kv"><span class="k">created</span><span class="v">2026-03-13</span></div><div class="kv"><span class="k">description</span><span class="v">One VS Code extension. One install. All CieloVistaSoftware developer tools in one place. CieloVista Tools is the developer toolchain for the entire…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.7</span></div><div class="kv"><span class="k">id</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">permalink</span><span class="v">/</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[readme, cielovista, tools]</span></div><div class="kv"><span class="k">title</span><span class="v">CieloVista Tools</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>registry-promote.README.md</td>
+      <td>src/features/registry-promote.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Register a folder as a CieloVista product. One-click alternative to hand-editing project-registry.json.</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.registry-promote-readme</span></div><div class="kv"><span class="k">id</span><span class="v">registry-promote</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/registry-promote.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[registry, promote, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">registry-promote</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>REGRESSION-LOG.md</td>
+      <td>docs/REGRESSION-LOG.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Every regression that has ever happened in this project is documented here. Read this at the start of every session before touching any code.</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.regression-log</span></div><div class="kv"><span class="k">id</span><span class="v">regression-log-cielovista-tools</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/REGRESSION-LOG.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[regression, log, cielovista]</span></div><div class="kv"><span class="k">title</span><span class="v">Regression Log — CieloVista Tools</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-05-12</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>terminal-copy-output.README.md</td>
+      <td>src/features/terminal-copy-output.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Captures the output of the most recently executed terminal command. Uses VS Code's shell integration (selectToPreviousCommand) to select only the l…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.terminal-copy-output-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-terminal-copy-outputts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/terminal-copy-output.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[terminal, copy, output]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: terminal-copy-output.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>terminal-folder-tracker.README.md</td>
+      <td>src/features/terminal-folder-tracker.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Monitors every terminal's sendText calls for cd commands and saves the last known directory to a file in AppData. A single command lets you jump ba…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.terminal-folder-tracker-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-terminal-folder-trackerts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/terminal-folder-tracker.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[terminal, folder, tracker]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: terminal-folder-tracker.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>terminal-prompt-shortener.README.md</td>
+      <td>src/features/terminal-prompt-shortener.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Toggles the PowerShell terminal prompt between its full path form (PS C:\very\long\nested\path&gt;) and a minimal single-character form (&gt;). Useful wh…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.terminal-prompt-shortener-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-terminal-prompt-shortenerts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/terminal-prompt-shortener.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[terminal, prompt, shortener]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: terminal-prompt-shortener.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>terminal-set-folder.README.md</td>
+      <td>src/features/terminal-set-folder.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Right-click any folder in the VS Code Explorer and immediately cd the active terminal to that folder. No typing the path, no drag and drop.</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.terminal-set-folder-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-terminal-set-folderts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/terminal-set-folder.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[terminal, set, folder]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: terminal-set-folder.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>terminal-utils.README.md</td>
+      <td>src/shared/terminal-utils.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Reusable terminal and file-navigation helpers shared across all features that involve terminals or opening files/folders. The rule is simple: if tw…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.terminal-utils-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-sharedterminal-utilsts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/terminal-utils.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[terminal, utils, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: shared/terminal-utils.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-03-26.md</td>
+      <td>docs/_today/test-coverage-audit-2026-03-26.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-03-26 18:02:10 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-03-26</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-03-26.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-03-27.md</td>
+      <td>docs/_today/test-coverage-audit-2026-03-27.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-03-27 19:48:54 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-03-27</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-03-27.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-03-28.md</td>
+      <td>docs/_today/test-coverage-audit-2026-03-28.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-03-28 16:11:26 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-03-28</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-03-28.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-03-31.md</td>
+      <td>docs/_today/test-coverage-audit-2026-03-31.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-03-31 11:57:20 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-03-31</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-03-31.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-04-02.md</td>
+      <td>docs/_today/test-coverage-audit-2026-04-02.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-04-02 16:15:39 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-04-02</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-04-02.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-04-04.md</td>
+      <td>docs/_today/test-coverage-audit-2026-04-04.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-04-04 20:45:43 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-04-04</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-04-04.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-04-26.md</td>
+      <td>docs/_today/test-coverage-audit-2026-04-26.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-26</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-04-26 18:03:59 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-04-26</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/test-coverage-audit-2026-04-26.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-04-29.md</td>
+      <td>docs/_today/test-coverage-audit-2026-04-29.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-04-29 21:34:07 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-04-29</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativePath</span><span class="v">docs/_today/test-coverage-audit-2026-04-29.md</span></div><div class="kv"><span class="k">status</span><span class="v">draft</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-audit-2026-05-05.md</td>
+      <td>docs/_today/test-coverage-audit-2026-05-05.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-05-05 15:51:16 Project: cielovista-tools Strategy: Tiered Testing (Tiers 1–5)</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-audit-2026-05-05</span></div><div class="kv"><span class="k">id</span><span class="v">test-coverage-audit</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativePath</span><span class="v">docs/_today/test-coverage-audit-2026-05-05.md</span></div><div class="kv"><span class="k">status</span><span class="v">draft</span></div><div class="kv"><span class="k">title</span><span class="v">Test Coverage Audit</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>test-coverage-auditor.README.md</td>
+      <td>src/features/test-coverage-auditor.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.3 — Testing</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">The test coverage auditor integrates the tiered testing strategy directly into CieloVista Tools as an interactive webview panel. It provides: - Aud…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.3.test-coverage-auditor-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-test-coverage-auditorts-test-coverage-audi</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/features/test-coverage-auditor.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[test, coverage, auditor]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: test-coverage-auditor.ts — Test Coverage Audit Dashboard</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>TODO-UPDATED.md</td>
+      <td>docs/_today/TODO-UPDATED.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Monolith src/features/readme-compliance.ts is still fully active (~600 lines). Folder has 6 modules already. Method: Create html.ts, commands.ts, a…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.todo-updated</span></div><div class="kv"><span class="k">id</span><span class="v">todo-updated</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/TODO-UPDATED.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[todo, updated, audited]</span></div><div class="kv"><span class="k">title</span><span class="v">TODO UPDATED</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>ViewADoc.md</td>
+      <td>ViewADoc.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">The &quot;View a Doc&quot; feature provides a searchable, interactive catalog of documentation files (primarily Markdown) across all registered projects and …</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.viewadoc</span></div><div class="kv"><span class="k">id</span><span class="v">view-a-doc-current-design</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">ViewADoc.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[viewadoc, view, current]</span></div><div class="kv"><span class="k">title</span><span class="v">View a Doc — Current Design</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>WB-CORE-DUPLICATION-AUDIT.md</td>
+      <td>docs/_today/WB-CORE-DUPLICATION-AUDIT.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.9 — Meta</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Date: 2026-04-02 Completed: 2026-04-03 Scope: src/ (all features, shared, and UI code) Objective: Identify and reduce all logic and style duplicati…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.9.wb-core-duplication-audit</span></div><div class="kv"><span class="k">id</span><span class="v">wb-core-duplication-audit-cielovista-tools</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">docs/_today/WB-CORE-DUPLICATION-AUDIT.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[core, duplication, audit]</span></div><div class="kv"><span class="k">title</span><span class="v">WB-Core Duplication Audit — cielovista-tools</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+<tr class="pass">
+      <td>webview-utils.README.md</td>
+      <td>src/shared/webview-utils.README.md</td>
+      <td>yes</td>
+      <td><div class="kv"><span class="k">author</span><span class="v">CieloVista Software</span></div><div class="kv"><span class="k">category</span><span class="v">150.1 — Components / Features</span></div><div class="kv"><span class="k">created</span><span class="v">2026-04-22</span></div><div class="kv"><span class="k">description</span><span class="v">Shared helpers for building VS Code Webview panel HTML. Any feature that opens a Webview imports from here. No feature rolls its own HTML boilerpla…</span></div><div class="kv"><span class="k">docid</span><span class="v">150.1.webview-utils-readme</span></div><div class="kv"><span class="k">id</span><span class="v">feature-sharedwebview-utilsts</span></div><div class="kv"><span class="k">project</span><span class="v">cielovista-tools</span></div><div class="kv"><span class="k">relativepath</span><span class="v">src/shared/webview-utils.README.md</span></div><div class="kv"><span class="k">status</span><span class="v">active</span></div><div class="kv"><span class="k">tags</span><span class="v">[webview, utils, readme]</span></div><div class="kv"><span class="k">title</span><span class="v">feature: shared/webview-utils.ts</span></div><div class="kv"><span class="k">updated</span><span class="v">2026-04-27</span></div><div class="kv"><span class="k">version</span><span class="v">1.0.0</span></div></td>
+      <td><span class="ok">ok</span></td>
+    </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">Rows in violation are red with white text.</div>
+  </div>
+</body>
+</html>

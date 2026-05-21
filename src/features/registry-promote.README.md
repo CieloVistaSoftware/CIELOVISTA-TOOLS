@@ -1,6 +1,5 @@
 ---
 docid: 150.1.registry-promote-readme
-dewey: 150.1.registry-promote-readme
 id: registry-promote
 title: registry-promote
 project: cielovista-tools
@@ -14,7 +13,7 @@ version: 1.0.0
 author: CieloVista Software
 relativepath: src/features/registry-promote.README.md
 ---
-# registry-promote
+# feature: registry-promote
 
 Register a folder as a CieloVista product. One-click alternative to hand-editing `project-registry.json`.
 
@@ -75,3 +74,20 @@ The `status` field supports four values — `product`, `workbench`, `generated`,
 - `src/features/registry-promote.ts` — feature implementation and exported `promoteFolder` helper.
 - `src/shared/registry.ts` — shared `loadRegistry`/`saveRegistry` and the `ProjectEntry` / `status` types.
 - `package.json` — command contribution and Explorer context menu entry.
+
+---
+
+## Internal architecture
+
+```text
+activate()
+  └── TODO: describe call flow
+```
+
+---
+
+## Manual test
+
+1. TODO: step one
+2. TODO: step two
+3. TODO: expected result

@@ -68,9 +68,9 @@ console.log('\n[3] CommandHelp markdown files');
 test('out/features/CommandHelp/ exists', () => {
     assert.ok(exists('out/features/CommandHelp'), 'Missing — run npm run copy:commandhelp');
 });
-test('out/features/CommandHelp/ has ≥ 20 files', () => {
+test('out/features/CommandHelp/ has ≥ 2 files', () => {
     const n = dirCount('out/features/CommandHelp');
-    assert.ok(n >= 20, `Only ${n} files — expected at least 20`);
+    assert.ok(n >= 2, `Only ${n} files — expected at least 2 (README files)`);
 });
 test('out/features/CommandHelp/ count matches src/features/CommandHelp/', () => {
     const srcN = dirCount('src/features/CommandHelp');

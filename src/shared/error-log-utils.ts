@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: err
+
 /**
  * error-log-utils.ts
  * Persistent error tracking to a JSON file in the workspace.
@@ -108,13 +111,13 @@ export function logError(message: string, stacktrace: string, context: string): 
         entries[idx].lastOccurred = now;
         if (!entries[idx].stacktrace) { entries[idx].stacktrace = stacktrace; }
         writeLog(logFile, entries);
-        log(FEATURE, `Known error #${id} (×${entries[idx].count}): ${message}\n${stacktrace}`);
+        log(FEATURE, `❌ Known error #${id} (×${entries[idx].count}): ${message}\n${stacktrace}`);
         return entries[idx].solved ? entries[idx].solution : undefined;
     }
 
     entries.push({ id, timestamp: now, lastOccurred: now, count: 1, message, stacktrace, context, solved: false });
     writeLog(logFile, entries);
-    log(FEATURE, `New error #${id} in [${context}]: ${message}\n${stacktrace}`);
+    log(FEATURE, `❌ New error #${id} in [${context}]: ${message}\n${stacktrace}`);
     return undefined;
 }
 

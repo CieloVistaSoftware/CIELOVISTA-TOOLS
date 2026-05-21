@@ -1,6 +1,5 @@
 ---
 docid: 150.5.shared-copilot-rules
-dewey: 150.5.shared-copilot-rules
 id: cielovista-code-suggestion-guidelines
 title: CieloVista Code Suggestion Guidelines
 project: cielovista-tools

@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 /**
  * daily-audit/index.ts — activate/deactivate only.
  * Registers cvs.audit.runDaily command.
@@ -111,10 +113,37 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.audit.runDaily', async () => {
             let _auditResult: Awaited<ReturnType<typeof runDailyAudit>> | undefined;
             await vscode.window.withProgress(
-                { location: vscode.ProgressLocation.Notification, title: '🔍 Running daily audit…', cancellable: false },
+                { location: vscode.ProgressLocation.Notification, title: '🔍 Running daily audit…', cancellable: true },
                 async (progress) => {
-                    progress.report({ message: 'Checking marketplace, README, CLAUDE.md, changelog…' });
-                    const result = await runDailyAudit();
+                    progress.report({ increment: 0, message: 'Starting checks…' });
+
+                    // Race the audit against a 90-second hard timeout so the spinner
+                    // never runs forever if a file-system call hangs (e.g. disconnected
+                    // network drive in the project registry).
+                    const timeout = new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error('Audit timed out after 90 seconds')), 90_000)
+                    );
+
+                    let result: Awaited<ReturnType<typeof runDailyAudit>>;
+                    try {
+                        result = await Promise.race([
+                            runDailyAudit((msg, inc) => progress.report({ message: msg, increment: inc })),
+                            timeout,
+                        ]);
+                    } catch (err) {
+                        result = {
+                            report: {
+                                auditId: new Date().toISOString(),
+                                generatedAt: new Date().toISOString(),
+                                durationMs: 90_000,
+                                checks: [],
+                                summary: { red: 1, yellow: 0, green: 0, grey: 0, total: 1 },
+                            },
+                            written: false,
+                            projectNames: [],
+                            error: String(err),
+                        };
+                    }
                     _auditResult = result;
                     const r = result.report.summary;
                     const failed = !result.written || r.red > 0;
@@ -127,7 +156,8 @@ export function activate(context: vscode.ExtensionContext): void {
                         // First line: Projects audited
                         output += `Projects audited (${result.projectNames.length}): ${result.projectNames.join(', ')}\n`;
                         output += `\n=== Daily Audit Results ===\n`;
-                        output += `Run at: ${runAt}\n`;
+                        const runAtLocal = new Date(runAt).toLocaleTimeString();
+                        output += `Fresh scan — ran at ${runAtLocal}\n`;
                         output += `Scanned ${checks.length} checks in ${result.report.durationMs}ms\n`;
                         output += `Summary: ${r.red} red, ${r.yellow} yellow, ${r.green} green, ${r.grey} grey\n`;
                         output += `\n---\n`;

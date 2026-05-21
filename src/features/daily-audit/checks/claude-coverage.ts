@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 /** CLAUDE.md coverage check — every project should have session instructions. */
 
 import * as fs from 'fs';

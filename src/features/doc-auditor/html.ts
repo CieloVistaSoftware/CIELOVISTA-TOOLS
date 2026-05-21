@@ -1,10 +1,43 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 import type { AuditResults, DocFile } from './types';
 
 export function esc(s: string): string {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+export function buildAuditLoadingHtml(status: string = 'Starting…'): string {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>
+      body{font-family:var(--vscode-font-family);color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);margin:0;padding:18px}
+      .wrap{display:flex;flex-direction:column;gap:10px}
+      .title{font-size:1.05em;font-weight:700}
+      .status{color:var(--vscode-descriptionForeground)}
+      .bar{height:4px;background:var(--vscode-panel-border);border-radius:2px;overflow:hidden}
+      .bar > div{height:100%;width:35%;background:var(--vscode-focusBorder);animation:ind 1.2s ease-in-out infinite}
+      @keyframes ind{0%{transform:translateX(-100%)}50%{transform:translateX(120%)}100%{transform:translateX(-100%)}}
+    </style></head><body>
+      <div class="wrap">
+        <div class="title">📋 CieloVista Docs Audit</div>
+        <div id="status" class="status">${esc(status)}</div>
+        <div class="bar"><div></div></div>
+      </div>
+      <script>
+        (function(){
+          const vscode = acquireVsCodeApi();
+          window.addEventListener('message', function(event) {
+            const data = event.data || {};
+            if (data.type === 'progress' && typeof data.status === 'string') {
+              const el = document.getElementById('status');
+              if (el) { el.textContent = data.status; }
+            }
+          });
+          vscode.postMessage({ command: 'loading-ready' });
+        })();
+      </script>
+    </body></html>`;
 }
 
 function buildTabPreview(groupId: string, files: DocFile[]): string {
@@ -16,7 +49,7 @@ function buildTabPreview(groupId: string, files: DocFile[]): string {
         const preview = f.content.length > MAX ? f.content.slice(0, MAX) + `\n\n… (${f.content.length-MAX} more chars)` : f.content;
         return `<div class="tab-pane${i===0?'':' hidden'}" data-group="${groupId}" data-pane="${i}">
           <div class="file-meta">
-            <span class="path-label">${esc(f.filePath)}</span>
+            <span class="path-label" data-action="open-file" data-path="${esc(f.filePath)}" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px" title="Open in editor">${esc(f.filePath)}</span>
             <span class="size-label">${f.sizeBytes} bytes</span>
             <button class="sm-btn" data-action="open-file" data-path="${esc(f.filePath)}">Open in editor ↗</button>
           </div>
@@ -28,6 +61,72 @@ function buildTabPreview(groupId: string, files: DocFile[]): string {
 
 export function buildAuditHtml(results: AuditResults): string {
     const warnings = results.warningCandidates ?? [];
+  type TableRow = { category: string; fileName: string; project: string; filePath: string; sizeBytes: number; modifiedAt: string };
+  const tableRows: TableRow[] = [];
+
+  for (const g of results.duplicates) {
+    for (const f of g.files) {
+      tableRows.push({
+        category: 'duplicate',
+        fileName: f.fileName,
+        project: f.projectName,
+        filePath: f.filePath,
+        sizeBytes: f.sizeBytes,
+        modifiedAt: f.modifiedAt ?? 'n/a',
+      });
+    }
+  }
+  for (const s of results.similar) {
+    tableRows.push({
+      category: 'similar',
+      fileName: s.fileA.fileName,
+      project: s.fileA.projectName,
+      filePath: s.fileA.filePath,
+      sizeBytes: s.fileA.sizeBytes,
+      modifiedAt: s.fileA.modifiedAt ?? 'n/a',
+    });
+    tableRows.push({
+      category: 'similar',
+      fileName: s.fileB.fileName,
+      project: s.fileB.projectName,
+      filePath: s.fileB.filePath,
+      sizeBytes: s.fileB.sizeBytes,
+      modifiedAt: s.fileB.modifiedAt ?? 'n/a',
+    });
+  }
+  for (const m of results.moveCandidates) {
+    tableRows.push({
+      category: 'move',
+      fileName: m.file.fileName,
+      project: m.file.projectName,
+      filePath: m.file.filePath,
+      sizeBytes: m.file.sizeBytes,
+      modifiedAt: m.file.modifiedAt ?? 'n/a',
+    });
+  }
+  for (const o of results.orphans) {
+    tableRows.push({
+      category: 'orphan',
+      fileName: o.file.fileName,
+      project: o.file.projectName,
+      filePath: o.file.filePath,
+      sizeBytes: o.file.sizeBytes,
+      modifiedAt: o.file.modifiedAt ?? 'n/a',
+    });
+  }
+
+  const tableHtml = tableRows.length === 0
+    ? '<p class="ok">No findings to list. ✅</p>'
+    : `<div class="findings-table-wrap"><table class="findings-table"><thead><tr>
+      <th>Category</th><th>Filename</th><th>Project</th><th>Location</th><th>Size (bytes)</th><th>Last updated</th>
+       </tr></thead><tbody>${tableRows.map((r, i) => `<tr data-row-index="${i}">
+      <td>${esc(r.category)}</td>
+      <td>${esc(r.fileName)}</td>
+      <td>${esc(r.project)}</td>
+      <td><button class="table-path-btn" data-action="open-file" data-path="${esc(r.filePath)}" title="Open in editor">${esc(r.filePath)}</button></td>
+      <td>${r.sizeBytes}</td>
+      <td>${esc(r.modifiedAt)}</td>
+       </tr>`).join('')}</tbody></table></div>`;
     const warningRows = warnings.map((c, mi) => {
         const gid = `warn-${mi}`;
         return `<div class="card warning">
@@ -97,7 +196,7 @@ export function buildAuditHtml(results: AuditResults): string {
     const section = (title: string, count: number, body: string, sid: string) =>
         `<div class="section" data-section="${sid}"><h2>${title} <span class="badge">${count}</span></h2>${count===0?`<p class="ok">None found. ✅</p>`:body}</div>`;
 
-    const CSS = `*{box-sizing:border-box}body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px;margin:0}h1{font-size:1.3em;margin-bottom:4px}h2{font-size:1.05em;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:6px;margin-top:24px}.summary{display:flex;gap:12px;margin:12px 0 16px;flex-wrap:wrap}.stat{background:var(--vscode-textCodeBlock-background);padding:8px 14px;border-radius:4px;text-align:center;min-width:78px;cursor:pointer}.stat-n{font-size:1.5em;font-weight:700;display:block}.stat-label{font-size:0.8em;color:var(--vscode-descriptionForeground)}.stat:hover{outline:2px solid var(--vscode-focusBorder)}.stat.active-filter{outline:2px solid var(--vscode-focusBorder);background:var(--vscode-button-background)}.stat.active-filter .stat-n,.stat.active-filter .stat-label{color:var(--vscode-button-foreground)}.section.filtered-out{display:none}.guidance{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 16px;margin-bottom:20px;line-height:1.6}.guidance ul{margin:6px 0 6px 18px;padding:0}.guidance li{margin:4px 0}.tip{color:var(--vscode-descriptionForeground);font-size:0.88em;margin:8px 0 0}.ok-box{color:var(--vscode-testing-iconPassed)}.section{margin-bottom:28px}.card{border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 14px;margin-bottom:12px}.card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}.recommendation{font-size:0.85em;margin:4px 0 10px;padding:6px 10px;border-radius:3px;background:var(--vscode-editor-background);border-left:3px solid var(--vscode-focusBorder)}.muted{color:var(--vscode-descriptionForeground);font-size:0.85em;margin:2px 0 6px}.badge{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 8px;font-size:0.8em}.ok{color:var(--vscode-testing-iconPassed)}.tab-block{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:hidden;margin:8px 0 10px}.tab-bar{display:flex;flex-wrap:wrap;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border)}.tab-btn{background:transparent;color:var(--vscode-descriptionForeground);border:none;border-right:1px solid var(--vscode-panel-border);padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tab-btn:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-editor-foreground)}.tab-btn.active{background:var(--vscode-textCodeBlock-background);color:var(--vscode-editor-foreground);font-weight:600;border-bottom:2px solid var(--vscode-focusBorder)}.tab-pane{display:block}.tab-pane.hidden{display:none}.file-meta{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}.path-label{font-family:var(--vscode-editor-font-family);font-size:0.8em;color:var(--vscode-descriptionForeground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.size-label{font-size:0.78em;color:var(--vscode-descriptionForeground);white-space:nowrap}.sm-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:11px;white-space:nowrap}.sm-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}pre.preview{margin:0;padding:10px;background:var(--vscode-textCodeBlock-background);font-family:var(--vscode-editor-font-family);font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}.actions{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:5px 12px;border-radius:2px;cursor:pointer;font-size:12px}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}button.danger:hover{opacity:0.85}`;
+    const CSS = `*{box-sizing:border-box}body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px;margin:0}h1{font-size:1.3em;margin-bottom:4px}h2{font-size:1.05em;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:6px;margin-top:24px}.summary{display:flex;gap:12px;margin:12px 0 16px;flex-wrap:wrap}.stat{background:var(--vscode-textCodeBlock-background);padding:8px 14px;border-radius:4px;text-align:center;min-width:78px;cursor:pointer}.stat-n{font-size:1.5em;font-weight:700;display:block}.stat-label{font-size:0.8em;color:var(--vscode-descriptionForeground)}.stat:hover{outline:2px solid var(--vscode-focusBorder)}.stat.active-filter{outline:2px solid var(--vscode-focusBorder);background:var(--vscode-button-background)}.stat.active-filter .stat-n,.stat.active-filter .stat-label{color:var(--vscode-button-foreground)}.section.filtered-out{display:none}.guidance{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 16px;margin-bottom:20px;line-height:1.6}.guidance ul{margin:6px 0 6px 18px;padding:0}.guidance li{margin:4px 0}.tip{color:var(--vscode-descriptionForeground);font-size:0.88em;margin:8px 0 0}.ok-box{color:var(--vscode-testing-iconPassed)}.section{margin-bottom:28px}.card{border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 14px;margin-bottom:12px}.card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}.recommendation{font-size:0.85em;margin:4px 0 10px;padding:6px 10px;border-radius:3px;background:var(--vscode-editor-background);border-left:3px solid var(--vscode-focusBorder)}.muted{color:var(--vscode-descriptionForeground);font-size:0.85em;margin:2px 0 6px}.badge{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 8px;font-size:0.8em}.ok{color:var(--vscode-testing-iconPassed)}.audit-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}.findings-table-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto}.findings-table{width:100%;border-collapse:collapse;min-width:920px}.findings-table th,.findings-table td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 10px;text-align:left;vertical-align:top}.findings-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);position:sticky;top:0}.table-path-btn{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-family:var(--vscode-editor-font-family);font-size:11px;text-align:left;cursor:pointer;padding:0}.table-path-btn:hover{text-decoration:underline}.tab-block{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:hidden;margin:8px 0 10px}.tab-bar{display:flex;flex-wrap:wrap;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border)}.tab-btn{background:transparent;color:var(--vscode-descriptionForeground);border:none;border-right:1px solid var(--vscode-panel-border);padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tab-btn:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-editor-foreground)}.tab-btn.active{background:var(--vscode-textCodeBlock-background);color:var(--vscode-editor-foreground);font-weight:600;border-bottom:2px solid var(--vscode-focusBorder)}.tab-pane{display:block}.tab-pane.hidden{display:none}.file-meta{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}.path-label{font-family:var(--vscode-editor-font-family);font-size:0.8em;color:var(--vscode-descriptionForeground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.size-label{font-size:0.78em;color:var(--vscode-descriptionForeground);white-space:nowrap}.sm-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:11px;white-space:nowrap}.sm-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}pre.preview{margin:0;padding:10px;background:var(--vscode-textCodeBlock-background);font-family:var(--vscode-editor-font-family);font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}.actions{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:5px 12px;border-radius:2px;cursor:pointer;font-size:12px}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}button.danger:hover{opacity:0.85}`;
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <h1>📋 CieloVista Docs Audit</h1>
@@ -110,6 +209,14 @@ export function buildAuditHtml(results: AuditResults): string {
   <div class="stat" data-action="filter-section" data-section="orphans"><span class="stat-n" style="color:${results.orphans.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.orphans.length}</span><span class="stat-label">Orphans</span></div>
 </div>
 ${guidanceHtml}
+<div class="audit-actions">
+  <button data-action="copy-report">📋 Copy</button>
+  <button data-action="copy-chat">💬 Copy to Chat</button>
+</div>
+<div class="section" data-section="table">
+  <h2>📑 Findings Table <span class="badge">${tableRows.length}</span></h2>
+  ${tableHtml}
+</div>
 ${warnings.length ? `<div class="section" data-section="claude-warnings"><h2>⚠️ CLAUDE.md Warnings <span class="badge">${warnings.length}</span></h2>${warningRows}</div>` : ''}
 ${section('📄 Duplicate Filenames', results.duplicates.length, dupeRows, 'duplicates')}
 ${section('🔀 Similar Content', results.similar.length, simRows, 'similar')}
@@ -138,6 +245,25 @@ document.addEventListener('click', function(e) {
   var el = e.target.closest('[data-action]');
   if (!el) { return; }
   var action = el.dataset.action;
+  if (action === 'copy-report' || action === 'copy-chat') {
+    var lines = ['Category | Filename | Project | Path | SizeBytes | LastUpdated'];
+    document.querySelectorAll('.findings-table tbody tr').forEach(function(tr) {
+      var cells = tr.querySelectorAll('td');
+      if (cells.length < 6) { return; }
+      var row = [
+        (cells[0].textContent || '').trim(),
+        (cells[1].textContent || '').trim(),
+        (cells[2].textContent || '').trim(),
+        (cells[3].textContent || '').trim(),
+        (cells[4].textContent || '').trim(),
+        (cells[5].textContent || '').trim(),
+      ].join(' | ');
+      lines.push(row);
+    });
+    var text = lines.join('\\n');
+    vscode.postMessage({ command: action === 'copy-chat' ? 'copy-chat' : 'copy', data: text });
+    return;
+  }
   if (action === 'switch-tab') {
     switchTab(el.dataset.group, parseInt(el.dataset.tab || '0'));
   } else if (action === 'open-file') {

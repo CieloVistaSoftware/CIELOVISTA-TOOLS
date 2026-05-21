@@ -3,7 +3,6 @@
 
 ---
 docid: 150.1
-dewey: 150.1
 id: npm-catalog-readme
 title: npm catalog README
 project: cielovista-tools

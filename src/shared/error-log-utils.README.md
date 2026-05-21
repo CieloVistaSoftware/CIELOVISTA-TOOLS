@@ -1,8 +1,7 @@
 ---
 docid: 150.1.error-log-utils-readme
-dewey: 150.1.error-log-utils-readme
 id: feature-sharederror-log-utilsts
-title: feature: shared/error-log-utils.ts
+title: "feature: shared/error-log-utils.ts"
 project: cielovista-tools
 description: Persistent error tracking to a JSON file in the workspace. Errors are stored with a unique ID derived from their message. When the same error recur…
 status: active

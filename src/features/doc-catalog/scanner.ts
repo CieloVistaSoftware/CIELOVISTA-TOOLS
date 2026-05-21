@@ -1,13 +1,15 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 import * as fs   from 'fs';
 import * as path from 'path';
 import { extractTitle, extractDescription, extractTags, extractDocType, stripTypePrefix } from './content';
 import { extractDeweyAndHelp } from '../../shared/help-utils';
 import type { CatalogCard } from './types';
 
-const SKIP_DIRS  = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
+const SKIP_DIRS  = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
 const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 
 let _cardIdCounter = 0;

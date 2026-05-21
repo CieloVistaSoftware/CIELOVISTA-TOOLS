@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const Module = require('module');
 
+const ROOT = path.join(__dirname, '../..');
+
 const vscodeMock = {
     window: {
         createWebviewPanel: () => ({
@@ -15,6 +17,9 @@ const vscodeMock = {
                 onDidReceiveMessage: () => {},
             },
         }),
+    },
+    workspace: {
+        workspaceFolders: [{ uri: { fsPath: ROOT } }],
     },
     ViewColumn: { One: 1 },
     env: { openExternal: async () => true },
@@ -48,6 +53,7 @@ if (!mod || !mod._test || typeof mod._test.buildHtml !== 'function') {
 
 const buildHtml = mod._test.buildHtml;
 const formatIssuesForClipboard = mod._test.formatIssuesForClipboard;
+const extractLocalFixRefs = mod._test.extractLocalFixRefs;
 
 let passed = 0;
 let failed = 0;
@@ -78,7 +84,7 @@ const sampleIssues = [{
     user: { login: 'john' },
     labels: [{ name: 'bug', color: 'd73a4a' }],
     assignees: [{ login: 'alice' }],
-    body: 'Details',
+    body: 'Fix in src/shared/github-issues-view.ts with regression in tests/unit/github-issues-view-ui.test.js. REG-021',
     comments: 2,
 }];
 
@@ -125,12 +131,14 @@ test('closed view empty state renders no-closed-issues message', () => {
     has(html, 'No closed issues.', 'closed empty-state text missing');
 });
 
-test('controls include issue state filter and setState postMessage', () => {
+test('controls include open/closed toggle buttons and setState postMessage', () => {
     const html = buildHtml(false, sampleIssues, null);
-    has(html, 'id="state-filter"', 'state filter dropdown missing');
-    has(html, '<option value="open" selected>open</option>', 'open option should be selected by default');
-    has(html, "var stateFilter = document.getElementById('state-filter');", 'state-filter JS lookup missing');
-    has(html, "vsc.postMessage({ type: 'setState', state: state === 'closed' ? 'closed' : 'open' });", 'setState postMessage missing');
+    has(html, 'id="state-open"', 'open state button missing');
+    has(html, 'id="state-closed"', 'closed state button missing');
+    has(html, "var stateOpenBtn = document.getElementById('state-open');", 'state-open JS lookup missing');
+    has(html, "var stateClosedBtn = document.getElementById('state-closed');", 'state-closed JS lookup missing');
+    has(html, "vsc.postMessage({ type: 'setState', state: 'open' });", 'open setState postMessage missing');
+    has(html, "vsc.postMessage({ type: 'setState', state: 'closed' });", 'closed setState postMessage missing');
 });
 
 test('table renders closed_at sortable column', () => {
@@ -152,6 +160,21 @@ test('clipboard formatter includes key issue fields', () => {
     has(text, 'URL: https://github.com/CieloVistaSoftware/cielovista-tools/issues/123', 'issue URL missing from clipboard text');
     has(text, 'Labels: bug', 'labels missing from clipboard text');
     has(text, 'Assignees: @alice', 'assignees missing from clipboard text');
+});
+
+test('closed issues render clickable local fix links when file refs exist', () => {
+    const closedIssue = [{ ...sampleIssues[0], state: 'closed', closed_at: '2026-04-28T12:00:00.000Z' }];
+    const html = buildHtml(false, closedIssue, null, 'closed');
+    has(html, 'class="fix-link-btn"', 'fix link button missing in closed view');
+    has(html, 'data-local-path="src/shared/github-issues-view.ts"', 'source fix path missing');
+    has(html, 'data-local-path="tests/unit/github-issues-view-ui.test.js"', 'test fix path missing');
+    has(html, "vsc.postMessage({ type: 'openLocal', relativePath: relativePath });", 'openLocal postMessage missing');
+});
+
+test('extractLocalFixRefs returns existing local workspace files only', () => {
+    const refs = extractLocalFixRefs(sampleIssues[0]);
+    has(JSON.stringify(refs), 'src/shared/github-issues-view.ts', 'source file ref should be extracted');
+    has(JSON.stringify(refs), 'tests/unit/github-issues-view-ui.test.js', 'test file ref should be extracted');
 });
 
 console.log('');

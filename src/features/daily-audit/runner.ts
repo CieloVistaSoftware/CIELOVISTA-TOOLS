@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: aud
+
 /**
  * runner.ts
  *
@@ -49,8 +51,10 @@ export interface RunAuditResult {
     error?:  string;
 }
 
+export type AuditProgressFn = (message: string, increment: number) => void;
+
 /** Run all checks and write the report to AUDIT_REPORT_PATH. */
-export async function runDailyAudit(): Promise<RunAuditResult> {
+export async function runDailyAudit(onProgress?: AuditProgressFn): Promise<RunAuditResult> {
     const t0 = Date.now();
 
     let registry: ProjectRegistry;
@@ -79,15 +83,22 @@ export async function runDailyAudit(): Promise<RunAuditResult> {
         p => !p.auditExcluded && ((p.status ?? 'product') === 'product' || (p.status ?? 'product') === 'workbench')
     );
 
-    // Run all checks — each is independent, failures don't block others
-    const checks: AuditCheck[] = await Promise.all([
-        safeRun(() => runRegistryHealthCheck(strictProjects)),
-        safeRun(() => runMarketplaceCheck(strictProjects)),
-        safeRun(() => runReadmeQualityCheck(strictProjects)),
-        safeRun(() => runClaudeCoverageCheck(strictProjects)),
-        safeRun(() => runChangelogCheck(strictProjects)),
-        safeRun(() => runTestCoverageCheck(strictProjects)),
-    ]);
+    // Run checks sequentially so progress messages are accurate and a hang in
+    // one check doesn't silently block all others.
+    const STEPS: Array<{ label: string; fn: () => AuditCheck }> = [
+        { label: 'Registry health…',      fn: () => runRegistryHealthCheck(strictProjects) },
+        { label: 'Marketplace compliance…', fn: () => runMarketplaceCheck(strictProjects) },
+        { label: 'README quality…',        fn: () => runReadmeQualityCheck(strictProjects) },
+        { label: 'CLAUDE.md coverage…',    fn: () => runClaudeCoverageCheck(strictProjects) },
+        { label: 'Changelog check…',       fn: () => runChangelogCheck(strictProjects) },
+        { label: 'Test coverage…',         fn: () => runTestCoverageCheck(strictProjects) },
+    ];
+    const increment = Math.floor(80 / STEPS.length);
+    const checks: AuditCheck[] = [];
+    for (const step of STEPS) {
+        onProgress?.(step.label, increment);
+        checks.push(await safeRun(step.fn));
+    }
 
     const summary = {
         red:    checks.filter(c => c.status === 'red').length,

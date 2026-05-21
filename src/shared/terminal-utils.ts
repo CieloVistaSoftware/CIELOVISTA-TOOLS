@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: term
+
 /**
  * terminal-utils.ts
  * Shared terminal and file-system navigation helpers.

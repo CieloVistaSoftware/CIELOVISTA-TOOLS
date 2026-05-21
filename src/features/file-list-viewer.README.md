@@ -1,6 +1,5 @@
 ---
 docid: 150.1.file-list-viewer-readme
-dewey: 150.1.file-list-viewer-readme
 id: filelist-sortable-alternative-file-browser
 title: FileList — Sortable Alternative File Browser
 project: cielovista-tools
@@ -9,12 +8,12 @@ status: active
 tags: [file, list, viewer]
 category: 150.1 — Components / Features
 created: 2026-04-27
-updated: 2026-05-08
+updated: 2026-05-13
 version: 1.0.0
 author: CieloVista Software
 relativepath: src/features/file-list-viewer.README.md
 ---
-# FileList — Sortable Alternative File Browser
+# feature: FileList — Sortable Alternative File Browser
 
 Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68).
 
@@ -31,6 +30,8 @@ Open the Home page (`cvs.tools.home`) and click **FileList**, or run **CieloVist
 The webview opens at the current workspace root. Click any column header to sort — click again to flip direction. The sort indicator (▲ / ▼) shows the active column and direction.
 
 Click a file row to open it in the editor beside the FileList tab. Click a folder row to navigate into it. The **↑ Up** button climbs to the parent (disabled at the workspace root).
+
+When FileList is showing a directory under `tests/`, right-click any `.js` test file to open **▶ Run Test**. That runs the file with `node`, streams output to the shared OutputChannel, and reports pass/fail with a toast.
 
 Two header toggles:
 
@@ -60,4 +61,27 @@ Disable via setting `cielovistaTools.features.fileListViewer = false` and reload
 
 ## Phase 2 (separate issues, future work)
 
-Multi-root workspace support, filter / search input, right-click context menu (Reveal in Explorer, Open in Terminal here, Copy path, Delete), custom column visibility, persist last directory + sort across sessions.
+Multi-root workspace support, filter / search input, custom column visibility, persist last directory + sort across sessions.
+
+---
+
+## What it does
+
+_TODO: one paragraph describing the single responsibility of this file._
+
+---
+
+## Internal architecture
+
+```text
+activate()
+  └── TODO: describe call flow
+```
+
+---
+
+## Manual test
+
+1. TODO: step one
+2. TODO: step two
+3. TODO: expected result

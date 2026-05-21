@@ -1,8 +1,7 @@
 ---
 docid: 150.1.css-class-hover-readme
-dewey: 150.1.css-class-hover-readme
 id: feature-css-class-hoverts
-title: feature: css-class-hover.ts
+title: "feature: css-class-hover.ts"
 project: cielovista-tools
 description: Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…
 status: active

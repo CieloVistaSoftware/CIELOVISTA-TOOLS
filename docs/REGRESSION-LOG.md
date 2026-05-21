@@ -1,6 +1,5 @@
 ---
 docid: 150.9.regression-log
-dewey: 150.9.regression-log
 id: regression-log-cielovista-tools
 title: Regression Log — CieloVista Tools
 project: cielovista-tools
@@ -100,7 +99,7 @@ Sub-panels always open with `ViewColumn.Beside`.
 **Status:** Fixed + automated test added (REG-011)
 
 ### Error signature
-```
+```text
 Cannot find module 'diff'
 Require stack:
   - c:\...\cielovista-tools\out\features\js-error-audit.js

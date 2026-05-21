@@ -57,7 +57,12 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .btn-demo:hover{background:rgba(99,102,241,0.35);color:#fff}
 .btn-archive{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;background:rgba(220,80,80,0.1);color:var(--vscode-errorForeground,#f85149);border:1px solid rgba(220,80,80,0.25)}
 .btn-archive:hover{background:rgba(220,80,80,0.22)}
+.btn-run{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(63,185,80,0.15);color:#3fb950;border:1px solid rgba(63,185,80,0.35)}
+.btn-run:hover{background:rgba(63,185,80,0.3);color:#fff}
 mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
+#btn-sort-newest.sort-active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+#sorted-view{padding:0}
+#sorted-view .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(24rem,100%),1fr));gap:10px;width:100%;padding:12px 16px}
 .card.selected{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px;background:var(--vscode-list-activeSelectionBackground,rgba(0,120,215,0.12))}
 #clipboard-toast{position:fixed;bottom:18px;right:18px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:7px 14px;font-size:12px;color:var(--vscode-editor-foreground);box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:999}
 #clipboard-toast.show{opacity:1}
@@ -71,6 +76,9 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
   <select id="section-filter" disabled><option value="">All sections</option></select>
   <button id="btn-reset">&#10005; Clear</button>
   <button id="btn-npm-scripts" title="Open NPM Scripts panel" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128230; Projects</button>
+  <button id="btn-report-issue" title="Report an issue for the current project" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128030; Report Issue</button>
+  <button id="btn-rebuild-catalog" title="Re-scan all projects and rebuild the catalog from disk" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#8635; Rebuild</button>
+  <button id="btn-sort-newest" title="Sort all docs by most recently modified" style="background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 10px;border-radius:2px;cursor:pointer;font-size:12px">&#128336; Newest</button>
   <span id="stat-bar"></span>
 </div>
 <div id="catalog"></div>
@@ -81,7 +89,6 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
 (function() {
 
 var vscode = acquireVsCodeApi();
-var _hasData = false;
 
 // ── Messages from extension host — registered first so init never races ───────
 window.addEventListener('message', function(ev) {
@@ -108,7 +115,6 @@ window.addEventListener('message', function(ev) {
         return;
     }
     if (msg.command === 'init') {
-        _hasData = true;
         document.getElementById('catalog').innerHTML = msg.html;
         _totalCards    = msg.totalCards    || 0;
         _totalCats     = msg.totalCats     || 0;
@@ -117,11 +123,19 @@ window.addEventListener('message', function(ev) {
             _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
         buildSectionMap();
         populateProjectDropdown();
-        // Restore sticky project filter from localStorage
+        // Prefer the active workspace project, then fall back to sticky state.
+        var currentProj = msg.currentProject || '';
         var savedProj = localStorage.getItem('catalog-proj-filter') || '';
         var projSel = document.getElementById('proj-filter');
-        if (savedProj && projSel) {
-            projSel.value = savedProj;
+        var desiredProj = '';
+        if (projSel && currentProj && Array.from(projSel.options).some(function(opt) { return opt.value === currentProj; })) {
+            desiredProj = currentProj;
+        } else if (savedProj && projSel && Array.from(projSel.options).some(function(opt) { return opt.value === savedProj; })) {
+            desiredProj = savedProj;
+        }
+        if (projSel && desiredProj) {
+            projSel.value = desiredProj;
+            localStorage.setItem('catalog-proj-filter', desiredProj);
             updateSectionDropdown();
             applyFilters();
         }
@@ -136,7 +150,6 @@ window.addEventListener('message', function(ev) {
 
 // Signal extension that the message listener is in place
 vscode.postMessage({ command: 'ready' });
-setTimeout(function() { if (!_hasData) { vscode.postMessage({ command: 'ready' }); } }, 1000);
 
 var _totalCards = 0, _totalCats = 0, _totalProjects = 0;
 var _projSections = {};
@@ -188,8 +201,16 @@ function _copySelectedPaths() {
 }
 
 // ── Keyboard shortcuts (Ctrl+A, Ctrl+C, Escape) ───────────────────────────────
+document.addEventListener('click', function(e) {
+    var pop = document.getElementById('_dewey-popover');
+    if (pop && pop.style.display !== 'none' && !pop.contains(e.target) && !e.target.closest('[data-action="show-cat-list"]')) {
+        pop.style.display = 'none';
+    }
+});
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
+        var pop = document.getElementById('_dewey-popover');
+        if (pop) { pop.style.display = 'none'; }
         _clearSelection();
         return;
     }
@@ -356,7 +377,20 @@ function resetFilters() {
 
 // ── Toolbar listeners ─────────────────────────────────────────────────────────
 
-document.getElementById('search').addEventListener('input', applyFilters);
+var _searchHitIndex = -1;
+document.getElementById('search').addEventListener('input', function() { _searchHitIndex = -1; applyFilters(); });
+document.getElementById('search').addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') { return; }
+    e.preventDefault();
+    var hits = Array.from(document.querySelectorAll('.card:not(.hidden)'));
+    if (hits.length === 0) { return; }
+    // Remove previous highlight
+    hits.forEach(function(c) { c.style.outline = ''; });
+    _searchHitIndex = (_searchHitIndex + 1) % hits.length;
+    var target = hits[_searchHitIndex];
+    target.style.outline = '2px solid var(--vscode-focusBorder)';
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
 document.getElementById('proj-filter').addEventListener('change', function() {
   // Persist selected project across catalog opens
   localStorage.setItem('catalog-proj-filter', document.getElementById('proj-filter').value);
@@ -365,6 +399,74 @@ document.getElementById('proj-filter').addEventListener('change', function() {
 document.getElementById('section-filter').addEventListener('change', applyFilters);
 document.getElementById('btn-reset').addEventListener('click', resetFilters);
 document.getElementById('btn-npm-scripts').addEventListener('click', function() { vscode.postMessage({ command: 'open-npm-scripts' }); });
+document.getElementById('btn-report-issue').addEventListener('click', function() {
+  var proj = document.getElementById('proj-filter').value || '';
+  vscode.postMessage({ command: 'new-issue', project: proj || undefined });
+});
+document.getElementById('btn-rebuild-catalog').addEventListener('click', function() {
+  var btn = document.getElementById('btn-rebuild-catalog');
+  btn.textContent = '⏳ Rebuilding…';
+  btn.disabled = true;
+  vscode.postMessage({ command: 'rebuild-catalog' });
+});
+
+// ── Sort by Newest ────────────────────────────────────────────────────────────
+var _sortNewest = false;
+// Remembers each card's original parent grid and next sibling so we can restore
+var _cardOrigins = new WeakMap();
+
+document.getElementById('btn-sort-newest').addEventListener('click', function() {
+  var btn = document.getElementById('btn-sort-newest');
+  var catalog = document.getElementById('catalog');
+  _sortNewest = !_sortNewest;
+
+  if (_sortNewest) {
+    btn.classList.add('sort-active');
+    btn.textContent = '↩ Restore';
+
+    // Collect all cards and save their origin
+    var allCards = Array.from(document.querySelectorAll('.card'));
+    allCards.forEach(function(c) {
+      _cardOrigins.set(c, { parent: c.parentNode, next: c.nextSibling });
+    });
+
+    // Sort descending by data-modified (ISO date strings sort lexicographically)
+    allCards.sort(function(a, b) {
+      return (b.dataset.modified || '').localeCompare(a.dataset.modified || '');
+    });
+
+    // Build a flat sorted view replacing the catalog content
+    var grid = document.createElement('div');
+    grid.className = 'card-grid';
+    allCards.forEach(function(c) { grid.appendChild(c); });
+    var wrapper = document.createElement('div');
+    wrapper.id = 'sorted-view';
+    wrapper.appendChild(grid);
+
+    // Hide existing sections and show sorted view
+    Array.from(catalog.children).forEach(function(el) { el.style.display = 'none'; });
+    catalog.appendChild(wrapper);
+    applyFilters();
+  } else {
+    btn.classList.remove('sort-active');
+    btn.textContent = '🕐 Newest';
+
+    // Restore cards to original positions
+    var sortedView = document.getElementById('sorted-view');
+    if (sortedView) {
+      Array.from(sortedView.querySelectorAll('.card')).forEach(function(c) {
+        var origin = _cardOrigins.get(c);
+        if (origin && origin.parent) {
+          origin.parent.insertBefore(c, origin.next || null);
+        }
+      });
+      sortedView.remove();
+    }
+    // Restore section visibility
+    Array.from(catalog.children).forEach(function(el) { el.style.display = ''; });
+    applyFilters();
+  }
+});
 
 // ── Click handler ─────────────────────────────────────────────────────────────
 
@@ -399,9 +501,37 @@ document.addEventListener('click', function(e) {
     else if (a === 'open-src-file')       { vscode.postMessage({ command: 'openSrcFile',         data: btn.dataset.path }); }
     else if (a === 'wb-demo')             { vscode.postMessage({ command: 'wb-demo',             data: btn.dataset.path, name: btn.dataset.name }); }
     else if (a === 'open-project-folder') { vscode.postMessage({ command: 'openProjectFolder',  data: btn.dataset.projPath }); }
+    else if (a === 'open-project-vscode') { vscode.postMessage({ command: 'open-project-vscode', data: btn.dataset.projPath }); }
     else if (a === 'open-claude')         { vscode.postMessage({ command: 'openClaude',          data: btn.dataset.projPath }); }
     else if (a === 'create-claude')       { vscode.postMessage({ command: 'createClaude',        data: btn.dataset.projPath }); }
     else if (a === 'create-tests')        { vscode.postMessage({ command: 'create-tests',        data: btn.dataset.projPath, projName: btn.dataset.projName }); }
+    else if (a === 'run-command')         { vscode.postMessage({ command: 'run-command',         commandId: btn.dataset.commandId }); }
+    else if (a === 'jump-to-cat') {
+        var catEl = document.querySelector('.cat-section[data-category="' + btn.dataset.catLabel + '"]');
+        if (catEl) { catEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    }
+    else if (a === 'show-cat-list') {
+        var prefix = btn.dataset.deweyPrefix;
+        var secs = Array.from(document.querySelectorAll('.cat-section:not(.hidden)'));
+        var rows = secs.map(function(s) {
+            var label = s.dataset.category || '';
+            var count = s.querySelectorAll('.card:not([style*="display:none"])').length || s.querySelectorAll('.card').length;
+            return '<div style="padding:3px 0;cursor:pointer;white-space:nowrap" data-pop-cat="' + label.replace(/"/g, '&quot;') + '">' + label + ' <span style="color:var(--vscode-descriptionForeground);font-size:10px">(' + count + ')</span></div>';
+        }).join('');
+        var pop = document.getElementById('_dewey-popover');
+        if (!pop) { pop = document.createElement('div'); pop.id = '_dewey-popover'; pop.style.cssText = 'position:fixed;z-index:9999;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:8px 12px;font-size:12px;max-height:300px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.4)'; document.body.appendChild(pop); }
+        var r = btn.getBoundingClientRect();
+        pop.style.left = r.left + 'px'; pop.style.top = (r.bottom + 4) + 'px';
+        pop.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:var(--vscode-descriptionForeground)">Categories</div>' + rows;
+        pop.style.display = 'block';
+        pop.querySelectorAll('[data-pop-cat]').forEach(function(row) {
+            row.addEventListener('click', function() {
+                var sec = document.querySelector('.cat-section[data-category="' + row.dataset.popCat + '"]');
+                if (sec) { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                pop.style.display = 'none';
+            });
+        });
+    }
     else if (a === 'archive-doc') {
         var card = btn.closest('.card');
         if (card) {

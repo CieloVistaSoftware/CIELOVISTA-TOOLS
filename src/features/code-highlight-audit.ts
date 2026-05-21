@@ -1,5 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
+
+// component: aud
+
 /**
  * code-highlight-audit.ts
  *
@@ -18,6 +21,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { esc }           from '../shared/webview-utils';
 
 const FEATURE = 'code-highlight-audit';
 
@@ -114,10 +118,6 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
     return results;
 }
 
-function esc(s: string): string {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function buildHtml(blocks: UntaggedBlock[], scannedFiles: number): string {
     const byProject = new Map<string, UntaggedBlock[]>();
     for (const b of blocks) {
@@ -139,13 +139,14 @@ function buildHtml(blocks: UntaggedBlock[], scannedFiles: number): string {
             const relPath = path.relative(path.dirname(fp), fp) || path.basename(fp);
             const blockRows = fBlocks.map(b => {
                 const guess = guessLanguage(b.preview);
-                return `<tr class="block-row">
+                const fixBtn = guess
+                    ? `<button class="fix-btn fix-single-btn" data-action="fix" data-path="${esc(fp)}" data-line="${b.lineNumber}" data-lang="${esc(guess)}" data-fence="${esc(b.fenceOpen)}">&#9889; Fix</button>`
+                    : '';
+                return `<tr class="block-row" data-path="${esc(fp)}" data-line="${b.lineNumber}">
   <td class="ln-cell">L${b.lineNumber}</td>
   <td class="preview-cell"><code>${esc(b.preview || '(empty block)')}</code></td>
   <td class="guess-cell">${guess ? `<span class="lang-hint">${esc(guess)}</span>` : '<span class="no-hint">?</span>'}</td>
-  <td class="act-cell">
-    <button class="fix-btn" data-action="open" data-path="${esc(fp)}" data-line="${b.lineNumber}">&#128396; Open</button>
-  </td>
+  <td class="act-cell">${fixBtn}<button class="fix-btn" data-action="open" data-path="${esc(fp)}" data-line="${b.lineNumber}">&#128396; Open</button></td>
 </tr>`;
             }).join('');
 
@@ -200,8 +201,9 @@ table{width:100%;border-collapse:collapse}
 .lang-hint{background:rgba(63,185,80,0.12);color:#3fb950;border:1px solid rgba(63,185,80,0.3);border-radius:3px;padding:1px 6px;font-size:10px;font-family:var(--vscode-editor-font-family,monospace)}
 .no-hint{color:var(--vscode-descriptionForeground);font-size:10px;opacity:0.5}
 .act-cell{width:70px;text-align:right}
-.fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:10px;white-space:nowrap}
+.fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:10px;white-space:nowrap;margin-left:4px}
 .fix-btn:hover{background:var(--vscode-button-hoverBackground)}
+.fix-single-btn{background:rgba(63,185,80,0.15);color:#3fb950;border:1px solid rgba(63,185,80,0.4);margin-left:0}
 #empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground);display:none}
 #empty.visible{display:block}
 `;
@@ -229,6 +231,13 @@ document.addEventListener('click', function(e) {
   if (!btn) return;
   if (btn.dataset.action === 'open') {
     vscode.postMessage({ command: 'open', path: btn.dataset.path, line: parseInt(btn.dataset.line || '1', 10) });
+  }
+  if (btn.dataset.action === 'fix') {
+    var row = btn.closest('tr.block-row');
+    btn.disabled = true;
+    btn.textContent = '✓';
+    vscode.postMessage({ command: 'fix', path: btn.dataset.path, line: parseInt(btn.dataset.line || '1', 10), lang: btn.dataset.lang, fence: btn.dataset.fence });
+    if (row) { setTimeout(function(){ row.remove(); }, 400); }
   }
   if (btn.dataset.action === 'rescan') {
     vscode.postMessage({ command: 'rescan' });
@@ -313,7 +322,7 @@ function findMarkdownFiles(dir: string, depth = 0): string[] {
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return results; }
 
     for (const entry of entries) {
-        if (entry.name === 'node_modules' || entry.name === '.git') { continue; }
+        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.claude' || entry.name === 'out') { continue; }
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
             results.push(...findMarkdownFiles(full, depth + 1));
@@ -357,6 +366,22 @@ async function fixAllBlocks(blocks: UntaggedBlock[]): Promise<{ fixed: number; s
     return { fixed, skipped };
 }
 
+function fixSingleBlock(filePath: string, lineNumber: number, lang: string, fenceOpen: string): boolean {
+    try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines   = content.split('\n');
+        const idx     = lineNumber - 1;
+        if (idx < 0 || idx >= lines.length) { return false; }
+        const openFencePattern = new RegExp('^' + fenceOpen.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$');
+        if (!lines[idx].match(openFencePattern)) { return false; }
+        lines[idx] = fenceOpen + lang;
+        fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.audit.codeHighlight', showPanel)
@@ -398,6 +423,14 @@ async function showPanel(): Promise<void> {
                     }
                     if (msg.command === 'rescan') {
                         await showPanel();
+                    }
+                    if (msg.command === 'fix') {
+                        try {
+                            const ok = fixSingleBlock(msg.path, msg.line, msg.lang, msg.fence ?? '```');
+                            if (ok) { log(FEATURE, `Fixed: added \`\`\`${msg.lang} at ${msg.path}:${msg.line}`); }
+                        } catch (e) {
+                            logError('Fix single failed', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+                        }
                     }
                     if (msg.command === 'fix-all') {
                         try {

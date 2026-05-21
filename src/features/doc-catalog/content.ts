@@ -1,6 +1,8 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 
+// component: cat
+
 /** Text extraction and HTML conversion utilities for doc-catalog. */
 
 export function esc(s: string): string {

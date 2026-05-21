@@ -1,4 +1,5 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
+// component: ref
 /**
  * anthropic-client.ts
  *
@@ -15,7 +16,10 @@ import * as vscode from 'vscode';
 // ─── Config helpers ───────────────────────────────────────────────────────────
 
 function getAnthropicKey(): string | undefined {
-    return vscode.workspace.getConfiguration('cielovistaTools.anthropic').get<string>('apiKey')?.trim() || undefined;
+    // Check VS Code settings first, then fall back to environment variable.
+    return vscode.workspace.getConfiguration('cielovistaTools.anthropic').get<string>('apiKey')?.trim()
+        || process.env['ANTHROPIC_API_KEY']?.trim()
+        || undefined;
 }
 
 function getOpenAiKey(): string | undefined {
@@ -166,28 +170,13 @@ export async function callClaude(prompt: string, maxTokens = 2000): Promise<stri
         errors.push(`Copilot: ${err}`);
     }
 
-    // All failed
+    // All failed — GitHub Copilot is the last resort and requires no key.
+    // Never prompt for API keys; point the user to settings if they want to configure one.
     const summary = errors.join('\n');
     const action = await vscode.window.showErrorMessage(
-        'All AI providers failed. Set an API key in settings.',
-        'Set Anthropic Key', 'Set OpenAI Key', 'Open Settings'
+        'AI unavailable: GitHub Copilot is not signed in. Sign into Copilot, or add an Anthropic key to settings.',
+        'Open Settings'
     );
-
-    if (action === 'Set Anthropic Key') {
-        const key = await promptForAnthropicKey();
-        if (key) { return callClaude(prompt, maxTokens); }
-    }
-    if (action === 'Set OpenAI Key') {
-        const key = await vscode.window.showInputBox({
-            prompt: 'Enter your OpenAI API key', placeHolder: 'sk-...', password: true
-        });
-        if (key?.trim()) {
-            await vscode.workspace.getConfiguration('cielovistaTools.openai').update(
-                'apiKey', key.trim(), vscode.ConfigurationTarget.Global
-            );
-            return callClaude(prompt, maxTokens);
-        }
-    }
     if (action === 'Open Settings') {
         await vscode.commands.executeCommand('workbench.action.openSettings', 'cielovistaTools');
     }
