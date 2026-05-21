@@ -1046,6 +1046,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable the Registry Promote feature — right-click a folder to register it as a CieloVista product."
+        },
+        "cielovista-tools.debug.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, verbose debug output is written to the CieloVista Tools output channel."
         }
       }
     }
