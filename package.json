@@ -137,6 +137,12 @@
         "description": "Re-run scan-commands.js to refresh data/commands-registry.json from package.json and feature READMEs."
       },
       {
+        "command": "cvs.registry.showComponents",
+        "title": "Component Registry: Open Viewer",
+        "category": "CieloVista",
+        "description": "Open the Component Registry viewer — searchable table of all feature components with their linked commands."
+      },
+      {
         "command": "cvs.tools.home",
         "title": "Open Home Dashboard",
         "category": "CieloVista",
