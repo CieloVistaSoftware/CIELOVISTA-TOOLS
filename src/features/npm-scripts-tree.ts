@@ -71,7 +71,7 @@ async function collectEntries(): Promise<PkgEntry[]> {
     try {
         const files = await vscode.workspace.findFiles(
             '**/package.json',
-            '{**/node_modules/**,**/.claude/**,**/out/**,**/dist/**}'
+            '{**/node_modules/**,**/.claude/**,**/out/**,**/dist/**,**/.vscode-test/**}'
         );
         for (const f of files) { addDir(path.dirname(f.fsPath)); }
     } catch { /* workspace not ready */ }
