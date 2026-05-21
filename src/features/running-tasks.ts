@@ -421,15 +421,11 @@ killBtn.addEventListener('click', function(){
     // Capture PIDs immediately — before anything else can mutate the DOM
     var pids = getCheckedPids();
     if (pids.length === 0) { return; }
-    // Pause timer for the duration of the kill so a tick can't wipe selections mid-confirm
+    // VS Code webviews block browser confirm() — confirmation happens in the extension host
     _paused = true;
-    if (!confirm('Kill ' + pids.length + ' selected process(es)?\\nThis cannot be undone.')) {
-        updatePauseState(); // restore correct pause state if user cancelled
-        return;
-    }
-    status('Killing ' + pids.length + ' process(es)...');
-    vsc.postMessage({ command: 'kill', pids: pids });
-    // _paused will clear naturally when HTML is rebuilt after kill completes
+    status('Waiting for confirmation...');
+    vsc.postMessage({ command: 'kill-confirm', pids: pids });
+    // _paused will clear naturally when HTML is rebuilt after kill completes (or on cancel)
 });
 
 // Click a window-title cell → focus that process window
@@ -446,6 +442,17 @@ document.getElementById('tbody').addEventListener('click', function(e){
 function doRefresh(){
     vsc.postMessage({ command: 'refresh' });
 }
+
+// Incoming messages from the extension host
+window.addEventListener('message', function(ev) {
+    var msg = ev.data;
+    if (!msg) { return; }
+    if (msg.command === 'kill-cancelled') {
+        // User dismissed the VS Code confirmation — restore normal auto-refresh
+        updatePauseState();
+        status('Kill cancelled.');
+    }
+});
 
 // ── Column sort ───────────────────────────────────────────────────────────────
 var NUMERIC_COLS = new Set(['pid','mem','threads']);
@@ -597,18 +604,28 @@ function showPanel(): void {
     refresh();
     _panel.onDidDispose(() => { _panel = undefined; });
 
-    _panel.webview.onDidReceiveMessage(msg => {
+    _panel.webview.onDidReceiveMessage(async msg => {
         try {
             switch (msg.command) {
                 case 'refresh':
                     refresh();
                     break;
 
-                case 'kill': {
+                case 'kill-confirm': {
                     const pids: number[] = Array.isArray(msg.pids)
                         ? msg.pids.map((p: unknown) => Number(p)).filter((p: number) => p > 0)
                         : [];
                     if (pids.length === 0) { break; }
+                    const answer = await vscode.window.showWarningMessage(
+                        `Kill ${pids.length} selected process(es)? This cannot be undone.`,
+                        { modal: true },
+                        'Kill'
+                    );
+                    if (answer !== 'Kill') {
+                        // User cancelled — unblock the webview auto-refresh
+                        _panel?.webview.postMessage({ command: 'kill-cancelled' });
+                        break;
+                    }
                     const killed = killPids(pids);
                     log(FEATURE, `Killed ${killed} process(es): ${pids.join(', ')}`);
                     setTimeout(() => refresh(), 800);
