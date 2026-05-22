@@ -63,7 +63,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 
 /* Tables */
 table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
-th{position:sticky;top:0;background:#252526;padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#858585;border-bottom:1px solid #404040;white-space:nowrap;z-index:1}
+th{position:sticky;top:0;background:#252526;padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#858585;border-bottom:1px solid #404040;white-space:nowrap;z-index:1;cursor:pointer;user-select:none}
+th:hover{color:#d4d4d4}
+th[data-sort="asc"]::after{content:' \\25b2';color:#9cdcfe;font-size:9px}
+th[data-sort="desc"]::after{content:' \\25bc';color:#9cdcfe;font-size:9px}
 td{padding:6px 10px;border-bottom:1px solid #2d2d2d;vertical-align:top}
 tr:hover td{background:#252526}
 
@@ -1021,6 +1024,33 @@ resultEl.addEventListener('click', function(e){
   var btn = e.target.closest('[data-action="open-project-catalog"]');
   if (!btn) { return; }
   openProjectCatalog(btn.dataset.project || '');
+});
+
+/* Table sort — event delegation handles all th clicks across all rendered tables. */
+resultEl.addEventListener('click', function(e){
+  var th = e.target.closest('th');
+  if (!th) { return; }
+  var tbl = th.closest('table');
+  if (!tbl) { return; }
+  var ths = Array.from(tbl.querySelectorAll('thead th'));
+  var ci  = ths.indexOf(th);
+  if (ci < 0) { return; }
+  var cur = th.getAttribute('data-sort');
+  var dir = cur === 'asc' ? -1 : 1;
+  ths.forEach(function(h){ h.removeAttribute('data-sort'); });
+  th.setAttribute('data-sort', dir === 1 ? 'asc' : 'desc');
+  var tbody = tbl.querySelector('tbody');
+  if (!tbody) { return; }
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort(function(a, b){
+    var ta = (a.cells[ci] ? a.cells[ci].textContent : '') || '';
+    var tb = (b.cells[ci] ? b.cells[ci].textContent : '') || '';
+    var na = parseFloat(ta.replace(/[^0-9.]/g, ''));
+    var nb = parseFloat(tb.replace(/[^0-9.]/g, ''));
+    if (!isNaN(na) && !isNaN(nb)) { return dir * (na - nb); }
+    return dir * ta.localeCompare(tb);
+  });
+  rows.forEach(function(r){ tbody.appendChild(r); });
 });
 
 /* Initial load. */
