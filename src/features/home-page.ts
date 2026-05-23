@@ -18,6 +18,7 @@
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
+import * as os     from 'os';
 import { getHistory }        from './cvs-command-launcher/command-history';
 import { CATALOG }          from './cvs-command-launcher/catalog';
 import {
@@ -85,6 +86,33 @@ export function buildGroupedCommands(registered: Set<string>): Record<string, Ar
   return grouped;
 }
 
+function _startMetricsSampler(panel: vscode.WebviewPanel): () => void {
+  let prevCpu  = process.cpuUsage();
+  let prevTime = process.hrtime.bigint();
+  const numCpus = Math.max(1, os.cpus().length);
+
+  const id = setInterval(() => {
+    const nowTime   = process.hrtime.bigint();
+    const nowCpu    = process.cpuUsage();
+    const elapsedUs = Number(nowTime - prevTime) / 1000;
+    const cpuUs     = (nowCpu.user - prevCpu.user) + (nowCpu.system - prevCpu.system);
+    const cpuPct    = Math.min(100, Math.round(cpuUs / elapsedUs * 100 / numCpus));
+    prevCpu  = nowCpu;
+    prevTime = nowTime;
+
+    const mem        = process.memoryUsage();
+    const memPct     = Math.round(mem.heapUsed / mem.heapTotal * 100);
+    const heapUsedMb  = Math.round(mem.heapUsed  / 1048576);
+    const heapTotalMb = Math.round(mem.heapTotal / 1048576);
+
+    if (panel.visible) {
+      void panel.webview.postMessage({ type: 'metrics', cpuPct, memPct, heapUsedMb, heapTotalMb });
+    }
+  }, 3000);
+
+  return () => clearInterval(id);
+}
+
 function showHomePage(context: vscode.ExtensionContext): void {
   if (homePanel) {
     homePanel.reveal(vscode.ViewColumn.One);
@@ -124,11 +152,13 @@ function showHomePage(context: vscode.ExtensionContext): void {
     panel.webview.postMessage({ type: 'mcpStatus', status });
   };
   onMcpServerStatusChange(mcpStatusHandler);
+  const stopMetrics = _startMetricsSampler(panel);
   panel.onDidDispose(() => {
     if (homePanel === panel) {
       homePanel = undefined;
     }
     offMcpServerStatusChange(mcpStatusHandler);
+    stopMetrics();
   }, null, context.subscriptions);
 
   panel.webview.onDidReceiveMessage(async msg => {
@@ -380,6 +410,14 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .mcp-off{color:#f85149;border-color:#f85149;background:rgba(248,81,73,.1);cursor:pointer}
 .mcp-off:hover{background:rgba(248,81,73,.2);border-color:#ff6e67}
 .mcp-dot{width:8px;height:8px;border-radius:50%}
+#metrics-gauge{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.mg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--vscode-descriptionForeground)}
+.mg-label{font-weight:600;min-width:28px}
+.mg-bar-wrap{width:48px;height:5px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
+.mg-bar{height:100%;border-radius:3px;transition:width .4s}
+.mg-bar-mem{background:#58a6ff}
+.mg-bar-cpu{background:#3fb950}
+.mg-val{min-width:60px;text-align:right}
 .mcp-on .mcp-dot{background:#3fb950;box-shadow:0 0 5px #3fb950}
 .mcp-off .mcp-dot{background:#f85149}
 #btn-configure,#btn-reload{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;flex-shrink:0}
@@ -613,13 +651,24 @@ function updateBadgeInteractivity(badge) {
 }
 window.addEventListener('message', function(e) {
   var msg = e.data;
-  if (!msg || msg.type !== 'mcpStatus') { return; }
-  var badge = document.getElementById('mcp-badge');
-  if (!badge) { return; }
-  badge.className = 'mcp-badge ' + (msg.status === 'up' ? 'mcp-on' : 'mcp-off');
-  var lbl = badge.querySelector('.mcp-label');
-  if (lbl) { lbl.textContent = 'MCP ' + (msg.status === 'up' ? 'Running' : 'Stopped'); }
-  updateBadgeInteractivity(badge);
+  if (!msg) { return; }
+  if (msg.type === 'mcpStatus') {
+    var badge = document.getElementById('mcp-badge');
+    if (!badge) { return; }
+    badge.className = 'mcp-badge ' + (msg.status === 'up' ? 'mcp-on' : 'mcp-off');
+    var lbl = badge.querySelector('.mcp-label');
+    if (lbl) { lbl.textContent = 'MCP ' + (msg.status === 'up' ? 'Running' : 'Stopped'); }
+    updateBadgeInteractivity(badge);
+  } else if (msg.type === 'metrics') {
+    var memBar = document.getElementById('mg-mem-bar');
+    var memVal = document.getElementById('mg-mem-val');
+    var cpuBar = document.getElementById('mg-cpu-bar');
+    var cpuVal = document.getElementById('mg-cpu-val');
+    if (memBar) { memBar.style.width = msg.memPct + '%'; }
+    if (memVal) { memVal.textContent = msg.heapUsedMb + '/' + msg.heapTotalMb + 'MB'; }
+    if (cpuBar) { cpuBar.style.width = msg.cpuPct + '%'; }
+    if (cpuVal) { cpuVal.textContent = msg.cpuPct + '%'; }
+  }
 });
 var vsc = acquireVsCodeApi();
 
@@ -845,6 +894,18 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   <div id="mcp-badge" class="mcp-badge ${mcpRunning ? 'mcp-on' : 'mcp-off'}">
     <span class="mcp-dot"></span>
     <span class="mcp-label">MCP ${mcpRunning ? 'Running' : 'Stopped'}</span>
+  </div>
+  <div id="metrics-gauge">
+    <div class="mg-item">
+      <span class="mg-label">RAM</span>
+      <div class="mg-bar-wrap"><div id="mg-mem-bar" class="mg-bar mg-bar-mem" style="width:0%"></div></div>
+      <span id="mg-mem-val" class="mg-val">\u2014</span>
+    </div>
+    <div class="mg-item">
+      <span class="mg-label">CPU</span>
+      <div class="mg-bar-wrap"><div id="mg-cpu-bar" class="mg-bar mg-bar-cpu" style="width:0%"></div></div>
+      <span id="mg-cpu-val" class="mg-val">\u2014</span>
+    </div>
   </div>
   <button id="btn-reload" title="Reload VS Code window">\uD83D\uDD04 Reload Window</button>
   <button id="btn-configure">\u2699\ufe0f Configure</button>
