@@ -16,8 +16,7 @@ mcp-server/src/**
 mcp-server/tsconfig.json
 mcp-server/install-config.mjs
 
-# Dev scripts — not needed at runtime
-scripts/**
+# Root-level build/install helpers — not needed at runtime
 patch-help-docs.js
 install.js
 rebuild.ps1
