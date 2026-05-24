@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   EchoToolSchema,
+  NotifyToolSchema,
   ListFilesToolSchema,
   ReadFileToolSchema,
   ProjectStatusToolSchema,
@@ -62,6 +63,29 @@ export function registerTools(server: McpServer): void {
       return {
         content: [{ type: "text" as const, text: `Echo: ${message}` }],
       };
+    }
+  );
+
+  server.tool(
+    "notify",
+    "Send a message to the CieloVista Tools output channel in VS Code. Use this to report status updates, findings, or notes directly into John's VS Code window without interrupting the chat.",
+    NotifyToolSchema.shape,
+    async ({ message, level }) => {
+      try {
+        const res = await fetch("http://127.0.0.1:52199/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, level: level ?? "info" }),
+        });
+        if (res.ok) {
+          return { content: [{ type: "text" as const, text: "✓ Message sent to VS Code output channel." }] };
+        } else {
+          return { content: [{ type: "text" as const, text: `Failed: HTTP ${res.status} — is the extension running?` }] };
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: "text" as const, text: `Failed to reach notify server: ${msg}` }] };
+      }
     }
   );
 
