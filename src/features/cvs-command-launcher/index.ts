@@ -384,7 +384,7 @@ async function _executeWithOutput(
         safePostToWebview(rp, { type: 'done', ok, elapsed, stack });
         recordRun({ id: commandId, title, ok, elapsed });
         if (notifyPanel) {
-            notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: ok ? 'ok' : 'error' });
+            notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: ok ? 'ok' : 'error', canViewReport: true });
             notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             if (entry?.action !== 'read') { notifyPanel.reveal(vscode.ViewColumn.One, true); }
         }
@@ -458,6 +458,13 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
         }
         if (msg.command === 'run' && msg.id) {
             void _executeWithOutput(msg.id, panel);
+        }
+        if (msg.command === 'view-report') {
+            if (_resultPanel) {
+                _resultPanel.reveal(vscode.ViewColumn.Beside, true);
+            } else {
+                vscode.window.showInformationMessage('Report panel was closed — re-run the command to generate a new one.');
+            }
         }
         if (msg.command === 'toggle-audit-output') {
             // Show the shared output channel — this surfaces the "Run Daily Health Check" window.

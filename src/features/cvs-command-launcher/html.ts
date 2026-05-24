@@ -114,6 +114,7 @@ function buildCard(
     <span class="cmd-status-label">Status</span>
     <span class="cmd-status-value cmd-status-value--${statusInfo.tone}" data-default-label="${esc(statusInfo.label)}" data-default-tone="${esc(statusInfo.tone)}" data-default-title="${esc(statusInfo.title)}" title="${esc(statusInfo.title)}">${esc(statusInfo.label)}</span>
   </div>
+  <div class="cmd-report-slot"></div>
   <div class="cmd-footer">
     <div class="cmd-tags">${scopeBadge}${tagBadges}</div>
     <div class="cmd-actions">
@@ -310,6 +311,9 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .cmd-status-value--warn{color:#cca700;border-color:#cca70033;background:#cca7001a}
 .cmd-status-value--bad{color:#f48771;border-color:#f4877133;background:#f487711a}
 .cmd-status-value--neutral{color:var(--vscode-descriptionForeground);border-color:var(--vscode-panel-border);background:var(--vscode-editor-background)}
+.cmd-report-slot{min-height:0}
+.cmd-view-report-btn{margin-top:4px;padding:2px 8px;font-size:10px;font-weight:600;border:1px solid var(--vscode-focusBorder);border-radius:3px;background:var(--vscode-editor-background);color:var(--vscode-textLink-foreground);cursor:pointer;font-family:inherit}
+.cmd-view-report-btn:hover{background:var(--vscode-list-hoverBackground)}
 .cmd-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:6px;flex-wrap:wrap}
 .cmd-tags{display:flex;flex-wrap:wrap;gap:3px;flex:1}
 .tag{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);cursor:pointer}
@@ -637,6 +641,12 @@ document.addEventListener('click', function(e) {
     }, 30000);
     vscode.postMessage({ command: 'run', id: id });
   }
+
+  var reportBtn = e.target.closest('[data-action="view-report"]');
+  if (reportBtn) {
+    vscode.postMessage({ command: 'view-report', id: reportBtn.dataset.id });
+    return;
+  }
 });
 
 document.getElementById('btn-clear').addEventListener('click', clearAll);
@@ -703,11 +713,13 @@ window.addEventListener('message', function(e) {
         dot.className = 'card-status-dot';
         card.prepend(dot);
       }
+      var reportSlot = card.querySelector('.cmd-report-slot');
       if (msg.state === 'running') {
         dot.style.background = '#3fb950';
         dot.style.boxShadow  = '0 0 6px #3fb950';
         dot.title = 'Running\u2026';
         setCardStatus(card, 'Running', 'warn', 'Command is running');
+        if (reportSlot) { reportSlot.innerHTML = ''; }
         // Reset after 30s safety timeout
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
         dot._runTimeout = setTimeout(function(){ dot.style.background=''; dot.style.boxShadow=''; }, 30000);
@@ -721,12 +733,18 @@ window.addEventListener('message', function(e) {
           setCardStatus(card, 'Completed', 'good', 'Last run succeeded');
         }
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
+        if (reportSlot && msg.canViewReport) {
+          reportSlot.innerHTML = '<button class="cmd-view-report-btn" data-action="view-report" data-id="' + msg.id + '">\ud83d\udccb View Report</button>';
+        }
       } else if (msg.state === 'error') {
         dot.style.background = '#f85149';
         dot.style.boxShadow  = '0 0 6px #f85149';
         dot.title = '\u274c Last run failed';
         setCardStatus(card, 'Error', 'bad', 'Last run failed');
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
+        if (reportSlot && msg.canViewReport) {
+          reportSlot.innerHTML = '<button class="cmd-view-report-btn" data-action="view-report" data-id="' + msg.id + '">\ud83d\udccb View Report</button>';
+        }
       }
     }
     _resetRunBtn();
