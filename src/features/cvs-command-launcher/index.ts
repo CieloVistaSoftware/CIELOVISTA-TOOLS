@@ -107,6 +107,18 @@ function safePostToWebview(panel: vscode.WebviewPanel, payload: unknown): boolea
 
 function buildStatusMap(): Map<string, { label: string; title: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }> {
     const statusMap = new Map<string, { label: string; title: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }>();
+
+    // Seed last-run outcome for every command that has run — history is deduped by id
+    // (most-recent first), so each id appears at most once. This makes STATUS persist
+    // across panel refreshes instead of reverting to the static audit-derived value.
+    for (const h of getHistory()) {
+        statusMap.set(h.id, h.ok
+            ? { label: 'Completed', title: 'Last run succeeded', tone: 'good' }
+            : { label: 'Error',     title: 'Last run failed',    tone: 'bad'  }
+        );
+    }
+
+    // Override: error log shows live unresolved count, not last-run outcome
     const errors = getErrors();
     const unresolvedCount = errors.filter((entry) => !entry.githubIssueNumber).length;
     statusMap.set('cvs.tools.errorLog', unresolvedCount > 0
