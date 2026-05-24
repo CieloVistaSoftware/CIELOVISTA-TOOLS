@@ -95,7 +95,7 @@
     "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\""
   },
   "devDependencies": {
-    "@playwright/test": "^1.44.0",
+    "@playwright/test": "^1.58.2",
     "@types/diff": "^7.0.2",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.19.37",
@@ -907,6 +907,12 @@
     "configuration": {
       "title": "CieloVista Tools",
       "properties": {
+        "cvs.bgHealthRunner.intervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "Seconds between background health checks. Minimum 5. Restart VS Code after changing."
+        },
         "cvs.diskcleanup.exePath": {
           "type": "string",
           "default": "",

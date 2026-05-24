@@ -535,9 +535,9 @@ async function showLauncherPanel(): Promise<void> {
         await getRegisteredCommandSet(), cvtPaths,
         detectWorkspaceType(wsPath), getPinnedIds(wsPath), buildStatusMap()
     );
-    if (_panel) { _panel.webview.html = html; _panel.reveal(vscode.ViewColumn.One, true); return; }
+    if (_panel) { _panel.webview.html = html; _panel.reveal(_panel.viewColumn, true); return; }
     _panel = vscode.window.createWebviewPanel(
-        'cvsLauncher', `\u26a1 ${wsName}`, vscode.ViewColumn.One,
+        'cvsLauncher', `\u26a1 ${wsName}`, vscode.ViewColumn.Beside,
         { enableScripts: true, retainContextWhenHidden: true }
     );
     _panel.webview.html = html;
