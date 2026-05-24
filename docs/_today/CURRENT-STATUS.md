@@ -17,6 +17,49 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-23 (JS Error Audit + clipboard fallback)
+
+**TASK:** Fix DiskCleanUp JS Error Audit violations + add GitHub clipboard fallback
+**STATUS:** ✅ All code committed, 80/80 regressions green — needs merge to main + `npm run rebuild` from main
+
+**BRANCH:** `claude/thirsty-pasteur-39b9cd` (worktree)
+
+**FILES TOUCHED THIS SESSION:**
+
+*cielovista-tools:*
+- `src/shared/github-issue-filer.ts` — added `copiedToClipboard` to `FileIssueResult`; new `copyIssueToClipboard()` helper; all 4 file*AsIssue functions now copy to clipboard on auth failure or API error
+- `src/features/notify-server.ts` (new) — HTTP listener on 127.0.0.1:52199 for MCP notify tool
+- `src/features/notify-server.README.md` (new)
+- `src/shared/claude-notifier.ts` (new) — WorkQueueEntry, enqueueIssue() for bg-health-runner
+- `mcp-server/src/tools/definitions.ts` — added NotifyToolSchema
+- `mcp-server/src/tools/index.ts` — registered "notify" tool
+- `src/extension.ts` — notifyServerActivate/Deactivate
+- `src/features/background-health-runner.ts` — configurable interval, delta-only output, chk-issue-project-labels check
+- `src/features/cvs-command-launcher/index.ts` — reveal beside panel fix
+- `src/shared/priority-sync.ts` (new) — stub
+- `.github/workflows/sync-priority.yml` (new) — stub
+- `tests/regression/REG-090-bg-health-runner-output-format.test.js` (new)
+- `tests/regression/REG-091-runtime-scripts-bundled.test.js` (new)
+- `.vscodeignore` — removed `scripts/**` (was blocking runtime scripts from VSIX)
+
+*DiskCleanUp (separate repo — C:\Users\jwpmi\source\repos\DiskCleanUp):*
+- `wwwroot/js/data-grid.ts+.js` — ErrLog.log wrappers on all 12 exports
+- `wwwroot/js/status-bar.ts+.js` — wrapped all SB methods
+- `wwwroot/js/table-utils.ts+.js` — wrapped all exports
+- `wwwroot/models/duplicates-model.ts+.js, large-model.ts+.js, node-modules-model.ts+.js, stale-model.ts+.js, scan-toolbar-model.ts+.js` — wrapped parse/getToolbarConfig
+- `wwwroot/viewmodels/scan-toolbar-vm.ts+.js` — wrapped all methods
+- `wwwroot/views/scan-toolbar-view.ts+.js` — wrapped all methods, deleted dead code block
+- `wwwroot/views/grid-view.ts+.js` — wrapped render, renderBatch, clear, filter
+
+**COMMITS THIS SESSION (cielovista-tools worktree):**
+- Notify server + bg-health-runner improvements (multiple commits)
+- `c7e0031` — feat: clipboard fallback for all GitHub submission failures
+
+**NEXT STEP:** Merge `claude/thirsty-pasteur-39b9cd` to main, then run `npm run rebuild` from main to produce + install updated VSIX
+**OPEN QUESTIONS:** Callers of file*AsIssue should show "Copied to clipboard" notification when `result.copiedToClipboard === true` — check error-log-viewer.ts, fix-bugs panel, regression-log-viewer.ts
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-15 (MCP HTTP migration cleanup #390/#392)
 
 **TASK:** Finish MCP HTTP transport migration — remove residual `/api/...` calls, migrate transport tests
