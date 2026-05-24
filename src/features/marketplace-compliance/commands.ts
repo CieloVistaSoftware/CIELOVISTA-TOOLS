@@ -40,6 +40,17 @@ export async function runScan(): Promise<void> {
         switch (msg.command) {
             case 'fixAll':   await fixAll(); break;
             case 'fixOne':   await fixOneByName(msg.project); break;
+            case 'openFile':
+                if (msg.projPath && msg.file) {
+                    const fullPath = path.join(msg.projPath as string, msg.file as string);
+                    if (fs.existsSync(fullPath)) {
+                        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(fullPath));
+                        await vscode.window.showTextDocument(doc);
+                    } else {
+                        vscode.window.showWarningMessage(`File not found: ${path.basename(msg.file as string)} in ${msg.projPath}`);
+                    }
+                }
+                break;
             case 'openFolder':
                 if (msg.path && fs.existsSync(msg.path)) {
                     await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path), { forceNewWindow: false });
