@@ -122,6 +122,13 @@ const NEVER_ORPHAN = new Set([
 ]);
 const EXEMPT_PATTERN = /CURRENT.?STATUS|PARKING.?LOT|TODAY|PROMPT.?HISTORY/i;
 
+// Files intentionally placed in every project folder for AI context.
+// Identical copies across projects are by design — never flag as duplicates.
+const AI_CONTEXT_FILES = new Set([
+    'copilot-rules.md', 'claude.md', 'copilot-instructions.md',
+    '.cursorrules', 'aider.conf.md',
+]);
+
 function isOrphan(file: DocFile, allDocs: DocFile[]): boolean {
     if (NEVER_ORPHAN.has(file.fileName) || EXEMPT_PATTERN.test(file.fileName)) { return false; }
     const base = file.fileName.replace(/\.md$/i, '');
@@ -166,6 +173,8 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
 
     for (const [hash, cluster] of byHash) {
         if (cluster.length < 2) { continue; }
+        // Skip AI context files — identical copies in every project are intentional
+        if (AI_CONTEXT_FILES.has(cluster[0].fileName.toLowerCase())) { exactHashes.add(hash); continue; }
         exactHashes.add(hash);
 
         const scored = cluster.map(f => ({ file: f, score: scoreKeep(f, cluster, projectRoots) }));
@@ -251,6 +260,8 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
         // every project. A duplicate is same content — already caught by check #1 (hash).
         // Sharing a filename with different content is not a duplicate.
         if (ROOT_STANDARD_FILES.has(fnKey)) { continue; }
+        // AI context files are deliberately identical across all project folders — skip.
+        if (AI_CONTEXT_FILES.has(fnKey)) { continue; }
 
         const groups: DocFile[][] = [];
         const used = new Set<number>();
@@ -377,8 +388,10 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
 
     // ── 9. Subject/category misalignment ─────────────────────────────────────
     // category: "700 — Project Docs" → leading number 700
-    // subject:  "300.9"              → hundreds 300
-    // Rule: the subject number must live inside the category's assigned range.
+    // subject:  "300.9"              → integer part 300
+    // Rule: the integer part of the Dewey must equal the category's leading number.
+    // e.g. subject 150.6 + category "150 — Meta" → 150 === 150 → OK (no mismatch)
+    //      subject 300.9 + category "700 — Project Docs" → 300 !== 700 → mismatch
 
     const mismatches: Array<{ filePath: string; fileName: string; projectName: string; dewey: string; category: string; proposed: string }> = [];
 
@@ -386,13 +399,13 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
         if (!doc.fmDewey || !doc.fmCategory) { continue; }
         const subjectNum = parseFloat(doc.fmDewey);
         if (isNaN(subjectNum)) { continue; }
-        const subjectHundreds = Math.floor(subjectNum / 100) * 100;
+        const subjectBase = Math.floor(subjectNum);   // integer part: 150.6 → 150
         const catMatch = doc.fmCategory.match(/^(\d+)/);
         if (!catMatch) { continue; }
         const categoryNum = parseInt(catMatch[1], 10);
-        if (subjectHundreds === categoryNum) { continue; }
+        if (subjectBase === categoryNum) { continue; }
         const label    = doc.fmCategory.replace(/^\d+\s*[—\-]\s*/, '');
-        const proposed = `${subjectHundreds} — ${label}`;
+        const proposed = `${subjectBase} — ${label}`;
         mismatches.push({ filePath: doc.filePath, fileName: doc.fileName, projectName: doc.projectName, dewey: doc.fmDewey, category: doc.fmCategory, proposed });
     }
 
@@ -403,7 +416,7 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
             severity:       'red',
             title:          `Subject/category mismatch — ${mismatches.length} doc${mismatches.length !== 1 ? 's' : ''}`,
             reason:         `${mismatches.length} doc${mismatches.length !== 1 ? 's have' : ' has'} a category number that doesn't match the subject prefix`,
-            recommendation: `Update each category field to start with the subject's hundreds digit.`,
+            recommendation: `Update each doc's Dewey subject so its integer part matches the category's leading number.`,
             action:         'none',
             paths:          mismatches.map(m => m.filePath),
             projects:       [...new Set(mismatches.map(m => m.projectName))],
