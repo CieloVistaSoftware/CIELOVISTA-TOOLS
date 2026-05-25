@@ -47,6 +47,7 @@ let _activationDisposables: vscode.Disposable[] = [];
 let _watcher: vscode.FileSystemWatcher | undefined;
 let _htmlServer: Server | undefined;
 let _htmlServerPort: number | undefined;
+let _pendingReveal: string | undefined;
 let _htmlServerRoot: string | undefined;
 
 const MARKDOWN_EXTENSIONS = new Set([
@@ -806,6 +807,7 @@ export function openFileListPanel(): void {
     _panel.onDidDispose(() => {
         _panel = undefined;
         _currentDir = undefined;
+        _pendingReveal = undefined;
         _watcher?.dispose();
         _watcher = undefined;
     });
@@ -814,6 +816,11 @@ export function openFileListPanel(): void {
         try {
             if (msg.command === 'ready') {
                 pushUpdate();
+                if (_pendingReveal) {
+                    const name = _pendingReveal;
+                    _pendingReveal = undefined;
+                    void _panel?.webview.postMessage({ type: 'select', name });
+                }
                 return;
             }
             if (msg.command === 'sort') {
@@ -1015,6 +1022,21 @@ export function navigateFileListToFolder(folderUri: vscode.Uri): void {
     }
 }
 
+/** Reveal a specific file in the FileList panel, opening it if necessary. */
+export function revealFileInFileList(filePath: string): void {
+    if (!fs.existsSync(filePath)) { return; }
+    const dir  = path.dirname(filePath);
+    const name = path.basename(filePath);
+    if (_panel) {
+        revealFileInPanel(filePath);
+        _panel.reveal(vscode.ViewColumn.One);
+    } else {
+        _pendingReveal = name;
+        _currentDir   = dir;
+        openFileListPanel();
+    }
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   if (_activationDisposables.length > 0) {
     log(FEATURE, 'activate() called while already active; skipping duplicate command registration');
@@ -1025,6 +1047,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('cvs.tools.fileList', openFileListPanel),
     vscode.commands.registerCommand('cvs.tools.fileList.navigateTo', (uri: vscode.Uri) => {
       if (uri && uri.fsPath) { navigateFileListToFolder(uri); }
+    }),
+    vscode.commands.registerCommand('cvs.filelist.revealInFilelist', (uri: vscode.Uri) => {
+      if (uri && uri.fsPath) { revealFileInFileList(uri.fsPath); }
     }),
     vscode.commands.registerCommand('cvs.tools.fileList._debugState', () => ({
       hasPanel: !!_panel,

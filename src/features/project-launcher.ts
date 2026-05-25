@@ -26,6 +26,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
+import { registerLaunchedTerminal } from '../shared/terminal-utils';
 
 const FEATURE = 'project-launcher';
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -156,6 +157,7 @@ function runInTerminal(name: string, command: string, cwd: string): void {
     }
     terminal.show(true);
     terminal.sendText(command);
+    registerLaunchedTerminal(name, { script: command, command, cwd, project: name });
     log(FEATURE, `Launched in terminal "${name}": ${command} (cwd: ${cwd})`);
 }
 

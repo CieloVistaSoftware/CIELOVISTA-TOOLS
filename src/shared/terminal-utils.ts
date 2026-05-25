@@ -141,6 +141,36 @@ export async function openFileAtLine(filePath: string, line?: number): Promise<v
     }
 }
 
+// ── Extension-launched terminal registry ─────────────────────────────────────
+
+export interface LaunchedTerminalInfo {
+    /** Short display name for the script/command (e.g. "test:mcpHealth") */
+    script:  string;
+    /** Full command string sent to the terminal */
+    command: string;
+    /** Working directory */
+    cwd:     string;
+    /** Project or context name for display in bug reports */
+    project: string;
+}
+
+const _launchedTerminals = new Map<string, LaunchedTerminalInfo>();
+
+/** Register a terminal the extension launched so bg-health-runner can monitor its exit code. */
+export function registerLaunchedTerminal(name: string, info: LaunchedTerminalInfo): void {
+    _launchedTerminals.set(name, info);
+}
+
+/** Returns registry info for the given terminal name, or undefined if not extension-launched. */
+export function getLaunchedTerminal(name: string): LaunchedTerminalInfo | undefined {
+    return _launchedTerminals.get(name);
+}
+
+/** Remove a terminal from the registry (call after exit is handled). */
+export function clearLaunchedTerminal(name: string): void {
+    _launchedTerminals.delete(name);
+}
+
 // ─── AppData path helper ─────────────────────────────────────────────────────
 
 /**
