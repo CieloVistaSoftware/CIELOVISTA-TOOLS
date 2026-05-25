@@ -16,7 +16,7 @@
  *  2. deactivate() disposes activeCompPanel
  *  3. package.json contributes cvs.registry.showComponents
  *  4. scan-commands.js --json produces a components array
- *  5. components array has 52 entries
+ *  5. components array has 53 entries
  *  6. Each component has componentId, featureTitle, featureFile, sourceFile
  *  7. Each component has commandCount (number) and commandIds (array)
  *  8. explorer-copy-path-to-chat component is present (README was fixed)
@@ -74,8 +74,8 @@ if (registry) {
     check('scan-commands.js produces a components array',
         Array.isArray(registry.components) && registry.components.length > 0);
 
-    check('components array has 52 entries',
-        registry.components.length === 52);
+    check('components array has 53 entries',
+        registry.components.length === 53);
 
     check('Each component has required fields',
         registry.components.every(c =>
