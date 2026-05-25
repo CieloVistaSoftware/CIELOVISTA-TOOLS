@@ -122,6 +122,34 @@ var filter   = document.getElementById('filter');
 // ── Render ────────────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+var SCRIPT_DESCRIPTIONS = {
+  'compile':              'Bundles TypeScript source via esbuild into out/',
+  'typecheck':            'Type-checks TypeScript without emitting files',
+  'watch':                'Starts TypeScript compiler in watch mode — recompiles on every save',
+  'build':                'Alias for compile',
+  'package':              'Packages the extension into a .vsix file via vsce',
+  'rebuild':              'Full clean + compile + package + install cycle — ⚠ Slow (30–60 sec)',
+  'clean:project':        'Shows what clean:project:apply would delete — dry run, no changes',
+  'clean:project:apply':  '⚠ Deletes all generated/temp files — irreversible without git',
+  'docs:generate':        'Auto-generates feature README stubs from src/features/',
+  'copy:commandhelp':     'Copies CommandHelp .md files into out/ for packaging',
+  'validate:package-json': 'Validates package.json structure and required fields',
+  'test:catalog':         'Runs catalog integrity tests',
+  'test:catalog:no-mutate': 'Runs catalog tests in read-only mode (no file writes)',
+  'test:commands':        'Validates all documented commands exist and are registered',
+  'test:preflight':       'Runs preflight regression checks before committing',
+  'test:regression':      'Runs all regression tests (REG-*.test.js) — aborts if any fail',
+  'test:activation':      'Runs VS Code extension activation tests',
+};
+
+function runBtnTitle(name, cmd) {
+  var desc = SCRIPT_DESCRIPTIONS[name];
+  var lines = [];
+  if (desc) { lines.push(desc); }
+  lines.push('Command: ' + cmd);
+  return lines.join('\n');
+}
+
 function render(entries){
   loading.style.display = 'none';
   content.innerHTML = '';
@@ -157,7 +185,7 @@ function render(entries){
       row.innerHTML =
         '<span class="script-name">' + esc(s.name) + '</span>' +
         '<span class="script-cmd" title="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>' +
-        '<button class="btn-run" data-dir="' + esc(e.absDir) + '" data-script="' + esc(s.name) + '" data-key="' + esc(key) + '">&#9654; Run</button>';
+        '<button class="btn-run" data-dir="' + esc(e.absDir) + '" data-script="' + esc(s.name) + '" data-key="' + esc(key) + '" title="' + esc(runBtnTitle(s.name, s.cmd)) + '">&#9654; Run</button>';
       list.appendChild(row);
     });
 
