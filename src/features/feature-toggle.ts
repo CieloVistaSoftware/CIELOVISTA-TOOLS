@@ -126,6 +126,7 @@ async function setFeatureEnabled(key: string, enabled: boolean): Promise<void> {
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       vscode.commands.registerCommand('cvs.features.configure', async () => {
+        log(FEATURE, 'opening configure panel');
         const panel = vscode.window.createWebviewPanel(
           'cvsFeaturesConfigure',
           'Configure Enabled Features',
@@ -190,9 +191,10 @@ function getFeatureToggleHtml(context: vscode.ExtensionContext): string {
         `).join('')}
       </div>
       <script>
+        // acquireVsCodeApi must be called exactly once per webview lifetime
+        const vscode = acquireVsCodeApi();
         // Request current states from extension
         window.addEventListener('DOMContentLoaded', () => {
-          const vscode = acquireVsCodeApi();
           vscode.postMessage({ type: 'getStates' });
         });
         // Listen for state updates
@@ -209,7 +211,6 @@ function getFeatureToggleHtml(context: vscode.ExtensionContext): string {
           if (e.target && e.target.classList.contains('feature-toggle')) {
             const key = e.target.getAttribute('data-key');
             const enabled = e.target.checked;
-            const vscode = acquireVsCodeApi();
             vscode.postMessage({ type: 'toggle', key, enabled });
           }
         });
