@@ -26,6 +26,7 @@ import { log, logError } from '../shared/output-channel';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { enqueueIssue } from '../shared/claude-notifier';
 import { loadRegistry }  from '../shared/registry';
+import { getLaunchedTerminal, clearLaunchedTerminal } from '../shared/terminal-utils';
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
 import { esc }           from '../shared/webview-utils';
@@ -979,6 +980,38 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
+    );
+
+    // Monitor extension-launched terminals for non-zero exit codes
+    context.subscriptions.push(
+        vscode.window.onDidCloseTerminal(terminal => {
+            const info = getLaunchedTerminal(terminal.name);
+            if (!info) { return; }
+            clearLaunchedTerminal(terminal.name);
+
+            const code = terminal.exitStatus?.code;
+            const bugId = `bug-terminal-${terminal.name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+
+            if (code === undefined || code === 0) {
+                // Success or manual close — clear any prior failure bug
+                clearBug(bugId);
+                saveState();
+                return;
+            }
+
+            addBug({
+                id:             bugId,
+                checkId:        'chk-terminal-exit',
+                title:          `Terminal command failed: ${info.script}`,
+                detail:         `"${terminal.name}" exited with code ${code}. Command: ${info.command}`,
+                recommendation: `Re-run the command and check the terminal output for errors.`,
+                priority:       'high',
+                category:       'Terminal',
+            });
+            saveState();
+            if (_panel) { _panel.webview.postMessage({ type: 'update', state: _state }); }
+            log(FEATURE, `✗ Terminal failed: "${terminal.name}" exit code ${code}`);
+        })
     );
 
     log(FEATURE, `Background runner active — ${CHECKS.length} checks, ${getIntervalMs() / 1000}s interval`);
