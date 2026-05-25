@@ -10,6 +10,7 @@ import * as path from 'path';
 import { log } from '../../shared/output-channel';
 import { loadRegistry } from './registry';
 import { loadArchiveEntries, restoreDoc } from './archive';
+import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
 import { scanForCards, resetCardCounter } from './scanner';
 import { buildProjectDeweyMap, lookupDewey } from './categories';
 import { loadProjectInfo } from './projects';
@@ -86,6 +87,8 @@ function sendCatalogInit(
     const payload = buildCatalogInitPayload(cards, projectInfos, new Date().toLocaleString(), registryEntries);
     const currentProject = getCurrentWorkspaceProjectName(registryEntries);
     void panel.webview.postMessage({ command: 'init', currentProject, ...payload });
+    // Send finished-work list so the section populates on every init.
+    void panel.webview.postMessage({ command: 'load-finished-work', entries: loadFinishedEntries() });
 }
 
 export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] | undefined> {
@@ -388,6 +391,34 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             case 'new-issue': {
                 const { newIssueForProject } = await import('../../shared/github-issues-view');
                 newIssueForProject(msg.project as string | undefined);
+                break;
+            }
+            case 'finish-doc-confirm': {
+                const fp      = msg.data as string;
+                const title   = msg.title as string;
+                const project = msg.project as string;
+                if (fp && title && project) {
+                    markAsFinished(fp, title, project);
+                    log(FEATURE, `Marked as finished: ${fp}`);
+                    void panel.webview.postMessage({ command: 'load-finished-work', entries: loadFinishedEntries() });
+                }
+                break;
+            }
+            case 'restore-finished': {
+                const fp = msg.data as string;
+                if (fp) {
+                    restoreFromFinished(fp);
+                    log(FEATURE, `Restored from finished: ${fp}`);
+                    // Refresh catalog so restored doc appears
+                    clearCachedCards();
+                    const cards = await buildCatalog(true);
+                    if (cards) {
+                        const registry = loadRegistry();
+                        const rEntries = registry?.projects.map(p => ({ name: p.name, path: p.path, type: p.type, description: p.description })) ?? [];
+                        const pInfos   = (registry?.projects ?? []).map(p => loadProjectInfo(p));
+                        sendCatalogInit(panel, cards, pInfos, rEntries);
+                    }
+                }
                 break;
             }
         }

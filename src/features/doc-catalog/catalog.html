@@ -59,6 +59,23 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .btn-demo:hover{background:rgba(99,102,241,0.35);color:#fff}
 .btn-archive{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;background:rgba(220,80,80,0.1);color:var(--vscode-errorForeground,#f85149);border:1px solid rgba(220,80,80,0.25)}
 .btn-archive:hover{background:rgba(220,80,80,0.22)}
+.btn-finish{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;background:rgba(63,185,80,0.1);color:var(--vscode-testing-iconPassed,#3fb950);border:1px solid rgba(63,185,80,0.25)}
+.btn-finish:hover{background:rgba(63,185,80,0.22)}
+.finished-section{margin:20px 0 8px;border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:hidden}
+.finished-section-hd{padding:8px 14px;background:var(--vscode-textCodeBlock-background);display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.finished-section-hd:hover{background:var(--vscode-list-hoverBackground)}
+.finished-section-hd-title{font-weight:700;font-size:12px;color:var(--vscode-testing-iconPassed,#3fb950)}
+.finished-section-hd-count{font-size:11px;color:var(--vscode-descriptionForeground)}
+.finished-section-hd-toggle{margin-left:auto;font-size:11px;color:var(--vscode-descriptionForeground)}
+.finished-section-body{display:none;padding:10px 14px}
+.finished-section-body.open{display:block}
+.finished-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--vscode-panel-border);font-size:11px}
+.finished-row:last-child{border-bottom:none}
+.finished-row-proj{color:var(--vscode-descriptionForeground);font-size:10px;white-space:nowrap}
+.finished-row-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--vscode-editor-foreground)}
+.finished-row-date{font-size:10px;color:var(--vscode-descriptionForeground);white-space:nowrap}
+.btn-restore{border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:10px;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);white-space:nowrap}
+.btn-restore:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .btn-run{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(63,185,80,0.15);color:#3fb950;border:1px solid rgba(63,185,80,0.35)}
 .btn-run:hover{background:rgba(63,185,80,0.3);color:#fff}
 mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
@@ -79,6 +96,14 @@ mark.search-match{background:#ffe066;color:#1a1a00;border-radius:2px}
   <span id="stat-bar"></span>
 </div>
 <div id="catalog"></div>
+<div id="finished-section" class="finished-section" style="display:none">
+  <div class="finished-section-hd" id="finished-section-hd">
+    <span class="finished-section-hd-title">✅ Finished Work</span>
+    <span class="finished-section-hd-count" id="finished-count"></span>
+    <span class="finished-section-hd-toggle" id="finished-toggle">▶ Show</span>
+  </div>
+  <div class="finished-section-body" id="finished-section-body"></div>
+</div>
 <div id="clipboard-toast"></div>
 
 <script>
@@ -91,6 +116,24 @@ var vscode = acquireVsCodeApi();
 window.addEventListener('message', function(ev) {
     var msg = ev.data;
     if (!msg) { return; }
+    if (msg.command === 'load-finished-work') {
+        var entries = msg.entries || [];
+        var sec = document.getElementById('finished-section');
+        var body = document.getElementById('finished-section-body');
+        var cnt  = document.getElementById('finished-count');
+        if (!entries.length) { sec.style.display = 'none'; return; }
+        sec.style.display = 'block';
+        cnt.textContent = entries.length + ' item' + (entries.length === 1 ? '' : 's');
+        body.innerHTML = entries.map(function(e) {
+            return '<div class="finished-row">' +
+                '<span class="finished-row-proj">' + esc(e.projectName || '') + '</span>' +
+                '<span class="finished-row-title" title="' + esc(e.filePath || '') + '">' + esc(e.title || e.filePath || '') + '</span>' +
+                '<span class="finished-row-date">' + esc(e.finishedAt || '') + '</span>' +
+                '<button class="btn-restore" data-action="restore-finished" data-path="' + esc(e.filePath || '') + '" title="Restore to active catalog">↩ Restore</button>' +
+                '</div>';
+        }).join('');
+        return;
+    }
     if (msg.command === 'remove-card') {
         var fp = msg.filePath;
         if (!fp) { return; }
@@ -460,7 +503,42 @@ document.addEventListener('click', function(e) {
             vscode.postMessage({ command: 'archive-doc-confirm', data: btn.dataset.path, title: btn.dataset.title, project: btn.dataset.project });
         }
     }
+    else if (a === 'finish-doc') {
+        var fcard = btn.closest('.card');
+        if (fcard) {
+            var finishPath = _getCardPath(fcard);
+            if (finishPath) { _selectedPaths.delete(finishPath); }
+            fcard.remove();
+            document.querySelectorAll('.cat-section').forEach(function(s) {
+                if (!s.querySelector('.card:not(.hidden)')) { s.classList.add('hidden'); }
+            });
+            _totalCards = Math.max(0, _totalCards - 1);
+            document.getElementById('stat-bar').textContent =
+                _totalCards + ' docs \xb7 ' + _totalCats + ' categories \xb7 ' + _totalProjects + ' projects';
+            vscode.postMessage({ command: 'finish-doc-confirm', data: btn.dataset.path, title: btn.dataset.title, project: btn.dataset.project });
+        }
+    }
+    else if (a === 'restore-finished') {
+        vscode.postMessage({ command: 'restore-finished', data: btn.dataset.path });
+        var row = btn.closest('.finished-row');
+        if (row) { row.remove(); }
+        var remaining = document.querySelectorAll('#finished-section-body .finished-row').length;
+        document.getElementById('finished-count').textContent = remaining + ' item' + (remaining === 1 ? '' : 's');
+        if (!remaining) { document.getElementById('finished-section').style.display = 'none'; }
+    }
 });
+
+/* Finished Work section toggle. */
+var finishedHd = document.getElementById('finished-section-hd');
+if (finishedHd) {
+    finishedHd.addEventListener('click', function() {
+        var body   = document.getElementById('finished-section-body');
+        var toggle = document.getElementById('finished-toggle');
+        if (!body) { return; }
+        var open = body.classList.toggle('open');
+        if (toggle) { toggle.textContent = open ? '▼ Hide' : '▶ Show'; }
+    });
+}
 
 })();
 </script>

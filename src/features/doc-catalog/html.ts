@@ -89,6 +89,7 @@ export function buildCatalogInitPayload(
             const runBtn = commandId
                 ? `<button class="btn-run" data-action="run-command" data-command-id="${esc(commandId)}" title="Run: ${esc(catEntry!.title)}">&#9654; Run</button>`
                 : '';
+            const finishBtn = `<button class="btn-finish" data-action="finish-doc" data-path="${esc(card.filePath)}" data-title="${esc(card.title)}" data-project="${esc(card.projectName)}" title="Mark as finished — moves to Finished Work queue">&#9989; Done</button>`;
 
             return `<article class="card"
   data-id="${esc(card.id)}"
@@ -122,6 +123,7 @@ export function buildCatalogInitPayload(
       <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
       ${demoBtn}
       ${runBtn}
+      ${finishBtn}
     </div>
   </div>
 </article>`;
