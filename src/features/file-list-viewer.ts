@@ -240,7 +240,10 @@ function readDirEntries(dir: string): FileListEntry[] {
         catch { continue; /* broken symlink or perms — skip */ }
 
         const isDir = st.isDirectory();
-        const ext   = isDir ? 'dir' : (path.extname(name).slice(1) || 'no-ext');
+        // For dotfiles (.gitignore, .editorconfig etc.) path.extname returns '' —
+        // use the part after the leading dot as the type instead of 'no-ext' (#504)
+        const _rawExt = path.extname(name).slice(1);
+        const ext     = isDir ? 'dir' : (_rawExt || (name.startsWith('.') ? name.slice(1) : 'no-ext'));
         result.push({
             name,
             isDir,
