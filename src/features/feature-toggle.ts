@@ -86,6 +86,7 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     { key: 'registryPromote',        label: 'Registry: Promote Folder to Product',   description: 'Right-click folder -> register as CieloVista product' },
     { key: 'codeAuditor',            label: 'Code Auditor',                           description: 'Scan for duplicate code clusters and abstraction opportunities' },
     { key: 'linkIntegrityChecker',   label: 'Link Integrity Checker',                 description: 'Scan .md docs for broken links, missing files, dead anchors' },
+    { key: 'commandValidator',       label: 'Command Validator',                      description: 'Validate and sync command IDs across READMEs, package.json, and registerCommand() calls' },
 ];
 
 // ─── Settings helpers ─────────────────────────────────────────────────────

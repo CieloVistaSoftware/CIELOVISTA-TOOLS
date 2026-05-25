@@ -735,6 +735,24 @@
         "description": "Scan all .md docs for broken command links, missing file references, dead anchors, and unreachable external URLs."
       },
       {
+        "command": "cvs.commands.validate",
+        "title": "Tools: Validate Commands",
+        "category": "CieloVista",
+        "description": "Verify every documented command ID in feature READMEs exists in package.json and has a registerCommand() call."
+      },
+      {
+        "command": "cvs.commands.syncTags",
+        "title": "Tools: Sync Command Tags (Apply)",
+        "category": "CieloVista",
+        "description": "Merge command IDs from feature README Commands tables into frontmatter tags. Idempotent — never removes existing tags."
+      },
+      {
+        "command": "cvs.commands.syncTagsDry",
+        "title": "Tools: Sync Command Tags (Dry Run)",
+        "category": "CieloVista",
+        "description": "Preview which command IDs would be added to frontmatter tags — no files written."
+      },
+      {
         "command": "cvs.tools.cleanWorktrees",
         "title": "Tools: Clean Claude Worktrees",
         "category": "CieloVista",
@@ -1114,6 +1132,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable the Link Integrity Checker — scans .md docs for broken command links, missing file references, dead anchors, and unreachable URLs."
+        },
+        "cielovistaTools.features.commandValidator": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Command Validator — validates and syncs command IDs across feature READMEs, package.json, and registerCommand() calls."
         },
         "cielovista-tools.debug.enabled": {
           "type": "boolean",

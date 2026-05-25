@@ -60,6 +60,7 @@ import { activate as diskCleanupDashboardActivate, deactivate as diskCleanupDash
 import { activate as runningTasksActivate,         deactivate as runningTasksDeactivate           } from './features/running-tasks';
 import { activate as notifyServerActivate,         deactivate as notifyServerDeactivate           } from './features/notify-server';
 import { activate as linkIntegrityActivate,        deactivate as linkIntegrityDeactivate          } from './features/link-integrity-checker';
+import { activate as commandValidatorActivate,     deactivate as commandValidatorDeactivate       } from './features/command-validator';
 import { activate as commandRegistryActivate,      deactivate as commandRegistryDeactivate        } from './features/command-registry-viewer';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
@@ -160,6 +161,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('diskCleanupDashboard',    'DiskCleanUp Dashboard',               diskCleanupDashboardActivate,    context);
     activateIfEnabled('runningTasks',            'Running Tasks',                       runningTasksActivate,            context);
     activateIfEnabled('linkIntegrityChecker',   'Link Integrity Checker',              linkIntegrityActivate,           context);
+    activateIfEnabled('commandValidator',       'Command Validator',                   commandValidatorActivate,         context);
     worktreeCleanerActivate(context);
 
     context.subscriptions.push(
@@ -222,6 +224,7 @@ export function deactivate(): void {
     runningTasksDeactivate();
     notifyServerDeactivate();
     linkIntegrityDeactivate();
+    commandValidatorDeactivate();
     commandRegistryDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
