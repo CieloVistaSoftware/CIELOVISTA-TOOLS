@@ -96,6 +96,15 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone home-page — vscode external, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/home-page.ts'],
+    outfile:     'out/features/home-page.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
 }
 
 async function buildMcpServer() {

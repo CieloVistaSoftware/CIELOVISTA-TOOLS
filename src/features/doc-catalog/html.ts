@@ -114,7 +114,7 @@ export function buildCatalogInitPayload(
   <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(card.title)}</div>
   <button class="card-proj-path-link" data-action="open-project-folder" data-proj-path="${esc(card.projectPath)}" title="Open project folder: ${esc(card.projectPath)}">${esc(card.projectPath)}</button>
   <div class="card-desc">${esc(card.description)}</div>
-  <div class="card-path" title="${esc(card.filePath)}">${esc(relPath)}</div>
+  <div class="card-path"><span class="card-path-link" data-action="open" data-path="${esc(card.filePath)}" title="${esc(card.filePath)}">${esc(relPath)}</span></div>
   <div class="card-tags">${tagsHtml}</div>
   <div class="card-footer">
     <span class="card-size">${(card.sizeBytes / 1024).toFixed(1)} KB</span>
