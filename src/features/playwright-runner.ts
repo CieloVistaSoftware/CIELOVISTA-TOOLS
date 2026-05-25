@@ -183,10 +183,11 @@ async function runPlaywrightTests(): Promise<void> {
     }
     const wsPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
     const testFiles = await vscode.window.showOpenDialog({
+        title: 'Select Playwright test files to run (*.spec.ts / *.test.ts)',
         canSelectFiles: true,
         canSelectFolders: false,
         canSelectMany: true,
-        openLabel: 'Select Playwright Test Files',
+        openLabel: 'Run Selected Tests',
         filters: { 'Playwright Tests': ['spec.ts', 'test.ts'] },
         defaultUri: vscode.Uri.file(path.join(wsPath, 'tests'))
     });
@@ -199,7 +200,11 @@ async function runPlaywrightTests(): Promise<void> {
     postToPanel({ type: 'start' });
     pwOutput = '';
 
-    const args = ['test', '--headed', ...testFiles.map(f => f.fsPath)];
+    // Playwright expects relative paths (forward-slash) from the project root —
+    // absolute Windows paths with backslashes are treated as regex and never match.
+    const args = ['test', '--headed', ...testFiles.map(f =>
+        path.relative(wsPath, f.fsPath).replace(/\\/g, '/')
+    )];
     pwProcess = spawn('npx', ['playwright', ...args], { cwd: wsPath, shell: true });
     log(FEATURE, 'Started Playwright tests in headed mode.');
 
