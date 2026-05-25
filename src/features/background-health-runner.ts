@@ -22,6 +22,7 @@ import * as fs     from 'fs';
 import * as https  from 'https';
 import * as net    from 'net';
 import * as path   from 'path';
+import { spawn }   from 'child_process';
 import { log, logError } from '../shared/output-channel';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { enqueueIssue } from '../shared/claude-notifier';
@@ -45,7 +46,9 @@ const FEATURE    = 'bg-health-runner';
 const DATA_DIR   = path.join(__dirname, '..', 'data');
 const HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
 // Default gap between checks — overridden by cvs.bgHealthRunner.intervalSeconds setting
-const CHECK_GAP_DEFAULT_S = 30;
+const CHECK_GAP_DEFAULT_S    = 30;
+const TEST_RUN_INTERVAL_MS   = 60 * 60 * 1000; // 1 hour between full suite runs
+const TEST_FIRST_DELAY_MS    = 2 * 60 * 1000;  // first run 2 min after activation
 
 export interface HealthBug {
     id:          string;
@@ -79,6 +82,8 @@ let _state: HealthState = {
 let _timer: NodeJS.Timeout | undefined;
 let _running = false;
 let _panel: vscode.WebviewPanel | undefined;
+let _testRunTimer: NodeJS.Timeout | undefined;
+let _testRunInProgress = false;
 
 // Last logged pass/fail per check — used to emit delta-only output
 const _checkStatus = new Map<string, 'pass' | 'fail'>();
@@ -829,12 +834,94 @@ ${JS}
 </body></html>`;
 }
 
+// ── Hourly regression test runner ────────────────────────────────────────────
+
+function _stripAnsi(s: string): string {
+    return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+function runRegressionTests(): void {
+    if (_testRunInProgress) { return; }
+    _testRunInProgress = true;
+
+    const extensionRoot = path.join(__dirname, '..');
+    const scriptPath    = path.join(extensionRoot, 'scripts', 'run-regression-tests.js');
+
+    if (!fs.existsSync(scriptPath)) {
+        log(FEATURE, '⚠ run-regression-tests.js not found — skipping hourly test run');
+        _testRunInProgress = false;
+        return;
+    }
+
+    log(FEATURE, '▶ Hourly regression run starting...');
+    const lines: string[] = [];
+
+    const proc = spawn('node', [scriptPath], { cwd: extensionRoot, stdio: 'pipe' });
+
+    const collect = (chunk: Buffer) => {
+        for (const line of chunk.toString().split('\n')) {
+            const clean = _stripAnsi(line).trim();
+            if (clean) { lines.push(clean); }
+        }
+    };
+    proc.stdout.on('data', collect);
+    proc.stderr.on('data', collect);
+
+    proc.on('error', (err: Error) => {
+        _testRunInProgress = false;
+        logError('Regression runner failed to start', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+    });
+
+    proc.on('close', (code: number | null) => {
+        _testRunInProgress = false;
+        const failed = code !== 0;
+
+        if (failed) {
+            const failLines = lines
+                .filter(l => /✗|FAIL(?:ED)?/.test(l))
+                .slice(0, 8);
+            const detail = failLines.length > 0
+                ? failLines.join('\n')
+                : 'Check the CieloVista Tools output channel for full output.';
+            addBug({
+                id:             'bug-regression-tests',
+                checkId:        'chk-regression-tests',
+                title:          'Regression tests failing',
+                detail:         detail.slice(0, 600),
+                priority:       'high',
+                category:       'Quality',
+                recommendation: 'Run node scripts/run-regression-tests.js and fix the failing tests.',
+            });
+            log(FEATURE, `✗ Regression suite (exit ${code ?? '?'}) — ${failLines.length} failure line(s) detected`);
+        } else {
+            clearBug('bug-regression-tests');
+            const summary = lines.find(l => /All \d+ regression/.test(l)) ?? 'all tests passed';
+            log(FEATURE, `✓ Regression suite: ${summary}`);
+        }
+
+        saveState();
+        if (_panel) { _panel.webview.postMessage({ type: 'update', state: _state }); }
+    });
+}
+
+function scheduleTestRun(delayMs: number): void {
+    _testRunTimer = setTimeout(() => {
+        if (!_running) { return; }
+        runRegressionTests();
+        scheduleTestRun(TEST_RUN_INTERVAL_MS);
+    }, delayMs);
+}
+
 function stopRunner(): void {
     if (_running) {
         _running = false;
         if (_timer) {
             clearTimeout(_timer);
             _timer = undefined;
+        }
+        if (_testRunTimer) {
+            clearTimeout(_testRunTimer);
+            _testRunTimer = undefined;
         }
         log(FEATURE, 'Background health runner stopped by user.');
         if (_panel) {
@@ -973,6 +1060,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Start the first check after a short delay so activation isn't blocked
     _timer = setTimeout(runNextCheck, 5000);
+    // Schedule the first regression run 2 min after startup, then every hour
+    scheduleTestRun(TEST_FIRST_DELAY_MS);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
