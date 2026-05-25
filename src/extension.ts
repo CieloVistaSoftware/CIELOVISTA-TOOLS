@@ -59,6 +59,7 @@ import { activate as playwrightRunnerActivate, deactivate as playwrightRunnerDea
 import { activate as diskCleanupDashboardActivate, deactivate as diskCleanupDashboardDeactivate } from './features/disk-cleanup-dashboard';
 import { activate as runningTasksActivate,         deactivate as runningTasksDeactivate           } from './features/running-tasks';
 import { activate as notifyServerActivate,         deactivate as notifyServerDeactivate           } from './features/notify-server';
+import { activate as linkIntegrityActivate,        deactivate as linkIntegrityDeactivate          } from './features/link-integrity-checker';
 import { activate as commandRegistryActivate,      deactivate as commandRegistryDeactivate        } from './features/command-registry-viewer';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
@@ -158,6 +159,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('playwrightRunner',        'Playwright Runner',                   playwrightRunnerActivate,        context);
     activateIfEnabled('diskCleanupDashboard',    'DiskCleanUp Dashboard',               diskCleanupDashboardActivate,    context);
     activateIfEnabled('runningTasks',            'Running Tasks',                       runningTasksActivate,            context);
+    activateIfEnabled('linkIntegrityChecker',   'Link Integrity Checker',              linkIntegrityActivate,           context);
     worktreeCleanerActivate(context);
 
     context.subscriptions.push(
@@ -219,6 +221,7 @@ export function deactivate(): void {
     diskCleanupDashboardDeactivate();
     runningTasksDeactivate();
     notifyServerDeactivate();
+    linkIntegrityDeactivate();
     commandRegistryDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
