@@ -25,6 +25,18 @@ const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
 
+const _DISKCLEANUP_ROOT = 'C:\\Users\\jwpmi\\source\\repos\\DiskCleanUp';
+const _DISKCLEANUP_SVC  = path.join(_DISKCLEANUP_ROOT, 'DiskCleanUp.Service');
+const _SNAPIT_ROOT      = 'C:\\Users\\jwpmi\\source\\repos\\SnapIt';
+const _SNAPIT_SVC       = path.join(_SNAPIT_ROOT, 'SnapIt.Service');
+const _SNAPIT_TRAY      = path.join(_SNAPIT_ROOT, 'SnapIt.Tray');
+
+function _launchInTerminal(name: string, cmd: string, cwd?: string): void {
+    const term = vscode.window.createTerminal({ name, cwd });
+    term.show();
+    term.sendText(cmd);
+}
+
 function normalizeWorkspaceDisplayName(name: string): string {
     const raw = String(name ?? '').trim();
     if (!raw) { return 'CieloVista Tools'; }
@@ -597,6 +609,23 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.mcp.startServer', async () => {
             if (getMcpServerStatus() === 'up') { stopMcpServer(); } else { startMcpServer(); }
         }),
+        vscode.commands.registerCommand('cvs.launch.pick', async () => {
+            const launchCmds = CATALOG.filter(c => c.id.startsWith('cvs.launch.') && c.id !== 'cvs.launch.pick');
+            const picked = await vscode.window.showQuickPick(
+                launchCmds.map(c => ({ label: c.title, description: c.description ?? '', id: c.id })),
+                { placeHolder: 'Pick a project action to run' }
+            );
+            if (picked) { await vscode.commands.executeCommand(picked.id); }
+        }),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.start',   () => _launchInTerminal('DiskCleanUp',         'dotnet run',                                                                                                                                          _DISKCLEANUP_SVC)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.console', () => _launchInTerminal('DiskCleanUp Console', 'dotnet run --environment Console',                                                                                                                   _DISKCLEANUP_SVC)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.build',   () => _launchInTerminal('DiskCleanUp Build',   'dotnet build DiskCleanUp.sln',                                                                                                                       _DISKCLEANUP_ROOT)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.stop',    () => _launchInTerminal('DiskCleanUp Stop',    'Stop-Process -Id (Get-NetTCPConnection -LocalPort 5100 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host "Port 5100 freed"')),
+        vscode.commands.registerCommand('cvs.launch.snapit.start',        () => _launchInTerminal('SnapIt Service',      'dotnet run',                                                                                                                                          _SNAPIT_SVC)),
+        vscode.commands.registerCommand('cvs.launch.snapit.tray',         () => _launchInTerminal('SnapIt Tray',         'dotnet run',                                                                                                                                          _SNAPIT_TRAY)),
+        vscode.commands.registerCommand('cvs.launch.snapit.rebuild',      () => _launchInTerminal('SnapIt Rebuild',      'dotnet build && dotnet run',                                                                                                                          _SNAPIT_TRAY)),
+        vscode.commands.registerCommand('cvs.launch.snapit.build',        () => _launchInTerminal('SnapIt Build',        'dotnet build',                                                                                                                                        _SNAPIT_ROOT)),
+        vscode.commands.registerCommand('cvs.launch.snapit.stop',         () => _launchInTerminal('SnapIt Stop',         'Stop-Process -Id (Get-NetTCPConnection -LocalPort 5200 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host "Port 5200 freed"')),
     );
     _statusBar = vscode.window.createStatusBarItem('cielovista.cvsCmds', vscode.StatusBarAlignment.Left, 100);
     _statusBar.name    = 'CieloVista CVS Commands';

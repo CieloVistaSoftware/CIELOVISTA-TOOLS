@@ -556,25 +556,6 @@ const CHECKS: Check[] = [
         }
     },
 
-    {
-        id: 'chk-workspace-open',
-        name: 'Workspace is open',
-        async run() {
-            if (!vscode.workspace.workspaceFolders?.length) {
-                addBug({
-                    id: 'bug-no-workspace',
-                    checkId: 'chk-workspace-open',
-                    title: 'No workspace folder open',
-                    detail: 'Many CieloVista Tools commands require an open workspace folder.',
-                    priority: 'medium',
-                    category: 'Environment',
-                });
-            } else {
-                clearBug('bug-no-workspace');
-            }
-        }
-    },
-
 ];
 
 // ── Runner loop ───────────────────────────────────────────────────────────────

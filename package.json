@@ -588,61 +588,61 @@
       },
       {
         "command": "cvs.launch.pick",
-        "title": "Launch: Pick Any Project Action",
+        "title": "Pick Any Project Action",
         "category": "CieloVista Launch",
         "description": "Pick and run any project action from a quick pick menu."
       },
       {
         "command": "cvs.launch.snapit.start",
-        "title": "Launch: SnapIt — Start Service",
+        "title": "SnapIt — Start Service",
         "category": "CieloVista Launch",
         "description": "Start the SnapIt service for project screenshots."
       },
       {
         "command": "cvs.launch.snapit.tray",
-        "title": "Launch: SnapIt — Launch Tray",
+        "title": "SnapIt — Launch Tray",
         "category": "CieloVista Launch",
         "description": "Launch the SnapIt tray application."
       },
       {
         "command": "cvs.launch.snapit.rebuild",
-        "title": "Launch: SnapIt — Rebuild + Launch Tray",
+        "title": "SnapIt — Rebuild + Launch Tray",
         "category": "CieloVista Launch",
         "description": "Rebuild and launch the SnapIt tray application."
       },
       {
         "command": "cvs.launch.snapit.build",
-        "title": "Launch: SnapIt — Build",
+        "title": "SnapIt — Build",
         "category": "CieloVista Launch",
         "description": "Build the SnapIt tray application."
       },
       {
         "command": "cvs.launch.snapit.stop",
-        "title": "Launch: SnapIt — Stop (kill port 5200)",
+        "title": "SnapIt — Stop (kill port 5200)",
         "category": "CieloVista Launch",
         "description": "Stop the SnapIt service and free port 5200."
       },
       {
         "command": "cvs.launch.diskcleanup.start",
-        "title": "Launch: DiskCleanUp — Start Service",
+        "title": "DiskCleanUp — Start Service",
         "category": "CieloVista Launch",
-        "description": "Start the DiskCleanUp service for project maintenance."
+        "description": "Start the DiskCleanUp service."
       },
       {
         "command": "cvs.launch.diskcleanup.console",
-        "title": "Launch: DiskCleanUp — Console Mode",
+        "title": "DiskCleanUp — Console Mode",
         "category": "CieloVista Launch",
         "description": "Launch DiskCleanUp in console mode."
       },
       {
         "command": "cvs.launch.diskcleanup.build",
-        "title": "Launch: DiskCleanUp — Build",
+        "title": "DiskCleanUp — Build",
         "category": "CieloVista Launch",
         "description": "Build the DiskCleanUp application."
       },
       {
         "command": "cvs.launch.diskcleanup.stop",
-        "title": "Launch: DiskCleanUp — Stop (kill port 5100)",
+        "title": "DiskCleanUp — Stop (kill port 5100)",
         "category": "CieloVista Launch",
         "description": "Stop the DiskCleanUp service and free port 5100."
       },
@@ -901,7 +901,17 @@
         {
           "command": "cvs.config.edit",
           "when": "true"
-        }
+        },
+        { "command": "cvs.launch.pick",                "when": "false" },
+        { "command": "cvs.launch.snapit.start",        "when": "false" },
+        { "command": "cvs.launch.snapit.tray",         "when": "false" },
+        { "command": "cvs.launch.snapit.rebuild",      "when": "false" },
+        { "command": "cvs.launch.snapit.build",        "when": "false" },
+        { "command": "cvs.launch.snapit.stop",         "when": "false" },
+        { "command": "cvs.launch.diskcleanup.start",   "when": "false" },
+        { "command": "cvs.launch.diskcleanup.console", "when": "false" },
+        { "command": "cvs.launch.diskcleanup.build",   "when": "false" },
+        { "command": "cvs.launch.diskcleanup.stop",    "when": "false" }
       ]
     },
     "keybindings": [

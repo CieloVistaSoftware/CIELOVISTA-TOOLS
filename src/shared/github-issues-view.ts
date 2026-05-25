@@ -260,7 +260,7 @@ async function startWorkOnIssue(number: number, title: string, panel: vscode.Web
     try {
         const labelsOut = await runGh(['issue', 'view', String(number),
             '--repo', `${currentRepo.owner}/${currentRepo.name}`,
-            '--json', 'labels', '--jq', '.labels[].name']);
+            '--json', 'labels', '--jq', '.labels | .[].name']);
         const labelNames = labelsOut.split('\n').map((l) => l.trim());
         const isFeat = labelNames.some((l) => l === 'enhancement' || l === 'feature');
         const prefix = isFeat ? 'feat' : 'fix';
