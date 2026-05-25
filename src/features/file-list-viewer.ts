@@ -356,6 +356,14 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
 #ctx-menu{display:none;position:fixed;background:var(--vscode-menu-background,#252526);border:1px solid rgba(255,255,255,.15);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:100;min-width:160px;padding:4px 0}
 #ctx-menu button{display:block;width:100%;text-align:left;background:transparent;border:none;padding:6px 14px;font-family:inherit;font-size:13px;color:var(--vscode-menu-foreground,#cccccc);cursor:pointer}
 #ctx-menu button:hover{background:var(--vscode-list-activeSelectionBackground,#094771);color:var(--vscode-list-activeSelectionForeground,#fff)}
+#search-bar{display:flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+#search-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:3px 8px;font-family:inherit;font-size:12px;color:inherit;outline:none}
+#search-input:focus{border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.06)}
+#search-input::placeholder{color:#666}
+#search-clear{background:transparent;border:none;color:#858585;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;display:none}
+#search-clear:hover{color:#d4d4d4}
+#search-count{font-size:11px;color:#858585;white-space:nowrap}
+tr.search-hidden{display:none}
 </style></head><body>
 <div id="hdr">
   <button id="up-btn" title="Go to parent folder" ${upDisabled}>\u2191 Up</button>
@@ -376,6 +384,11 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
   <button id="ctx-run" style="display:none">▶ Run</button>
   <div id="ctx-sep" style="border-top:1px solid rgba(255,255,255,.1);margin:4px 0"></div>
   <button id="ctx-run-test" style="display:none">▶ Run Test</button>
+</div>
+<div id="search-bar">
+  <input id="search-input" type="text" placeholder="Search files and folders…" autocomplete="off" spellcheck="false">
+  <button id="search-clear" title="Clear search">&times;</button>
+  <span id="search-count"></span>
 </div>
 <div id="tbl-wrap">
   <table id="tbl">
@@ -439,6 +452,7 @@ function render(){
       '<td class="col-size">' + (e.isDir ? '' : esc(fmtSize(e.size))) + '</td>';
     tbody.appendChild(tr);
   }
+  if(window.__applySearch){ window.__applySearch(); }
 }
 
 function setSelected(names) {
@@ -448,6 +462,42 @@ function setSelected(names) {
 }
 
 render();
+
+// ── Live search / filter ──────────────────────────────────────────────────────
+(function(){
+  var searchInput = document.getElementById('search-input');
+  if (!searchInput) { return; } // guard: not present in test / minimal DOM
+  var searchClear = document.getElementById('search-clear');
+  var searchCount = document.getElementById('search-count');
+
+  function applySearch() {
+    var q = searchInput.value.toLowerCase().trim();
+    searchClear.style.display = q ? 'block' : 'none';
+    var rows = document.querySelectorAll('#tbody tr');
+    var visible = 0;
+    rows.forEach(function(row) {
+      var name = (row.dataset.name || '').toLowerCase();
+      var match = !q || name.includes(q);
+      row.classList.toggle('search-hidden', !match);
+      if (match) { visible++; }
+    });
+    if (q) {
+      searchCount.textContent = visible + ' of ' + rows.length + ' shown';
+    } else {
+      searchCount.textContent = '';
+    }
+  }
+
+  searchInput.addEventListener('input', applySearch);
+  searchClear.addEventListener('click', function() {
+    searchInput.value = '';
+    applySearch();
+    searchInput.focus();
+  });
+
+  // Re-apply after every render so filter persists across directory changes
+  window.__applySearch = applySearch;
+})();
 
 function selectRange(toName) {
   const entries = state.entries || [];
