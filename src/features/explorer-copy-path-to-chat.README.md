@@ -1,6 +1,6 @@
 ---
 docid: 150.1.explorer-copy-path-to-chat-readme
-id: explorer-copy-path-to-copilot-chat
+id: explorer-copy-path-to-chat
 title: Explorer Copy Path to Copilot Chat
 project: cielovista-tools
 description: Add an Explorer context-menu command for files that sends the selected file's absolute path into the GitHub Copilot Chat input.
