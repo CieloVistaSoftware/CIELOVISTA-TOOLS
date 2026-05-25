@@ -409,11 +409,42 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 async function showFixDiff(report: ReadmeReport): Promise<void> {
     const before = fs.readFileSync(report.filePath, 'utf8');
-    const after  = applyFix(report);
+    let   after  = applyFix(report);
 
     if (before === after) {
         vscode.window.showInformationMessage(`No changes needed for ${report.fileName}.`);
         return;
+    }
+
+    // If the fix introduced _TODO: stubs, replace them with AI-generated content
+    // from the companion source file (same base name, .ts or .js extension).
+    if (after.includes('_TODO:') || after.includes('# TODO')) {
+        _panel?.webview.postMessage({ type: 'progress', text: `Generating content for ${report.fileName}… 10–20s` });
+        const srcDir     = path.dirname(report.filePath);
+        const srcBase    = path.basename(report.filePath).replace(/\.README\.md$/i, '').replace(/\.md$/i, '');
+        const srcTs      = path.join(srcDir, srcBase + '.ts');
+        const srcJs      = path.join(srcDir, srcBase + '.js');
+        const srcPath    = fs.existsSync(srcTs) ? srcTs : fs.existsSync(srcJs) ? srcJs : null;
+        const srcContent = srcPath
+            ? (() => { try { return fs.readFileSync(srcPath, 'utf8').slice(0, 4000); } catch { return ''; } })()
+            : '';
+        const issueList  = report.issues.map(i => `- ${i.message}`).join('\n');
+        const prompt =
+`You are filling in a ${report.readmeType} README.md for a CieloVista Software project.
+The structural skeleton has already been applied. Replace every _TODO: placeholder with real, specific content.
+${srcContent ? `Source file (${path.basename(srcPath!)}): use this as primary context for accurate section content.\n---\n${srcContent}\n---\n` : ''}Compliance issues:\n${issueList}
+Fixed README with stubs:\n---\n${after.slice(0, 5000)}\n---
+Rules:
+- Replace every _TODO: stub with concise, accurate content derived from the source file
+- Keep all existing valid content — do not remove sections or headings
+- Keep the file under ${LINE_LIMITS[report.readmeType]} lines
+- Output ONLY the final markdown, no preamble, no commentary`;
+        try {
+            const aiContent = await callClaude(prompt, 2000);
+            if (aiContent && aiContent.trim().length > 50) { after = aiContent; }
+        } catch (err) {
+            log(FEATURE, `AI stub fill skipped for ${report.fileName}: ${err}`);
+        }
     }
 
     // Use jsdiff (npm devDependency) to build the unified diff string

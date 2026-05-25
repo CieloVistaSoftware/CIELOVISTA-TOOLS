@@ -1005,8 +1005,9 @@ function selectTab(endpoint){
   if (endpoint === 'list_projects') {
     runEndpoint(null);
   } else if (endpoint === 'get_catalog') {
-    /* No query required for get_catalog — run empty. */
-    runEndpoint(null);
+    /* Respect any filter already set by loadProjectOptions (e.g. from openProjectCatalog). */
+    var initFilter = (pEl && pEl.value || '').trim();
+    runEndpoint(initFilter ? { projectName: initFilter } : null);
   } else if (endpoint === 'list_doc_violations') {
     /* No query required — run full scanner by default. */
     runEndpoint(null);
