@@ -213,6 +213,8 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void openLocalFixPath(String((msg as { relativePath?: string }).relativePath));
         } else if (msg.type === 'newIssue') {
             void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/new`));
+        } else if (msg.type === 'startWork' && msg.number) {
+            void startWorkOnIssue(msg.number, String((msg as { title?: string }).title || ''), panel);
         }
     });
 
@@ -233,6 +235,49 @@ async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<v
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         void vscode.window.showErrorMessage(`Failed to claim issue #${number}: ${msg}`);
+    }
+}
+
+// ─── Start Work ──────────────────────────────────────────────────────────────
+
+function slugify(title: string): string {
+    return title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40);
+}
+
+async function startWorkOnIssue(number: number, title: string, panel: vscode.WebviewPanel): Promise<void> {
+    const runGh = (args: string[]) => new Promise<string>((resolve, reject) => {
+        execFile('gh', args, { shell: true, timeout: 10000 }, (err, stdout) => err ? reject(err) : resolve(stdout.trim()));
+    });
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+    const runGit = (args: string[]) => new Promise<void>((resolve, reject) => {
+        execFile('git', args, { shell: true, cwd: root, timeout: 10000 }, (err) => err ? reject(err) : resolve());
+    });
+
+    try {
+        const labelsOut = await runGh(['issue', 'view', String(number),
+            '--repo', `${currentRepo.owner}/${currentRepo.name}`,
+            '--json', 'labels', '--jq', '.labels[].name']);
+        const labelNames = labelsOut.split('\n').map((l) => l.trim());
+        const isFeat = labelNames.some((l) => l === 'enhancement' || l === 'feature');
+        const prefix = isFeat ? 'feat' : 'fix';
+        const branch = `${prefix}/${number}-${slugify(title)}`;
+
+        await runGh(['issue', 'edit', String(number),
+            '--add-label', 'priority:1',
+            '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
+        await runGit(['checkout', '-b', branch]);
+
+        void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/${number}`));
+        panel.webview.postMessage({ type: 'workStarted', number, branch });
+        void vscode.window.showInformationMessage(`Started work on #${number} — branch: ${branch}`);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Failed to start work on #${number}: ${msg}`);
+        panel.webview.postMessage({ type: 'workStarted', number, branch: '' });
     }
 }
 
@@ -668,7 +713,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
-    <td><div class="actions-cell">${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
+    <td><div class="actions-cell">${iss.state === 'open' ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
@@ -789,13 +834,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (countTotal) { countTotal.textContent = String(total); }
     }
 
-    var openBtn = document.getElementById('state-open');
-    var closedBtn = document.getElementById('state-closed');
-    if (openBtn) {
-        openBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'open' }); });
+    var stateOpenBtn = document.getElementById('state-open');
+    var stateClosedBtn = document.getElementById('state-closed');
+    if (stateOpenBtn) {
+        stateOpenBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'open' }); });
     }
-    if (closedBtn) {
-        closedBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'closed' }); });
+    if (stateClosedBtn) {
+        stateClosedBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'closed' }); });
     }
     var refresh = document.getElementById('refresh');
   if (refresh) {
@@ -907,11 +952,24 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             vsc.postMessage({ type: 'claim', number: num });
         });
     });
+    document.querySelectorAll('.start-work-btn').forEach(function(b){
+        b.addEventListener('click', function(){
+            var num = Number(b.getAttribute('data-number'));
+            var title = String(b.getAttribute('data-title') || '');
+            if (!num) { return; }
+            b.disabled = true;
+            b.textContent = '…';
+            vsc.postMessage({ type: 'startWork', number: num, title: title });
+        });
+    });
     window.addEventListener('message', function(ev){
         var m = ev.data || {};
         if (m.type === 'claimed') {
             var btn = document.querySelector('.claim-btn[data-number="' + m.number + '"]');
             if (btn) { btn.textContent = '✓ Claimed'; btn.style.color = '#3fb950'; btn.style.borderColor = 'rgba(63,185,80,.45)'; }
+        } else if (m.type === 'workStarted') {
+            var swBtn = document.querySelector('.start-work-btn[data-number="' + m.number + '"]');
+            if (swBtn) { swBtn.textContent = m.branch ? '✓ ' + m.branch : '✓ Branched'; swBtn.style.color = '#a371f7'; swBtn.style.borderColor = 'rgba(163,113,247,.45)'; }
         }
     });
     applySort();

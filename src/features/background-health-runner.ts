@@ -19,10 +19,12 @@
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
+import * as https  from 'https';
 import * as net    from 'net';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
+import { enqueueIssue } from '../shared/claude-notifier';
 import { loadRegistry }  from '../shared/registry';
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
@@ -42,7 +44,8 @@ function isPortOpen(port: number): Promise<boolean> {
 const FEATURE    = 'bg-health-runner';
 const DATA_DIR   = path.join(__dirname, '..', 'data');
 const HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
-const CHECK_GAP_MS = 8000;   // 8 seconds between checks — slow and steady
+// Default gap between checks — overridden by cvs.bgHealthRunner.intervalSeconds setting
+const CHECK_GAP_DEFAULT_S = 30;
 
 export interface HealthBug {
     id:          string;
@@ -76,6 +79,18 @@ let _state: HealthState = {
 let _timer: NodeJS.Timeout | undefined;
 let _running = false;
 let _panel: vscode.WebviewPanel | undefined;
+
+// Last logged pass/fail per check — used to emit delta-only output
+const _checkStatus = new Map<string, 'pass' | 'fail'>();
+
+function getCheckStatus(checkId: string): 'pass' | 'fail' {
+    return _state.bugs.some(b => b.checkId === checkId && !b.fixed) ? 'fail' : 'pass';
+}
+
+function getIntervalMs(): number {
+    const s = vscode.workspace.getConfiguration('cvs.bgHealthRunner').get<number>('intervalSeconds', CHECK_GAP_DEFAULT_S) ?? CHECK_GAP_DEFAULT_S;
+    return Math.max(5, s) * 1000;
+}
 
 // Singleton guard — prevents duplicate runners when extension re-activates
 // without a clean deactivate (e.g. window reload while runner was live).
@@ -213,6 +228,64 @@ function buildIssueUrl(bug: HealthBug): string {
     return `https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/new?${params.toString()}`;
 }
 
+// ── GitHub API helpers (used by chk-issue-project-labels) ────────────────────
+
+interface GhIssue {
+    number:        number;
+    title:         string;
+    pull_request?: unknown;
+    labels:        Array<{ name: string }>;
+}
+
+function ghGet(token: string, owner: string, repo: string, qs: string): Promise<GhIssue[] | null> {
+    return new Promise((resolve) => {
+        const req = https.request({
+            hostname: 'api.github.com',
+            path:     `/repos/${owner}/${repo}/issues?${qs}`,
+            method:   'GET',
+            headers: {
+                'User-Agent':    'cielovista-tools-vscode',
+                'Accept':        'application/vnd.github+json',
+                'Authorization': `Bearer ${token}`,
+            },
+        }, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (c: Buffer) => chunks.push(c));
+            res.on('end', () => {
+                if (!res.statusCode || res.statusCode >= 400) { resolve(null); return; }
+                try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as GhIssue[]); }
+                catch { resolve(null); }
+            });
+        });
+        req.on('error', () => resolve(null));
+        req.end();
+    });
+}
+
+function ghAddLabel(token: string, owner: string, repo: string, number: number, label: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const payload = JSON.stringify({ labels: [label] });
+        const req = https.request({
+            hostname: 'api.github.com',
+            path:     `/repos/${owner}/${repo}/issues/${number}/labels`,
+            method:   'POST',
+            headers: {
+                'User-Agent':      'cielovista-tools-vscode',
+                'Accept':          'application/vnd.github+json',
+                'Authorization':   `Bearer ${token}`,
+                'Content-Type':    'application/json',
+                'Content-Length':  Buffer.byteLength(payload).toString(),
+            },
+        }, (res) => {
+            res.on('data', () => { /* drain */ });
+            res.on('end', () => resolve(!!res.statusCode && res.statusCode < 400));
+        });
+        req.on('error', () => resolve(false));
+        req.write(payload);
+        req.end();
+    });
+}
+
 // ── Individual health checks ──────────────────────────────────────────────────
 
 interface Check {
@@ -222,6 +295,66 @@ interface Check {
 }
 
 const CHECKS: Check[] = [
+
+    {
+        id: 'chk-issue-project-labels',
+        name: 'All issues have project label',
+        async run() {
+            // Silent auth only — never prompt during a background check
+            let token: string | undefined;
+            try {
+                const session = await vscode.authentication.getSession('github', ['repo'], { createIfNone: false });
+                token = session?.accessToken;
+            } catch { return; }
+            if (!token) { return; }
+
+            const REPOS = [
+                { owner: 'CieloVistaSoftware', repo: 'cielovista-tools', label: 'project:cielovista-tools' },
+                { owner: 'CieloVistaSoftware', repo: 'DiskCleanUp',       label: 'project:diskcleanup'      },
+            ];
+
+            const failed: string[] = [];
+
+            for (const r of REPOS) {
+                // Fetch all issues (open + closed, most recent 100 of each)
+                const [open, closed] = await Promise.all([
+                    ghGet(token, r.owner, r.repo, 'state=open&per_page=100'),
+                    ghGet(token, r.owner, r.repo, 'state=closed&per_page=100'),
+                ]);
+                const all = [...(open ?? []), ...(closed ?? [])];
+
+                for (const issue of all) {
+                    if (issue.pull_request) { continue; }
+                    const hasProject = issue.labels.some(l => /^project:/i.test(l.name));
+                    if (hasProject) { continue; }
+
+                    const ok = await ghAddLabel(token, r.owner, r.repo, issue.number, r.label);
+                    if (ok) {
+                        log(FEATURE, `✓ Applied ${r.label} to ${r.owner}/${r.repo}#${issue.number}`);
+                    } else {
+                        failed.push(`${r.owner}/${r.repo}#${issue.number}: ${issue.title.slice(0, 60)}`);
+                    }
+                }
+            }
+
+            if (failed.length > 0) {
+                addBug({
+                    id: 'bug-issue-project-labels',
+                    checkId: 'chk-issue-project-labels',
+                    title: `${failed.length} issue(s) could not get project label applied`,
+                    detail: 'Attempted to auto-apply project:* labels but the GitHub API call failed for these issues:',
+                    recommendation: 'Check GitHub auth token permissions (needs repo scope) and apply labels manually.',
+                    evidence: failed.slice(0, 20),
+                    priority: 'medium',
+                    category: 'GitHub',
+                    fixCommandId: 'cvs.github.openIssues',
+                    fixLabel: 'Open Issues Viewer',
+                });
+            } else {
+                clearBug('bug-issue-project-labels');
+            }
+        }
+    },
 
     {
         id: 'chk-catalog-registered',
@@ -454,8 +587,21 @@ async function runNextCheck(): Promise<void> {
     _state.totalChecks++;
 
     try {
-        log(FEATURE, `Check: ${check.name}`);
         await check.run();
+        const newStatus  = getCheckStatus(check.id);
+        const prevStatus = _checkStatus.get(check.id);
+        if (prevStatus === undefined) {
+            // First run — record baseline without logging (avoids wall of ✓ on startup)
+            _checkStatus.set(check.id, newStatus);
+        } else if (newStatus !== prevStatus) {
+            if (newStatus === 'fail') {
+                const bug = _state.bugs.find(b => b.checkId === check.id && !b.fixed);
+                log(FEATURE, `✗ ${check.name}: ${bug?.detail ?? 'check failed'}`);
+            } else {
+                log(FEATURE, `✓ ${check.name} (resolved)`);
+            }
+            _checkStatus.set(check.id, newStatus);
+        }
     } catch (e) {
         // VS Code cancels in-flight promises on extension host shutdown — not a real error.
         const msg = e instanceof Error ? e.message : String(e);
@@ -470,8 +616,7 @@ async function runNextCheck(): Promise<void> {
         _panel.webview.postMessage({ type: 'update', state: _state });
     }
 
-    // Schedule next check
-    _timer = setTimeout(runNextCheck, CHECK_GAP_MS);
+    _timer = setTimeout(runNextCheck, getIntervalMs());
 }
 
 // ── Fix Bugs webview ──────────────────────────────────────────────────────────
@@ -753,6 +898,12 @@ export async function showFixBugsPanel(): Promise<void> {
                         bug.githubIssueNumber = result.issueNumber;
                         bug.githubIssueUrl    = result.issueUrl;
                         saveState();
+                        const nq = enqueueIssue(bug, result.issueNumber, result.issueUrl);
+                        if (nq.ok) {
+                            log(FEATURE, `queued issue #${result.issueNumber} for Claude review`);
+                        } else {
+                            logError(`[${FEATURE}] failed to queue issue for Claude: ${nq.error ?? 'unknown'}`, '', FEATURE);
+                        }
                         _panel?.webview.postMessage({
                             type:   'issue-filed',
                             bugId:  msg.bugId,
@@ -849,7 +1000,7 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
     );
 
-    log(FEATURE, `Background runner active — ${CHECKS.length} checks, ${CHECK_GAP_MS}ms gap`);
+    log(FEATURE, `Background runner active — ${CHECKS.length} checks, ${getIntervalMs() / 1000}s interval`);
 }
 
 export function deactivate(): void {
@@ -869,4 +1020,6 @@ export const _test = {
     saveState,
     buildIssueUrl,
     defaultRecommendation,
+    getCheckStatus,
+    get checkStatus() { return _checkStatus; },
 };

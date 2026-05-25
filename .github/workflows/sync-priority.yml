@@ -1,0 +1,20 @@
+name: Sync Priority Field
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+  workflow_dispatch:
+
+jobs:
+  sync-priority:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Sync priority label to project field
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // This is a placeholder. Real implementation requires GitHub GraphQL API for project fields.
+            // See docs/priority-sync.md for details.
+            console.log('Sync logic goes here.');

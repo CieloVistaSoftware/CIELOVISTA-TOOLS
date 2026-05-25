@@ -60,7 +60,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 .script-row{
   display:grid;
-  grid-template-columns:minmax(130px,1.2fr) minmax(0,2fr) auto;
+  grid-template-columns:minmax(130px,1.2fr) minmax(0,2fr) auto auto;
   align-items:center;gap:8px;
   padding:4px 14px 4px 32px;
   border-bottom:1px solid transparent
@@ -73,20 +73,28 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
 .btn-run{
-  background:var(--vscode-button-background);
-  color:var(--vscode-button-foreground);
+  background:#1a7f37;
+  color:#fff;
   border:none;border-radius:3px;padding:2px 10px;
   cursor:pointer;font-size:11px;font-weight:600;
   white-space:nowrap;flex-shrink:0;
   transition:background .15s,color .15s
 }
-.btn-run:hover{background:var(--vscode-button-hoverBackground)}
-/* running = yellow, ok = green, error = red */
+.btn-run:hover{background:#238a42}
+/* running = yellow, ok = brighter green, error = red */
 .btn-run.running{background:#b8860b;color:#fff;cursor:default}
 .btn-run.ok     {background:#1a7f37;color:#fff}
 .btn-run.ok:hover{background:#238a42}
 .btn-run.error  {background:#b91c1c;color:#fff}
 .btn-run.error:hover{background:#c72323}
+.btn-issue{
+  background:var(--vscode-button-secondaryBackground);
+  color:var(--vscode-button-secondaryForeground);
+  border:none;border-radius:3px;padding:2px 8px;
+  cursor:pointer;font-size:11px;font-weight:600;
+  white-space:nowrap;flex-shrink:0;
+}
+.btn-issue:hover{background:var(--vscode-button-secondaryHoverBackground)}
 
 #empty{padding:24px 20px;font-size:12px;color:var(--vscode-descriptionForeground);display:none}
 #loading{padding:24px 20px;font-size:12px;color:var(--vscode-descriptionForeground)}
@@ -203,10 +211,31 @@ document.getElementById('btn-refresh').addEventListener('click', function(){
 
 // ── Button state helper ───────────────────────────────────────────────────────
 function setBtn(btn, state){
+  // Remove any issue button from a previous error state
+  var prev = btn.nextElementSibling;
+  if(prev && prev.classList.contains('btn-issue')){ prev.remove(); }
+
   btn.classList.remove('running','ok','error');
-  if(state === 'running'){ btn.classList.add('running'); btn.textContent = '⏳'; }
-  else if(state === 'ok' ){ btn.classList.add('ok');      btn.innerHTML   = '&#9654; Run'; }
-  else if(state === 'error'){ btn.classList.add('error'); btn.textContent = '✗ Run'; }
+  if(state === 'running'){
+    btn.classList.add('running');
+    btn.textContent = '⏳';
+  } else if(state === 'ok'){
+    btn.classList.add('ok');
+    btn.innerHTML = '&#10003; Run';
+  } else if(state === 'error'){
+    btn.classList.add('error');
+    btn.innerHTML = '&#8635; Retry';
+    var ib = document.createElement('button');
+    ib.className = 'btn-issue';
+    ib.textContent = '📋 Issue';
+    ib.dataset.dir    = btn.dataset.dir;
+    ib.dataset.script = btn.dataset.script;
+    ib.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      vsc.postMessage({ type:'create-issue', dir:btn.dataset.dir, script:btn.dataset.script });
+    });
+    btn.parentNode.insertBefore(ib, btn.nextSibling);
+  }
 }
 
 // ── Messages from host ────────────────────────────────────────────────────────

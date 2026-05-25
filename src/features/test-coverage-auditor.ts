@@ -148,9 +148,10 @@ async function runAudit(): Promise<AuditReport> {
   const scriptBase = _extensionPath || workspaceRoot;
   const scriptPath = path.join(scriptBase, 'scripts', 'audit-test-coverage.js');
   if (!require('fs').existsSync(scriptPath)) {
-    const err = new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project`);
-    logError(`audit-test-coverage.js not found at: ${scriptPath}`, err.stack || String(err), { context: 'test-coverage-auditor' });
-    throw err;
+    void vscode.window.showInformationMessage(
+      'Test Coverage Audit is only available inside the cielovista-tools project workspace.'
+    );
+    throw new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project`);
   }
 
   let rawOutput = '';
