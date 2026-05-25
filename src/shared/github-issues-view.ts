@@ -591,6 +591,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .claim-btn{margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(88,166,255,.14);color:#58a6ff;border:1px solid rgba(88,166,255,.45);cursor:pointer;font-family:inherit}
 .claim-btn:hover{background:rgba(88,166,255,.28)}
 .claim-btn:disabled{opacity:.5;cursor:wait}
+.in-progress-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(240,180,41,.18);color:#f0b429;border:1px solid rgba(240,180,41,.5);white-space:nowrap;margin-bottom:3px}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
 .proj-missing{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.5);white-space:nowrap}
 .run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -626,6 +627,8 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                 const rows = issues.map((iss) => {
             const testRef   = extractTestRef(iss.body);
             const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
+            const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress');
+            const inProgressChip = isInProgress ? '<span class="in-progress-chip">in-progress</span>' : '';
             const labels = iss.labels.map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
@@ -652,6 +655,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-priority="3"
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
+    <td>${inProgressChip}${labels ? `<span class="tags">${labels}</span>` : (isInProgress ? '' : `<span class="muted">-</span>`)}</td>
     <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="proj-missing">⚠ No project</span>`}</td>
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
@@ -659,7 +663,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></td>
     <td><span class="state-pill">${esc(iss.state)}</span>${iss.state === 'open' ? `<button class="claim-btn" type="button" data-number="${iss.number}" title="Assign to me and set status:in-progress">Claim</button>` : ''}</td>
     <td><span class="muted">@${esc(iss.user.login)}</span></td>
-    <td>${labels ? `<span class="tags">${labels}</span>` : `<span class="muted">-</span>`}</td>
     <td>${assigneesText ? `<span class="muted">${esc(assigneesText)}</span>` : `<span class="muted">-</span>`}</td>
     <td>${iss.comments}</td>
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
@@ -670,12 +673,12 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
 <th><button type="button" data-sort="number">number <span class="sort-ind"></span></button></th>
+<th><button type="button" data-sort="labels">Status <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="project">project <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="title">title <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="priority">priority <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="state">state <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="author">user.login <span class="sort-ind"></span></button></th>
-<th><button type="button" data-sort="labels">labels[].name <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="assignees">assignees[].login <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="comments">comments <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="created">created_at <span class="sort-ind"></span></button></th>
@@ -723,7 +726,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (key === 'priority')  { return Number(row.dataset.priority || 3); }
         if (key === 'state')     { return String(row.dataset.state || ''); }
         if (key === 'author')    { return String(row.dataset.author || ''); }
-        if (key === 'labels')    { var c = row.children[6]; return c ? c.textContent || '' : ''; }
+        if (key === 'labels')    { var c = row.children[1]; return c ? c.textContent || '' : ''; }
         if (key === 'assignees') { var a = row.children[7]; return a ? a.textContent || '' : ''; }
         if (key === 'comments')  { return Number(row.dataset.comments || 0); }
         if (key === 'created')   { return Number(row.dataset.created || 0); }

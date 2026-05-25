@@ -42,7 +42,7 @@
     "test:commands": "node tests/command-validation.test.js",
     "test:preflight": "node scripts/run-preflight-regressions.js",
     "test:regression": "node scripts/run-regression-tests.js",
-    "test:activation": "node tests/activation.test.js",
+    "test:activation": "node tests/vscode/runActivationTest.js",
     "test:vscode": "node tests/vscode/runTests.js",
     "start": "npm run rebuild",
     "vscode:prepublish": "node esbuild.mjs --production",
@@ -1052,6 +1052,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable the Registry Promote feature — right-click a folder to register it as a CieloVista product."
+        },
+        "cielovista-tools.debug.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, verbose debug output is written to the CieloVista Tools output channel."
         }
       }
     }

@@ -45,10 +45,17 @@ interface TaskEntry {
 }
 
 interface TaskData {
-    tasks:        TaskEntry[];
+    tasks:         TaskEntry[];
     totalMemoryGb: number;
-    scannedAt:    string;
+    scannedAt:     string;
+    trends:        Record<number, 'up' | 'down' | 'stable'>;
 }
+
+// ─── Trend tracking ───────────────────────────────────────────────────────────
+
+/** Previous memory readings keyed by PID — module-level so they survive refreshes */
+const _prevMemory = new Map<number, number>();
+const TREND_THRESHOLD_MB = 2; // ignore deltas < 2 MB (normal GC / measurement noise)
 
 // ─── Safety classification ────────────────────────────────────────────────────
 
@@ -133,11 +140,29 @@ $arr | ConvertTo-Json -Depth 2 -Compress
         logError('Failed to parse process data', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
     }
 
+    // Compute memory trends (up / down / stable) vs previous snapshot
+    const trends: Record<number, 'up' | 'down' | 'stable'> = {};
+    for (const t of tasks) {
+        const prev = _prevMemory.get(t.pid);
+        if (prev !== undefined) {
+            const delta = t.memoryMb - prev;
+            trends[t.pid] = delta > TREND_THRESHOLD_MB ? 'up'
+                          : delta < -TREND_THRESHOLD_MB ? 'down'
+                          : 'stable';
+        }
+        _prevMemory.set(t.pid, t.memoryMb);
+    }
+    // Remove stale PIDs that are no longer running
+    for (const pid of Array.from(_prevMemory.keys())) {
+        if (!tasks.some(t => t.pid === pid)) { _prevMemory.delete(pid); }
+    }
+
     const totalMemoryMb = tasks.reduce((s, t) => s + t.memoryMb, 0);
     return {
         tasks,
         totalMemoryGb: Math.round(totalMemoryMb / 1024 * 100) / 100,
         scannedAt: new Date().toISOString(),
+        trends,
     };
 }
 
@@ -195,7 +220,7 @@ if ($proc -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
 // ─── HTML builder ─────────────────────────────────────────────────────────────
 
 function buildHtml(data: TaskData): string {
-    const { tasks, totalMemoryGb } = data;
+    const { tasks, totalMemoryGb, trends } = data;
     const scannedAt = new Date(data.scannedAt).toLocaleTimeString();
 
     const safeCount     = tasks.filter(t => t.safety === 'safe').length;
@@ -206,13 +231,20 @@ function buildHtml(data: TaskData): string {
         const safetyDot = t.safety === 'critical' ? 'dot-critical' : t.safety === 'caution' ? 'dot-caution' : 'dot-safe';
         const hasWindow = t.windowTitle ? ' data-has-window="1"' : '';
         const windowCls = t.windowTitle ? ' has-window' : '';
+        const memStr    = t.memoryMb >= 1024
+            ? (t.memoryMb / 1024).toFixed(2) + ' GB'
+            : t.memoryMb.toFixed(1) + ' MB';
+        const trend     = trends[t.pid];
+        const trendHtml = trend === 'up'   ? '&thinsp;<span style="color:#3fb950;font-weight:700" title="Memory increasing">+</span>'
+                        : trend === 'down' ? '&thinsp;<span style="color:#f85149;font-weight:700" title="Memory decreasing">−</span>'
+                        : '';
         return `<tr data-pid="${t.pid}" data-safety="${esc(t.safety)}"${hasWindow} data-mem="${t.memoryMb}" data-threads="${t.threads}">
   <td class="col-check"><input type="checkbox" class="row-check" data-pid="${t.pid}"></td>
   <td class="col-dot"><span class="dot ${safetyDot}" title="${esc(t.safety)}"></span></td>
   <td class="col-pid">${t.pid}</td>
   <td class="col-name" title="${esc(t.path)}">${esc(t.name)}</td>
   <td class="col-wintitle${windowCls}" title="${esc(t.windowTitle)}">${esc(t.windowTitle)}</td>
-  <td class="col-mem">${t.memoryMb >= 1024 ? (t.memoryMb / 1024).toFixed(2) + ' GB' : t.memoryMb.toFixed(1) + ' MB'}</td>
+  <td class="col-mem">${memStr}${trendHtml}</td>
   <td class="col-threads">${t.threads}</td>
   <td class="col-company" title="${esc(t.company)}">${esc(t.company)}</td>
   <td class="col-desc" title="${esc(t.description)}">${esc(t.description)}</td>
@@ -273,13 +305,24 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground);color:var
 (function(){
 'use strict';
 var vsc = acquireVsCodeApi();
-var timer = setInterval(function(){ doRefresh(); }, 10000);
-window.addEventListener('unload', function(){ clearInterval(timer); });
 var filterInput  = document.getElementById('filter-input');
 var safetySelect = document.getElementById('safety-select');
 var statusBar    = document.getElementById('status-bar');
 var killBtn      = document.getElementById('btn-kill');
 var checkAll     = document.getElementById('check-all');
+
+// ── Pause state ───────────────────────────────────────────────────────────────
+// Auto-refresh is suppressed whenever the filter has text OR any checkbox is
+// checked. This prevents the list from rebuilding while the user is selecting
+// processes or has typed a filter query.
+var _paused = false;
+
+function updatePauseState(){
+    _paused = filterInput.value.length > 0 || getCheckedPids().length > 0;
+}
+
+var timer = setInterval(function(){ if (!_paused){ doRefresh(); } }, 10000);
+window.addEventListener('unload', function(){ clearInterval(timer); });
 
 function status(msg){ statusBar.textContent = msg; }
 
@@ -291,6 +334,15 @@ function getCheckedPids(){
 
 function updateKillBtn(){
     killBtn.disabled = getCheckedPids().length === 0;
+    updatePauseState();
+}
+
+function saveUiState(){
+    // _sortCol/_sortAsc are declared later in the IIFE but are in scope via var hoisting
+    // eslint-disable-next-line no-use-before-define
+    vsc.setState({ sortCol: typeof _sortCol !== 'undefined' ? _sortCol : null,
+                   sortAsc: typeof _sortAsc !== 'undefined' ? _sortAsc : true,
+                   filterText: filterInput.value, safetyMode: safetySelect.value });
 }
 
 function applyFilter(){
@@ -308,11 +360,19 @@ function applyFilter(){
         if (visible) { shown++; }
     });
     var total = rows.length;
-    status('Showing ' + shown + ' of ' + total + ' processes');
+    var pausedNote = _paused ? ' · auto-refresh paused' : '';
+    status('Showing ' + shown + ' of ' + total + ' processes' + pausedNote);
 }
 
-filterInput.addEventListener('input', applyFilter);
-safetySelect.addEventListener('change', applyFilter);
+filterInput.addEventListener('input', function(){
+    updatePauseState();
+    applyFilter();
+    saveUiState();
+});
+safetySelect.addEventListener('change', function(){
+    applyFilter();
+    saveUiState();
+});
 
 checkAll.addEventListener('change', function(){
     var checked = checkAll.checked;
@@ -348,22 +408,27 @@ document.getElementById('tbody').addEventListener('click', function(e) {
     const checkbox = tr.querySelector('.row-check');
     if (checkbox) {
         checkbox.checked = !checkbox.checked;
-        // Manually trigger a 'change' event on the checkbox so the updateKillBtn handler fires.
-        checkbox.dispatchEvent(new Event('change'));
+        // bubbles:true required — the change handler is on #tbody (event delegation)
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     }
 });
 
 document.getElementById('btn-refresh').addEventListener('click', function(){
+    // Manual refresh: clear pause so filter/checks don't suppress the upcoming rebuild
+    _paused = false;
     status('Refreshing...');
     doRefresh();
 });
 
 killBtn.addEventListener('click', function(){
+    // Capture PIDs immediately — before anything else can mutate the DOM
     var pids = getCheckedPids();
     if (pids.length === 0) { return; }
-    if (!confirm('Kill ' + pids.length + ' selected process(es)?\\nThis cannot be undone.')) { return; }
-    status('Killing ' + pids.length + ' process(es)...');
-    vsc.postMessage({ command: 'kill', pids: pids });
+    // VS Code webviews block browser confirm() — confirmation happens in the extension host
+    _paused = true;
+    status('Waiting for confirmation...');
+    vsc.postMessage({ command: 'kill-confirm', pids: pids });
+    // _paused will clear naturally when HTML is rebuilt after kill completes (or on cancel)
 });
 
 // Click a window-title cell → focus that process window
@@ -381,13 +446,29 @@ function doRefresh(){
     vsc.postMessage({ command: 'refresh' });
 }
 
+// Incoming messages from the extension host
+window.addEventListener('message', function(ev) {
+    var msg = ev.data;
+    if (!msg) { return; }
+    if (msg.command === 'kill-cancelled') {
+        // User dismissed the VS Code confirmation — restore normal auto-refresh
+        updatePauseState();
+        status('Kill cancelled.');
+    }
+});
+
 // ── Column sort ───────────────────────────────────────────────────────────────
 var NUMERIC_COLS = new Set(['pid','mem','threads']);
 
-// Restore sort state across full HTML refreshes (vsc.getState survives webview reload)
+// Restore UI state across full HTML refreshes (vsc.getState survives webview reload)
 var _savedState = vsc.getState() || {};
 var _sortCol = _savedState.sortCol || null;
 var _sortAsc = (_savedState.sortAsc !== undefined) ? _savedState.sortAsc : true;
+
+// Restore filter and safety-select so they survive the HTML rebuild on auto-refresh
+if (_savedState.filterText) { filterInput.value = _savedState.filterText; }
+if (_savedState.safetyMode) { safetySelect.value = _savedState.safetyMode; }
+updatePauseState(); // re-evaluate pause now that filter may be non-empty
 
 function cellValue(tr, col) {
     switch(col) {
@@ -526,18 +607,28 @@ function showPanel(): void {
     refresh();
     _panel.onDidDispose(() => { _panel = undefined; });
 
-    _panel.webview.onDidReceiveMessage(msg => {
+    _panel.webview.onDidReceiveMessage(async msg => {
         try {
             switch (msg.command) {
                 case 'refresh':
                     refresh();
                     break;
 
-                case 'kill': {
+                case 'kill-confirm': {
                     const pids: number[] = Array.isArray(msg.pids)
                         ? msg.pids.map((p: unknown) => Number(p)).filter((p: number) => p > 0)
                         : [];
                     if (pids.length === 0) { break; }
+                    const answer = await vscode.window.showWarningMessage(
+                        `Kill ${pids.length} selected process(es)? This cannot be undone.`,
+                        { modal: true },
+                        'Kill'
+                    );
+                    if (answer !== 'Kill') {
+                        // User cancelled — unblock the webview auto-refresh
+                        _panel?.webview.postMessage({ command: 'kill-cancelled' });
+                        break;
+                    }
                     const killed = killPids(pids);
                     log(FEATURE, `Killed ${killed} process(es): ${pids.join(', ')}`);
                     setTimeout(() => refresh(), 800);

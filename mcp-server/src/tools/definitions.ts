@@ -4,6 +4,11 @@ export const EchoToolSchema = z.object({
   message: z.string().describe("The message to echo back"),
 });
 
+export const NotifyToolSchema = z.object({
+  message: z.string().describe("Message to send to the CieloVista Tools output channel in VS Code"),
+  level: z.enum(["info", "warn", "error"]).optional().describe("Log level: info (default, shows 🔔), warn (shows ⚠), error (shows in error log)"),
+});
+
 export const ListFilesToolSchema = z.object({
   directory: z.string().describe("The directory path to list files from"),
   pattern: z.string().optional().describe("Optional filter text to match against file names"),

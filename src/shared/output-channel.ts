@@ -61,9 +61,21 @@ export function logError(message: string, stacktrace: string, context: string, s
         persistError(message, stacktrace, context);
     } catch {
         // Fallback: just write to output channel if error-log-utils module isn't ready
-        log(context, `ERROR: ${message}\n${stacktrace}`);
+        log(context, `❌ ${message}\n${stacktrace}`);
     }
     if (showPanel) { getChannel().show(true); }
+}
+
+/**
+ * Write a debug line to the channel only when `cielovista-tools.debug.enabled` is true.
+ * Use this for verbose/diagnostic output that should be silent in normal use.
+ * @param feature  Short name, e.g. 'copilot-rules-enforcer'
+ * @param message  The debug message to log
+ */
+export function debug(feature: string, message: string): void {
+    const cfg = vscode.workspace.getConfiguration('cielovista-tools');
+    if (!cfg.get<boolean>('debug.enabled', false)) { return; }
+    log(feature, `[DEBUG] ${message}`);
 }
 
 /**

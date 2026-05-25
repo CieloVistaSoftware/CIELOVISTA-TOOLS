@@ -58,6 +58,7 @@ import { activate as jsonCopyToChatActivate,  deactivate as jsonCopyToChatDeacti
 import { activate as playwrightRunnerActivate, deactivate as playwrightRunnerDeactivate     } from './features/playwright-runner';
 import { activate as diskCleanupDashboardActivate, deactivate as diskCleanupDashboardDeactivate } from './features/disk-cleanup-dashboard';
 import { activate as runningTasksActivate,         deactivate as runningTasksDeactivate           } from './features/running-tasks';
+import { activate as notifyServerActivate,         deactivate as notifyServerDeactivate           } from './features/notify-server';
 import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
@@ -101,6 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Resolve MCP server path from extension root and start immediately in every workspace.
     runStartupStep('MCP Server Path Init', () => initMcpServerPath(context.extensionPath));
     runStartupStep('MCP Server Start', () => startMcpServer());
+    runStartupStep('Notify Server', () => notifyServerActivate(context));
     // Initialize history and recents BEFORE home page renders so it gets real data
     runStartupStep('Command History Init', () => initHistory(context));
     runStartupStep('Recent Projects Init', () => initRecentProjects(context));
@@ -214,6 +216,7 @@ export function deactivate(): void {
     playwrightRunnerDeactivate();
     diskCleanupDashboardDeactivate();
     runningTasksDeactivate();
+    notifyServerDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
     deactivateProjectLauncher();

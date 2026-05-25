@@ -96,7 +96,8 @@ export function buildCatalogInitPayload(
   data-project="${esc(card.projectName)}"
   data-category="${esc(card.category)}"
   data-section="${esc(section)}"
-  data-tags="${esc(card.tags.join(' '))}">
+  data-tags="${esc(card.tags.join(' '))}"
+  data-modified="${esc(card.lastModified)}">
   <div class="card-header">
     <span class="card-project card-project-link"
       data-action="open-project-folder"
