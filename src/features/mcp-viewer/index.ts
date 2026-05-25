@@ -165,11 +165,13 @@ async function handleGetCatalog(projectName?: string): Promise<{ projectName: st
 }
 
 function parseFrontmatter(content: string): Record<string, string> | null {
-    const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*/);
-    if (!match) { return null; }
+    // Check top (legacy) then bottom (new standard per #467).
+    const topMatch    = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*/);
+    const bottomMatch = content.match(/\r?\n---\s*\r?\n([\s\S]*?)\r?\n---\s*$/);
+    const raw = topMatch ? topMatch[1] : (bottomMatch ? bottomMatch[1] : null);
+    if (!raw) { return null; }
     const out: Record<string, string> = {};
-    const lines = match[1].split(/\r?\n/);
-    for (const line of lines) {
+    for (const line of raw.split(/\r?\n/)) {
         const idx = line.indexOf(':');
         if (idx <= 0) { continue; }
         const key = line.slice(0, idx).trim().toLowerCase();

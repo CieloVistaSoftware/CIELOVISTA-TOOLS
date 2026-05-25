@@ -557,6 +557,12 @@
         "description": "Fix the header/frontmatter in the currently open documentation file."
       },
       {
+        "command": "cvs.headers.moveToBottom",
+        "title": "Headers: Move Frontmatter to Bottom (All Docs)",
+        "category": "CieloVista Headers",
+        "description": "Migrate all .md files — moves YAML frontmatter block from top to bottom so human-readable content appears first."
+      },
+      {
         "command": "cvs.headers.viewStandard",
         "title": "Headers: View Frontmatter Standard",
         "category": "CieloVista Headers",

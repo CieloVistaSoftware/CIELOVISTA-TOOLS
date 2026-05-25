@@ -108,17 +108,31 @@ function loadRegistry(): ProjectRegistry | undefined {
 
 // ─── Frontmatter parser / serializer ─────────────────────────────────────────
 
-/** Parses YAML frontmatter from a markdown string. Returns null if none found. */
+/** Parses YAML frontmatter from a markdown string.
+ *  Checks the TOP of the file first (legacy), then the BOTTOM (new standard).
+ *  Returns null if none found. */
 function parseFrontmatter(content: string): { fm: Frontmatter; body: string } | null {
-    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-    if (!match) { return null; }
-
-    const fm: Frontmatter = {};
-    for (const line of match[1].split('\n')) {
-        const m = line.match(/^(\w+):\s*(.*)$/);
-        if (m) { fm[m[1]] = m[2].trim(); }
+    // ── Top position (legacy) ─────────────────────────────────────────────────
+    const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+    if (topMatch) {
+        const fm: Frontmatter = {};
+        for (const line of topMatch[1].split('\n')) {
+            const m = line.match(/^(\w+):\s*(.*)$/);
+            if (m) { fm[m[1]] = m[2].trim(); }
+        }
+        return { fm, body: topMatch[2] };
     }
-    return { fm, body: match[2] };
+    // ── Bottom position (new standard) ───────────────────────────────────────
+    const bottomMatch = content.match(/^([\s\S]*?)\r?\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
+    if (bottomMatch) {
+        const fm: Frontmatter = {};
+        for (const line of bottomMatch[2].split('\n')) {
+            const m = line.match(/^(\w+):\s*(.*)$/);
+            if (m) { fm[m[1]] = m[2].trim(); }
+        }
+        return { fm, body: bottomMatch[1] };
+    }
+    return null;
 }
 
 /** Serializes a Frontmatter object back to a YAML block. */
@@ -664,6 +678,59 @@ async function fixActiveFile(): Promise<void> {
     }
 }
 
+// ─── Move frontmatter to bottom ───────────────────────────────────────────────
+
+async function moveAllFrontmatterToBottom(): Promise<void> {
+    const registry = loadRegistry();
+    if (!registry) { return; }
+
+    const confirm = await vscode.window.showWarningMessage(
+        'Move YAML frontmatter from the top to the bottom of every .md file? Files will be rewritten in place.',
+        { modal: true },
+        'Move All'
+    );
+    if (confirm !== 'Move All') { return; }
+
+    // Collect all .md files under globalDocsPath + each project path
+    const mdFiles: string[] = [];
+    function collectMd(dir: string): void {
+        if (!fs.existsSync(dir)) { return; }
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                collectMd(full);
+            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+                mdFiles.push(full);
+            }
+        }
+    }
+    collectMd(registry.globalDocsPath);
+    registry.projects.forEach(p => collectMd(p.path));
+
+    let moved = 0;
+    const errors: string[] = [];
+    for (const filePath of mdFiles) {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            // Only migrate if frontmatter is at the top
+            const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+            if (!topMatch) { continue; }
+            const yamlBlock = topMatch[1];
+            const body      = topMatch[2];
+            const newContent = body.trimEnd() + '\n\n---\n' + yamlBlock + '\n---\n';
+            fs.writeFileSync(filePath, newContent, 'utf8');
+            moved++;
+        } catch (err) {
+            errors.push(path.basename(filePath));
+            logError(`moveToBottom failed: ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
+    }
+
+    const msg = `Moved frontmatter to bottom in ${moved} file(s).${errors.length ? ` ${errors.length} error(s).` : ''}`;
+    vscode.window.showInformationMessage(msg);
+    log(FEATURE, msg);
+}
+
 // ─── Activate / Deactivate ────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -677,6 +744,7 @@ export function activate(context: vscode.ExtensionContext): void {
             void vscode.commands.executeCommand('cvs.headers.scan');
         }),
         vscode.commands.registerCommand('cvs.headers.fixFile',      fixActiveFile),
+        vscode.commands.registerCommand('cvs.headers.moveToBottom', () => { void moveAllFrontmatterToBottom(); }),
         vscode.commands.registerCommand('cvs.headers.viewStandard', () => {
             vscode.window.showInformationMessage(
                 'Frontmatter standard: title, description, project, category, relativePath, created, updated, version, author, status, tags',
