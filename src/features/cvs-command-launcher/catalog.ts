@@ -166,6 +166,9 @@ const RAW_CATALOG: CmdEntry[] = [
     { id: 'cvs.corequisites.install',   title: 'Corequisites: Auto-Install Peers',        description: 'Automatically install or upgrade any missing or outdated peer extensions declared in cieloRequires.', tags: ['corequisites', 'extensions', 'install', 'upgrade', 'peers'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.010', scope: 'global', location: 'features/corequisite-checker.ts' },
     { id: 'cvs.issues.openViewer',      title: 'Issues: Open GitHub Issues Viewer',       description: 'Open the GitHub Issues viewer panel to browse and manage issues for the current project.', tags: ['issues', 'github', 'viewer', 'bugs'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.013', scope: 'global', location: 'extension.ts' },
     { id: 'cvs.issues.newIssue',        title: 'Issues: New GitHub Issue',                description: 'Create a new GitHub issue for the current workspace project.', tags: ['issues', 'github', 'new', 'bug', 'report'], group: 'Other Tools', groupIcon: 'ðŸ§°', dewey: '700.014', scope: 'global', location: 'extension.ts' },
+    // ── Doc Audit — Tags Enrichment (150) — global ───────────────────────────
+    { id: 'cvs.tags.enrich',     title: 'Tags: Scan Frontmatter Tags',  description: 'Dry-run scan of all registered project docs — shows which files need tag enrichment.',  tags: ['tags', 'frontmatter', 'enrich', 'scan', 'docs'], group: 'Doc Audit', groupIcon: '📋', dewey: '150.021', scope: 'global', location: 'features/tags-enrichment.ts' },
+    { id: 'cvs.tags.enrichAuto', title: 'Tags: Enrich Frontmatter Tags', description: 'Apply tag enrichment to all registered project docs — adds derived tags, never removes existing ones.', tags: ['tags', 'frontmatter', 'enrich', 'apply', 'docs'], group: 'Doc Audit', groupIcon: '📋', dewey: '150.022', scope: 'global', location: 'features/tags-enrichment.ts' },
 ];
 
 export const CATALOG: CmdEntry[] = RAW_CATALOG.map((cmd) => ({

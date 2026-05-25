@@ -40,28 +40,39 @@ export function extractDescription(content: string): string {
     const textLines: string[] = [];
     let pastFirstHeading = false;
     const metadataLine = /^\s*\*\*[^*]+\*\*\s*:/;
+    // frontmatter key:value line — skip bare "key: value" lines that appear in
+    // bottom-of-file frontmatter blocks (#482)
+    const fmKeyValue = /^[a-zA-Z][a-zA-Z0-9_-]*\s*:/;
     let frontmatterDelimsSeen = 0;
     const inFrontmatterMode = lines[0]?.trim() === '---';
+    let inBottomFrontmatter = false;
 
     for (let idx = 0; idx < lines.length; idx++) {
         const line = lines[idx];
         if (inFrontmatterMode && frontmatterDelimsSeen < 2) {
-            if (line.trim() === '---') {
-                frontmatterDelimsSeen += 1;
-            }
+            if (line.trim() === '---') { frontmatterDelimsSeen += 1; }
             continue;
         }
 
         const trimmed = line.trim();
         if (!trimmed) { continue; }
+
+        // Detect entry into a bottom frontmatter block (--- after real content)
+        if (trimmed === '---') {
+            inBottomFrontmatter = true;
+            continue;
+        }
+        if (inBottomFrontmatter) { continue; } // skip all lines inside bottom frontmatter
+
         if (trimmed.startsWith('#')) {
             if (pastFirstHeading && textLines.length) { break; }
             pastFirstHeading = true;
             continue;
         }
         if (trimmed.startsWith('>') || trimmed.startsWith('<!--') ||
-            trimmed.startsWith('---') || trimmed.startsWith('|') ||
-            trimmed.startsWith('```') || metadataLine.test(trimmed)) { continue; }
+            trimmed.startsWith('|') ||
+            trimmed.startsWith('```') || metadataLine.test(trimmed) ||
+            fmKeyValue.test(trimmed)) { continue; }
         textLines.push(trimmed.replace(/\*\*|__|\*|_|`/g, ''));
         if (textLines.join(' ').length > 160) { break; }
     }

@@ -883,6 +883,16 @@
         "title": "Install Missing Corequisite Extensions",
         "category": "CieloVista Marketplace",
         "description": "Install any missing corequisite VS Code extensions"
+      },
+      {
+        "command": "cvs.tags.enrich",
+        "title": "Tags: Scan Frontmatter Tags",
+        "category": "CieloVista Tools"
+      },
+      {
+        "command": "cvs.tags.enrichAuto",
+        "title": "Tags: Enrich Frontmatter Tags",
+        "category": "CieloVista Tools"
       }
     ],
     "menus": {
@@ -943,16 +953,46 @@
           "command": "cvs.config.edit",
           "when": "true"
         },
-        { "command": "cvs.launch.pick",                "when": "false" },
-        { "command": "cvs.launch.snapit.start",        "when": "false" },
-        { "command": "cvs.launch.snapit.tray",         "when": "false" },
-        { "command": "cvs.launch.snapit.rebuild",      "when": "false" },
-        { "command": "cvs.launch.snapit.build",        "when": "false" },
-        { "command": "cvs.launch.snapit.stop",         "when": "false" },
-        { "command": "cvs.launch.diskcleanup.start",   "when": "false" },
-        { "command": "cvs.launch.diskcleanup.console", "when": "false" },
-        { "command": "cvs.launch.diskcleanup.build",   "when": "false" },
-        { "command": "cvs.launch.diskcleanup.stop",    "when": "false" }
+        {
+          "command": "cvs.launch.pick",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.start",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.tray",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.rebuild",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.build",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.stop",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.start",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.console",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.build",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.stop",
+          "when": "false"
+        }
       ]
     },
     "keybindings": [
@@ -1142,6 +1182,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, verbose debug output is written to the CieloVista Tools output channel."
+        },
+        "cielovistaTools.features.tagsEnrichment": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the Tags Enrichment feature."
         }
       }
     }

@@ -47,6 +47,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { esc } from '../../shared/webview-utils';
+import { CATEGORIES } from '../../shared/categories';
 
 const FEATURE       = 'doc-header';
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -162,37 +163,37 @@ function serializeFrontmatter(fm: Frontmatter): string {
 // ─── Category assignment (mirrors doc-catalog.ts logic) ──────────────────────
 
 const CATEGORY_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-    { pattern: /^audit-/i,          label: '900 — Audit & Reports' },
-    { pattern: /consolidation-log/i,label: '900 — Audit & Reports' },
-    { pattern: /^claude\.md$/i,      label: '000 — Meta / Session / Status' },
-    { pattern: /current.?status/i,  label: '000 — Meta / Session / Status' },
-    { pattern: /^session/i,          label: '000 — Meta / Session / Status' },
-    { pattern: /tier1|tier2/i,       label: '100 — Architecture & Standards' },
-    { pattern: /architectur/i,       label: '100 — Architecture & Standards' },
-    { pattern: /standard/i,          label: '100 — Architecture & Standards' },
-    { pattern: /laws?\.md$/i,        label: '100 — Architecture & Standards' },
-    { pattern: /web.?component/i,    label: '200 — Component & UI Docs' },
-    { pattern: /component/i,         label: '200 — Component & UI Docs' },
-    { pattern: /git.?workflow/i,     label: '300 — Dev Workflow & Process' },
-    { pattern: /workflow|deploy|build|release/i, label: '300 — Dev Workflow & Process' },
-    { pattern: /changelog/i,         label: '300 — Dev Workflow & Process' },
-    { pattern: /test|spec|quality|compliance/i,  label: '400 — Testing & Quality' },
-    { pattern: /api|integration|trace|signalr/i, label: '500 — API & Integration' },
-    { pattern: /vscode|extension|copilot|tool/i, label: '600 — Tools & Extensions' },
-    { pattern: /readme|guide|how.?to|notes/i,    label: '700 — Project Docs' },
+    { pattern: /^audit-/i,                       label: CATEGORIES.AUDIT },
+    { pattern: /consolidation-log/i,             label: CATEGORIES.AUDIT },
+    { pattern: /^claude\.md$/i,                  label: CATEGORIES.META },
+    { pattern: /current.?status/i,               label: CATEGORIES.META },
+    { pattern: /^session/i,                      label: CATEGORIES.META },
+    { pattern: /tier1|tier2/i,                   label: CATEGORIES.ARCHITECTURE },
+    { pattern: /architectur/i,                   label: CATEGORIES.ARCHITECTURE },
+    { pattern: /standard/i,                      label: CATEGORIES.ARCHITECTURE },
+    { pattern: /laws?\.md$/i,                    label: CATEGORIES.ARCHITECTURE },
+    { pattern: /web.?component/i,                label: CATEGORIES.COMPONENTS },
+    { pattern: /component/i,                     label: CATEGORIES.COMPONENTS },
+    { pattern: /git.?workflow/i,                 label: CATEGORIES.DEV_WORKFLOW },
+    { pattern: /workflow|deploy|build|release/i, label: CATEGORIES.DEV_WORKFLOW },
+    { pattern: /changelog/i,                     label: CATEGORIES.DEV_WORKFLOW },
+    { pattern: /test|spec|quality|compliance/i,  label: CATEGORIES.TESTING },
+    { pattern: /api|integration|trace|signalr/i, label: CATEGORIES.API },
+    { pattern: /vscode|extension|copilot|tool/i, label: CATEGORIES.TOOLS },
+    { pattern: /readme|guide|how.?to|notes/i,    label: CATEGORIES.PROJECT_DOCS },
 ];
 
 function assignCategory(fileName: string, projectName: string): string {
     if (projectName === 'global') {
         if (/^audit-/i.test(fileName) || /consolidation-log/i.test(fileName)) {
-            return '900 — Audit & Reports';
+            return CATEGORIES.AUDIT;
         }
-        return '800 — Global Standards';
+        return CATEGORIES.GLOBAL;
     }
     for (const { pattern, label } of CATEGORY_PATTERNS) {
         if (pattern.test(fileName)) { return label; }
     }
-    return '700 — Project Docs';
+    return CATEGORIES.PROJECT_DOCS;
 }
 
 // ─── Content extractors ───────────────────────────────────────────────────────
