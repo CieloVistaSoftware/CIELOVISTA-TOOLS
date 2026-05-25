@@ -789,6 +789,12 @@
         "description": "Navigate the open FileList panel to this folder (or open FileList at this folder)."
       },
       {
+        "command": "cvs.filelist.revealInFilelist",
+        "title": "FileList: Reveal in FileList Explorer",
+        "category": "CieloVista",
+        "description": "Open the FileList panel and scroll to this file, selecting it."
+      },
+      {
         "command": "cvs.claude.processMonitor",
         "title": "Claude: Process Monitor",
         "category": "CieloVista",
@@ -865,6 +871,11 @@
           "command": "cvs.tools.fileList.navigateTo",
           "when": "explorerResourceIsFolder",
           "group": "navigation@98"
+        },
+        {
+          "command": "cvs.filelist.revealInFilelist",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "navigation@97"
         },
         {
           "command": "cvs.python.runFile",
