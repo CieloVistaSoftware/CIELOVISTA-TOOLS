@@ -21,6 +21,7 @@ import { execSync } from 'child_process';
 import { getChannel, log } from '../shared/output-channel';
 import { logError } from '../shared/error-log';
 import { getNonce } from '../shared/webview-utils';
+import { getLauncherTargetColumn } from '../shared/panel-context';
 
 // ============================================================================
 // TYPES
@@ -1088,7 +1089,7 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
       if (currentWebviewPanel) {
         // Panel exists, update it
         currentWebviewPanel.webview.html = getWebviewHtml(currentWebviewPanel.webview, report, mdContent);
-        currentWebviewPanel.reveal(vscode.ViewColumn.One);
+        currentWebviewPanel.reveal(currentWebviewPanel.viewColumn);
         vscode.window.showInformationMessage('Test Coverage Dashboard updated.');
       } else {
         // Create new panel
@@ -1098,7 +1099,7 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
           return;
         }
 
-        currentWebviewPanel = vscode.window.createWebviewPanel(WEBVIEW_TYPE, 'Test Coverage Audit', vscode.ViewColumn.One, {
+        currentWebviewPanel = vscode.window.createWebviewPanel(WEBVIEW_TYPE, 'Test Coverage Audit', getLauncherTargetColumn(), {
           enableScripts: true,
           enableForms: true,
         });

@@ -16,6 +16,7 @@ import { initRecentProjects, touchCurrentProject, getRecentProjects } from './re
 import { sendToCopilotChat } from '../terminal-copy-output';
 import { loadRegistry } from '../../shared/registry';
 import { getErrors } from '../../shared/error-log-adapter';
+import { setLauncherTargetColumn } from '../../shared/panel-context';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -49,9 +50,11 @@ function normalizeWorkspaceDisplayName(name: string): string {
 
 // Commands that already render their own first-class panels should execute
 // directly to avoid the launcher's secondary "Completed in ..." result pane.
+// They are opened in ViewColumn.Beside via setLauncherTargetColumn() (#499).
 const DIRECT_PANEL_COMMANDS = new Set<string>([
     'cvs.headers.frontmatterViewer',
     'cvs.tools.errorLog',
+    'cvs.tools.regressionLog',   // #498: show regression log viewer directly
     'cvs.audit.testCoverage',
     'cvs.audit.testCoverage.refresh',
     'cvs.audit.testCoverage.export',
@@ -300,11 +303,14 @@ async function _executeWithOutput(
 
     // Read-only and direct-panel commands execute directly so they can open
     // their intended UI without an intermediate launcher result panel.
+    // We set ViewColumn.Beside so the feature panel opens to the right of the
+    // launcher instead of replacing it in ViewColumn.One (#499).
     if (entry?.action === 'read' || DIRECT_PANEL_COMMANDS.has(commandId)) {
         if (notifyPanel) {
             notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'running' });
         }
         log(FEATURE, `Executing: ${commandId}`);
+        setLauncherTargetColumn(vscode.ViewColumn.Beside);
         try {
             await vscode.commands.executeCommand(commandId);
             const elapsed = Date.now() - startMs;
@@ -338,6 +344,8 @@ async function _executeWithOutput(
                 notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             }
             if (_panel) { _panel.webview.postMessage({ type: 'history-update', history: getHistory() }); }
+        } finally {
+            setLauncherTargetColumn(undefined); // clear so direct invocations keep default column
         }
         return;
     }
@@ -407,6 +415,19 @@ async function _executeWithOutput(
     _activeStreams.set(runId, stream);
     startInterception();
 
+    // ── Toast interception (#500) ──────────────────────────────────────────────
+    // VS Code toast messages (showInformationMessage / showWarningMessage /
+    // showErrorMessage) bypass the output channel. We monkey-patch them during
+    // command execution so their first-argument text is also forwarded to the
+    // result panel, ensuring the panel never shows "(no log output)" when the
+    // command already produced user-facing feedback.
+    const _origInfo  = vscode.window.showInformationMessage.bind(vscode.window);
+    const _origWarn  = vscode.window.showWarningMessage.bind(vscode.window);
+    const _origError = vscode.window.showErrorMessage.bind(vscode.window);
+    (vscode.window as any).showInformationMessage = (msg: string, ...rest: any[]) => { stream(`ℹ ${msg}`); return _origInfo(msg, ...rest as [any]); };
+    (vscode.window as any).showWarningMessage     = (msg: string, ...rest: any[]) => { stream(`⚠ ${msg}`); return _origWarn(msg, ...rest as [any]); };
+    (vscode.window as any).showErrorMessage       = (msg: string, ...rest: any[]) => { stream(`✗ ${msg}`); return _origError(msg, ...rest as [any]); };
+
     // Snapshot terminals BEFORE — detect terminal-based commands by new terminal creation,
     // not by elapsed time (elapsed heuristic fails for fast synchronous commands like audit).
     const termIdsBefore = new Set(vscode.window.terminals.map(t => t.processId));
@@ -448,6 +469,10 @@ async function _executeWithOutput(
             finish(false, elapsed, stack);
         }
     } finally {
+        // Restore toast APIs
+        (vscode.window as any).showInformationMessage = _origInfo;
+        (vscode.window as any).showWarningMessage     = _origWarn;
+        (vscode.window as any).showErrorMessage       = _origError;
         _activeStreams.delete(runId);
         stopInterceptionIfIdle();
     }
