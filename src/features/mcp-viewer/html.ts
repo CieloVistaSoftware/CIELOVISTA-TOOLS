@@ -67,6 +67,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 /* Tables */
 table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
 th{position:sticky;top:0;background:#252526;padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#858585;border-bottom:1px solid #404040;white-space:nowrap;z-index:1}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:#cae8ff}
+th[data-sort-dir="asc"]::after{content:' ▲';font-size:8px;opacity:.7}
+th[data-sort-dir="desc"]::after{content:' ▼';font-size:8px;opacity:.7}
 td{padding:6px 10px;border-bottom:1px solid #2d2d2d;vertical-align:top}
 tr:hover td{background:#252526}
 
@@ -292,7 +296,9 @@ function renderProjectsTable(data){
     resultEl.innerHTML = '<div class="state">No projects in registry.</div>';
     return;
   }
-  var rows = projects.map(function(p, i){
+  var col = (_sortState[currentEndpoint] || {}).col;
+  var sorted = _sortBy(projects, col);
+  var rows = sorted.map(function(p, i){
     var descClass = p.description ? 'c-desc' : 'c-desc empty';
     var descText  = p.description ? esc(p.description) : '(empty)';
     return '<tr>' +
@@ -306,9 +312,10 @@ function renderProjectsTable(data){
   }).join('');
   resultEl.innerHTML =
     '<table>' +
-      '<thead><tr><th>#</th><th>Name</th><th>Status</th><th>Type</th><th>Description</th><th>Path</th></tr></thead>' +
+      '<thead><tr><th>#</th>' + _th('Name','name') + _th('Status','status') + _th('Type','type') + _th('Description','description') + _th('Path','path') + '</tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
     '</table>';
+  _updateSortHeaders();
 }
 
 function renderFindProjectTable(data){
@@ -317,7 +324,9 @@ function renderFindProjectTable(data){
     resultEl.innerHTML = '<div class="state">No matches for &ldquo;' + esc(data.query || '') + '&rdquo;.</div>';
     return;
   }
-  var rows = matches.map(function(p, i){
+  var col = (_sortState[currentEndpoint] || {}).col;
+  var sorted = _sortBy(matches, col);
+  var rows = sorted.map(function(p, i){
     return '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
       '<td class="c-name" title="' + esc(buildProjectTip(p)) + '"><button class="c-name-link" data-action="open-project-catalog" data-project="' + esc(p.name) + '">' + esc(p.name) + '</button> <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
@@ -329,9 +338,10 @@ function renderFindProjectTable(data){
   }).join('');
   resultEl.innerHTML =
     '<table>' +
-      '<thead><tr><th>#</th><th>Name</th><th>Status</th><th>Type</th><th>Description</th><th>Path</th></tr></thead>' +
+      '<thead><tr><th>#</th>' + _th('Name','name') + _th('Status','status') + _th('Type','type') + _th('Description','description') + _th('Path','path') + '</tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
     '</table>';
+  _updateSortHeaders();
 }
 
 function renderDocsTable(data){
@@ -342,7 +352,8 @@ function renderDocsTable(data){
     return;
   }
 
-  var docsSorted = sortDocs(matches, currentEndpoint === 'get_catalog' ? catalogSortBy : 'recent');
+  var _dc = (_sortState[currentEndpoint] || {}).col;
+  var docsSorted = _dc ? _sortBy(matches, _dc) : sortDocs(matches, currentEndpoint === 'get_catalog' ? catalogSortBy : 'recent');
 
   /* Group by project name for readability. */
   var groups = {};
@@ -359,7 +370,7 @@ function renderDocsTable(data){
     var proj = order[g];
     var docs = groups[proj];
     html += '<div class="group-hd"><span>' + esc(proj) + '</span><span class="count">' + docs.length + ' doc' + (docs.length === 1 ? '' : 's') + '</span></div>';
-    html += '<table><thead><tr><th>#</th><th>Title</th><th>File</th><th>Updated</th><th>Description</th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>#</th>' + _th('Title','title') + _th('File','file') + _th('Updated','updated') + _th('Description','description') + '</tr></thead><tbody>';
     for (var j = 0; j < docs.length; j++) {
       var d = docs[j];
       var descClass = d.description ? 'c-desc' : 'c-desc empty';
@@ -376,6 +387,7 @@ function renderDocsTable(data){
     html += '</tbody></table>';
   }
   resultEl.innerHTML = html;
+  _updateSortHeaders();
 }
 
 function renderSymbolsTable(data){
@@ -396,9 +408,11 @@ function renderSymbolsTable(data){
     var proj = order[g];
     var syms = groups[proj];
     html += '<div class="group-hd"><span>' + esc(proj) + '</span><span class="count">' + syms.length + ' symbol' + (syms.length === 1 ? '' : 's') + '</span></div>';
-    html += '<table><thead><tr><th>Name</th><th>Kind</th><th>Role</th><th>Exp</th><th>Signature / Doc</th><th>File : line</th></tr></thead><tbody>';
-    for (var j = 0; j < syms.length; j++) {
-      var s = syms[j];
+    var _sc = (_sortState[currentEndpoint] || {}).col;
+    var symsToRender = _sortBy(syms, _sc);
+    html += '<table><thead><tr>' + _th('Name','name') + _th('Kind','kind') + _th('Role','role') + _th('Exp','exported') + _th('Signature / Doc','signature') + _th('File : line','source') + '</tr></thead><tbody>';
+    for (var j = 0; j < symsToRender.length; j++) {
+      var s = symsToRender[j];
       var doc = s.docComment ? '<div style="color:#858585;font-size:10px;margin-top:4px;white-space:pre-wrap">' + esc(s.docComment.replace(/^\\s*\\/\\*\\*/, '').replace(/\\*\\/\\s*$/, '').replace(/^\\s*\\*\\s?/gm, '')) + '</div>' : '';
       var locShort = s.sourceFile.split(/[\\\\/]/).slice(-3).join('/') + ' : ' + s.line;
       html += '<tr>' +
@@ -413,6 +427,7 @@ function renderSymbolsTable(data){
     html += '</tbody></table>';
   }
   resultEl.innerHTML = html;
+  _updateSortHeaders();
 }
 
 function renderCvtCommandsTable(data){
@@ -433,9 +448,11 @@ function renderCvtCommandsTable(data){
     var grp = order[g];
     var gs = groups[grp];
     html += '<div class="group-hd"><span>' + esc(grp) + '</span><span class="count">' + gs.length + ' cmd' + (gs.length === 1 ? '' : 's') + '</span></div>';
-    html += '<table><thead><tr><th>Dewey</th><th>ID</th><th>Title</th><th>Scope</th><th>Tags</th><th>Description</th></tr></thead><tbody>';
-    for (var j = 0; j < gs.length; j++) {
-      var c = gs[j];
+    var _cc = (_sortState[currentEndpoint] || {}).col;
+    var gsToRender = _sortBy(gs, _cc);
+    html += '<table><thead><tr>' + _th('Dewey','dewey') + _th('ID','id') + _th('Title','title') + _th('Scope','scope') + _th('Tags','tags') + _th('Description','description') + '</tr></thead><tbody>';
+    for (var j = 0; j < gsToRender.length; j++) {
+      var c = gsToRender[j];
       html += '<tr>' +
         '<td class="c-idx">' + esc(c.dewey) + '</td>' +
         '<td class="c-name" title="' + esc(buildCmdTip(c)) + '">' + esc(c.id) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
@@ -448,6 +465,7 @@ function renderCvtCommandsTable(data){
     html += '</tbody></table>';
   }
   resultEl.innerHTML = html;
+  _updateSortHeaders();
 }
 
 function renderLookupDewey(data){
@@ -459,11 +477,13 @@ function renderLookupDewey(data){
   }
 
   var html = '';
+  var _ldc = (_sortState[currentEndpoint] || {}).col;
   if (docs.length) {
+    var docsS = _sortBy(docs, _ldc);
     html += '<div class="group-hd"><span>Documents</span><span class="count">' + docs.length + ' match' + (docs.length === 1 ? '' : 'es') + '</span></div>';
-    html += '<table><thead><tr><th>#</th><th>Dewey</th><th>Project</th><th>Title</th><th>File</th><th>Description</th></tr></thead><tbody>';
-    for (var i = 0; i < docs.length; i++) {
-      var d = docs[i];
+    html += '<table><thead><tr><th>#</th>' + _th('Dewey','dewey') + _th('Project','project') + _th('Title','title') + _th('File','file') + _th('Description','description') + '</tr></thead><tbody>';
+    for (var i = 0; i < docsS.length; i++) {
+      var d = docsS[i];
       html += '<tr>' +
         '<td class="c-idx">' + (i + 1) + '</td>' +
         '<td class="c-idx">' + esc(d.dewey || '') + '</td>' +
@@ -477,10 +497,11 @@ function renderLookupDewey(data){
   }
 
   if (commands.length) {
+    var cmdsS = _sortBy(commands, _ldc);
     html += '<div class="group-hd"><span>CVT Commands</span><span class="count">' + commands.length + ' match' + (commands.length === 1 ? '' : 'es') + '</span></div>';
-    html += '<table><thead><tr><th>Dewey</th><th>ID</th><th>Title</th><th>Group</th><th>Scope</th><th>Description</th></tr></thead><tbody>';
-    for (var j = 0; j < commands.length; j++) {
-      var c = commands[j];
+    html += '<table><thead><tr>' + _th('Dewey','dewey') + _th('ID','id') + _th('Title','title') + _th('Group','group') + _th('Scope','scope') + _th('Description','description') + '</tr></thead><tbody>';
+    for (var j = 0; j < cmdsS.length; j++) {
+      var c = cmdsS[j];
       html += '<tr>' +
         '<td class="c-idx">' + esc(c.dewey || '') + '</td>' +
         '<td class="c-name">' + esc(c.id || '') + '</td>' +
@@ -494,6 +515,7 @@ function renderLookupDewey(data){
   }
 
   resultEl.innerHTML = html;
+  _updateSortHeaders();
 }
 
 function renderDocViolations(data){
@@ -515,10 +537,12 @@ function renderDocViolations(data){
   }
 
   var html = summary;
+  var _vc = (_sortState[currentEndpoint] || {}).col;
+  var rowsSorted = _sortBy(rows, _vc);
   html += '<div class="group-hd"><span>Violations</span><span class="count">' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + '</span></div>';
-  html += '<table><thead><tr><th>#</th><th>Project</th><th>Code</th><th>Identity</th><th>Message</th><th>File</th></tr></thead><tbody>';
-  for (var i = 0; i < rows.length; i++) {
-    var v = rows[i];
+  html += '<table><thead><tr><th>#</th>' + _th('Project','project') + _th('Code','code') + _th('Identity','identity') + _th('Message','message') + _th('File','file') + '</tr></thead><tbody>';
+  for (var i = 0; i < rowsSorted.length; i++) {
+    var v = rowsSorted[i];
     var mdLink = buildMdPreviewLink(v.filePath || '');
     html += '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
@@ -531,6 +555,7 @@ function renderDocViolations(data){
   }
   html += '</tbody></table>';
   resultEl.innerHTML = html;
+  _updateSortHeaders();
 }
 
 function renderValidateDoc(data){
@@ -621,9 +646,11 @@ function renderOldDewey(data){
     resultEl.innerHTML = html + '<div class="state">No old-scheme Dewey identifiers found.</div>';
     return;
   }
-  html += '<table><thead><tr><th>#</th><th>Project</th><th>Old Dewey</th><th>Source</th><th>File</th><th>Title</th></tr></thead><tbody>';
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
+  var _odc = (_sortState[currentEndpoint] || {}).col;
+  var rowsS = _sortBy(rows, _odc);
+  html += '<table><thead><tr><th>#</th>' + _th('Project','project') + _th('Old Dewey','dewey') + _th('Source','source') + _th('File','file') + _th('Title','title') + '</tr></thead><tbody>';
+  for (var i = 0; i < rowsS.length; i++) {
+    var r = rowsS[i];
     html += '<tr>' +
       '<td class="c-idx">' + (i + 1) + '</td>' +
       '<td class="c-proj">' + esc(r.projectName || '') + '</td>' +
@@ -635,6 +662,7 @@ function renderOldDewey(data){
   }
   html += '</tbody></table>';
   resultEl.innerHTML = html;
+  _updateSortHeaders();
 }
 
 function loadActiveMarkdownPath(filePathEl){
@@ -733,6 +761,7 @@ function runEndpoint(params){
           resultEl.innerHTML = '<div class="state err">No result in response</div>';
           return;
         }
+        _lastData[currentEndpoint] = result;
         if (currentEndpoint === 'list_projects')  { renderProjectsTable(result); return; }
         if (currentEndpoint === 'find_project')   { renderFindProjectTable(result); return; }
         if (currentEndpoint === 'search_docs')    { renderDocsTable(result); return; }
@@ -792,6 +821,77 @@ function sortDocs(docs, mode){
     arr.sort(byMostRecent);
   }
   return arr;
+}
+
+var _SORT_KEY = {
+  name:        function(x){ return x.name; },
+  status:      function(x){ return x.status; },
+  type:        function(x){ return x.type; },
+  description: function(x){ return x.description || x.message || ''; },
+  path:        function(x){ return x.path || x.filePath; },
+  title:       function(x){ return x.title || x.fileName; },
+  file:        function(x){ return x.fileName || x.filePath; },
+  updated:     function(x){ return x.lastModified || ''; },
+  kind:        function(x){ return x.kind; },
+  role:        function(x){ return x.role; },
+  exported:    function(x){ return x.exported ? 'yes' : 'no'; },
+  signature:   function(x){ return x.signature || ''; },
+  source:      function(x){ return x.source || x.sourceFile || ''; },
+  dewey:       function(x){ return x.dewey || x.oldDewey || ''; },
+  id:          function(x){ return x.id; },
+  scope:       function(x){ return x.scope; },
+  group:       function(x){ return x.group; },
+  code:        function(x){ return x.code; },
+  identity:    function(x){ return x.identity; },
+  message:     function(x){ return x.message; },
+  project:     function(x){ return x.projectName; },
+};
+
+function _sortBy(arr, col) {
+  if (!col || !_SORT_KEY[col]) return arr;
+  var acc = _SORT_KEY[col];
+  var dir = (_sortState[currentEndpoint] || {}).dir || 'asc';
+  return arr.slice().sort(function(a, b) {
+    var va = String(acc(a) || '').toLowerCase();
+    var vb = String(acc(b) || '').toLowerCase();
+    var cmp = va.localeCompare(vb, undefined, {numeric: true, sensitivity: 'base'});
+    return dir === 'desc' ? -cmp : cmp;
+  });
+}
+
+function _th(label, col) {
+  return '<th class="sortable" data-col="' + esc(col) + '">' + esc(label) + '</th>';
+}
+
+function _updateSortHeaders() {
+  var st = _sortState[currentEndpoint] || {};
+  var ths = resultEl.querySelectorAll('th[data-col]');
+  for (var i = 0; i < ths.length; i++) {
+    var th = ths[i];
+    if (th.dataset.col === st.col) { th.setAttribute('data-sort-dir', st.dir || 'asc'); }
+    else { th.removeAttribute('data-sort-dir'); }
+  }
+}
+
+function onSort(col) {
+  var st = _sortState[currentEndpoint] || {};
+  _sortState[currentEndpoint] = { col: col, dir: (st.col === col && st.dir === 'asc') ? 'desc' : 'asc' };
+  _rerender();
+}
+
+function _rerender() {
+  var d = _lastData[currentEndpoint];
+  if (!d) return;
+  if (currentEndpoint === 'list_projects')        { renderProjectsTable(d); return; }
+  if (currentEndpoint === 'find_project')          { renderFindProjectTable(d); return; }
+  if (currentEndpoint === 'search_docs')           { renderDocsTable(d); return; }
+  if (currentEndpoint === 'get_catalog')           { renderDocsTable(d); return; }
+  if (currentEndpoint === 'list_doc_violations')   { renderDocViolations(d); return; }
+  if (currentEndpoint === 'list_symbols')          { renderSymbolsTable(d); return; }
+  if (currentEndpoint === 'find_symbol')           { renderSymbolsTable(d); return; }
+  if (currentEndpoint === 'list_cvt_commands')     { renderCvtCommandsTable(d); return; }
+  if (currentEndpoint === 'lookup_dewey')          { renderLookupDewey(d); return; }
+  if (currentEndpoint === 'list_old_dewey')        { renderOldDewey(d); return; }
 }
 
 function formatStamp(iso){
