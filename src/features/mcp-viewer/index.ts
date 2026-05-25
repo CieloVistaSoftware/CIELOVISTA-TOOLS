@@ -782,7 +782,10 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,san
 header{position:sticky;top:0;background:#252526;border-bottom:1px solid #404040;padding:10px 16px;font-size:12px;color:#9cdcfe;font-family:Consolas,monospace;display:flex;align-items:center;gap:10px}
 .btn-back{background:#2d2d2d;color:#9cdcfe;border:1px solid #404040;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px;font-family:inherit}
 .btn-back:hover{border-color:#0078d4;color:#fff}
-.path-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-reveal{background:#2d2d2d;color:#9cdcfe;border:1px solid #404040;border-radius:4px;padding:5px 8px;cursor:pointer;font-size:12px;font-family:inherit;flex-shrink:0;title:attr(title)}
+.btn-reveal:hover{border-color:#0078d4;color:#fff}
+.path-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:#9cdcfe}
+.path-label:hover{text-decoration:underline}
 main{max-width:980px;margin:0 auto;padding:18px 20px 40px;line-height:1.65}
 h1,h2,h3,h4{color:#fff;margin-top:1.4em}
 a{color:#FFD700}
@@ -797,15 +800,22 @@ th,td{border:1px solid #2d2d2d;padding:6px 8px}
 .fm-value{font-size:12px;color:#74c7ec;font-style:italic;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 </style></head>
 <body>
-<header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><span class="path-label">${safePath}</span></header>
+<header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><button id="btn-reveal" class="btn-reveal" title="Reveal in Explorer">&#128194;</button><span id="path-label" class="path-label" title="Click to reveal in Explorer">${safePath}</span></header>
 <main>${renderedHtml}</main>
 <script>
 var backUrl = ${JSON.stringify(safeBack)};
+var currentFilePath = ${JSON.stringify(filePath)};
 document.getElementById('btn-back').addEventListener('click', function(){
     if (backUrl) { window.location.href = backUrl; return; }
     if (window.history.length > 1) { window.history.back(); return; }
     window.location.href = '/';
 });
+function revealFile() {
+    if (!currentFilePath) { return; }
+    fetch('/api/reveal?path=' + encodeURIComponent(currentFilePath)).catch(function(){});
+}
+document.getElementById('btn-reveal').addEventListener('click', revealFile);
+document.getElementById('path-label').addEventListener('click', revealFile);
 (function(){
     var pathRe = /[A-Za-z]:\\[^\s<>'"\\|*?]+/g;
     function linkifyPaths(root) {
@@ -930,6 +940,21 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
     if (p === '/api/list_markdown_paths') {
         jsonResponse(res, 200, await handleListMarkdownPaths(url.searchParams));
+        return;
+    }
+
+    if (p === '/api/reveal') {
+        const targetPath = url.searchParams.get('path') || '';
+        if (targetPath && fs.existsSync(targetPath)) {
+            try {
+                await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(targetPath));
+                jsonResponse(res, 200, { ok: true });
+            } catch {
+                jsonResponse(res, 500, { ok: false, error: 'Could not reveal file' });
+            }
+        } else {
+            jsonResponse(res, 404, { ok: false, error: 'Path not found' });
+        }
         return;
     }
 

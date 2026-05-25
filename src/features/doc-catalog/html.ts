@@ -110,7 +110,7 @@ export function buildCatalogInitPayload(
     <span class="card-filename">${esc(card.fileName)}</span>
   </div>
   <div class="card-title" data-action="open-preview" data-path="${esc(card.filePath)}" title="${esc(tooltipText)}">${esc(card.title)}</div>
-  <div style="font-family:monospace;font-size:10px;color:var(--vscode-descriptionForeground)">${esc(card.projectPath)}</div>
+  <button class="card-proj-path-link" data-action="open-project-folder" data-proj-path="${esc(card.projectPath)}" title="Open project folder: ${esc(card.projectPath)}">${esc(card.projectPath)}</button>
   <div class="card-desc">${esc(card.description)}</div>
   <div class="card-path" title="${esc(card.filePath)}">${esc(relPath)}</div>
   <div class="card-tags">${tagsHtml}</div>

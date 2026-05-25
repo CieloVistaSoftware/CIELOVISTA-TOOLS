@@ -30,6 +30,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 #topbar h1 .dot{width:8px;height:8px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950}
 #stat{font-size:11px;color:#858585;margin-left:auto}
 #stat b{color:#9cdcfe;font-weight:700}
+#btn-back{background:#2d2d2d;color:#9cdcfe;border:1px solid #404040;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px;font-family:inherit;display:none;align-items:center;gap:5px;white-space:nowrap}
+#btn-back.visible{display:inline-flex}
+#btn-back:hover{border-color:#0078d4;color:#fff}
 
 /* Tabs */
 #tabs{display:flex;gap:1px;background:#252526;border-bottom:1px solid #404040;padding:0 14px;flex-shrink:0}
@@ -107,6 +110,7 @@ pre.json{background:#1a1a1a;border:1px solid #2d2d2d;border-radius:4px;padding:1
 
 <div id="topbar">
   <h1><span class="dot"></span>MCP Endpoint Viewer</h1>
+  <button id="btn-back" title="Go back">&larr; Back</button>
   <span id="stat"><b id="stat-count">${totalProjects}</b> projects registered</span>
 </div>
 
@@ -149,6 +153,22 @@ var currentEndpoint = 'list_projects';
 var catalogSortBy = 'recent';
 var projectOptions = [];
 var pendingCatalogProjectName = '';
+var navStack = [];   // navigation history for ← Back button
+
+function pushNav(endpoint) {
+  navStack.push(endpoint);
+  var btn = document.getElementById('btn-back');
+  if (btn) { btn.classList.add('visible'); }
+}
+
+function popNav() {
+  var prev = navStack.pop();
+  if (!navStack.length) {
+    var btn = document.getElementById('btn-back');
+    if (btn) { btn.classList.remove('visible'); }
+  }
+  if (prev) { selectTab(prev); }
+}
 
 /* Control templates per endpoint. */
 var CONTROLS = {
@@ -823,6 +843,7 @@ function loadProjectOptions(selectEl){
 
 function openProjectCatalog(projectName){
   if (!projectName) { return; }
+  pushNav(currentEndpoint);
   pendingCatalogProjectName = projectName;
   selectTab('get_catalog');
 }
@@ -1010,10 +1031,13 @@ function selectTab(endpoint){
   }
 }
 
-/* Tab click handling. */
+/* Tab click handling — resets nav stack since user is navigating explicitly. */
 tabsEl.addEventListener('click', function(e){
   var t = e.target.closest('.tab');
   if (!t) { return; }
+  navStack = [];
+  var btn = document.getElementById('btn-back');
+  if (btn) { btn.classList.remove('visible'); }
   selectTab(t.dataset.endpoint);
 });
 
@@ -1022,6 +1046,10 @@ resultEl.addEventListener('click', function(e){
   if (!btn) { return; }
   openProjectCatalog(btn.dataset.project || '');
 });
+
+/* Back button. */
+var backBtn = document.getElementById('btn-back');
+if (backBtn) { backBtn.addEventListener('click', popNav); }
 
 /* Initial load. */
 selectTab('list_projects');
