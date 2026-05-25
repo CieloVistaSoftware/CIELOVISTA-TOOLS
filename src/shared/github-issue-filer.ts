@@ -37,6 +37,16 @@ export interface FileIssueResult {
     issueUrl?: string;
     issueNumber?: number;
     error?:    string;   // human-readable failure detail
+    copiedToClipboard?: boolean;  // true when content was copied as fallback
+}
+
+async function copyIssueToClipboard(title: string, body: string): Promise<boolean> {
+    try {
+        await vscode.env.clipboard.writeText(`# ${title}\n\n${body}`);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 // ─── Title + body builders ────────────────────────────────────────────────────

@@ -17,6 +17,27 @@ relativepath: docs/_today/CURRENT-STATUS.md
 
 ---
 
+## 🅿️ PARKING LOT — end of session 2026-05-24 (issues #467–#477 all closed)
+
+**TASK:** Implement and close all open issues (#467, #468, #469, #470, #477, +earlier #471–#476)
+**STATUS:** ✅ Complete — 0 open issues, all 81 regressions green, branch `claude/thirsty-pasteur-39b9cd` ready to merge
+
+**FILES TOUCHED THIS SESSION:**
+- `src/features/mcp-viewer/html.ts` — #477 back button + nav-stack; #470 parseFrontmatter dual-position
+- `src/features/mcp-viewer/index.ts` — #470 /api/reveal endpoint, path reveal button in markdown preview, updated parseFrontmatter
+- `src/features/doc-catalog/html.ts` — #470 card projectPath clickable; #468 ✅ Done button
+- `src/features/doc-catalog/catalog.html` — #468 Finished Work section, CSS, JS handlers
+- `src/features/doc-catalog/commands.ts` — #468 finish-doc-confirm / restore-finished handlers
+- `src/features/doc-catalog/finished.ts` — NEW: #468 FinishedEntry storage
+- `src/features/playwright-runner.ts` — #469 live WebviewPanel with streaming output + progress bar
+- `src/features/doc-header/feature.ts` — #467 moveToBottom command + dual-position parseFrontmatter
+- `package.json` — #467 cvs.headers.moveToBottom command entry
+
+**NEXT STEP:** Merge `claude/thirsty-pasteur-39b9cd` → main from the MAIN project directory, then run `npm run rebuild`
+**OPEN QUESTIONS:** None
+
+---
+
 ## 🅿️ PARKING LOT — end of session 2026-05-15 (MCP HTTP migration cleanup #390/#392)
 
 **TASK:** Finish MCP HTTP transport migration — remove residual `/api/...` calls, migrate transport tests
