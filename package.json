@@ -548,7 +548,13 @@
         "command": "cvs.headers.scan",
         "title": "Headers: Scan Doc Header Compliance",
         "category": "CieloVista Headers",
-        "description": "Scan documentation files for header/frontmatter compliance."
+        "description": "Scan all .md docs and report which files have frontmatter at the top (position violation)."
+      },
+      {
+        "command": "cvs.headers.scanAuto",
+        "title": "Headers: Scan + Auto-Fix Frontmatter Position",
+        "category": "CieloVista Headers",
+        "description": "Scan all .md docs for top-position frontmatter, auto-move to bottom, re-verify each fix."
       },
       {
         "command": "cvs.headers.frontmatterViewer",
