@@ -1052,12 +1052,12 @@ export async function showFixBugsPanel(): Promise<void> {
 // ── Activate / Deactivate ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
+    );
+
     if (isAlreadyRunning()) {
         log(FEATURE, 'Runner already active — skipping duplicate activation');
-        // Still register the command so the panel can be opened
-        context.subscriptions.push(
-            vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
-        );
         return;
     }
 
@@ -1070,10 +1070,6 @@ export function activate(context: vscode.ExtensionContext): void {
     _timer = setTimeout(runNextCheck, 5000);
     // Schedule the first regression run 2 min after startup, then every hour
     scheduleTestRun(TEST_FIRST_DELAY_MS);
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
-    );
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
     );

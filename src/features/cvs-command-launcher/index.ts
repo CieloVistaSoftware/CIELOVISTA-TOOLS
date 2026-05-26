@@ -17,6 +17,7 @@ import { sendToCopilotChat } from '../terminal-copy-output';
 import { loadRegistry } from '../../shared/registry';
 import { getErrors } from '../../shared/error-log-adapter';
 import { setLauncherTargetColumn } from '../../shared/panel-context';
+import { registerLaunchedTerminal } from '../../shared/terminal-utils';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -36,6 +37,7 @@ function _launchInTerminal(name: string, cmd: string, cwd?: string): void {
     const term = vscode.window.createTerminal({ name, cwd });
     term.show();
     term.sendText(cmd);
+    registerLaunchedTerminal(name, { script: cmd, command: cmd, cwd: cwd ?? '', project: name });
 }
 
 function normalizeWorkspaceDisplayName(name: string): string {

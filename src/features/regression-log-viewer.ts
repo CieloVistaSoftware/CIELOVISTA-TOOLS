@@ -306,12 +306,6 @@ export async function openRegressionLogViewer(): Promise<void> {
     log(FEATURE, `Regression log viewer opened — ${entries.length} entries`);
 }
 
-export function activate(context: vscode.ExtensionContext): void {
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.tools.regressionLog', openRegressionLogViewer)
-    );
-}
-
 export function deactivate(): void {
     _panel?.dispose();
 }
