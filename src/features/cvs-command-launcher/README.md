@@ -1,18 +1,3 @@
----
-docid: 150.1.cvs-command-launcher-dir
-id: feature-cvs-command-launcher
-title: "Feature: Cvs Command Launcher"
-project: cielovista-tools
-description: "Cvs Command Launcher — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [cvs, command, launcher]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/cvs-command-launcher/README.md
----
 # Feature: Cvs Command Launcher
 
 ## What it does
@@ -74,3 +59,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 3. Open the Command Palette and run **Mcp: StartServer** (`cvs.mcp.startServer`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.cvs-command-launcher-dir
+id: feature-cvs-command-launcher
+title: "Feature: Cvs Command Launcher"
+project: cielovista-tools
+description: "Cvs Command Launcher — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [cvs, command, launcher]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/cvs-command-launcher/README.md
+---

@@ -1,18 +1,3 @@
----
-docid: 150.1.terminal-prompt-shortener-readme
-id: feature-terminal-prompt-shortenerts
-title: "feature: terminal-prompt-shortener.ts"
-project: cielovista-tools
-description: Toggles the PowerShell terminal prompt between its full path form (PS C:\very\long\nested\path>) and a minimal single-character form (>). Useful wh…
-status: active
-tags: [terminal, prompt, shortener]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/terminal-prompt-shortener.README.md
----
 # feature: terminal-prompt-shortener.ts
 
 ## What it does
@@ -80,3 +65,19 @@ togglePromptLength()
 2. Run [`cvs.terminal.togglePromptLength`](command:cvs.terminal.togglePromptLength) — prompt should immediately change to `>`.
 3. Run the command again — prompt should restore to the full path format.
 4. Close the terminal and open a new one — new terminal starts with the default full prompt regardless of the last toggle state.
+
+---
+docid: 150.1.terminal-prompt-shortener-readme
+id: feature-terminal-prompt-shortenerts
+title: "feature: terminal-prompt-shortener.ts"
+project: cielovista-tools
+description: Toggles the PowerShell terminal prompt between its full path form (PS C:\very\long\nested\path>) and a minimal single-character form (>). Useful wh…
+status: active
+tags: [terminal, prompt, shortener]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/terminal-prompt-shortener.README.md
+---

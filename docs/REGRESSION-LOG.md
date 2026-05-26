@@ -1,18 +1,3 @@
----
-docid: 150.9.regression-log
-id: regression-log-cielovista-tools
-title: Regression Log — CieloVista Tools
-project: cielovista-tools
-description: Every regression that has ever happened in this project is documented here. Read this at the start of every session before touching any code.
-status: active
-tags: [regression, log, cielovista]
-category: 150.9 — Meta
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: docs/REGRESSION-LOG.md
----
 # Regression Log — CieloVista Tools
 
 Every regression that has ever happened in this project is documented here.
@@ -180,3 +165,19 @@ These run automatically before every `npm run rebuild` — the build will abort 
 | REG-009  | `data/` is in `.gitignore` |
 | REG-010  | All packages in `devDependencies`, not `dependencies` |
 | REG-011  | Every `dependencies` package has `!node_modules/<pkg>/**` in `.vscodeignore` |
+
+---
+docid: 150.9.regression-log
+id: regression-log-cielovista-tools
+title: Regression Log — CieloVista Tools
+project: cielovista-tools
+description: Every regression that has ever happened in this project is documented here. Read this at the start of every session before touching any code.
+status: active
+tags: [regression, log, cielovista]
+category: 150.9 — Meta
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: docs/REGRESSION-LOG.md
+---

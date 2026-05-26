@@ -1,18 +1,3 @@
----
-docid: 150.1.terminal-utils-readme
-id: feature-sharedterminal-utilsts
-title: "feature: shared/terminal-utils.ts"
-project: cielovista-tools
-description: Reusable terminal and file-navigation helpers shared across all features that involve terminals or opening files/folders. The rule is simple: if tw…
-status: active
-tags: [terminal, utils, readme]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/shared/terminal-utils.README.md
----
 # feature: shared/terminal-utils.ts
 
 ## Purpose
@@ -112,3 +97,19 @@ activate()
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
+
+---
+docid: 150.1.terminal-utils-readme
+id: feature-sharedterminal-utilsts
+title: "feature: shared/terminal-utils.ts"
+project: cielovista-tools
+description: Reusable terminal and file-navigation helpers shared across all features that involve terminals or opening files/folders. The rule is simple: if tw…
+status: active
+tags: [terminal, utils, readme]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/shared/terminal-utils.README.md
+---

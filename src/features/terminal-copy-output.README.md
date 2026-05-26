@@ -1,18 +1,3 @@
----
-docid: 150.1.terminal-copy-output-readme
-id: feature-terminal-copy-outputts
-title: "feature: terminal-copy-output.ts"
-project: cielovista-tools
-description: Captures the output of the most recently executed terminal command. Uses VS Code's shell integration (selectToPreviousCommand) to select only the l…
-status: active
-tags: [terminal, copy, output]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/terminal-copy-output.README.md
----
 # feature: terminal-copy-output.ts
 
 ## What it does
@@ -94,3 +79,19 @@ Three strategies are attempted in order because the Chat API has changed across 
 2. Press `Ctrl+Shift+C` while terminal is focused.
 3. Paste into a Markdown file — you should see a properly formatted ` ```bash ``` ` code block with only that command's output.
 4. Run `Terminal: Paste Output to Chat` from the Command Palette — the output should appear in the Copilot Chat input.
+
+---
+docid: 150.1.terminal-copy-output-readme
+id: feature-terminal-copy-outputts
+title: "feature: terminal-copy-output.ts"
+project: cielovista-tools
+description: Captures the output of the most recently executed terminal command. Uses VS Code's shell integration (selectToPreviousCommand) to select only the l…
+status: active
+tags: [terminal, copy, output]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/terminal-copy-output.README.md
+---

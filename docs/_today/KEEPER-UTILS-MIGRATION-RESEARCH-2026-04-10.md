@@ -1,18 +1,3 @@
----
-docid: 150.9.keeper-utils-migration-research-2026-04-10
-id: keeper-utils-migration-research-2026-04-10
-title: Keeper Utils Migration Research — 2026-04-10
-project: cielovista-tools
-description: Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.
-status: active
-tags: [keeper, utils, migration]
-category: 150.9 — Meta
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md
----
 # Keeper Utils Migration Research — 2026-04-10
 
 Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.
@@ -176,3 +161,19 @@ Confirmed so far:
 - DiskCleanUp contains the CPU and memory mini-widget implementation the team remembered.
 - The reusable layer is the MetricsBar component, not the page-specific header markup.
 - CVT should wait for a proper shared migration instead of duplicating those widgets in Home.
+
+---
+docid: 150.9.keeper-utils-migration-research-2026-04-10
+id: keeper-utils-migration-research-2026-04-10
+title: Keeper Utils Migration Research — 2026-04-10
+project: cielovista-tools
+description: Purpose: establish the first pass for moving reusable "keeper" utilities into CieloVista Tools without duplicating weak or app-specific code.
+status: active
+tags: [keeper, utils, migration]
+category: 150.9 — Meta
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: docs/_today/KEEPER-UTILS-MIGRATION-RESEARCH-2026-04-10.md
+---

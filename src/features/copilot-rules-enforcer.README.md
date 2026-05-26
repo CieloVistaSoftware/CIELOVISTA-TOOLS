@@ -1,18 +1,3 @@
----
-docid: 150.1.copilot-rules-enforcer-readme
-id: feature-copilot-rules-enforcerts
-title: "feature: copilot-rules-enforcer.ts"
-project: cielovista-tools
-description: Injects your custom Copilot instruction rules into the workspace (or user) settings on startup. Rules are read from copilot-rules.md in the workspa…
-status: active
-tags: [copilot, rules, enforcer]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/copilot-rules-enforcer.README.md
----
 # feature: copilot-rules-enforcer.ts
 
 ## What it does
@@ -88,3 +73,19 @@ Errors from `applyRules()` and the reload command are tracked via `shared/error-
 3. Verify `.vscode/settings.json` contains `github.copilot.chat.codeGeneration.instructions`.
 4. Run `Copilot Rules: View Current` — webview should open showing your rules.
 5. Edit `copilot-rules.md`, run `Copilot Rules: Reload from File` — webview should update.
+
+---
+docid: 150.1.copilot-rules-enforcer-readme
+id: feature-copilot-rules-enforcerts
+title: "feature: copilot-rules-enforcer.ts"
+project: cielovista-tools
+description: Injects your custom Copilot instruction rules into the workspace (or user) settings on startup. Rules are read from copilot-rules.md in the workspa…
+status: active
+tags: [copilot, rules, enforcer]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/copilot-rules-enforcer.README.md
+---

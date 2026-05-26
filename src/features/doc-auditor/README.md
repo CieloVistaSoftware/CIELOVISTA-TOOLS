@@ -1,18 +1,3 @@
----
-docid: 150.1.doc-auditor-dir
-id: feature-doc-auditor
-title: "Feature: Doc Auditor"
-project: cielovista-tools
-description: "Doc Auditor — 9 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [doc, auditor]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/doc-auditor/README.md
----
 # Feature: Doc Auditor
 
 ## What it does
@@ -88,3 +73,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 9. Open the Command Palette and run **Audit: Walkthrough** (`cvs.audit.walkthrough`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.doc-auditor-dir
+id: feature-doc-auditor
+title: "Feature: Doc Auditor"
+project: cielovista-tools
+description: "Doc Auditor — 9 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [doc, auditor]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/doc-auditor/README.md
+---
