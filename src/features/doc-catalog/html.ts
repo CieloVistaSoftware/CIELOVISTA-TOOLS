@@ -84,10 +84,21 @@ export function buildCatalogInitPayload(
                 ? `<button class="btn-demo" data-action="wb-demo" data-path="${esc(card.filePath)}" data-name="${esc(card.title)}" title="Open live component demo in browser">&#9654; Demo</button>`
                 : '';
 
-            const catEntry = CATALOG.find(e => e.location && card.filePath.replace(/\\/g, '/').endsWith(e.location.replace(/\\/g, '/')));
-            const commandId = catEntry?.id ?? '';
+            // Resolve command: prefer frontmatter `command:` field, then match CATALOG by helpDoc
+            // (CATALOG.location points to .ts source files, not .md docs, so we match via helpDoc)
+            let commandId = card.command ?? '';
+            let commandTitle = commandId;
+            if (!commandId) {
+                const normalised = card.filePath.replace(/\\/g, '/');
+                const catEntry = CATALOG.find(e =>
+                    (e.helpDoc && e.helpDoc.replace(/\\/g, '/') === normalised) ||
+                    (e.location && normalised.endsWith(e.location.replace(/\\/g, '/')))
+                );
+                commandId    = catEntry?.id    ?? '';
+                commandTitle = catEntry?.title ?? '';
+            }
             const runBtn = commandId
-                ? `<button class="btn-run" data-action="run-command" data-command-id="${esc(commandId)}" title="Run: ${esc(catEntry!.title)}">&#9654; Run</button>`
+                ? `<button class="btn-run" data-action="run-command" data-command-id="${esc(commandId)}" title="Run: ${esc(commandTitle)}">&#9654; Run</button>`
                 : '';
             const finishBtn = `<button class="btn-finish" data-action="finish-doc" data-path="${esc(card.filePath)}" data-title="${esc(card.title)}" data-project="${esc(card.projectName)}" title="Mark as finished — moves to Finished Work queue">&#9989; Done</button>`;
 
