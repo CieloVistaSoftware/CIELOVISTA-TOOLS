@@ -81,11 +81,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   transition:background .15s,color .15s
 }
 .btn-run:hover{background:#238a42}
-/* running = yellow, ok = brighter green, error = red */
-.btn-run.running{background:#b8860b;color:#fff;cursor:default}
+/* running = green immediately (#512), ok = brighter green briefly, error = red */
+.btn-run.running{background:#1a7f37;color:#fff;box-shadow:0 0 5px #3fb950}
 .btn-run.ok     {background:#1a7f37;color:#fff}
 .btn-run.ok:hover{background:#238a42}
-.btn-run.error  {background:#b91c1c;color:#fff}
+.btn-run.error  {background:#b91c1c;color:#fff;box-shadow:0 0 5px #f85149}
 .btn-run.error:hover{background:#c72323}
 .btn-issue{
   background:var(--vscode-button-secondaryBackground);
@@ -246,10 +246,15 @@ function setBtn(btn, state){
   btn.classList.remove('running','ok','error');
   if(state === 'running'){
     btn.classList.add('running');
-    btn.textContent = '⏳';
+    btn.innerHTML = '&#9654; Run'; // stays as ▶ Run but turns green immediately (#512)
   } else if(state === 'ok'){
     btn.classList.add('ok');
     btn.innerHTML = '&#10003; Run';
+    // Auto-reset to default blue after 2s so button doesn't stay green permanently
+    setTimeout(function(){
+      btn.classList.remove('ok');
+      btn.innerHTML = '&#9654; Run';
+    }, 2000);
   } else if(state === 'error'){
     btn.classList.add('error');
     btn.innerHTML = '&#8635; Retry';
