@@ -28,6 +28,18 @@ function extractFrontmatterDocId(content: string): string | undefined {
     return undefined;
 }
 
+function extractFrontmatterCommand(content: string): string | undefined {
+    const lines = content.split('\n');
+    if (lines[0]?.trim() !== '---') { return undefined; }
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line === '---') { break; }
+        const m = line.match(/^command\s*:\s*(.+?)\s*$/i);
+        if (m) { return m[1].trim(); }
+    }
+    return undefined;
+}
+
 function categoryNumFromDocId(docId: string | undefined, fallback: number): number {
     if (!docId) { return fallback; }
     const m = docId.match(/^(\d{3})\./);
@@ -69,6 +81,7 @@ export function scanForCards(
                     const rawTitle = extractTitle(content, entry.name);
                     const docType  = extractDocType(content, rawTitle);
                     const title    = stripTypePrefix(rawTitle);
+                    const fmCommand = extractFrontmatterCommand(content);
                     cards.push({
                         id:           `card-${++_cardIdCounter}`,
                         fileName:     entry.name,
@@ -85,6 +98,7 @@ export function scanForCards(
                         tags:         extractTags(content, entry.name),
                         dewey: docId,
                         helpMarkdown,
+                        command:      fmCommand,
                     });
                 } catch { /* skip unreadable */ }
             }

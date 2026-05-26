@@ -47,4 +47,6 @@ export interface CatalogCard {
     docType?: string;
     /** True when another card in the catalog shares this dewey id */
     docIdCollision?: boolean;
+    /** VS Code command ID from frontmatter `command:` field or matched via CATALOG helpDoc */
+    command?: string;
 }
