@@ -18,8 +18,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SRC    = path.join(__dirname, '..', 'src', 'features', 'home-page.ts');
-// esbuild bundles all features into a single out/extension.js
-const BUNDLE = path.join(__dirname, '..', 'out', 'extension.js');
+const BUNDLE = path.join(__dirname, '..', 'out', 'features', 'home-page.js');
 
 const src    = fs.readFileSync(SRC, 'utf8');
 const bundle = fs.existsSync(BUNDLE) ? fs.readFileSync(BUNDLE, 'utf8') : '';
@@ -38,7 +37,7 @@ mustContain(src, '.hist-title:hover::after{display:block}',
 
 // Bundle checks (esbuild inlines all feature modules into out/extension.js)
 assert.ok(bundle.length > 0,
-  'BUNDLE: out/extension.js not found. Run npm run compile or npm run rebuild.');
+  'BUNDLE: out/features/home-page.js not found. Run npm run compile or npm run rebuild.');
 mustContain(bundle, 'class="hist-title" data-tip="',
   'BUNDLE: data-tip attribute missing in compiled bundle');
 mustContain(bundle, '.hist-title::after{',

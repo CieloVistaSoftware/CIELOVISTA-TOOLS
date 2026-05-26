@@ -37,6 +37,16 @@ export interface FileIssueResult {
     issueUrl?: string;
     issueNumber?: number;
     error?:    string;   // human-readable failure detail
+    copiedToClipboard?: boolean;  // true when content was copied as fallback
+}
+
+async function copyIssueToClipboard(title: string, body: string): Promise<boolean> {
+    try {
+        await vscode.env.clipboard.writeText(`# ${title}\n\n${body}`);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 // ─── Title + body builders ────────────────────────────────────────────────────
@@ -289,12 +299,13 @@ export interface RegressionEntry {
  */
 export async function fileErrorAsIssue(e: ErrorEntry): Promise<FileIssueResult> {
     const token = await getGithubToken();
-    if (!token) {
-        return { ok: false, error: 'GitHub authentication was canceled or failed. Click File as Issue again to retry.' };
-    }
-
     const title  = buildTitle(e);
     const body   = buildBody(e);
+
+    if (!token) {
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: 'GitHub authentication was canceled or failed. Click File as Issue again to retry.', copiedToClipboard: copied };
+    }
     const labels = withRequiredProjectLabel(['type:bug', 'auto-filed']);
 
     // Dedup: if an open auto-filed issue with the same title already
@@ -322,7 +333,8 @@ export async function fileErrorAsIssue(e: ErrorEntry): Promise<FileIssueResult> 
         return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: msg };
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: msg, copiedToClipboard: copied };
     }
 }
 
@@ -331,10 +343,6 @@ export async function fileErrorAsIssue(e: ErrorEntry): Promise<FileIssueResult> 
  */
 export async function fileRegressionAsIssue(r: RegressionEntry): Promise<FileIssueResult> {
     const token = await getGithubToken();
-    if (!token) {
-        return { ok: false, error: 'GitHub authentication was canceled or failed.' };
-    }
-
     const title = `[${r.regId}] ${r.title}`;
     const lines: string[] = [];
     lines.push('## Regression Report — ' + r.regId);
@@ -355,12 +363,18 @@ export async function fileRegressionAsIssue(r: RegressionEntry): Promise<FileIss
     const body   = lines.join('\n');
     const labels = withRequiredProjectLabel(['type:regression', 'auto-filed']);
 
+    if (!token) {
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: 'GitHub authentication was canceled or failed.', copiedToClipboard: copied };
+    }
+
     try {
         const res = await postIssue(token, title, body, labels);
         return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: msg };
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: msg, copiedToClipboard: copied };
     }
 }
 
@@ -369,10 +383,6 @@ export async function fileRegressionAsIssue(r: RegressionEntry): Promise<FileIss
  */
 export async function fileHealthBugAsIssue(bug: { id: string; title: string; detail: string; category: string; priority: string; checkId: string; detectedAt: string; recommendation?: string; evidence?: string[] }): Promise<FileIssueResult> {
     const token = await getGithubToken();
-    if (!token) {
-        return { ok: false, error: 'GitHub authentication was canceled or failed.' };
-    }
-
     const title = `[${bug.category}] ${bug.title}`;
     const lines: string[] = [
         '## Background Health Runner report',
@@ -396,6 +406,11 @@ export async function fileHealthBugAsIssue(bug: { id: string; title: string; det
     const body   = lines.join('\n');
     const labels = withRequiredProjectLabel(['type:bug', 'auto-filed', `area:${bug.category.toLowerCase().replace(/\s+/g, '-')}`]);
 
+    if (!token) {
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: 'GitHub authentication was canceled or failed.', copiedToClipboard: copied };
+    }
+
     const existing = await findOpenAutoFiledIssue(token, title);
     if (existing) {
         const comment = `Recurrence detected at ${new Date().toISOString()}.\n\n_Posted via dedup — title matched this open auto-filed issue._`;
@@ -410,7 +425,8 @@ export async function fileHealthBugAsIssue(bug: { id: string; title: string; det
         return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: msg };
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: msg, copiedToClipboard: copied };
     }
 }
 
@@ -465,12 +481,13 @@ export interface FrontmatterIssueInput {
  */
 export async function fileFrontmatterViolationAsIssue(input: FrontmatterIssueInput): Promise<FileIssueResult> {
     const token = await getGithubToken();
-    if (!token) {
-        return { ok: false, error: 'GitHub authentication was canceled or failed.' };
-    }
-
     const title = input.title.trim();
     const body = input.body;
+
+    if (!token) {
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: 'GitHub authentication was canceled or failed.', copiedToClipboard: copied };
+    }
     const labels = withRequiredProjectLabel(input.labels ?? ['type:bug', 'auto-filed', 'area:frontmatter']);
 
     const existing = await findOpenAutoFiledIssue(token, title);
@@ -491,6 +508,7 @@ export async function fileFrontmatterViolationAsIssue(input: FrontmatterIssueInp
         return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: msg };
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: msg, copiedToClipboard: copied };
     }
 }

@@ -61,7 +61,20 @@ function getScripts(projPath) {
 
 function hasSln(projPath) {
     if (!fs.existsSync(projPath)) { return false; }
-    return fs.readdirSync(projPath).some(function(f) { return /\.(sln|slnx)$/i.test(f); });
+    // Check top-level directory first
+    var topFiles = fs.readdirSync(projPath);
+    if (topFiles.some(function(f) { return /\.(sln|slnx)$/i.test(f); })) { return true; }
+    // Check one level deep (e.g., others/DiskCleanUp.sln)
+    for (var i = 0; i < topFiles.length; i++) {
+        var sub = path.join(projPath, topFiles[i]);
+        try {
+            if (fs.statSync(sub).isDirectory()) {
+                var subFiles = fs.readdirSync(sub);
+                if (subFiles.some(function(sf) { return /\.(sln|slnx)$/i.test(sf); })) { return true; }
+            }
+        } catch (e) { /* skip unreadable dirs */ }
+    }
+    return false;
 }
 
 const snapitScripts    = getScripts(snapitPath);

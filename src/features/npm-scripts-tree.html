@@ -60,7 +60,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 
 .script-row{
   display:grid;
-  grid-template-columns:minmax(130px,1.2fr) minmax(0,2fr) auto;
+  grid-template-columns:minmax(130px,1.2fr) minmax(0,2fr) auto auto;
   align-items:center;gap:8px;
   padding:4px 14px 4px 32px;
   border-bottom:1px solid transparent
@@ -78,15 +78,23 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   border:none;border-radius:3px;padding:2px 10px;
   cursor:pointer;font-size:11px;font-weight:600;
   white-space:nowrap;flex-shrink:0;
-  transition:background .15s,color .15s
+  transition:background .15s,color .15s,box-shadow .15s
 }
 .btn-run:hover{background:var(--vscode-button-hoverBackground)}
-/* running = yellow, ok = green, error = red */
-.btn-run.running{background:#b8860b;color:#fff;cursor:default}
-.btn-run.ok     {background:#1a7f37;color:#fff}
+/* running=green glow (terminal opened), ok=green solid (exit 0), error=red (exit!=0) */
+.btn-run.running{background:#1a7f37!important;color:#fff!important;box-shadow:0 0 5px #3fb950}
+.btn-run.ok     {background:#1a7f37!important;color:#fff!important}
 .btn-run.ok:hover{background:#238a42}
-.btn-run.error  {background:#b91c1c;color:#fff}
+.btn-run.error  {background:#b91c1c!important;color:#fff!important;box-shadow:0 0 5px #f85149}
 .btn-run.error:hover{background:#c72323}
+.btn-issue{
+  background:var(--vscode-button-secondaryBackground);
+  color:var(--vscode-button-secondaryForeground);
+  border:none;border-radius:3px;padding:2px 8px;
+  cursor:pointer;font-size:11px;font-weight:600;
+  white-space:nowrap;flex-shrink:0;
+}
+.btn-issue:hover{background:var(--vscode-button-secondaryHoverBackground)}
 
 #empty{padding:24px 20px;font-size:12px;color:var(--vscode-descriptionForeground);display:none}
 #loading{padding:24px 20px;font-size:12px;color:var(--vscode-descriptionForeground)}
@@ -113,6 +121,34 @@ var filter   = document.getElementById('filter');
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+var SCRIPT_DESCRIPTIONS = {
+  'compile':              'Bundles TypeScript source via esbuild into out/',
+  'typecheck':            'Type-checks TypeScript without emitting files',
+  'watch':                'Starts TypeScript compiler in watch mode — recompiles on every save',
+  'build':                'Alias for compile',
+  'package':              'Packages the extension into a .vsix file via vsce',
+  'rebuild':              'Full clean + compile + package + install cycle — ⚠ Slow (30–60 sec)',
+  'clean:project':        'Shows what clean:project:apply would delete — dry run, no changes',
+  'clean:project:apply':  '⚠ Deletes all generated/temp files — irreversible without git',
+  'docs:generate':        'Auto-generates feature README stubs from src/features/',
+  'copy:commandhelp':     'Copies CommandHelp .md files into out/ for packaging',
+  'validate:package-json': 'Validates package.json structure and required fields',
+  'test:catalog':         'Runs catalog integrity tests',
+  'test:catalog:no-mutate': 'Runs catalog tests in read-only mode (no file writes)',
+  'test:commands':        'Validates all documented commands exist and are registered',
+  'test:preflight':       'Runs preflight regression checks before committing',
+  'test:regression':      'Runs all regression tests (REG-*.test.js) — aborts if any fail',
+  'test:activation':      'Runs VS Code extension activation tests',
+};
+
+function runBtnTitle(name, cmd) {
+  var desc = SCRIPT_DESCRIPTIONS[name];
+  var lines = [];
+  if (desc) { lines.push(desc); }
+  lines.push('Command: ' + cmd);
+  return lines.join('\n');
+}
 
 function render(entries){
   loading.style.display = 'none';
@@ -149,7 +185,7 @@ function render(entries){
       row.innerHTML =
         '<span class="script-name">' + esc(s.name) + '</span>' +
         '<span class="script-cmd" title="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>' +
-        '<button class="btn-run" data-dir="' + esc(e.absDir) + '" data-script="' + esc(s.name) + '" data-key="' + esc(key) + '">&#9654; Run</button>';
+        '<button class="btn-run" data-dir="' + esc(e.absDir) + '" data-script="' + esc(s.name) + '" data-key="' + esc(key) + '" title="' + esc(runBtnTitle(s.name, s.cmd)) + '">&#9654; Run</button>';
       list.appendChild(row);
     });
 
@@ -203,10 +239,36 @@ document.getElementById('btn-refresh').addEventListener('click', function(){
 
 // ── Button state helper ───────────────────────────────────────────────────────
 function setBtn(btn, state){
+  // Remove any issue button from a previous error state
+  var prev = btn.nextElementSibling;
+  if(prev && prev.classList.contains('btn-issue')){ prev.remove(); }
+
   btn.classList.remove('running','ok','error');
-  if(state === 'running'){ btn.classList.add('running'); btn.textContent = '⏳'; }
-  else if(state === 'ok' ){ btn.classList.add('ok');      btn.innerHTML   = '&#9654; Run'; }
-  else if(state === 'error'){ btn.classList.add('error'); btn.textContent = '✗ Run'; }
+  if(state === 'running'){
+    btn.classList.add('running');
+    btn.innerHTML = '&#9654; Run'; // stays as ▶ Run but turns green immediately (#512)
+  } else if(state === 'ok'){
+    btn.classList.add('ok');
+    btn.innerHTML = '&#10003; Run';
+    // Auto-reset to default blue after 2s so button doesn't stay green permanently
+    setTimeout(function(){
+      btn.classList.remove('ok');
+      btn.innerHTML = '&#9654; Run';
+    }, 2000);
+  } else if(state === 'error'){
+    btn.classList.add('error');
+    btn.innerHTML = '&#8635; Retry';
+    var ib = document.createElement('button');
+    ib.className = 'btn-issue';
+    ib.textContent = '📋 Issue';
+    ib.dataset.dir    = btn.dataset.dir;
+    ib.dataset.script = btn.dataset.script;
+    ib.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      vsc.postMessage({ type:'create-issue', dir:btn.dataset.dir, script:btn.dataset.script });
+    });
+    btn.parentNode.insertBefore(ib, btn.nextSibling);
+  }
 }
 
 // ── Messages from host ────────────────────────────────────────────────────────

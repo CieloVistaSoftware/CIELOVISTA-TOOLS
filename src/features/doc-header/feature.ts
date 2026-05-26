@@ -47,6 +47,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { esc } from '../../shared/webview-utils';
+import { CATEGORIES } from '../../shared/categories';
 
 const FEATURE       = 'doc-header';
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -108,17 +109,31 @@ function loadRegistry(): ProjectRegistry | undefined {
 
 // ─── Frontmatter parser / serializer ─────────────────────────────────────────
 
-/** Parses YAML frontmatter from a markdown string. Returns null if none found. */
+/** Parses YAML frontmatter from a markdown string.
+ *  Checks the TOP of the file first (legacy), then the BOTTOM (new standard).
+ *  Returns null if none found. */
 function parseFrontmatter(content: string): { fm: Frontmatter; body: string } | null {
-    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-    if (!match) { return null; }
-
-    const fm: Frontmatter = {};
-    for (const line of match[1].split('\n')) {
-        const m = line.match(/^(\w+):\s*(.*)$/);
-        if (m) { fm[m[1]] = m[2].trim(); }
+    // ── Top position (legacy) ─────────────────────────────────────────────────
+    const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+    if (topMatch) {
+        const fm: Frontmatter = {};
+        for (const line of topMatch[1].split('\n')) {
+            const m = line.match(/^(\w+):\s*(.*)$/);
+            if (m) { fm[m[1]] = m[2].trim(); }
+        }
+        return { fm, body: topMatch[2] };
     }
-    return { fm, body: match[2] };
+    // ── Bottom position (new standard) ───────────────────────────────────────
+    const bottomMatch = content.match(/^([\s\S]*?)\r?\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
+    if (bottomMatch) {
+        const fm: Frontmatter = {};
+        for (const line of bottomMatch[2].split('\n')) {
+            const m = line.match(/^(\w+):\s*(.*)$/);
+            if (m) { fm[m[1]] = m[2].trim(); }
+        }
+        return { fm, body: bottomMatch[1] };
+    }
+    return null;
 }
 
 /** Serializes a Frontmatter object back to a YAML block. */
@@ -148,37 +163,37 @@ function serializeFrontmatter(fm: Frontmatter): string {
 // ─── Category assignment (mirrors doc-catalog.ts logic) ──────────────────────
 
 const CATEGORY_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-    { pattern: /^audit-/i,          label: '900 — Audit & Reports' },
-    { pattern: /consolidation-log/i,label: '900 — Audit & Reports' },
-    { pattern: /^claude\.md$/i,      label: '000 — Meta / Session / Status' },
-    { pattern: /current.?status/i,  label: '000 — Meta / Session / Status' },
-    { pattern: /^session/i,          label: '000 — Meta / Session / Status' },
-    { pattern: /tier1|tier2/i,       label: '100 — Architecture & Standards' },
-    { pattern: /architectur/i,       label: '100 — Architecture & Standards' },
-    { pattern: /standard/i,          label: '100 — Architecture & Standards' },
-    { pattern: /laws?\.md$/i,        label: '100 — Architecture & Standards' },
-    { pattern: /web.?component/i,    label: '200 — Component & UI Docs' },
-    { pattern: /component/i,         label: '200 — Component & UI Docs' },
-    { pattern: /git.?workflow/i,     label: '300 — Dev Workflow & Process' },
-    { pattern: /workflow|deploy|build|release/i, label: '300 — Dev Workflow & Process' },
-    { pattern: /changelog/i,         label: '300 — Dev Workflow & Process' },
-    { pattern: /test|spec|quality|compliance/i,  label: '400 — Testing & Quality' },
-    { pattern: /api|integration|trace|signalr/i, label: '500 — API & Integration' },
-    { pattern: /vscode|extension|copilot|tool/i, label: '600 — Tools & Extensions' },
-    { pattern: /readme|guide|how.?to|notes/i,    label: '700 — Project Docs' },
+    { pattern: /^audit-/i,                       label: CATEGORIES.AUDIT },
+    { pattern: /consolidation-log/i,             label: CATEGORIES.AUDIT },
+    { pattern: /^claude\.md$/i,                  label: CATEGORIES.META },
+    { pattern: /current.?status/i,               label: CATEGORIES.META },
+    { pattern: /^session/i,                      label: CATEGORIES.META },
+    { pattern: /tier1|tier2/i,                   label: CATEGORIES.ARCHITECTURE },
+    { pattern: /architectur/i,                   label: CATEGORIES.ARCHITECTURE },
+    { pattern: /standard/i,                      label: CATEGORIES.ARCHITECTURE },
+    { pattern: /laws?\.md$/i,                    label: CATEGORIES.ARCHITECTURE },
+    { pattern: /web.?component/i,                label: CATEGORIES.COMPONENTS },
+    { pattern: /component/i,                     label: CATEGORIES.COMPONENTS },
+    { pattern: /git.?workflow/i,                 label: CATEGORIES.DEV_WORKFLOW },
+    { pattern: /workflow|deploy|build|release/i, label: CATEGORIES.DEV_WORKFLOW },
+    { pattern: /changelog/i,                     label: CATEGORIES.DEV_WORKFLOW },
+    { pattern: /test|spec|quality|compliance/i,  label: CATEGORIES.TESTING },
+    { pattern: /api|integration|trace|signalr/i, label: CATEGORIES.API },
+    { pattern: /vscode|extension|copilot|tool/i, label: CATEGORIES.TOOLS },
+    { pattern: /readme|guide|how.?to|notes/i,    label: CATEGORIES.PROJECT_DOCS },
 ];
 
 function assignCategory(fileName: string, projectName: string): string {
     if (projectName === 'global') {
         if (/^audit-/i.test(fileName) || /consolidation-log/i.test(fileName)) {
-            return '900 — Audit & Reports';
+            return CATEGORIES.AUDIT;
         }
-        return '800 — Global Standards';
+        return CATEGORIES.GLOBAL;
     }
     for (const { pattern, label } of CATEGORY_PATTERNS) {
         if (pattern.test(fileName)) { return label; }
     }
-    return '700 — Project Docs';
+    return CATEGORIES.PROJECT_DOCS;
 }
 
 // ─── Content extractors ───────────────────────────────────────────────────────
@@ -664,6 +679,59 @@ async function fixActiveFile(): Promise<void> {
     }
 }
 
+// ─── Move frontmatter to bottom ───────────────────────────────────────────────
+
+async function moveAllFrontmatterToBottom(): Promise<void> {
+    const registry = loadRegistry();
+    if (!registry) { return; }
+
+    const confirm = await vscode.window.showWarningMessage(
+        'Move YAML frontmatter from the top to the bottom of every .md file? Files will be rewritten in place.',
+        { modal: true },
+        'Move All'
+    );
+    if (confirm !== 'Move All') { return; }
+
+    // Collect all .md files under globalDocsPath + each project path
+    const mdFiles: string[] = [];
+    function collectMd(dir: string): void {
+        if (!fs.existsSync(dir)) { return; }
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                collectMd(full);
+            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+                mdFiles.push(full);
+            }
+        }
+    }
+    collectMd(registry.globalDocsPath);
+    registry.projects.forEach(p => collectMd(p.path));
+
+    let moved = 0;
+    const errors: string[] = [];
+    for (const filePath of mdFiles) {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            // Only migrate if frontmatter is at the top
+            const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+            if (!topMatch) { continue; }
+            const yamlBlock = topMatch[1];
+            const body      = topMatch[2];
+            const newContent = body.trimEnd() + '\n\n---\n' + yamlBlock + '\n---\n';
+            fs.writeFileSync(filePath, newContent, 'utf8');
+            moved++;
+        } catch (err) {
+            errors.push(path.basename(filePath));
+            logError(`moveToBottom failed: ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
+    }
+
+    const msg = `Moved frontmatter to bottom in ${moved} file(s).${errors.length ? ` ${errors.length} error(s).` : ''}`;
+    vscode.window.showInformationMessage(msg);
+    log(FEATURE, msg);
+}
+
 // ─── Activate / Deactivate ────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -677,6 +745,7 @@ export function activate(context: vscode.ExtensionContext): void {
             void vscode.commands.executeCommand('cvs.headers.scan');
         }),
         vscode.commands.registerCommand('cvs.headers.fixFile',      fixActiveFile),
+        vscode.commands.registerCommand('cvs.headers.moveToBottom', () => { void moveAllFrontmatterToBottom(); }),
         vscode.commands.registerCommand('cvs.headers.viewStandard', () => {
             vscode.window.showInformationMessage(
                 'Frontmatter standard: title, description, project, category, relativePath, created, updated, version, author, status, tags',

@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="CieloVista Tools — One VS Code extension. Every project, every command, every doc. Unified.">
+<title>CieloVista Tools — One Extension. Everything Unified.</title>
+<style>
+/* ── Reset & base ──────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --surface2: #1c2128;
+  --border:   #30363d;
+  --border2:  #21262d;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --blue:     #58a6ff;
+  --green:    #3fb950;
+  --purple:   #a371f7;
+  --orange:   #f0883e;
+  --red:      #f85149;
+  --teal:     #39d353;
+  --yellow:   #d29922;
+  --radius:   10px;
+  --glow-blue: 0 0 30px rgba(88,166,255,.18);
+  --glow-green: 0 0 30px rgba(63,185,80,.18);
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.6;
+  overflow-x:hidden;
+}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+img{max-width:100%}
+
+/* ── Animated grid background ──────────────────────────────────────────── */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(88,166,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(88,166,255,.03) 1px, transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+  z-index:0;
+}
+
+/* ── Nav ───────────────────────────────────────────────────────────────── */
+nav{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;gap:16px;
+  padding:14px 32px;
+  background:rgba(13,17,23,.85);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border2);
+}
+.nav-logo{
+  display:flex;align-items:center;gap:10px;
+  font-weight:700;font-size:15px;letter-spacing:-.3px;
+  color:var(--text);
+  text-decoration:none;
+}
+.nav-logo-icon{
+  width:28px;height:28px;border-radius:7px;
+  background:linear-gradient(135deg,#1b6ac9,#58a6ff);
+  display:grid;place-items:center;font-size:15px;flex-shrink:0;
+  box-shadow:0 0 12px rgba(88,166,255,.35);
+}
+.nav-spacer{flex:1}
+.nav-links{display:flex;align-items:center;gap:24px}
+.nav-links a{font-size:13px;color:var(--muted);transition:color .15s}
+.nav-links a:hover{color:var(--text);text-decoration:none}
+.nav-badge{
+  font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;
+  background:rgba(88,166,255,.12);color:var(--blue);border:1px solid rgba(88,166,255,.25);
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────────── */
+.hero{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;
+  padding:100px 24px 80px;
+}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--blue);
+  padding:5px 14px;border-radius:20px;
+  border:1px solid rgba(88,166,255,.3);
+  background:rgba(88,166,255,.07);
+  margin-bottom:28px;
+  animation:fadeUp .6s ease both;
+}
+.hero-eyebrow::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--green);box-shadow:0 0 6px var(--green);
+  animation:pulse 2s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.hero h1{
+  font-size:clamp(2.6rem,6vw,4.2rem);
+  font-weight:800;line-height:1.1;letter-spacing:-.03em;
+  margin-bottom:16px;
+  animation:fadeUp .6s .1s ease both;
+}
+.grad{
+  background:linear-gradient(135deg,#58a6ff 0%,#a371f7 50%,#3fb950 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.hero-sub{
+  font-size:clamp(1rem,2.5vw,1.2rem);
+  color:var(--muted);max-width:560px;
+  margin-bottom:40px;
+  animation:fadeUp .6s .2s ease both;
+}
+.hero-actions{
+  display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
+  animation:fadeUp .6s .3s ease both;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:11px 24px;border-radius:8px;
+  font-size:14px;font-weight:600;cursor:pointer;
+  transition:all .18s;text-decoration:none;
+  border:1px solid transparent;
+}
+.btn-primary{
+  background:var(--blue);color:#0d1117;
+  box-shadow:0 0 20px rgba(88,166,255,.3);
+}
+.btn-primary:hover{background:#79baff;box-shadow:0 0 28px rgba(88,166,255,.5);text-decoration:none;color:#0d1117}
+.btn-secondary{
+  background:transparent;color:var(--text);
+  border-color:var(--border);
+}
+.btn-secondary:hover{background:var(--surface);border-color:var(--blue);text-decoration:none}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* ── Stats bar ─────────────────────────────────────────────────────────── */
+.stats{
+  position:relative;z-index:1;
+  display:flex;justify-content:center;flex-wrap:wrap;gap:0;
+  border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);
+  background:var(--surface2);
+  margin-bottom:80px;
+}
+.stat{
+  display:flex;flex-direction:column;align-items:center;
+  padding:24px 40px;
+  border-right:1px solid var(--border2);
+}
+.stat:last-child{border-right:none}
+.stat-n{
+  font-size:2rem;font-weight:800;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.stat-l{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap}
+
+/* ── Section ───────────────────────────────────────────────────────────── */
+section{position:relative;z-index:1;padding:0 24px 80px;max-width:1100px;margin:0 auto}
+.section-label{
+  font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--blue);margin-bottom:12px;
+}
+.section-title{
+  font-size:clamp(1.6rem,3vw,2.2rem);font-weight:800;letter-spacing:-.02em;
+  margin-bottom:10px;
+}
+.section-sub{font-size:15px;color:var(--muted);max-width:520px;margin-bottom:48px}
+
+/* ── Feature grid ──────────────────────────────────────────────────────── */
+.features{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:20px;
+}
+.feature-card{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  padding:28px;
+  transition:border-color .2s,box-shadow .2s,transform .2s;
+  position:relative;overflow:hidden;
+}
+.feature-card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--card-accent,var(--blue));
+  opacity:0;transition:opacity .2s;
+}
+.feature-card:hover{
+  border-color:var(--border);
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+  transform:translateY(-2px);
+}
+.feature-card:hover::before{opacity:1}
+.feature-icon{
+  width:44px;height:44px;border-radius:10px;
+  display:grid;place-items:center;font-size:22px;
+  background:rgba(88,166,255,.1);
+  margin-bottom:18px;
+  flex-shrink:0;
+}
+.feature-card h3{font-size:16px;font-weight:700;margin-bottom:8px}
+.feature-card p{font-size:13px;color:var(--muted);line-height:1.65}
+.feature-tags{
+  display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;
+}
+.tag{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;
+  background:rgba(88,166,255,.1);color:var(--blue);
+  border:1px solid rgba(88,166,255,.2);
+}
+
+/* ── MCP callout ───────────────────────────────────────────────────────── */
+.mcp-section{
+  position:relative;z-index:1;
+  margin:0 24px 80px;border-radius:16px;
+  overflow:hidden;
+  border:1px solid rgba(163,113,247,.3);
+  background:linear-gradient(135deg,rgba(163,113,247,.06) 0%,rgba(88,166,255,.04) 100%);
+  padding:60px;
+}
+.mcp-section::before{
+  content:'';
+  position:absolute;top:-60px;right:-60px;
+  width:250px;height:250px;border-radius:50%;
+  background:rgba(163,113,247,.07);
+  filter:blur(40px);pointer-events:none;
+}
+.mcp-inner{
+  display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;
+  max-width:1050px;margin:0 auto;
+}
+.mcp-title{
+  font-size:clamp(1.4rem,2.5vw,1.9rem);font-weight:800;letter-spacing:-.02em;margin-bottom:14px;
+}
+.mcp-sub{font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px}
+.mcp-chips{display:flex;flex-wrap:wrap;gap:8px}
+.mcp-chip{
+  display:flex;align-items:center;gap:6px;
+  font-size:12px;padding:5px 12px;border-radius:20px;
+  background:rgba(163,113,247,.1);color:#c9a5ff;
+  border:1px solid rgba(163,113,247,.25);
+}
+.mcp-chip::before{content:'✓';color:var(--green);font-weight:700}
+.mcp-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;font-family:'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size:12px;
+}
+.mcp-card-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border2);
+}
+.mcp-dot{width:10px;height:10px;border-radius:50%}
+.mcp-card-title{flex:1;text-align:center;font-size:11px;color:var(--muted);font-family:inherit}
+.mcp-body{padding:20px;display:flex;flex-direction:column;gap:6px}
+.mcp-line{display:flex;gap:10px}
+.mcp-prompt{color:var(--green)}
+.mcp-cmd{color:var(--blue)}
+.mcp-cmt{color:var(--muted);font-style:italic}
+.mcp-out{color:var(--teal);margin-left:14px}
+
+/* ── Terminal quick start ──────────────────────────────────────────────── */
+.terminal-wrap{
+  position:relative;z-index:1;
+  max-width:640px;margin:0 auto 80px;
+}
+.terminal{
+  background:#0c0c0c;border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+.terminal-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:12px 18px;background:#1b1b1b;border-bottom:1px solid #2a2a2a;
+}
+.t-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.t-red{background:#ff5f57}.t-yellow{background:#febc2e}.t-green{background:#28c840}
+.t-title{flex:1;text-align:center;font-family:'Cascadia Code',Consolas,monospace;font-size:11px;color:#666}
+.terminal-body{padding:24px;font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:13px;line-height:1.9}
+.t-prompt{color:#4ec9b0}
+.t-cmd{color:#dcdcaa}
+.t-comment{color:#608b4e}
+.t-out{color:#9cdcfe;padding-left:4px}
+.t-ok{color:#6a9955}
+.t-cursor{
+  display:inline-block;width:8px;height:14px;
+  background:#58a6ff;margin-left:2px;
+  animation:blink 1s step-end infinite;vertical-align:middle;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── How it works ──────────────────────────────────────────────────────── */
+.steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:24px}
+.step{
+  display:flex;flex-direction:column;align-items:flex-start;
+  padding:28px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);
+}
+.step-num{
+  font-size:11px;font-weight:800;letter-spacing:.08em;
+  color:var(--blue);margin-bottom:14px;
+  background:rgba(88,166,255,.1);padding:3px 10px;border-radius:20px;
+  border:1px solid rgba(88,166,255,.2);
+}
+.step h3{font-size:15px;font-weight:700;margin-bottom:8px}
+.step p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--border2);
+  padding:40px 32px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;
+}
+.footer-logo{
+  display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:700;color:var(--text);
+}
+.footer-links{display:flex;gap:20px;flex-wrap:wrap}
+.footer-links a{font-size:13px;color:var(--muted);transition:color .15s}
+.footer-links a:hover{color:var(--text);text-decoration:none}
+.footer-copy{font-size:12px;color:var(--muted)}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media(max-width:768px){
+  nav{padding:12px 16px}
+  .nav-links{display:none}
+  .hero{padding:64px 16px 48px}
+  .stat{padding:20px 24px}
+  .mcp-section{padding:32px 24px;margin:0 12px 60px}
+  .mcp-inner{grid-template-columns:1fr}
+  footer{flex-direction:column;text-align:center}
+}
+@media(max-width:480px){
+  .stats{flex-direction:column}
+  .stat{border-right:none;border-bottom:1px solid var(--border2)}
+  .stat:last-child{border-bottom:none}
+}
+
+/* ── Scroll-fade ───────────────────────────────────────────────────────── */
+.fade-in{opacity:0;transform:translateY(24px);transition:opacity .5s ease,transform .5s ease}
+.fade-in.visible{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ──────────────────────────────────────────────────────────────── -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-icon">⚡</div>
+    CieloVista Tools
+  </a>
+  <div class="nav-spacer"></div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#mcp">MCP Server</a>
+    <a href="#quickstart">Quick Start</a>
+    <a href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS">GitHub</a>
+    <span class="nav-badge">v1.0.2</span>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="hero-eyebrow">VS Code Extension &mdash; Built for Insiders</div>
+  <h1>One extension.<br><span class="grad">Everything unified.</span></h1>
+  <p class="hero-sub">
+    CieloVista Tools turns your folder of projects into a single intelligent workspace.
+    Commands, docs, audits, and AI — all routed to the right place automatically.
+  </p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/releases">
+      ⬇ Get the Extension
+    </a>
+    <a class="btn btn-secondary" href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS">
+      ★ View on GitHub
+    </a>
+  </div>
+</div>
+
+<!-- ── Stats ────────────────────────────────────────────────────────────── -->
+<div class="stats">
+  <div class="stat"><span class="stat-n">128</span><span class="stat-l">Commands</span></div>
+  <div class="stat"><span class="stat-n">40+</span><span class="stat-l">Features</span></div>
+  <div class="stat"><span class="stat-n">1</span><span class="stat-l">Install</span></div>
+  <div class="stat"><span class="stat-n">69</span><span class="stat-l">Tests Green</span></div>
+  <div class="stat"><span class="stat-n">∞</span><span class="stat-l">Projects Supported</span></div>
+</div>
+
+<!-- ── Features ─────────────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="section-label fade-in">What's inside</div>
+  <h2 class="section-title fade-in">Every tool you need — one install</h2>
+  <p class="section-sub fade-in">
+    CieloVista Tools is not a collection of unrelated commands. It's a coordinated control plane
+    that understands your workspace structure and acts on it.
+  </p>
+
+  <div class="features">
+
+    <div class="feature-card fade-in" style="--card-accent:#58a6ff">
+      <div class="feature-icon">🏠</div>
+      <h3>Home Dashboard</h3>
+      <p>Central launch surface for everything — recent projects, status cards, quick-pick launchers, and one-click access to every feature in one place.</p>
+      <div class="feature-tags">
+        <span class="tag">Launch pad</span>
+        <span class="tag">Status cards</span>
+        <span class="tag">Quick access</span>
+      </div>
+    </div>
+
+    <div class="feature-card fade-in" style="--card-accent:#3fb950">
+      <div class="feature-icon" style="background:rgba(63,185,80,.1)">📚</div>
+      <h3>Doc Catalog</h3>
+      <p>Cross-project markdown catalog with instant preview, full-text search, frontmatter compliance, broken-reference scanner, and one-click README generation.</p>
+      <div class="feature-tags">
+        <span class="tag" style="background:rgba(63,185,80,.1);color:#3fb950;border-color:rgba(63,185,80,.25)">Cross-project</span>
+        <span class="tag" style="background:rgba(63,185,80,.1);color:#3fb950;border-color:rgba(63,185,80,.25)">Live preview</span>
+        <span class="tag" style="background:rgba(63,185,80,.1);color:#3fb950;border-color:rgba(63,185,80,.25)">Audits</span>
+      </div>
+    </div>
+
+    <div class="feature-card fade-in" style="--card-accent:#f0883e">
+      <div class="feature-icon" style="background:rgba(240,136,62,.1)">🚀</div>
+      <h3>Smart Launchers</h3>
+      <p>Run build, start, rebuild, tray, and stop actions across every project without switching terminals. NPM script runner with cross-project awareness and dotnet support.</p>
+      <div class="feature-tags">
+        <span class="tag" style="background:rgba(240,136,62,.1);color:#f0883e;border-color:rgba(240,136,62,.25)">NPM</span>
+        <span class="tag" style="background:rgba(240,136,62,.1);color:#f0883e;border-color:rgba(240,136,62,.25)">.NET</span>
+        <span class="tag" style="background:rgba(240,136,62,.1);color:#f0883e;border-color:rgba(240,136,62,.25)">Cross-project</span>
+      </div>
+    </div>
+
+    <div class="feature-card fade-in" style="--card-accent:#a371f7">
+      <div class="feature-icon" style="background:rgba(163,113,247,.1)">🔍</div>
+      <h3>Quality Audits</h3>
+      <p>Test coverage auditor with gap cards, daily codebase audits, link integrity checks with JSON export, license sync, marketplace compliance, and background health runner.</p>
+      <div class="feature-tags">
+        <span class="tag" style="background:rgba(163,113,247,.1);color:#a371f7;border-color:rgba(163,113,247,.25)">Coverage</span>
+        <span class="tag" style="background:rgba(163,113,247,.1);color:#a371f7;border-color:rgba(163,113,247,.25)">Link health</span>
+        <span class="tag" style="background:rgba(163,113,247,.1);color:#a371f7;border-color:rgba(163,113,247,.25)">Auto-file issues</span>
+      </div>
+    </div>
+
+    <div class="feature-card fade-in" style="--card-accent:#39d353">
+      <div class="feature-icon" style="background:rgba(57,211,83,.1)">⚡</div>
+      <h3>Developer Ergonomics</h3>
+      <p>Copy terminal output to Copilot Chat, jump terminals to folders, CSS class hover, file-to-chat path utilities, Python runner, HTML template downloader, and image helpers.</p>
+      <div class="feature-tags">
+        <span class="tag" style="background:rgba(57,211,83,.1);color:#39d353;border-color:rgba(57,211,83,.25)">Copilot Chat</span>
+        <span class="tag" style="background:rgba(57,211,83,.1);color:#39d353;border-color:rgba(57,211,83,.25)">Terminal</span>
+        <span class="tag" style="background:rgba(57,211,83,.1);color:#39d353;border-color:rgba(57,211,83,.25)">Utilities</span>
+      </div>
+    </div>
+
+    <div class="feature-card fade-in" style="--card-accent:#d29922">
+      <div class="feature-icon" style="background:rgba(210,153,34,.1)">🤖</div>
+      <h3>AI Actions</h3>
+      <p>Copilot rules enforcement, OpenAI chat actions (explain, refactor, generate docstrings), Claude process monitor, and AI-powered README compliance fixer.</p>
+      <div class="feature-tags">
+        <span class="tag" style="background:rgba(210,153,34,.1);color:#d29922;border-color:rgba(210,153,34,.25)">Copilot</span>
+        <span class="tag" style="background:rgba(210,153,34,.1);color:#d29922;border-color:rgba(210,153,34,.25)">OpenAI</span>
+        <span class="tag" style="background:rgba(210,153,34,.1);color:#d29922;border-color:rgba(210,153,34,.25)">Claude</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── MCP Callout ───────────────────────────────────────────────────────── -->
+<div class="mcp-section fade-in" id="mcp">
+  <div class="mcp-inner">
+    <div>
+      <div class="section-label" style="color:#a371f7;margin-bottom:12px">Built-in MCP Server</div>
+      <h2 class="mcp-title">Give your AI assistant <span style="color:#a371f7">full context</span> across every project</h2>
+      <p class="mcp-sub">
+        The extension ships with a standalone MCP server that exposes your entire project folder to
+        AI assistants. Add a project to <code style="color:#79c0ff;background:rgba(88,166,255,.1);padding:1px 6px;border-radius:4px">project-registry.json</code>
+        and it becomes available instantly — no rebuild required.
+      </p>
+      <div class="mcp-chips">
+        <span class="mcp-chip">Cross-project scanning</span>
+        <span class="mcp-chip">Symbol indexing</span>
+        <span class="mcp-chip">Doc cataloging</span>
+        <span class="mcp-chip">Command discovery</span>
+        <span class="mcp-chip">Project metadata</span>
+        <span class="mcp-chip">File operations</span>
+      </div>
+    </div>
+    <div>
+      <div class="mcp-card">
+        <div class="mcp-card-bar">
+          <div class="mcp-dot" style="background:#ff5f57"></div>
+          <div class="mcp-dot" style="background:#febc2e"></div>
+          <div class="mcp-dot" style="background:#28c840"></div>
+          <span class="mcp-card-title">MCP Server — port 3000</span>
+        </div>
+        <div class="mcp-body">
+          <div class="mcp-line"><span class="mcp-prompt">$</span><span class="mcp-cmd">list_projects</span></div>
+          <div class="mcp-out">→ 19 projects registered</div>
+          <br>
+          <div class="mcp-line"><span class="mcp-prompt">$</span><span class="mcp-cmd">get_catalog</span><span class="mcp-cmt"> &nbsp;// cielovista-tools</span></div>
+          <div class="mcp-out">→ 108 docs indexed</div>
+          <br>
+          <div class="mcp-line"><span class="mcp-prompt">$</span><span class="mcp-cmd">find_symbol</span><span class="mcp-cmt"> &nbsp;// "CatalogCard"</span></div>
+          <div class="mcp-out">→ types.ts:30 &nbsp;scanner.ts:72</div>
+          <br>
+          <div class="mcp-line"><span class="mcp-prompt">$</span><span class="mcp-cmd">list_cvt_commands</span></div>
+          <div class="mcp-out">→ 128 commands available</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── How it works ─────────────────────────────────────────────────────── -->
+<section>
+  <div class="section-label fade-in">Setup</div>
+  <h2 class="section-title fade-in">Up and running in four steps</h2>
+  <p class="section-sub fade-in">No configuration wizard. No account required. Just clone, build, and reload.</p>
+  <div class="steps">
+    <div class="step fade-in">
+      <span class="step-num">STEP 01</span>
+      <h3>Clone the repo</h3>
+      <p>Clone into your projects folder alongside the repos you want to manage.</p>
+    </div>
+    <div class="step fade-in">
+      <span class="step-num">STEP 02</span>
+      <h3>Run rebuild</h3>
+      <p><code style="color:#58a6ff">npm run rebuild</code> compiles TypeScript, runs 69 regression tests, packages the VSIX, and installs it.</p>
+    </div>
+    <div class="step fade-in">
+      <span class="step-num">STEP 03</span>
+      <h3>Register your projects</h3>
+      <p>Add entries to <code style="color:#58a6ff">project-registry.json</code> — every project instantly gets doc catalog, launcher, and MCP coverage.</p>
+    </div>
+    <div class="step fade-in">
+      <span class="step-num">STEP 04</span>
+      <h3>Open the Home Dashboard</h3>
+      <p>Hit <code style="color:#58a6ff">Ctrl+Shift+P</code> → <em>CieloVista: Home</em> and every tool is one click away.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Quick Start ───────────────────────────────────────────────────────── -->
+<section id="quickstart" style="padding-bottom:0">
+  <div class="section-label fade-in" style="text-align:center">Quick Start</div>
+  <h2 class="section-title fade-in" style="text-align:center">Zero to running in 30 seconds</h2>
+</section>
+<div class="terminal-wrap fade-in" style="padding:0 24px 80px">
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="t-dot t-red"></div>
+      <div class="t-dot t-yellow"></div>
+      <div class="t-dot t-green"></div>
+      <span class="t-title">PowerShell &mdash; cielovista-tools</span>
+    </div>
+    <div class="terminal-body">
+      <div><span class="t-comment"># Clone alongside your projects</span></div>
+      <div><span class="t-prompt">PS&gt;</span> <span class="t-cmd">git clone https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS.git</span></div>
+      <div><span class="t-prompt">PS&gt;</span> <span class="t-cmd">cd CIELOVISTA-TOOLS</span></div>
+      <br>
+      <div><span class="t-comment"># Install deps, compile, test, package, and install — all one command</span></div>
+      <div><span class="t-prompt">PS&gt;</span> <span class="t-cmd">npm run rebuild</span></div>
+      <br>
+      <div><span class="t-out">  Compiling TypeScript...</span></div>
+      <div><span class="t-out">  Running 69 regression tests...</span></div>
+      <div><span class="t-ok">  ✓ All tests passed</span></div>
+      <div><span class="t-ok">  ✓ Extension installed → VS Code Insiders</span></div>
+      <br>
+      <div><span class="t-comment"># Reload VS Code Insiders to activate</span></div>
+      <div><span class="t-prompt">PS&gt;</span><span class="t-cursor"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Footer ───────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">
+    <div class="nav-logo-icon">⚡</div>
+    CieloVista Tools
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS">GitHub</a>
+    <a href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues">Issues</a>
+    <a href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/releases">Releases</a>
+    <a href="https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/blob/main/README.md">Docs</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 CieloVista Software. All rights reserved.</div>
+</footer>
+
+<script>
+(function(){
+  // Scroll-triggered fade-in
+  var els = document.querySelectorAll('.fade-in');
+  var io  = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  },{ threshold:0.12 });
+  els.forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>

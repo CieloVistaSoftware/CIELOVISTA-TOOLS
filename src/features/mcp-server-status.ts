@@ -60,6 +60,7 @@ export function getMcpServerUrl(): string {
 
 const RETRY_BACKOFF_MS = [1000, 2000, 5000, 10000, 30000];
 const RETRY_STEADY_MS  = 30000;
+const MAX_RETRY_ATTEMPTS = 10;
 const STABLE_UPTIME_MS = 15000;
 const DIAG_ESCALATION_ATTEMPT = 3;
 const DIAG_TAIL_MAX_CHARS = 120_000;
@@ -125,8 +126,10 @@ export function startMcpServer(): void {
 
     if (mcpStatus === 'up') { setStatus('down'); } // stale state — reset
 
-    // A manual start cancels any prior stop intent and pending retry timer.
+    // A manual start cancels any prior stop intent and pending retry timer,
+    // and resets the retry budget so give-up counts from zero again.
     stopRequested = false;
+    retryAttempt = 0;
     clearRetryTimer();
     clearStableTimer();
 
@@ -446,16 +449,24 @@ function runMcpProcess(): void {
 
 /**
  * Schedules the next restart attempt using bounded exponential backoff.
+ * Gives up after MAX_RETRY_ATTEMPTS with a single user-visible error.
  */
 function scheduleRetry(reason: string): void {
     if (stopRequested) { return; }
+
+    if (retryAttempt >= MAX_RETRY_ATTEMPTS) {
+        const giveUpMsg = `MCP server failed ${MAX_RETRY_ATTEMPTS} times — giving up. Use cvs.mcp.start to retry manually.`;
+        terminalWriteLine(`[CVT MCP] ${giveUpMsg}`);
+        logError(`MCP server gave up after ${MAX_RETRY_ATTEMPTS} restart attempts: ${reason}`, '', FEATURE);
+        return;
+    }
 
     const delay = RETRY_BACKOFF_MS[retryAttempt] ?? RETRY_STEADY_MS;
     retryAttempt += 1;
     clearRetryTimer();
 
-    terminalWriteLine(`[CVT MCP] ${reason}; retrying in ${delay}ms (attempt ${retryAttempt}).`);
-    log(FEATURE, `${reason}; retrying in ${delay}ms (attempt ${retryAttempt})`);
+    terminalWriteLine(`[CVT MCP] ${reason}; retrying in ${delay}ms (attempt ${retryAttempt} of ${MAX_RETRY_ATTEMPTS}).`);
+    log(FEATURE, `${reason}; retrying in ${delay}ms (attempt ${retryAttempt} of ${MAX_RETRY_ATTEMPTS})`);
 
     retryTimer = setTimeout(() => {
         retryTimer = null;
@@ -475,5 +486,6 @@ export const _test = {
     appendTail,
     DIAG_ESCALATION_ATTEMPT,
     DIAG_TAIL_MAX_CHARS,
+    MAX_RETRY_ATTEMPTS,
     MCP_DIAG_DIR,
 };

@@ -95,7 +95,7 @@
     "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\""
   },
   "devDependencies": {
-    "@playwright/test": "^1.44.0",
+    "@playwright/test": "^1.58.2",
     "@types/diff": "^7.0.2",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.19.37",
@@ -548,7 +548,13 @@
         "command": "cvs.headers.scan",
         "title": "Headers: Scan Doc Header Compliance",
         "category": "CieloVista Headers",
-        "description": "Scan documentation files for header/frontmatter compliance."
+        "description": "Scan all .md docs and report which files have frontmatter at the top (position violation)."
+      },
+      {
+        "command": "cvs.headers.scanAuto",
+        "title": "Headers: Scan + Auto-Fix Frontmatter Position",
+        "category": "CieloVista Headers",
+        "description": "Scan all .md docs for top-position frontmatter, auto-move to bottom, re-verify each fix."
       },
       {
         "command": "cvs.headers.frontmatterViewer",
@@ -575,6 +581,12 @@
         "description": "Fix the header/frontmatter in the currently open documentation file."
       },
       {
+        "command": "cvs.headers.moveToBottom",
+        "title": "Headers: Move Frontmatter to Bottom (All Docs)",
+        "category": "CieloVista Headers",
+        "description": "Migrate all .md files — moves YAML frontmatter block from top to bottom so human-readable content appears first."
+      },
+      {
         "command": "cvs.headers.viewStandard",
         "title": "Headers: View Frontmatter Standard",
         "category": "CieloVista Headers",
@@ -582,61 +594,61 @@
       },
       {
         "command": "cvs.launch.pick",
-        "title": "Launch: Pick Any Project Action",
+        "title": "Pick Any Project Action",
         "category": "CieloVista Launch",
         "description": "Pick and run any project action from a quick pick menu."
       },
       {
         "command": "cvs.launch.snapit.start",
-        "title": "Launch: SnapIt — Start Service",
+        "title": "SnapIt — Start Service",
         "category": "CieloVista Launch",
         "description": "Start the SnapIt service for project screenshots."
       },
       {
         "command": "cvs.launch.snapit.tray",
-        "title": "Launch: SnapIt — Launch Tray",
+        "title": "SnapIt — Launch Tray",
         "category": "CieloVista Launch",
         "description": "Launch the SnapIt tray application."
       },
       {
         "command": "cvs.launch.snapit.rebuild",
-        "title": "Launch: SnapIt — Rebuild + Launch Tray",
+        "title": "SnapIt — Rebuild + Launch Tray",
         "category": "CieloVista Launch",
         "description": "Rebuild and launch the SnapIt tray application."
       },
       {
         "command": "cvs.launch.snapit.build",
-        "title": "Launch: SnapIt — Build",
+        "title": "SnapIt — Build",
         "category": "CieloVista Launch",
         "description": "Build the SnapIt tray application."
       },
       {
         "command": "cvs.launch.snapit.stop",
-        "title": "Launch: SnapIt — Stop (kill port 5200)",
+        "title": "SnapIt — Stop (kill port 5200)",
         "category": "CieloVista Launch",
         "description": "Stop the SnapIt service and free port 5200."
       },
       {
         "command": "cvs.launch.diskcleanup.start",
-        "title": "Launch: DiskCleanUp — Start Service",
+        "title": "DiskCleanUp — Start Service",
         "category": "CieloVista Launch",
-        "description": "Start the DiskCleanUp service for project maintenance."
+        "description": "Start the DiskCleanUp service."
       },
       {
         "command": "cvs.launch.diskcleanup.console",
-        "title": "Launch: DiskCleanUp — Console Mode",
+        "title": "DiskCleanUp — Console Mode",
         "category": "CieloVista Launch",
         "description": "Launch DiskCleanUp in console mode."
       },
       {
         "command": "cvs.launch.diskcleanup.build",
-        "title": "Launch: DiskCleanUp — Build",
+        "title": "DiskCleanUp — Build",
         "category": "CieloVista Launch",
         "description": "Build the DiskCleanUp application."
       },
       {
         "command": "cvs.launch.diskcleanup.stop",
-        "title": "Launch: DiskCleanUp — Stop (kill port 5100)",
+        "title": "DiskCleanUp — Stop (kill port 5100)",
         "category": "CieloVista Launch",
         "description": "Stop the DiskCleanUp service and free port 5100."
       },
@@ -717,6 +729,30 @@
         "description": "Scan registered projects for duplicate code clusters and abstraction opportunities."
       },
       {
+        "command": "cvs.links.check",
+        "title": "Tools: Link Integrity Check",
+        "category": "CieloVista",
+        "description": "Scan all .md docs for broken command links, missing file references, dead anchors, and unreachable external URLs."
+      },
+      {
+        "command": "cvs.commands.validate",
+        "title": "Tools: Validate Commands",
+        "category": "CieloVista",
+        "description": "Verify every documented command ID in feature READMEs exists in package.json and has a registerCommand() call."
+      },
+      {
+        "command": "cvs.commands.syncTags",
+        "title": "Tools: Sync Command Tags (Apply)",
+        "category": "CieloVista",
+        "description": "Merge command IDs from feature README Commands tables into frontmatter tags. Idempotent — never removes existing tags."
+      },
+      {
+        "command": "cvs.commands.syncTagsDry",
+        "title": "Tools: Sync Command Tags (Dry Run)",
+        "category": "CieloVista",
+        "description": "Preview which command IDs would be added to frontmatter tags — no files written."
+      },
+      {
         "command": "cvs.tools.cleanWorktrees",
         "title": "Tools: Clean Claude Worktrees",
         "category": "CieloVista",
@@ -783,6 +819,12 @@
         "description": "Navigate the open FileList panel to this folder (or open FileList at this folder)."
       },
       {
+        "command": "cvs.filelist.revealInFilelist",
+        "title": "FileList: Reveal in FileList Explorer",
+        "category": "CieloVista",
+        "description": "Open the FileList panel and scroll to this file, selecting it."
+      },
+      {
         "command": "cvs.claude.processMonitor",
         "title": "Claude: Process Monitor",
         "category": "CieloVista",
@@ -841,6 +883,16 @@
         "title": "Install Missing Corequisite Extensions",
         "category": "CieloVista Marketplace",
         "description": "Install any missing corequisite VS Code extensions"
+      },
+      {
+        "command": "cvs.tags.enrich",
+        "title": "Tags: Scan Frontmatter Tags",
+        "category": "CieloVista Tools"
+      },
+      {
+        "command": "cvs.tags.enrichAuto",
+        "title": "Tags: Enrich Frontmatter Tags",
+        "category": "CieloVista Tools"
       }
     ],
     "menus": {
@@ -859,6 +911,11 @@
           "command": "cvs.tools.fileList.navigateTo",
           "when": "explorerResourceIsFolder",
           "group": "navigation@98"
+        },
+        {
+          "command": "cvs.filelist.revealInFilelist",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "navigation@97"
         },
         {
           "command": "cvs.python.runFile",
@@ -895,6 +952,46 @@
         {
           "command": "cvs.config.edit",
           "when": "true"
+        },
+        {
+          "command": "cvs.launch.pick",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.start",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.tray",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.rebuild",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.build",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.snapit.stop",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.start",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.console",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.build",
+          "when": "false"
+        },
+        {
+          "command": "cvs.launch.diskcleanup.stop",
+          "when": "false"
         }
       ]
     },
@@ -925,6 +1022,12 @@
     "configuration": {
       "title": "CieloVista Tools",
       "properties": {
+        "cvs.bgHealthRunner.intervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "Seconds between background health checks. Minimum 5. Restart VS Code after changing."
+        },
         "cvs.diskcleanup.exePath": {
           "type": "string",
           "default": "",
@@ -1065,10 +1168,25 @@
           "default": true,
           "description": "Enable the Registry Promote feature — right-click a folder to register it as a CieloVista product."
         },
+        "cielovistaTools.features.linkIntegrityChecker": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Link Integrity Checker — scans .md docs for broken command links, missing file references, dead anchors, and unreachable URLs."
+        },
+        "cielovistaTools.features.commandValidator": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Command Validator — validates and syncs command IDs across feature READMEs, package.json, and registerCommand() calls."
+        },
         "cielovista-tools.debug.enabled": {
           "type": "boolean",
           "default": false,
           "description": "When true, verbose debug output is written to the CieloVista Tools output channel."
+        },
+        "cielovistaTools.features.tagsEnrichment": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the Tags Enrichment feature."
         }
       }
     }

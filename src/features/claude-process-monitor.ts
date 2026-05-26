@@ -27,6 +27,7 @@ import * as vscode  from 'vscode';
 import * as cp      from 'child_process';
 import { log, logError } from '../shared/output-channel';
 import { esc } from '../shared/webview-utils';
+import { getLauncherTargetColumn } from '../shared/panel-context';
 
 const FEATURE = 'claude-process-monitor';
 
@@ -360,7 +361,7 @@ function refresh(): void {
 
 function showPanel(): void {
     if (_panel) {
-        _panel.reveal(vscode.ViewColumn.One, true);
+        _panel.reveal(_panel.viewColumn, true);
         refresh();
         return;
     }
@@ -368,7 +369,7 @@ function showPanel(): void {
     _panel = vscode.window.createWebviewPanel(
         'claudeProcessMonitor',
         '🤖 Claude Processes',
-        { viewColumn: vscode.ViewColumn.One, preserveFocus: true },
+        { viewColumn: getLauncherTargetColumn(), preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true }
     );
 

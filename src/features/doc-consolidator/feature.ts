@@ -44,6 +44,17 @@ import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../../shared/registry';
 import { showConsolidationPlanWebview } from '../../shared/consolidation-plan-webview';
+import { getLauncherTargetColumn } from '../../shared/panel-context';
+
+// Files that are intentionally duplicated across every project root (#508, #509).
+// CLAUDE.md, copilot-rules.md, and README.md are per-project files — merging
+// them would break the tooling or destroy project-specific documentation.
+// Never surface these as consolidation candidates.
+const INTENTIONAL_DUPLICATES = new Set([
+    'claude.md',
+    'copilot-rules.md',
+    'readme.md',
+]);
 
 const FEATURE = 'doc-consolidator';
 const GLOBAL_DOCS    = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
@@ -140,10 +151,11 @@ function computeSimilarity(a: string, b: string): number {
 function discoverGroups(allDocs: ScannedDoc[]): ConsolidationGroup[] {
     const groups: ConsolidationGroup[] = [];
 
-    // Phase 1a — same filename
+    // Phase 1a — same filename (skip intentionally-duplicated AI instruction files #508)
     const byName = new Map<string, ScannedDoc[]>();
     for (const doc of allDocs) {
         const key = doc.fileName.toLowerCase();
+        if (INTENTIONAL_DUPLICATES.has(key)) { continue; }
         if (!byName.has(key)) { byName.set(key, []); }
         byName.get(key)!.push(doc);
     }
@@ -469,13 +481,15 @@ async function pickGroupsWebview(groups: ConsolidationGroup[]): Promise<Consolid
     return new Promise(resolve => {
         const panel = vscode.window.createWebviewPanel(
             'consolidationGroupPicker', '📁 Doc Consolidation',
-            vscode.ViewColumn.One,
+            getLauncherTargetColumn(),
             { enableScripts: true }
         );
         panel.webview.html = buildGroupPickerHtml(groups);
         panel.webview.onDidReceiveMessage(msg => {
             if (msg.command === 'open-file' && msg.path) {
-                vscode.workspace.openTextDocument(msg.path).then(doc => vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true }));
+                // Open a new VS Code window rooted at the file's project folder (#509)
+                const folderUri = vscode.Uri.file(path.dirname(msg.path));
+                void vscode.commands.executeCommand('vscode.openFolder', folderUri, { forceNewWindow: true });
                 return;
             }
             panel.dispose();

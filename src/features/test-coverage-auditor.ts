@@ -21,6 +21,7 @@ import { execSync } from 'child_process';
 import { getChannel, log } from '../shared/output-channel';
 import { logError } from '../shared/error-log';
 import { getNonce } from '../shared/webview-utils';
+import { getLauncherTargetColumn } from '../shared/panel-context';
 
 // ============================================================================
 // TYPES
@@ -50,6 +51,14 @@ interface FeatureCoverageData {
   unitTests: number;
 }
 
+interface GapItem {
+  what:  string;
+  why:   string;
+  when:  string;
+  where: string;
+  who:   string;
+}
+
 /**
  * Audit report structure
  */
@@ -64,6 +73,7 @@ interface AuditReport {
   tierDetails: Record<string, TierTestFile[]>;
   features: FeatureCoverageData[];
   gaps: string[];
+  gapItems: GapItem[];
   recommendations: { priority: 'HIGH' | 'MEDIUM' | 'LOW'; text: string }[];
   bugsUntested: number;
   bugsTotal: number;
@@ -148,9 +158,10 @@ async function runAudit(): Promise<AuditReport> {
   const scriptBase = _extensionPath || workspaceRoot;
   const scriptPath = path.join(scriptBase, 'scripts', 'audit-test-coverage.js');
   if (!require('fs').existsSync(scriptPath)) {
-    const err = new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project`);
-    logError(`audit-test-coverage.js not found at: ${scriptPath}`, err.stack || String(err), { context: 'test-coverage-auditor' });
-    throw err;
+    void vscode.window.showInformationMessage(
+      'Test Coverage Audit is only available inside the cielovista-tools project workspace.'
+    );
+    throw new Error(`audit-test-coverage.js not found at: ${scriptPath} — this script only exists in the cielovista-tools project`);
   }
 
   let rawOutput = '';
@@ -306,16 +317,63 @@ function formatAuditReport(metricsJson: any): AuditReport {
 
   // Build gaps list
   const gaps: string[] = [];
+  const gapItems: GapItem[] = [];
+
+  const TIER_WHY: Record<string, string> = {
+    TIER_1: 'Type errors and schema violations will reach users silently without static checks',
+    TIER_2: 'Business logic bugs cannot be caught without isolated unit tests',
+    TIER_3: 'Module integration bugs (wrong data shapes, broken contracts) go undetected',
+    TIER_4: 'User workflows may be broken without anyone knowing until a user reports it',
+    TIER_5: 'Fixed bugs can regress — without regression tests the same bug returns',
+  };
+  const TIER_WHERE: Record<string, string> = {
+    TIER_1: 'Add tests/unit/doc-contract.test.ts or TypeScript strict-mode CI gate',
+    TIER_2: 'Create tests/unit/<feature>.test.ts for each feature file in src/features/',
+    TIER_3: 'Create tests/integration/ with tests that cross module boundaries',
+    TIER_4: 'Create tests/functional/ with UI workflow tests (Playwright/JSDOM)',
+    TIER_5: 'Create tests/regression/REG-NNN-<bug>.test.js after every filed bug fix',
+  };
+  const TIER_WHEN: Record<string, string> = {
+    TIER_1: 'Priority: MEDIUM — add before next major refactor',
+    TIER_2: 'Priority: HIGH — add unit tests for each feature immediately',
+    TIER_3: 'Priority: MEDIUM — schedule for next sprint',
+    TIER_4: 'Priority: LOW — add when UI workflow is stable',
+    TIER_5: 'Priority: HIGH — create regression test immediately after each bug fix',
+  };
+
   if (metrics.featuresUncovered > 0) {
     gaps.push(`${metrics.featuresUncovered} features without unit tests`);
+    gapItems.push({
+      what:  `${metrics.featuresUncovered} feature(s) have zero unit tests`,
+      why:   'Untested features can break silently — bugs go undetected until users report them in production',
+      when:  'Priority: HIGH — fix before next release',
+      where: 'Create tests/unit/<feature-name>.test.ts for each untested feature in src/features/',
+      who:   'Developer or AI — use "Generate Unit Tests" button above to scaffold skeletons',
+    });
   }
   tiers.forEach((t) => {
     if (!t.present) {
       gaps.push(`Missing ${t.tier}: ${t.name}`);
+      gapItems.push({
+        what:  `Missing ${t.tier}: ${t.name} — ${t.description}`,
+        why:   TIER_WHY[t.tier] ?? 'Test coverage is incomplete for this tier',
+        when:  TIER_WHEN[t.tier] ?? 'Priority: MEDIUM — schedule for next sprint',
+        where: TIER_WHERE[t.tier] ?? 'Add tests in the appropriate tier directory',
+        who:   t.tier === 'TIER_5'
+               ? 'Developer who fixed the bug must own the regression test'
+               : 'Developer or AI can scaffold — developer must validate correctness',
+      });
     }
   });
   if (metrics.bugsUntested > 0) {
     gaps.push(`${metrics.bugsUntested} bugs without regression tests`);
+    gapItems.push({
+      what:  `${metrics.bugsUntested} bug(s) have no Tier 5 regression test`,
+      why:   'Fixed bugs without regression tests will silently regress — the same issue reappears in a later commit',
+      when:  'Priority: HIGH — create the test immediately after closing each bug',
+      where: 'Create tests/regression/REG-NNN-<short-description>.test.js for each unfixed bug',
+      who:   'The developer who closed the bug is responsible for the regression test',
+    });
   }
 
   // Build recommendations
@@ -372,6 +430,7 @@ function formatAuditReport(metricsJson: any): AuditReport {
     tierDetails,
     features,
     gaps,
+    gapItems,
     recommendations,
     bugsUntested: metrics.bugsUntested,
     bugsTotal: metrics.bugsTotal,
@@ -390,6 +449,12 @@ function safeJson(value: unknown): string {
   // break when VS Code's webview framework wraps the HTML. Replace it so the
   // script tag can never be prematurely closed by data embedded in the JSON.
   return JSON.stringify(value).replace(/<\/script>/gi, '<\\/script>');
+}
+
+function esc(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent: string): string {
@@ -545,6 +610,48 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
     margin: 8px 0;
     font-size: 13px;
   }
+  .gap-card {
+    background: rgba(244, 67, 54, 0.07);
+    border: 1px solid rgba(244, 67, 54, 0.25);
+    border-left: 4px solid #F44336;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 8px 0;
+  }
+  .gap-what {
+    font-weight: 600;
+    color: #f48fb1;
+    margin-bottom: 10px;
+    font-size: 13px;
+  }
+  .gap-grid {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 5px 10px;
+    font-size: 12px;
+    color: #ccc;
+    line-height: 1.5;
+  }
+  .gap-label {
+    font-weight: 700;
+    color: #90CAF9;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding-top: 2px;
+  }
+  .file-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #64B5F6;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    text-decoration: underline;
+    text-align: left;
+  }
+  .file-link:hover { opacity: .8; }
   
   .recommendation {
     background: #252526;
@@ -758,10 +865,19 @@ ${report.tiers
 </div>
 
 ${
-  report.gaps.length > 0
+  report.gapItems.length > 0
     ? `
 <h2>⚠️ Coverage Gaps</h2>
-${report.gaps.map((gap) => `<div class="gap">• ${gap}</div>`).join('')}
+${report.gapItems.map((g) => `
+<div class="gap-card">
+  <div class="gap-what">⚠ ${esc(g.what)}</div>
+  <div class="gap-grid">
+    <span class="gap-label">Why</span><span>${esc(g.why)}</span>
+    <span class="gap-label">When</span><span>${esc(g.when)}</span>
+    <span class="gap-label">Where</span><span>${esc(g.where)}</span>
+    <span class="gap-label">Who</span><span>${esc(g.who)}</span>
+  </div>
+</div>`).join('')}
 `
     : ''
 }
@@ -887,7 +1003,7 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
 
     const rowHtml = rows.map(function(row) {
       return '<tr>' +
-        '<td>' + escHtml(row.file) + '</td>' +
+        '<td><button class="file-link" data-path="' + escHtml(row.file) + '">' + escHtml(row.file) + '</button></td>' +
         '<td>' + (row.tests || 0) + '</td>' +
         '<td>' + (row.bugs || 0) + '</td>' +
       '</tr>';
@@ -900,6 +1016,13 @@ Generated: ${new Date(report.timestamp).toLocaleString()}
       '  </thead>' +
       '  <tbody>' + rowHtml + '</tbody>' +
       '</table>';
+
+    bodyEl.querySelectorAll('.file-link').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var p = btn.getAttribute('data-path');
+        if (p) { vscode.postMessage({ command: 'openFile', filePath: p }); }
+      });
+    });
   }
 
   document.getElementById('btn-refresh').addEventListener('click', refresh);
@@ -1087,7 +1210,7 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
       if (currentWebviewPanel) {
         // Panel exists, update it
         currentWebviewPanel.webview.html = getWebviewHtml(currentWebviewPanel.webview, report, mdContent);
-        currentWebviewPanel.reveal(vscode.ViewColumn.One);
+        currentWebviewPanel.reveal(currentWebviewPanel.viewColumn);
         vscode.window.showInformationMessage('Test Coverage Dashboard updated.');
       } else {
         // Create new panel
@@ -1097,7 +1220,7 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
           return;
         }
 
-        currentWebviewPanel = vscode.window.createWebviewPanel(WEBVIEW_TYPE, 'Test Coverage Audit', vscode.ViewColumn.One, {
+        currentWebviewPanel = vscode.window.createWebviewPanel(WEBVIEW_TYPE, 'Test Coverage Audit', getLauncherTargetColumn(), {
           enableScripts: true,
           enableForms: true,
         });
@@ -1120,6 +1243,21 @@ async function openAuditPanel(context: vscode.ExtensionContext): Promise<void> {
                 await generateMissingTests();
                 await openAuditPanel(context);
                 break;
+              case 'openFile': {
+                const workspaceRoot2 = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                if (workspaceRoot2 && message.filePath) {
+                    const fp = path.isAbsolute(message.filePath as string)
+                        ? message.filePath as string
+                        : path.join(workspaceRoot2, message.filePath as string);
+                    if (fs.existsSync(fp)) {
+                        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(fp));
+                        await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
+                    } else {
+                        vscode.window.showWarningMessage(`File not found: ${message.filePath as string}`);
+                    }
+                }
+                break;
+              }
               case 'copyFallback':
                 await vscode.env.clipboard.writeText(message.text ?? '');
                 vscode.window.showInformationMessage('✅ Copied to clipboard!');

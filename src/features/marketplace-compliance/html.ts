@@ -21,7 +21,7 @@ export function buildComplianceHtml(results: ProjectCompliance[]): string {
                 const fixBtn = i.fixable
                     ? `<button class="cvs-btn-sm" data-action="fix-one" data-proj="${esc(r.project.name)}">Fix</button>`
                     : '';
-                return `<div class="cvs-issue">${icon} <span class="cvs-issue-file">${esc(i.file)}</span> — ${esc(i.message)} ${fixBtn}</div>`;
+                return `<div class="cvs-issue">${icon} <button class="cvs-issue-file" data-action="open-file" data-proj-path="${esc(r.project.path)}" data-file="${esc(i.file)}" title="Open ${esc(i.file)}">${esc(i.file)}</button> — ${esc(i.message)} ${fixBtn}</div>`;
             }).join('');
 
         return `<tr>
@@ -55,7 +55,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .cvs-badge{display:inline-block;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 7px;font-size:0.8em}
 .cvs-link-btn{background:none;border:none;color:var(--vscode-textLink-foreground);cursor:pointer;font-size:inherit;font-weight:700;padding:0;text-decoration:underline;font-family:inherit}
 .cvs-issue{font-size:11px;line-height:1.6;display:flex;gap:5px;align-items:flex-start;flex-wrap:wrap;margin-bottom:2px}
-.cvs-issue-file{font-family:var(--vscode-editor-font-family);font-weight:700;color:var(--vscode-textLink-foreground)}
+.cvs-issue-file{font-family:var(--vscode-editor-font-family);font-weight:700;color:var(--vscode-textLink-foreground);background:none;border:none;cursor:pointer;padding:0;font-size:inherit;text-decoration:underline}
 .cvs-status{padding:6px 16px;font-size:12px;border-left:3px solid var(--vscode-focusBorder);background:var(--vscode-textCodeBlock-background);margin:8px 16px;border-radius:2px;display:none}
 .cvs-status.visible{display:block}
 .cvs-content{padding:12px 16px}
@@ -94,6 +94,7 @@ document.addEventListener('click', function(e) {
   var a = btn.dataset.action;
   if (a === 'fix-all')    { setStatus('🔧 Fixing all…'); vscode.postMessage({ command: 'fixAll' }); }
   if (a === 'fix-one')    { setStatus('🔧 Fixing ' + btn.dataset.proj + '…'); vscode.postMessage({ command: 'fixOne', project: btn.dataset.proj }); }
+  if (a === 'open-file')  { vscode.postMessage({ command: 'openFile', projPath: btn.dataset.projPath, file: btn.dataset.file }); }
   if (a === 'open-folder'){ vscode.postMessage({ command: 'openFolder', path: btn.dataset.path }); }
   if (a === 'rescan')     { setStatus('↺ Rescanning…'); vscode.postMessage({ command: 'rescan' }); }
 });

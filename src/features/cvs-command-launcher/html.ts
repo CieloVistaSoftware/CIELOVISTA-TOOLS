@@ -114,6 +114,7 @@ function buildCard(
     <span class="cmd-status-label">Status</span>
     <span class="cmd-status-value cmd-status-value--${statusInfo.tone}" data-default-label="${esc(statusInfo.label)}" data-default-tone="${esc(statusInfo.tone)}" data-default-title="${esc(statusInfo.title)}" title="${esc(statusInfo.title)}">${esc(statusInfo.label)}</span>
   </div>
+  <div class="cmd-report-slot"></div>
   <div class="cmd-footer">
     <div class="cmd-tags">${scopeBadge}${tagBadges}</div>
     <div class="cmd-actions">
@@ -310,13 +311,18 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .cmd-status-value--warn{color:#cca700;border-color:#cca70033;background:#cca7001a}
 .cmd-status-value--bad{color:#f48771;border-color:#f4877133;background:#f487711a}
 .cmd-status-value--neutral{color:var(--vscode-descriptionForeground);border-color:var(--vscode-panel-border);background:var(--vscode-editor-background)}
+.cmd-report-slot{min-height:0}
+.cmd-view-report-btn{margin-top:4px;padding:2px 8px;font-size:10px;font-weight:600;border:1px solid var(--vscode-focusBorder);border-radius:3px;background:var(--vscode-editor-background);color:var(--vscode-textLink-foreground);cursor:pointer;font-family:inherit}
+.cmd-view-report-btn:hover{background:var(--vscode-list-hoverBackground)}
 .cmd-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:6px;flex-wrap:wrap}
 .cmd-tags{display:flex;flex-wrap:wrap;gap:3px;flex:1}
 .tag{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);color:var(--vscode-descriptionForeground);cursor:pointer}
 .tag:hover{border-color:var(--vscode-focusBorder)}
 .cmd-actions{display:flex;gap:4px;align-items:center;flex-shrink:0}
-.run-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.run-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;transition:background 0.15s,box-shadow 0.15s}
 .run-btn:hover{background:var(--vscode-button-hoverBackground)}
+.run-btn.btn-running{background:#1a7f37!important;color:#fff!important;box-shadow:0 0 6px #3fb950}
+.run-btn.btn-error{background:#8b1a1a!important;color:#fff!important;box-shadow:0 0 6px #f85149}
 /* Read action — muted secondary style so readers are visually distinct from runners */
 .read-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
 .read-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
@@ -427,8 +433,21 @@ let _activeTags = new Set(), _activeGroup = '', _searchQ = '', _ddOpen = false;
 let _activeScope = HAS_CONTEXT_FILTER ? 'context' : '';
 
 var _runBtn = null, _runBtnOrig = '', _runBtnTimeout = null;
-function _resetRunBtn() {
-  if (_runBtn) { _runBtn.innerHTML = _runBtnOrig; _runBtn.disabled = false; _runBtn.style.opacity = ''; _runBtn = null; }
+function _resetRunBtn(state) {
+  if (_runBtn) {
+    _runBtn.innerHTML = _runBtnOrig;
+    _runBtn.disabled  = false;
+    _runBtn.classList.remove('btn-running');
+    if (state === 'error') {
+      _runBtn.classList.add('btn-error');
+      // Auto-clear red after 4 seconds
+      var _errBtn = _runBtn;
+      setTimeout(function(){ _errBtn.classList.remove('btn-error'); }, 4000);
+    } else {
+      _runBtn.classList.remove('btn-error');
+    }
+    _runBtn = null;
+  }
   if (_runBtnTimeout) { clearTimeout(_runBtnTimeout); _runBtnTimeout = null; }
 }
 const searchEl     = document.getElementById('search');
@@ -621,9 +640,9 @@ document.addEventListener('click', function(e) {
     var entry = CATALOG.find(function(c) { return c.id === id; });
     var title = entry ? entry.title : id;
     _runBtn = btn; _runBtnOrig = btn.innerHTML;
-    btn.innerHTML     = '\u23f3 Running\u2026';
+    btn.classList.add('btn-running');
+    btn.classList.remove('btn-error');
     btn.disabled      = true;
-    btn.style.opacity = '0.7';
     runStatusTxt.textContent = 'Running:';
     runStatusCmd.textContent = title;
     runStatus.classList.add('visible');
@@ -633,9 +652,15 @@ document.addEventListener('click', function(e) {
 
 
 
-      _resetRunBtn(); runStatus.classList.remove('visible');
+      _resetRunBtn('ok'); runStatus.classList.remove('visible');
     }, 30000);
     vscode.postMessage({ command: 'run', id: id });
+  }
+
+  var reportBtn = e.target.closest('[data-action="view-report"]');
+  if (reportBtn) {
+    vscode.postMessage({ command: 'view-report', id: reportBtn.dataset.id });
+    return;
   }
 });
 
@@ -691,8 +716,8 @@ function applyFilters() {
 
 window.addEventListener('message', function(e) {
   var msg = e.data;
-  if (msg.type === 'done')  { _resetRunBtn(); runStatusTxt.textContent = '\u2705 Done:';  runStatusCmd.textContent = msg.title || '';   setTimeout(function() { runStatus.classList.remove('visible'); }, 2000); }
-  if (msg.type === 'error') { _resetRunBtn(); runStatusTxt.textContent = '\u274c Failed:'; runStatusCmd.textContent = msg.message || msg.title || ''; setTimeout(function() { runStatus.classList.remove('visible'); }, 4000); }
+  if (msg.type === 'done')  { _resetRunBtn('ok');    runStatusTxt.textContent = '\u2705 Done:';    runStatusCmd.textContent = msg.title || '';                      setTimeout(function() { runStatus.classList.remove('visible'); }, 2000); }
+  if (msg.type === 'error') { _resetRunBtn('error'); runStatusTxt.textContent = '\u274c Failed:'; runStatusCmd.textContent = msg.message || msg.title || ''; setTimeout(function() { runStatus.classList.remove('visible'); }, 4000); }
   // Green/red status light per card when run-state arrives from extension host
   if (msg.type === 'run-state') {
     var card = document.querySelector('.cmd-card[data-id="' + msg.id + '"]');
@@ -703,11 +728,13 @@ window.addEventListener('message', function(e) {
         dot.className = 'card-status-dot';
         card.prepend(dot);
       }
+      var reportSlot = card.querySelector('.cmd-report-slot');
       if (msg.state === 'running') {
         dot.style.background = '#3fb950';
         dot.style.boxShadow  = '0 0 6px #3fb950';
         dot.title = 'Running\u2026';
         setCardStatus(card, 'Running', 'warn', 'Command is running');
+        if (reportSlot) { reportSlot.innerHTML = ''; }
         // Reset after 30s safety timeout
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
         dot._runTimeout = setTimeout(function(){ dot.style.background=''; dot.style.boxShadow=''; }, 30000);
@@ -721,15 +748,21 @@ window.addEventListener('message', function(e) {
           setCardStatus(card, 'Completed', 'good', 'Last run succeeded');
         }
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
+        if (reportSlot && msg.canViewReport) {
+          reportSlot.innerHTML = '<button class="cmd-view-report-btn" data-action="view-report" data-id="' + msg.id + '">\ud83d\udccb View Report</button>';
+        }
       } else if (msg.state === 'error') {
         dot.style.background = '#f85149';
         dot.style.boxShadow  = '0 0 6px #f85149';
         dot.title = '\u274c Last run failed';
         setCardStatus(card, 'Error', 'bad', 'Last run failed');
         if (dot._runTimeout) clearTimeout(dot._runTimeout);
+        if (reportSlot && msg.canViewReport) {
+          reportSlot.innerHTML = '<button class="cmd-view-report-btn" data-action="view-report" data-id="' + msg.id + '">\ud83d\udccb View Report</button>';
+        }
       }
     }
-    _resetRunBtn();
+    _resetRunBtn(msg.state === 'error' ? 'error' : 'ok');
     runStatus.classList.remove('visible');
   }
   // Real-time MCP server status update

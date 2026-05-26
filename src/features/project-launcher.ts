@@ -26,6 +26,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
+import { registerLaunchedTerminal } from '../shared/terminal-utils';
 
 const FEATURE = 'project-launcher';
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
@@ -156,6 +157,7 @@ function runInTerminal(name: string, command: string, cwd: string): void {
     }
     terminal.show(true);
     terminal.sendText(command);
+    registerLaunchedTerminal(name, { script: command, command, cwd, project: name });
     log(FEATURE, `Launched in terminal "${name}": ${command} (cwd: ${cwd})`);
 }
 
@@ -223,8 +225,10 @@ function registerFixed(
 export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');
 
-    const SNAPIT    = 'C:\\Users\\jwpmi\\source\\repos\\SnapIt';
-    const DISKCLEAN = 'C:\\Users\\jwpmi\\source\\repos\\DiskCleanUp';
+    const SNAPIT           = 'C:\\Users\\jwpmi\\source\\repos\\SnapIt';
+    const DISKCLEAN        = 'C:\\Users\\jwpmi\\source\\repos\\DiskCleanUp';
+    const DISKCLEAN_SVC    = path.join(DISKCLEAN, 'DiskCleanUp.Service');
+    const DISKCLEAN_OTHERS = path.join(DISKCLEAN, 'others');
 
     // ── SnapIt ────────────────────────────────────────────────────────────────
     registerFixed(context, 'cvs.launch.snapit.start',  'SnapIt Service', 'npm start',                 SNAPIT);
@@ -233,11 +237,11 @@ export function activate(context: vscode.ExtensionContext): void {
     registerFixed(context, 'cvs.launch.snapit.build',  'SnapIt Build',   'npm run tray:rebuild',      SNAPIT);
     registerFixed(context, 'cvs.launch.snapit.stop',   'SnapIt Stop',    'npx kill-port 5200',        SNAPIT);
 
-    // ── DiskCleanUp ───────────────────────────────────────────────────────────
-    registerFixed(context, 'cvs.launch.diskcleanup.start',   'DiskCleanUp Service', 'npm start',        DISKCLEAN);
-    registerFixed(context, 'cvs.launch.diskcleanup.console', 'DiskCleanUp Console', 'npm run start',               DISKCLEAN);
-    registerFixed(context, 'cvs.launch.diskcleanup.build',   'DiskCleanUp Build',   'dotnet build DiskCleanUp.sln', DISKCLEAN);
-    registerFixed(context, 'cvs.launch.diskcleanup.stop',    'DiskCleanUp Stop',    'npx kill-port 5100', DISKCLEAN);
+    // ── DiskCleanUp (.NET) — no npm scripts; uses dotnet CLI ──────────────────
+    registerFixed(context, 'cvs.launch.diskcleanup.start',   'DiskCleanUp Service', 'dotnet run',                            DISKCLEAN_SVC);
+    registerFixed(context, 'cvs.launch.diskcleanup.console', 'DiskCleanUp Console', 'dotnet run --environment Development',  DISKCLEAN_SVC);
+    registerFixed(context, 'cvs.launch.diskcleanup.build',   'DiskCleanUp Build',   'dotnet build DiskCleanUp.sln',          DISKCLEAN_OTHERS);
+    registerFixed(context, 'cvs.launch.diskcleanup.stop',    'DiskCleanUp Stop',    'npx kill-port 5100',                   DISKCLEAN);
 
     // ── Universal picker ──────────────────────────────────────────────────────
     context.subscriptions.push(

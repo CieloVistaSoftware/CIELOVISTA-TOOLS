@@ -26,12 +26,18 @@ interface WorktreeInfo {
     isActive:     boolean; // current working worktree
 }
 
+const RUN_TIMEOUT_MS = 10_000;
+
 function run(cmd: string, args: string[], cwd: string): Promise<string> {
     return new Promise((resolve, reject) => {
-        execFile(cmd, args, { cwd, shell: true, encoding: 'utf8' }, (err, stdout, stderr) => {
+        const proc = execFile(cmd, args, { cwd, shell: true, encoding: 'utf8' }, (err, stdout, stderr) => {
             if (err) { reject(new Error(stderr || err.message)); return; }
             resolve(stdout.trim());
         });
+        setTimeout(() => {
+            proc.kill();
+            reject(new Error(`Command timed out after ${RUN_TIMEOUT_MS}ms: ${cmd} ${args.join(' ')}`));
+        }, RUN_TIMEOUT_MS);
     });
 }
 
@@ -68,13 +74,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void { /* nothing */ }
 
-async function cleanWorktrees(context: vscode.ExtensionContext): Promise<void> {
-    const root = context.extensionPath;
-    log(FEATURE, 'Listing Claude worktrees…');
+async function cleanWorktrees(_context: vscode.ExtensionContext): Promise<void> {
+    // Use workspace root — extension install path is not a git repo
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) {
+        void vscode.window.showWarningMessage('Clean Worktrees: no workspace folder open.');
+        return;
+    }
+    log(FEATURE, `Listing Claude worktrees in: ${root}`);
 
     let worktrees: WorktreeInfo[];
     try {
-        worktrees = await listClaudeWorktrees(root);
+        worktrees = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Scanning Claude worktrees…',
+            cancellable: false,
+        }, () => listClaudeWorktrees(root));
     } catch (err: unknown) {
         void vscode.window.showErrorMessage(`Failed to list worktrees: ${err instanceof Error ? err.message : String(err)}`);
         return;

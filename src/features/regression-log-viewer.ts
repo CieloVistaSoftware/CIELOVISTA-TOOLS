@@ -17,6 +17,7 @@ import { fileRegressionAsIssue } from '../shared/github-issue-filer';
 import type { RegressionEntry }  from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
 import { esc } from '../shared/webview-utils';
+import { getLauncherTargetColumn } from '../shared/panel-context';
 
 const FEATURE    = 'regression-log-viewer';
 const DATA_PATH  = path.join(__dirname, '..', 'data', 'regressions.json');
@@ -220,7 +221,7 @@ export async function openRegressionLogViewer(): Promise<void> {
     }
 
     _panel = vscode.window.createWebviewPanel(
-        'regressionLog', '🔁 Regression Log', vscode.ViewColumn.One,
+        'regressionLog', '🔁 Regression Log', getLauncherTargetColumn(),
         { enableScripts: true, retainContextWhenHidden: true }
     );
     _panel.webview.html = html;

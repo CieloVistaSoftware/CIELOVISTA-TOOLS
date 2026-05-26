@@ -16,6 +16,7 @@ import { initRecentProjects, touchCurrentProject, getRecentProjects } from './re
 import { sendToCopilotChat } from '../terminal-copy-output';
 import { loadRegistry } from '../../shared/registry';
 import { getErrors } from '../../shared/error-log-adapter';
+import { setLauncherTargetColumn } from '../../shared/panel-context';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -24,6 +25,18 @@ function escHtml(s: string): string {
 const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
+
+const _DISKCLEANUP_ROOT = 'C:\\Users\\jwpmi\\source\\repos\\DiskCleanUp';
+const _DISKCLEANUP_SVC  = path.join(_DISKCLEANUP_ROOT, 'DiskCleanUp.Service');
+const _SNAPIT_ROOT      = 'C:\\Users\\jwpmi\\source\\repos\\SnapIt';
+const _SNAPIT_SVC       = path.join(_SNAPIT_ROOT, 'SnapIt.Service');
+const _SNAPIT_TRAY      = path.join(_SNAPIT_ROOT, 'SnapIt.Tray');
+
+function _launchInTerminal(name: string, cmd: string, cwd?: string): void {
+    const term = vscode.window.createTerminal({ name, cwd });
+    term.show();
+    term.sendText(cmd);
+}
 
 function normalizeWorkspaceDisplayName(name: string): string {
     const raw = String(name ?? '').trim();
@@ -37,9 +50,11 @@ function normalizeWorkspaceDisplayName(name: string): string {
 
 // Commands that already render their own first-class panels should execute
 // directly to avoid the launcher's secondary "Completed in ..." result pane.
+// They are opened in ViewColumn.Beside via setLauncherTargetColumn() (#499).
 const DIRECT_PANEL_COMMANDS = new Set<string>([
     'cvs.headers.frontmatterViewer',
     'cvs.tools.errorLog',
+    'cvs.tools.regressionLog',   // #498: show regression log viewer directly
     'cvs.audit.testCoverage',
     'cvs.audit.testCoverage.refresh',
     'cvs.audit.testCoverage.export',
@@ -107,6 +122,18 @@ function safePostToWebview(panel: vscode.WebviewPanel, payload: unknown): boolea
 
 function buildStatusMap(): Map<string, { label: string; title: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }> {
     const statusMap = new Map<string, { label: string; title: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }>();
+
+    // Seed last-run outcome for every command that has run — history is deduped by id
+    // (most-recent first), so each id appears at most once. This makes STATUS persist
+    // across panel refreshes instead of reverting to the static audit-derived value.
+    for (const h of getHistory()) {
+        statusMap.set(h.id, h.ok
+            ? { label: 'Completed', title: 'Last run succeeded', tone: 'good' }
+            : { label: 'Error',     title: 'Last run failed',    tone: 'bad'  }
+        );
+    }
+
+    // Override: error log shows live unresolved count, not last-run outcome
     const errors = getErrors();
     const unresolvedCount = errors.filter((entry) => !entry.githubIssueNumber).length;
     statusMap.set('cvs.tools.errorLog', unresolvedCount > 0
@@ -276,11 +303,14 @@ async function _executeWithOutput(
 
     // Read-only and direct-panel commands execute directly so they can open
     // their intended UI without an intermediate launcher result panel.
+    // We set ViewColumn.Beside so the feature panel opens to the right of the
+    // launcher instead of replacing it in ViewColumn.One (#499).
     if (entry?.action === 'read' || DIRECT_PANEL_COMMANDS.has(commandId)) {
         if (notifyPanel) {
             notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'running' });
         }
         log(FEATURE, `Executing: ${commandId}`);
+        setLauncherTargetColumn(vscode.ViewColumn.Beside);
         try {
             await vscode.commands.executeCommand(commandId);
             const elapsed = Date.now() - startMs;
@@ -314,6 +344,8 @@ async function _executeWithOutput(
                 notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             }
             if (_panel) { _panel.webview.postMessage({ type: 'history-update', history: getHistory() }); }
+        } finally {
+            setLauncherTargetColumn(undefined); // clear so direct invocations keep default column
         }
         return;
     }
@@ -372,7 +404,7 @@ async function _executeWithOutput(
         safePostToWebview(rp, { type: 'done', ok, elapsed, stack });
         recordRun({ id: commandId, title, ok, elapsed });
         if (notifyPanel) {
-            notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: ok ? 'ok' : 'error' });
+            notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: ok ? 'ok' : 'error', canViewReport: true });
             notifyPanel.webview.postMessage({ type: 'history-update', history: getHistory() });
             if (entry?.action !== 'read') { notifyPanel.reveal(vscode.ViewColumn.One, true); }
         }
@@ -382,6 +414,19 @@ async function _executeWithOutput(
     log(FEATURE, `Executing: ${commandId}`);
     _activeStreams.set(runId, stream);
     startInterception();
+
+    // ── Toast interception (#500) ──────────────────────────────────────────────
+    // VS Code toast messages (showInformationMessage / showWarningMessage /
+    // showErrorMessage) bypass the output channel. We monkey-patch them during
+    // command execution so their first-argument text is also forwarded to the
+    // result panel, ensuring the panel never shows "(no log output)" when the
+    // command already produced user-facing feedback.
+    const _origInfo  = vscode.window.showInformationMessage.bind(vscode.window);
+    const _origWarn  = vscode.window.showWarningMessage.bind(vscode.window);
+    const _origError = vscode.window.showErrorMessage.bind(vscode.window);
+    (vscode.window as any).showInformationMessage = (msg: string, ...rest: any[]) => { stream(`ℹ ${msg}`); return _origInfo(msg, ...rest as [any]); };
+    (vscode.window as any).showWarningMessage     = (msg: string, ...rest: any[]) => { stream(`⚠ ${msg}`); return _origWarn(msg, ...rest as [any]); };
+    (vscode.window as any).showErrorMessage       = (msg: string, ...rest: any[]) => { stream(`✗ ${msg}`); return _origError(msg, ...rest as [any]); };
 
     // Snapshot terminals BEFORE — detect terminal-based commands by new terminal creation,
     // not by elapsed time (elapsed heuristic fails for fast synchronous commands like audit).
@@ -424,6 +469,10 @@ async function _executeWithOutput(
             finish(false, elapsed, stack);
         }
     } finally {
+        // Restore toast APIs
+        (vscode.window as any).showInformationMessage = _origInfo;
+        (vscode.window as any).showWarningMessage     = _origWarn;
+        (vscode.window as any).showErrorMessage       = _origError;
         _activeStreams.delete(runId);
         stopInterceptionIfIdle();
     }
@@ -446,6 +495,13 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
         }
         if (msg.command === 'run' && msg.id) {
             void _executeWithOutput(msg.id, panel);
+        }
+        if (msg.command === 'view-report') {
+            if (_resultPanel) {
+                _resultPanel.reveal(vscode.ViewColumn.Beside, true);
+            } else {
+                vscode.window.showInformationMessage('Report panel was closed — re-run the command to generate a new one.');
+            }
         }
         if (msg.command === 'toggle-audit-output') {
             // Show the shared output channel — this surfaces the "Run Daily Health Check" window.
@@ -578,6 +634,23 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cvs.mcp.startServer', async () => {
             if (getMcpServerStatus() === 'up') { stopMcpServer(); } else { startMcpServer(); }
         }),
+        vscode.commands.registerCommand('cvs.launch.pick', async () => {
+            const launchCmds = CATALOG.filter(c => c.id.startsWith('cvs.launch.') && c.id !== 'cvs.launch.pick');
+            const picked = await vscode.window.showQuickPick(
+                launchCmds.map(c => ({ label: c.title, description: c.description ?? '', id: c.id })),
+                { placeHolder: 'Pick a project action to run' }
+            );
+            if (picked) { await vscode.commands.executeCommand(picked.id); }
+        }),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.start',   () => _launchInTerminal('DiskCleanUp',         'dotnet run',                                                                                                                                          _DISKCLEANUP_SVC)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.console', () => _launchInTerminal('DiskCleanUp Console', 'dotnet run --environment Console',                                                                                                                   _DISKCLEANUP_SVC)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.build',   () => _launchInTerminal('DiskCleanUp Build',   'dotnet build DiskCleanUp.sln',                                                                                                                       _DISKCLEANUP_ROOT)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.stop',    () => _launchInTerminal('DiskCleanUp Stop',    'Stop-Process -Id (Get-NetTCPConnection -LocalPort 5100 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host "Port 5100 freed"')),
+        vscode.commands.registerCommand('cvs.launch.snapit.start',        () => _launchInTerminal('SnapIt Service',      'dotnet run',                                                                                                                                          _SNAPIT_SVC)),
+        vscode.commands.registerCommand('cvs.launch.snapit.tray',         () => _launchInTerminal('SnapIt Tray',         'dotnet run',                                                                                                                                          _SNAPIT_TRAY)),
+        vscode.commands.registerCommand('cvs.launch.snapit.rebuild',      () => _launchInTerminal('SnapIt Rebuild',      'dotnet build && dotnet run',                                                                                                                          _SNAPIT_TRAY)),
+        vscode.commands.registerCommand('cvs.launch.snapit.build',        () => _launchInTerminal('SnapIt Build',        'dotnet build',                                                                                                                                        _SNAPIT_ROOT)),
+        vscode.commands.registerCommand('cvs.launch.snapit.stop',         () => _launchInTerminal('SnapIt Stop',         'Stop-Process -Id (Get-NetTCPConnection -LocalPort 5200 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host "Port 5200 freed"')),
     );
     _statusBar = vscode.window.createStatusBarItem('cielovista.cvsCmds', vscode.StatusBarAlignment.Left, 100);
     _statusBar.name    = 'CieloVista CVS Commands';

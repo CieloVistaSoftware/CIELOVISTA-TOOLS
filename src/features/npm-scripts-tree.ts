@@ -20,6 +20,7 @@ import * as vscode from 'vscode';
 import * as path   from 'path';
 import * as fs     from 'fs';
 import { log, logError } from '../shared/output-channel';
+import { registerLaunchedTerminal } from '../shared/terminal-utils';
 
 const FEATURE = 'npm-scripts-tree';
 const COMMAND  = 'cvs.npm.tree';
@@ -131,6 +132,33 @@ async function openPanel(): Promise<void> {
                 void _panel?.webview.postMessage({ type: 'init', entries: fresh });
                 break;
             }
+            case 'create-issue': {
+                if (!msg.script || !msg.dir) { break; }
+                const title = `[npm] \`npm run ${msg.script}\` failed`;
+                const body = [
+                    '## npm script failure',
+                    '',
+                    `**Script:** \`${msg.script}\``,
+                    `**Project:** \`${msg.dir}\``,
+                    `**Time:** ${new Date().toISOString()}`,
+                    '',
+                    'Running the script above exited with a non-zero exit code.',
+                    'Please check the terminal output for the full error message.',
+                    '',
+                    '---',
+                    '*Filed from CVT NPM Scripts viewer*',
+                ].join('\n');
+                const isDiskCleanup = msg.dir.toLowerCase().includes('diskcleanup');
+                const repo = isDiskCleanup
+                    ? 'CieloVistaSoftware/DiskCleanUp'
+                    : 'CieloVistaSoftware/cielovista-tools';
+                const params = new URLSearchParams({ title, body, labels: 'type:bug,status:triage' });
+                void vscode.env.openExternal(vscode.Uri.parse(
+                    `https://github.com/${repo}/issues/new?${params.toString()}`
+                ));
+                log(FEATURE, `create-issue: ${msg.script} in ${msg.dir}`);
+                break;
+            }
             case 'run': {
                 if (!msg.dir || !msg.script) { break; }
                 // Open in the editor area, beside the NPM Scripts panel.
@@ -142,6 +170,12 @@ async function openPanel(): Promise<void> {
                     location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
                 });
                 _termMap.set(term, { dir: msg.dir, script: msg.script });
+                registerLaunchedTerminal(`npm: ${msg.script}`, {
+                    script:  msg.script,
+                    command: `npm run ${msg.script}`,
+                    cwd:     msg.dir,
+                    project: path.basename(msg.dir),
+                });
                 term.sendText(`npm run ${msg.script}`);
                 // Re-reveal the webview panel so it keeps focus after the terminal opens
                 _panel?.reveal(vscode.ViewColumn.One, false);

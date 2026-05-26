@@ -19,6 +19,7 @@ import * as path   from 'path';
 import { fileFrontmatterViolationAsIssue } from '../shared/github-issue-filer';
 import { log, logError } from '../shared/output-channel';
 import { esc as escStr } from '../shared/webview-utils';
+import { getLauncherTargetColumn } from '../shared/panel-context';
 
 const FEATURE = 'frontmatter-viewer';
 const FILED_ISSUES_KEY = 'frontmatter-viewer.filedIssues';
@@ -646,12 +647,12 @@ async function openFrontmatterViewer(): Promise<void> {
             if (_panel) {
                 _panel.webview.html = html;
                 _panel.title = `Frontmatter — ${report.summary.total} files`;
-                _panel.reveal(vscode.ViewColumn.One);
+                _panel.reveal(_panel.viewColumn, true);
             } else {
                 _panel = vscode.window.createWebviewPanel(
                     'cvsFrontmatterViewer',
                     `Frontmatter — ${report.summary.total} files`,
-                    vscode.ViewColumn.One,
+                    getLauncherTargetColumn(),
                     { enableScripts: true, retainContextWhenHidden: true }
                 );
                 _panel.webview.html = html;

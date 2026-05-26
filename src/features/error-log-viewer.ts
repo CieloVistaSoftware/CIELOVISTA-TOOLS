@@ -17,6 +17,7 @@ import type { ErrorEntry } from '../shared/error-log-adapter';
 import { fileErrorAsIssue } from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
 import { esc } from '../shared/webview-utils';
+import { getLauncherTargetColumn } from '../shared/panel-context';
 
 const FEATURE = 'error-log-viewer';
 let _panel: vscode.WebviewPanel | undefined;
@@ -164,7 +165,7 @@ export async function openErrorLogViewer(): Promise<void> {
     if (_panel) {
     try {
       _panel.webview.html = html;
-      _panel.reveal(vscode.ViewColumn.One, false);
+      _panel.reveal(_panel.viewColumn, false);
       return;
     } catch {
       // Stale panel handle - recreate below.
@@ -174,7 +175,7 @@ export async function openErrorLogViewer(): Promise<void> {
     }
 
     _panel = vscode.window.createWebviewPanel(
-        'toolsErrorLog', '🪵 Tools Error Log Viewer', vscode.ViewColumn.One,
+        'toolsErrorLog', '🪵 Tools Error Log Viewer', getLauncherTargetColumn(),
         { enableScripts: true, retainContextWhenHidden: true }
     );
     _panel.webview.html = html;

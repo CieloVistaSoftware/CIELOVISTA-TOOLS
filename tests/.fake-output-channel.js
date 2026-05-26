@@ -1,0 +1,1 @@
+module.exports = { getChannel: () => ({ appendLine: () => {} }), log: () => {} };

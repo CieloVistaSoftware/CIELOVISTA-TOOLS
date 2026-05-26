@@ -153,6 +153,38 @@ function ensureOutBuilt() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+// ── Preflight: ensure out/ is built ──────────────────────────────────────────
+// Git worktrees have no shared out/ — auto-build on first run so tests that
+// probe out/extension.js and out/catalog.html don't fail with a missing-file
+// error instead of a real test failure.
+function ensureOutBuilt() {
+  const outBundle = path.join(ROOT, 'out', 'extension.js');
+  const outHtml   = path.join(ROOT, 'out', 'catalog.html');
+  let rebuilt = false;
+
+  if (!fs.existsSync(outBundle)) {
+    console.log('  ⚙  out/extension.js missing — running esbuild.mjs...');
+    try {
+      execSync(`node "${path.join(ROOT, 'esbuild.mjs')}"`, { cwd: ROOT, stdio: 'inherit' });
+      rebuilt = true;
+    } catch {
+      console.error('  ✗ esbuild.mjs failed — some tests may fail');
+    }
+  }
+
+  if (!fs.existsSync(outHtml)) {
+    console.log('  ⚙  out/catalog.html missing — running copy-commandhelp.js...');
+    try {
+      execSync(`node "${path.join(ROOT, 'scripts', 'copy-commandhelp.js')}"`, { cwd: ROOT, stdio: 'inherit' });
+      rebuilt = true;
+    } catch {
+      console.error('  ✗ copy-commandhelp.js failed — REG-012 will fail');
+    }
+  }
+
+  if (rebuilt) { console.log(''); }
+}
+
 async function main() {
   ensureOutBuilt();
   console.log('\nCieloVista Tools — Regression Test Suite');

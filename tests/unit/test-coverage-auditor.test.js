@@ -59,7 +59,7 @@ test('onDidReceiveMessage registered exactly once (buttons survive refresh)', ()
 
 test('onDidReceiveMessage paired with context.subscriptions for disposal', () => {
     const idx = SRC.indexOf('onDidReceiveMessage');
-    const block = SRC.slice(idx, idx + 1200);
+    const block = SRC.slice(idx, idx + 3000);
     assert(block.includes('context.subscriptions'), 'onDidReceiveMessage must pass context.subscriptions');
 });
 

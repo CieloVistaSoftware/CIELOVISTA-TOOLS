@@ -79,9 +79,13 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
                 blockPreview = '';
             } else {
                 const closingFence = fenceMatch[1];
-                const sameFenceChar = closingFence[0] === blockFenceOpen[0];
+                const sameFenceChar  = closingFence[0] === blockFenceOpen[0];
                 const enoughFenceLen = closingFence.length >= blockFenceOpen.length;
-                if (!sameFenceChar || !enoughFenceLen) {
+                // Closing fences must have NO non-space content after the fence chars.
+                // A line like "```typescript" inside a block is a nested opening example,
+                // NOT a closing fence — treating it as one causes false positives (#495).
+                const hasNoContent = fenceMatch[2].trim() === '';
+                if (!sameFenceChar || !enoughFenceLen || !hasNoContent) {
                     continue;
                 }
                 // Closing fence
@@ -138,14 +142,14 @@ function buildHtml(blocks: UntaggedBlock[], scannedFiles: number): string {
         const fileRows = [...fileMap.entries()].map(([fp, fBlocks]) => {
             const relPath = path.relative(path.dirname(fp), fp) || path.basename(fp);
             const blockRows = fBlocks.map(b => {
-                const guess = guessLanguage(b.preview);
-                const fixBtn = guess
-                    ? `<button class="fix-btn fix-single-btn" data-action="fix" data-path="${esc(fp)}" data-line="${b.lineNumber}" data-lang="${esc(guess)}" data-fence="${esc(b.fenceOpen)}">&#9889; Fix</button>`
-                    : '';
+                const guess   = guessLanguage(b.preview);
+                // Always show Fix — when no language can be inferred, default to 'text' (#496)
+                const fixLang = guess || 'text';
+                const fixBtn  = `<button class="fix-btn fix-single-btn" data-action="fix" data-path="${esc(fp)}" data-line="${b.lineNumber}" data-lang="${esc(fixLang)}" data-fence="${esc(b.fenceOpen)}">&#9889; Fix</button>`;
                 return `<tr class="block-row" data-path="${esc(fp)}" data-line="${b.lineNumber}">
   <td class="ln-cell">L${b.lineNumber}</td>
   <td class="preview-cell"><code>${esc(b.preview || '(empty block)')}</code></td>
-  <td class="guess-cell">${guess ? `<span class="lang-hint">${esc(guess)}</span>` : '<span class="no-hint">?</span>'}</td>
+  <td class="guess-cell">${guess ? `<span class="lang-hint">${esc(guess)}</span>` : '<span class="no-hint">text</span>'}</td>
   <td class="act-cell">${fixBtn}<button class="fix-btn" data-action="open" data-path="${esc(fp)}" data-line="${b.lineNumber}">&#128396; Open</button></td>
 </tr>`;
             }).join('');
@@ -273,8 +277,8 @@ window.addEventListener('message', function(event) {
     <strong>${scannedFiles}</strong> markdown files scanned across all projects.
     Found <strong>${totalBlocks}</strong> fenced code block${totalBlocks !== 1 ? 's' : ''} without a language tag in
     <strong>${totalFiles}</strong> file${totalFiles !== 1 ? 's' : ''}.
-    Green hints show the guessed language from the block content.
-    Click <strong>Open</strong> to jump directly to that line.
+    Green hints show the guessed language; <strong>text</strong> is used when no language can be inferred.
+    Click <strong>Fix</strong> to insert the tag, or <strong>Open</strong> to jump directly to that line.
   </div>
   ${zeroMsg}
   <table>

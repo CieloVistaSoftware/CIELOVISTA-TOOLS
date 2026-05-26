@@ -51,7 +51,10 @@ One extension, one install. All CieloVistaSoftware developer tools consolidated.
 
 ## Global Standards
 
-These apply to ALL CieloVista projects. Read them when relevant:
+These apply to ALL CieloVista projects. Read them when relevant.
+
+**Repo:** https://github.com/CieloVistaSoftware/CieloVistaStandards
+**Local:** `C:\Users\jwpmi\Downloads\CieloVistaStandards\`
 
 | Document | Location |
 |---|---|
@@ -60,6 +63,7 @@ These apply to ALL CieloVista projects. Read them when relevant:
 | Git Workflow | `C:\Users\jwpmi\Downloads\CieloVistaStandards\git_workflow.md` |
 | Web Component Guide | `C:\Users\jwpmi\Downloads\CieloVistaStandards\web_component_guide.md` |
 | Project Registry | `C:\Users\jwpmi\Downloads\CieloVistaStandards\project-registry.json` |
+| Issue Filing Rules | `C:\Users\jwpmi\Downloads\CieloVistaStandards\issue-filing-rules.md` |
 
 ---
 

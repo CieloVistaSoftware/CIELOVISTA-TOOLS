@@ -93,10 +93,10 @@ function getSelectedText(): string | undefined {
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 async function explainCode(): Promise<void> {
-    let code = getSelectedText();
+    const code = getSelectedText();
     if (!code) {
-        code = await vscode.window.showInputBox({ prompt: 'Paste code to explain (or select it in the editor first)', placeHolder: 'Enter code…', ignoreFocusOut: true });
-        if (!code?.trim()) { return; }
+        vscode.window.showWarningMessage('OpenAI: Explain Code — no text selected. Select code in the editor and try again.');
+        return;
     }
     await runWithProgress('Explaining…', [
         { role: 'system', content: 'You are a helpful coding assistant. Explain the code clearly and concisely.' },
@@ -105,10 +105,10 @@ async function explainCode(): Promise<void> {
 }
 
 async function refactorCode(): Promise<void> {
-    let code = getSelectedText();
+    const code = getSelectedText();
     if (!code) {
-        code = await vscode.window.showInputBox({ prompt: 'Paste code to refactor (or select it in the editor first)', placeHolder: 'Enter code…', ignoreFocusOut: true });
-        if (!code?.trim()) { return; }
+        vscode.window.showWarningMessage('OpenAI: Refactor Code — no text selected. Select code in the editor and try again.');
+        return;
     }
     await runWithProgress('Refactoring…', [
         { role: 'system', content: [
