@@ -674,7 +674,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
             const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress');
             const inProgressChip = isInProgress ? '<span class="in-progress-chip">in-progress</span>' : '';
-            const labels = iss.labels.map((l) => {
+            const labels = iss.labels.filter((l) => !l.name.startsWith('project:')).map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
                 return `<span class="label" style="background:#${esc(bg)};color:${fg}">${esc(l.name)}</span>`;
