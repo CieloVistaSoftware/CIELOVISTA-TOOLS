@@ -179,6 +179,7 @@ async function showCodeAuditor(context: vscode.ExtensionContext): Promise<void> 
             if (msg.command === 'abstract' && typeof msg.clusterIndex === 'number' && _latestReport) {
                 const idx = msg.clusterIndex;
                 if (idx < 0 || idx >= _latestReport.clusters.length) {
+                    void vscode.window.showErrorMessage(`Code Auditor: invalid cluster index ${idx}.`);
                     return;
                 }
                 const cluster = _latestReport.clusters[idx];
@@ -191,24 +192,40 @@ async function showCodeAuditor(context: vscode.ExtensionContext): Promise<void> 
                     ...cluster.occurrences.map((o) => `- ${o.filePath}:${o.startLine}-${o.endLine}`),
                 ].join('\n');
 
-                const result = await fileHealthBugAsIssue({
-                    id: `code-auditor-${cluster.type}-${idx}-${Date.now()}`,
-                    title,
-                    detail,
-                    category: 'code-auditor',
-                    priority: cluster.occurrences.length >= 5 ? 'high' : 'medium',
-                    checkId: 'code-auditor-duplication',
-                    detectedAt: new Date().toISOString(),
-                    recommendation: `Abstract shared logic to ${cluster.suggestedSharedPath}`,
-                    evidence: cluster.occurrences.map((o) => `${o.filePath}:${o.startLine}-${o.endLine}`),
-                });
-
-                if (result.ok && result.issueNumber) {
-                    log(FEATURE, `Filed abstract issue #${result.issueNumber}`);
-                    void vscode.window.showInformationMessage(`Filed issue #${result.issueNumber} for cluster ${idx + 1}.`);
-                } else {
-                    void vscode.window.showErrorMessage(result.error || 'Failed to file issue for cluster.');
-                }
+                void vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: `Filing issue for cluster ${idx + 1}…`, cancellable: false },
+                    async () => {
+                        let result;
+                        try {
+                            result = await fileHealthBugAsIssue({
+                                id: `code-auditor-${cluster.type}-${idx}-${Date.now()}`,
+                                title,
+                                detail,
+                                category: 'code-auditor',
+                                priority: cluster.occurrences.length >= 5 ? 'high' : 'medium',
+                                checkId: 'code-auditor-duplication',
+                                detectedAt: new Date().toISOString(),
+                                recommendation: `Abstract shared logic to ${cluster.suggestedSharedPath}`,
+                                evidence: cluster.occurrences.map((o) => `${o.filePath}:${o.startLine}-${o.endLine}`),
+                            });
+                        } catch (err) {
+                            const msg2 = err instanceof Error ? err.message : String(err);
+                            log(FEATURE, `Abstract failed (exception): ${msg2}`);
+                            void vscode.window.showErrorMessage(`Code Auditor Abstract failed: ${msg2}`);
+                            return;
+                        }
+                        if (result.ok && result.issueNumber) {
+                            log(FEATURE, `Filed abstract issue #${result.issueNumber}`);
+                            void vscode.window.showInformationMessage(`Filed issue #${result.issueNumber} for cluster ${idx + 1}.`);
+                        } else {
+                            const errMsg = result.error || 'Failed to file issue for cluster.';
+                            log(FEATURE, `Abstract failed: ${errMsg}`);
+                            void vscode.window.showErrorMessage(`Code Auditor Abstract: ${errMsg}`);
+                        }
+                    }
+                );
+            } else if (msg.command === 'abstract') {
+                void vscode.window.showErrorMessage('Code Auditor: no report loaded — run the auditor first.');
             }
         });
     }
