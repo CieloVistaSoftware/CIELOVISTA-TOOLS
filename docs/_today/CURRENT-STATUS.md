@@ -2,10 +2,10 @@
 
 ## 🅿️ PARKING LOT
 
-**Task:** Session wrap-up — PR #521 merged, branch deleted
-**Files touched:** none this session
-**Last action:** PR #521 squash-merged into main, `release/session-fixes-2026-05-25` branch deleted, branch protection restored to require 1 approving review, local main synced
-**Next step:** Pick next open GitHub issue to tackle
+**Task:** —  clean slate
+**Files touched:** none
+**Last action:** PR #521 squash-merged into main 2026-05-25; `release/session-fixes-2026-05-25` deleted; branch protection restored (1 required review); local main synced
+**Next step:** Pick next open GitHub issue
 **Open questions:** None
 
 ---
