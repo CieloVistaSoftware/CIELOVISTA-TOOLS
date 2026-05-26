@@ -902,6 +902,11 @@ function runRegressionTests(): void {
 
         saveState();
         if (_panel) { _panel.webview.postMessage({ type: 'update', state: _state }); }
+
+        // Schedule the NEXT run only after the current one fully completes — #505
+        // Previously scheduleTestRun was called immediately after runRegressionTests(),
+        // meaning the 1-hour countdown started while the tests were still running.
+        if (_running) { scheduleTestRun(TEST_RUN_INTERVAL_MS); }
     });
 }
 
@@ -909,7 +914,9 @@ function scheduleTestRun(delayMs: number): void {
     _testRunTimer = setTimeout(() => {
         if (!_running) { return; }
         runRegressionTests();
-        scheduleTestRun(TEST_RUN_INTERVAL_MS);
+        // NOTE: do NOT call scheduleTestRun here — it is now called inside
+        // runRegressionTests' close handler so the next cycle starts only
+        // after the current run finishes (fixes #505).
     }, delayMs);
 }
 

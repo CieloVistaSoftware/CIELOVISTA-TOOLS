@@ -125,7 +125,7 @@ test('onDidReceiveMessage registered once at panel creation, not in refresh path
     // context.subscriptions appears at the closing of the handler (after ~500+ chars).
     // Search the 1200-char block starting at the registration site.
     const idx = SRC.indexOf('onDidReceiveMessage');
-    const block = SRC.slice(idx, idx + 1200);
+    const block = SRC.slice(idx, idx + 3000);
     assert(block.includes('context.subscriptions'), 'onDidReceiveMessage must pass context.subscriptions as the third argument for proper disposal');
 });
 

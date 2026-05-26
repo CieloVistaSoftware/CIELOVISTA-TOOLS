@@ -73,19 +73,19 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
 .btn-run{
-  background:#1a7f37;
-  color:#fff;
+  background:var(--vscode-button-background);
+  color:var(--vscode-button-foreground);
   border:none;border-radius:3px;padding:2px 10px;
   cursor:pointer;font-size:11px;font-weight:600;
   white-space:nowrap;flex-shrink:0;
-  transition:background .15s,color .15s
+  transition:background .15s,color .15s,box-shadow .15s
 }
-.btn-run:hover{background:#238a42}
-/* running = green immediately (#512), ok = brighter green briefly, error = red */
-.btn-run.running{background:#1a7f37;color:#fff;box-shadow:0 0 5px #3fb950}
-.btn-run.ok     {background:#1a7f37;color:#fff}
+.btn-run:hover{background:var(--vscode-button-hoverBackground)}
+/* running=green glow (terminal opened), ok=green solid (exit 0), error=red (exit!=0) */
+.btn-run.running{background:#1a7f37!important;color:#fff!important;box-shadow:0 0 5px #3fb950}
+.btn-run.ok     {background:#1a7f37!important;color:#fff!important}
 .btn-run.ok:hover{background:#238a42}
-.btn-run.error  {background:#b91c1c;color:#fff;box-shadow:0 0 5px #f85149}
+.btn-run.error  {background:#b91c1c!important;color:#fff!important;box-shadow:0 0 5px #f85149}
 .btn-run.error:hover{background:#c72323}
 .btn-issue{
   background:var(--vscode-button-secondaryBackground);

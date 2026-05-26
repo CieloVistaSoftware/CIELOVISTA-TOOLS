@@ -60,15 +60,25 @@ function showRegistry(): void {
     activePanel = panel;
     panel.onDidDispose(() => { activePanel = undefined; });
 
-    panel.webview.onDidReceiveMessage((msg: { type: string; url?: string; componentId?: string }) => {
+    panel.webview.onDidReceiveMessage((msg: { type: string; url?: string; componentId?: string; commandId?: string }) => {
         if (msg.type === 'rebuild') { void rebuildAndRefresh(panel, activeCompPanel); }
+        if (msg.type === 'run' && msg.commandId) {
+            const cmdId = msg.commandId;
+            void vscode.commands.executeCommand(cmdId).then(
+                () => { void panel.webview.postMessage({ type: 'run-state', commandId: cmdId, state: 'ok' }); },
+                (err: unknown) => {
+                    getChannel().appendLine(`✗ Run ${cmdId}: ${String(err)}`);
+                    void panel.webview.postMessage({ type: 'run-state', commandId: cmdId, state: 'error' });
+                }
+            );
+        }
         if (msg.type === 'openFile' && msg.url) {
             const root = workspaceRoot();
             if (root) {
                 const fp = path.join(root, msg.url);
                 if (fs.existsSync(fp)) {
                     void vscode.workspace.openTextDocument(vscode.Uri.file(fp))
-                        .then(doc => vscode.window.showTextDocument(doc, { preview: true }));
+                        .then(doc => vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true }));
                 }
             }
         }
@@ -109,7 +119,7 @@ function showComponents(): void {
                 const fp = path.join(root, msg.url);
                 if (fs.existsSync(fp)) {
                     void vscode.workspace.openTextDocument(vscode.Uri.file(fp))
-                        .then(doc => vscode.window.showTextDocument(doc, { preview: true }));
+                        .then(doc => vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true }));
                 }
             }
         }
@@ -216,6 +226,21 @@ function esc(s: string): string {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function buildRunTooltip(cmd: RegistryCommand): string {
+    const lines: string[] = [
+        `WHAT:  ${cmd.title}`,
+    ];
+    if (cmd.description) {
+        lines.push(`WHY:   ${cmd.description}`);
+    }
+    lines.push(`WHEN:  ${cmd.category || 'any time'}`);
+    if (cmd.featureFile) {
+        lines.push(`WHERE: ${cmd.featureFile}`);
+    }
+    lines.push(`HOW:   vscode.commands.executeCommand('${cmd.id}')`);
+    return lines.join('\n');
+}
+
 function buildHtml(registry: RegistryData | null): string {
     const css = `
 *{box-sizing:border-box;margin:0;padding:0}
@@ -232,10 +257,10 @@ h1{font-size:1.05em;font-weight:700}
 #search{flex:1;min-width:200px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:4px;padding:7px 10px;font-size:12px;font-family:inherit}
 #search:focus{outline:1px solid var(--vscode-focusBorder)}
 #filter-linked{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
-.table-wrap{border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:auto;background:var(--vscode-textCodeBlock-background);max-height:calc(100vh - 230px)}
-table{width:100%;border-collapse:collapse;min-width:900px}
+.table-wrap{border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:auto;background:var(--vscode-textCodeBlock-background);max-height:calc(100vh - 220px)}
+table{width:100%;border-collapse:collapse;min-width:1050px}
 thead th{position:sticky;top:0;background:var(--vscode-sideBar-background);z-index:2;border-bottom:1px solid var(--vscode-panel-border);text-align:left;padding:7px 10px;white-space:nowrap;font-size:12px}
-tbody td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 10px;vertical-align:top;font-size:12px}
+tbody td{border-bottom:1px solid var(--vscode-panel-border);padding:5px 10px;vertical-align:middle;font-size:12px}
 tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .cmd-id{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;color:var(--vscode-textLink-foreground)}
 .muted{color:var(--vscode-descriptionForeground);font-size:11px}
@@ -244,6 +269,11 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .tag-unlinked{background:rgba(248,81,73,.10);color:#f85149;border:1px solid rgba(248,81,73,.4)}
 .file-btn{background:none;border:none;padding:0;color:var(--vscode-textLink-foreground);cursor:pointer;font:inherit;font-size:11px;text-decoration:underline;text-align:left}
 .file-btn:hover{opacity:.8}
+.run-btn{background:#1a7f37;color:#fff;border:none;border-radius:3px;padding:2px 10px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;transition:background .15s,box-shadow .15s}
+.run-btn:hover{background:#238a42}
+.run-btn.btn-running{background:#1a7f37!important;box-shadow:0 0 5px #3fb950}
+.run-btn.btn-error{background:#b91c1c!important;box-shadow:0 0 5px #f85149}
+.run-btn:disabled{opacity:.7;cursor:default}
 .empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground)}
 `;
 
@@ -260,7 +290,10 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         const component = linked
             ? `${cmd.featureFile ? `<button class="file-btn" data-path="${esc(cmd.featureFile)}">${esc(cmd.featureTitle ?? cmd.componentId ?? '')}</button>` : esc(cmd.featureTitle ?? cmd.componentId ?? '')}`
             : `<span class="muted">—</span>`;
+        const tooltip = buildRunTooltip(cmd);
+        const runBtn = `<button class="run-btn" data-cmd="${esc(cmd.id)}" title="${esc(tooltip)}">&#9654; Run</button>`;
         return `<tr class="cmd-row" data-linked="${linked}" data-filter="${esc(cmd.id + ' ' + cmd.title + ' ' + cmd.category + ' ' + (cmd.componentId ?? '') + ' ' + (cmd.featureTitle ?? ''))}">
+  <td style="white-space:nowrap">${runBtn}</td>
   <td><span class="cmd-id">${esc(cmd.id)}</span></td>
   <td>${esc(cmd.title)}</td>
   <td><span class="muted">${esc(cmd.category)}</span></td>
@@ -289,7 +322,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 </div>
 <div class="muted" style="margin-bottom:8px;font-size:11px">Generated: ${esc(genAgo)} — <span id="count-shown">${registry.totalCommands}</span> of ${registry.totalCommands} shown</div>
 <div class="table-wrap"><table><thead><tr>
-  <th>Command ID</th><th>Title</th><th>Category</th><th>Status</th><th>Component</th><th>Description</th>
+  <th>Run</th><th>Command ID</th><th>Title</th><th>Category</th><th>Status</th><th>Component</th><th>Description</th>
 </tr></thead><tbody id="rows">${rows}</tbody></table></div>`;
 
     const js = `(function(){
@@ -326,6 +359,32 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
       var p = btn.getAttribute('data-path');
       if (p) vsc.postMessage({ type: 'openFile', url: p });
     });
+  });
+
+  document.querySelectorAll('.run-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var cmdId = btn.getAttribute('data-cmd');
+      if (!cmdId) { return; }
+      btn.classList.add('btn-running');
+      btn.classList.remove('btn-error');
+      btn.disabled = true;
+      vsc.postMessage({ type: 'run', commandId: cmdId });
+    });
+  });
+
+  window.addEventListener('message', function(ev){
+    var msg = ev.data;
+    if (!msg || msg.type !== 'run-state') { return; }
+    var sel = '.run-btn[data-cmd="' + (msg.commandId || '').replace(/"/g, '&quot;') + '"]';
+    var btn = document.querySelector(sel);
+    if (!btn) { return; }
+    btn.classList.remove('btn-running');
+    btn.disabled = false;
+    if (msg.state === 'error') {
+      btn.classList.add('btn-error');
+      setTimeout(function(){ btn.classList.remove('btn-error'); }, 4000);
+    }
   });
 })();`;
 

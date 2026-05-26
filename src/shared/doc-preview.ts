@@ -327,18 +327,10 @@ export function openDocPreview(
                 break;
             }
             case 'open-in-vscode': {
-                if (!msg.dir) { break; }
-                const markers = ['package.json', '.git', '.sln', '.csproj', 'CLAUDE.md'];
-                let root = msg.dir as string, cand = msg.dir as string;
-                for (let i = 0; i < 8; i++) {
-                    const parent = path.dirname(cand);
-                    if (parent === cand) { break; }
-                    let files: string[] = [];
-                    try { files = fs.readdirSync(cand); } catch { /* skip */ }
-                    if (markers.some(m => files.includes(m))) { root = cand; break; }
-                    cand = parent;
-                }
-                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(root), { forceNewWindow: true });
+                // Open the current file in the VS Code editor (beside the preview panel)
+                if (!_currentFilePath) { break; }
+                const openDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(_currentFilePath));
+                await vscode.window.showTextDocument(openDoc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
                 break;
             }
             case 'open-folder-full': {
@@ -358,13 +350,10 @@ export function openDocPreview(
                 if (msg.dir) { vscode.window.createTerminal({ name: path.basename(msg.dir), cwd: msg.dir }).show(); }
                 break;
             case 'reveal-folder-os': {
-                if (!msg.dir) { break; }
-                const dirUri = vscode.Uri.file(msg.dir as string);
-                try {
-                    await vscode.commands.executeCommand('revealFileInOS', dirUri);
-                } catch {
-                    await vscode.env.openExternal(dirUri);
-                }
+                // Reveal the current file in the VS Code Explorer sidebar
+                const revealTarget = _currentFilePath ?? msg.dir as string | undefined;
+                if (!revealTarget) { break; }
+                await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(revealTarget));
                 break;
             }
             case 'navigate':
