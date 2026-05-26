@@ -168,7 +168,7 @@ async function showCodeAuditor(context: vscode.ExtensionContext): Promise<void> 
             if (msg.command === 'open' && typeof msg.path === 'string') {
                 const uri = vscode.Uri.file(msg.path);
                 const doc = await vscode.workspace.openTextDocument(uri);
-                const editor = await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                const editor = await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
                 const targetLine = Math.max(0, Number(msg.line || 1) - 1);
                 const pos = new vscode.Position(targetLine, 0);
                 editor.selection = new vscode.Selection(pos, pos);
