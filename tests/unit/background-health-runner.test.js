@@ -69,7 +69,8 @@ function ok(val, msg) { assert.ok(val, msg); }
 function eq(a, b, msg) { assert.strictEqual(a, b, msg); }
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
-const DATA_FILE = path.join(__dirname, '../../data/bg-health.json');
+// Compiled standalone module: __dirname = out/features/, so data dir = out/data/
+const DATA_FILE = path.join(__dirname, '../../out/data/bg-health.json');
 
 const sampleBug = {
     id: 'bug-test', checkId: 'chk-test', title: 'Test Bug',
