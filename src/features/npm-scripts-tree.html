@@ -146,7 +146,9 @@ function runBtnTitle(name, cmd) {
   var desc = SCRIPT_DESCRIPTIONS[name];
   var lines = [];
   if (desc) { lines.push(desc); }
-  lines.push('Command: ' + cmd);
+  lines.push('Run: ' + cmd);
+  lines.push('Output: opens in terminal panel beside editor');
+  lines.push('Error: non-zero exit code highlighted in red');
   return lines.join('\n');
 }
 
