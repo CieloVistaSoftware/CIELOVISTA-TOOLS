@@ -402,7 +402,7 @@ async function _executeWithOutput(
     };
 
     const finish = (ok: boolean, elapsed: number, stack?: string) => {
-        rp.title = ok ? `\u2705 ${title}` : `\u274c ${title}`;
+        try { rp.title = ok ? `\u2705 ${title}` : `\u274c ${title}`; } catch { /* panel disposed before command finished */ }
         safePostToWebview(rp, { type: 'done', ok, elapsed, stack });
         recordRun({ id: commandId, title, ok, elapsed });
         if (notifyPanel) {
@@ -447,7 +447,7 @@ async function _executeWithOutput(
 
         if (newTerm) {
             rp.webview.postMessage({ type: 'terminal', name: newTerm.name });
-            rp.title = `\ud83d\udcbb ${title}`;
+            try { rp.title = `\ud83d\udcbb ${title}`; } catch { /* panel disposed */ }
             recordRun({ id: commandId, title, ok: true, elapsed });
             if (notifyPanel) {
                 notifyPanel.webview.postMessage({ type: 'run-state', id: commandId, state: 'ok' });
@@ -645,7 +645,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (picked) { await vscode.commands.executeCommand(picked.id); }
         }),
         vscode.commands.registerCommand('cvs.launch.diskcleanup.start',   () => _launchInTerminal('DiskCleanUp',         'dotnet run',                                                                                                                                          _DISKCLEANUP_SVC)),
-        vscode.commands.registerCommand('cvs.launch.diskcleanup.console', () => _launchInTerminal('DiskCleanUp Console', 'dotnet run --environment Console',                                                                                                                   _DISKCLEANUP_SVC)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.console', () => void vscode.commands.executeCommand('cvs.diskcleanup.consoleMode')),
         vscode.commands.registerCommand('cvs.launch.diskcleanup.build',   () => _launchInTerminal('DiskCleanUp Build',   'dotnet build DiskCleanUp.sln',                                                                                                                       _DISKCLEANUP_ROOT)),
         vscode.commands.registerCommand('cvs.launch.diskcleanup.stop',    () => _launchInTerminal('DiskCleanUp Stop',    'Stop-Process -Id (Get-NetTCPConnection -LocalPort 5100 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host "Port 5100 freed"')),
         vscode.commands.registerCommand('cvs.launch.snapit.start',        () => _launchInTerminal('SnapIt Service',      'dotnet run',                                                                                                                                          _SNAPIT_SVC)),
