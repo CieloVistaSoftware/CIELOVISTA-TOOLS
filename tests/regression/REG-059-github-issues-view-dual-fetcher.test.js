@@ -73,6 +73,22 @@ check("'copyAll' message type handled",
 check('copy-all button rendered in HTML',
     src.includes('copy-all'));
 
+// ── Auto-refresh timer (#531) ─────────────────────────────────────────────────
+check('auto-timer span rendered in toolbar HTML',
+    src.includes('id="auto-timer"') || src.includes("id='auto-timer'"));
+
+check('auto-timer-sec inner span rendered',
+    src.includes('id="auto-timer-sec"') || src.includes("id='auto-timer-sec'"));
+
+check('setInterval countdown used for auto-refresh',
+    src.includes('setInterval'));
+
+check('countdown resets to 60 on manual reload',
+    src.includes('_arSecs = 60'));
+
+check('countdown fires postMessage refresh at 0',
+    src.includes("type: 'refresh'") && src.includes('_arSecs'));
+
 console.log('');
 if (failed > 0) {
     console.log(`FAILED ${failed} / ${passed + failed}`);

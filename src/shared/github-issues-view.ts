@@ -607,6 +607,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .action-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
 .action-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .action-btn:disabled{opacity:.5;cursor:default}
+#auto-timer{font-size:11px;color:var(--vscode-descriptionForeground);opacity:.65;white-space:nowrap;min-width:44px;text-align:right;user-select:none}
 #body{padding:14px 20px;width:100% !important;max-width:none !important;display:flex;flex-direction:column;align-items:stretch}
 .loading{padding:24px;text-align:center;color:var(--vscode-descriptionForeground)}
 .error{padding:14px 16px;border:1px solid #f85149;border-radius:6px;background:rgba(248,81,73,.08);color:#f85149;margin-bottom:14px;line-height:1.5;overflow-wrap:break-word;word-break:break-word}
@@ -842,10 +843,25 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     if (stateClosedBtn) {
         stateClosedBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'closed' }); });
     }
+    var autoTimerSec = document.getElementById('auto-timer-sec');
+    var _arSecs = 60;
+    setInterval(function(){
+        _arSecs--;
+        if (autoTimerSec) { autoTimerSec.textContent = String(_arSecs); }
+        if (_arSecs <= 0) {
+            _arSecs = 60;
+            if (autoTimerSec) { autoTimerSec.textContent = '60'; }
+            vsc.postMessage({ type: 'refresh' });
+        }
+    }, 1000);
     var refresh = document.getElementById('refresh');
-  if (refresh) {
-    refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
-  }
+    if (refresh) {
+        refresh.addEventListener('click', function(){
+            _arSecs = 60;
+            if (autoTimerSec) { autoTimerSec.textContent = '60'; }
+            vsc.postMessage({ type: 'refresh' });
+        });
+    }
     var newIssue = document.getElementById('new-issue');
     if (newIssue) {
         newIssue.addEventListener('click', function(){ vsc.postMessage({ type: 'newIssue' }); });
@@ -995,6 +1011,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <button id="new-issue" class="action-btn" type="button" title="Create a new issue on GitHub">New Issue</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
+        <span id="auto-timer" title="Auto-refreshes every 60 seconds">\u21ba <span id="auto-timer-sec">60</span>s</span>
     </div>
 </div>
 <div id="body">${bodyHtml}</div>
