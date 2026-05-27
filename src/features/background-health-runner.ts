@@ -31,6 +31,21 @@ import { getLaunchedTerminal, clearLaunchedTerminal } from '../shared/terminal-u
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
 import { esc }           from '../shared/webview-utils';
+import { isFeatureEnabled } from './feature-toggle';
+
+/**
+ * Commands that are only registered when their feature toggle is enabled.
+ * The catalog-registered check skips these when the feature is disabled,
+ * so a disabled feature doesn't generate false-positive "not registered" bugs.
+ */
+const FEATURE_GATED_CMDS: Record<string, string[]> = {
+    copilotRulesEnforcer:    ['cvs.copilotRules.enable', 'cvs.copilotRules.disable', 'cvs.copilotRules.reload', 'cvs.copilotRules.view'],
+    copilotOpenSuggested:    ['cvs.copilot.openSuggestedFile'],
+    pythonRunner:            ['cvs.python.runFile'],
+    openaiChat:              ['cvs.openai.explain', 'cvs.openai.refactor', 'cvs.openai.generateDocstring', 'cvs.openai.openChat'],
+    cssClassHover:           ['cvs.cssClassHover.enable'],
+    htmlTemplateDownloader:  ['cvs.html.downloadTemplate'],
+};
 
 function isPortOpen(port: number): Promise<boolean> {
     return new Promise(resolve => {
@@ -369,12 +384,20 @@ const CHECKS: Check[] = [
         id: 'chk-catalog-registered',
         name: 'All catalog commands registered',
         async run() {
+            // Build a set of command IDs that are expected to be absent
+            // because their feature toggle is currently disabled.
+            const disabledCmds = new Set<string>();
+            for (const [featureKey, cmds] of Object.entries(FEATURE_GATED_CMDS)) {
+                if (!isFeatureEnabled(featureKey)) {
+                    for (const cmd of cmds) { disabledCmds.add(cmd); }
+                }
+            }
             // Get all registered commands from VS Code
             const registered = await vscode.commands.getCommands(false);
             const regSet = new Set(registered);
             const missing = CATALOG
                 .map(c => c.id)
-                .filter(id => !regSet.has(id));
+                .filter(id => !regSet.has(id) && !disabledCmds.has(id));
             if (missing.length > 0) {
                 addBug({
                     id: 'bug-catalog-registered',
@@ -612,11 +635,12 @@ async function runNextCheck(): Promise<void> {
 // ── Test Results webview helpers ──────────────────────────────────────────────
 
 interface TestWatchEntry {
-    passed:     number;
-    failed:     number;
-    durationMs: number;
-    lastRun:    string;
-    exit:       number;
+    passed:      number;
+    failed:      number;
+    durationMs:  number;
+    lastRun:     string;
+    exit:        number;
+    lastOutput?: string;
 }
 interface TestWatchData {
     startedAt:     string;
@@ -637,9 +661,13 @@ function readTestWatch(): TestWatchData | null {
 function _relTime(iso: string): string {
     if (!iso) { return '—'; }
     const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (m < 1) { return 'just now'; }
-    if (m < 60) { return `${m}m ago`; }
-    return `${Math.floor(m / 60)}h ago`;
+    if (m < 1)    { return 'just now'; }
+    if (m < 60)   { return `${m}m ago`; }
+    const h = Math.floor(m / 60);
+    if (h < 24)   { return `${h}h ago`; }
+    const d = Math.floor(h / 24);
+    const rem = h % 24;
+    return rem > 0 ? `${d}d ${rem}h ago` : `${d}d ago`;
 }
 
 function buildTestSuiteSection(tw: TestWatchData): string {
@@ -675,7 +703,20 @@ function buildTestSuiteSection(tw: TestWatchData): string {
         const cls   = ok ? 'tw-ok' : 'tw-fail';
         const short = e.file.replace(/^tests[/\\]/, '');
         const bad   = e.failed > 0 ? `<td class="tw-num tw-bad">${e.failed}</td>` : '<td class="tw-num"></td>';
-        return `<tr class="${cls}"><td class="tw-status">${icon}</td><td class="tw-file">${esc(short)}</td><td class="tw-num">${e.passed}</td>${bad}<td class="tw-time">${_relTime(e.lastRun)}</td></tr>`;
+        let errorRow = '';
+        if (!ok && e.lastOutput) {
+            const safeOut = esc(e.lastOutput).replace(/\n/g, '<br>');
+            errorRow = `<tr class="tw-err-row"><td colspan="5">` +
+                `<details class="tw-err-details"><summary class="tw-err-summary">▶ Error output &nbsp;` +
+                `<button class="tw-issue-btn" data-action="file-test-issue" data-file="${esc(e.file)}" data-output="${esc(e.lastOutput ?? '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">📋 New Issue</button>` +
+                `</summary><pre class="tw-err-pre">${safeOut}</pre></details></td></tr>`;
+        } else if (!ok) {
+            errorRow = `<tr class="tw-err-row"><td colspan="5">` +
+                `<span class="tw-no-output">No error output captured &nbsp;</span>` +
+                `<button class="tw-issue-btn" data-action="file-test-issue" data-file="${esc(e.file)}" data-output="">📋 New Issue</button>` +
+                `</td></tr>`;
+        }
+        return `<tr class="${cls}"><td class="tw-status">${icon}</td><td class="tw-file">${esc(short)}</td><td class="tw-num">${e.passed}</td>${bad}<td class="tw-time">${_relTime(e.lastRun)}</td></tr>${errorRow}`;
     }).join('');
 
     const meta = tw.lastFullRun
@@ -797,6 +838,13 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .tw-file{width:100%;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family,monospace)}
 .tw-num{text-align:right;width:36px}.tw-bad{color:#f85149}
 .tw-time{color:var(--vscode-descriptionForeground);font-size:10px;text-align:right;padding-left:12px}
+.tw-err-row td{padding:0 6px 6px 22px;border-bottom:1px solid var(--vscode-panel-border)}
+.tw-err-details{font-size:10px;color:var(--vscode-descriptionForeground)}
+.tw-err-summary{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+.tw-err-pre{margin:4px 0 0;padding:6px 8px;background:var(--vscode-textCodeBlock-background,#1e1e1e);border-radius:4px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-editor-foreground)}
+.tw-no-output{font-size:10px;color:var(--vscode-descriptionForeground);font-style:italic}
+.tw-issue-btn{font-size:10px;padding:1px 6px;border:1px solid var(--vscode-button-border,#444);border-radius:3px;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);cursor:pointer;white-space:nowrap}
+.tw-issue-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 `;
 
     const JS = `
@@ -837,6 +885,11 @@ document.addEventListener('click', function(e) {
     vscode.postMessage({ command: 'dismiss', bugId: btn.dataset.id });
     var card = btn.closest('.bug-card');
     if (card) { card.style.opacity = '0.3'; card.style.pointerEvents = 'none'; }
+  }
+  if (btn.dataset.action === 'file-test-issue') {
+    vscode.postMessage({ command: 'file-test-issue', testFile: btn.dataset.file, output: btn.dataset.output || '' });
+    btn.textContent = 'Filing…';
+    btn.disabled = true;
   }
 });
 
@@ -944,6 +997,20 @@ function _stripAnsi(s: string): string {
     return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
+function _regEvidence(extRoot: string, failLines: string[]): string[] {
+    const regDir = path.join(extRoot, 'tests', 'regression');
+    return failLines.map(line => {
+        const m = line.match(/REG-(\d+[a-z]?)/i);
+        if (!m) { return line; }
+        try {
+            const files = fs.readdirSync(regDir).filter((f: string) =>
+                f.startsWith(`REG-${m[1].toUpperCase()}-`) && f.endsWith('.test.js'));
+            if (files.length > 0) { return path.join(regDir, files[0]) + ':1'; }
+        } catch { /* best-effort */ }
+        return line;
+    });
+}
+
 function runRegressionTests(): void {
     if (_testRunInProgress) { return; }
     _testRunInProgress = true;
@@ -987,16 +1054,21 @@ function runRegressionTests(): void {
             const detail = failLines.length > 0
                 ? failLines.join('\n')
                 : 'Check the CieloVista Tools output channel for full output.';
+
+            const evidence = _regEvidence(extensionRoot, failLines);
+
             addBug({
                 id:             'bug-regression-tests',
                 checkId:        'chk-regression-tests',
                 title:          'Regression tests failing',
                 detail:         detail.slice(0, 600),
+                evidence,
                 priority:       'high',
                 category:       'Quality',
                 recommendation: 'Run node scripts/run-regression-tests.js and fix the failing tests.',
             });
-            log(FEATURE, `✗ Regression suite (exit ${code ?? '?'}) — ${failLines.length} failure line(s) detected`);
+            log(FEATURE, `✗ Regression suite (exit ${code ?? '?'}) — ${failLines.length} failure line(s):`);
+            for (const ev of evidence) { log(FEATURE, `  ${ev}`); }
         } else {
             clearBug('bug-regression-tests');
             const summary = lines.find(l => /All \d+ regression/.test(l)) ?? 'all tests passed';
@@ -1116,6 +1188,16 @@ export async function showFixBugsPanel(): Promise<void> {
                 }
                 if (msg.command === 'reload') {
                     if (_panel) { _panel.webview.html = buildFixBugsHtml(_state); }
+                }
+                if (msg.command === 'file-test-issue' && msg.testFile) {
+                    const shortFile = (msg.testFile as string).replace(/^tests[/\\]/, '');
+                    const outputBlock = msg.output
+                        ? `\n\n## Error Output\n\`\`\`\n${(msg.output as string).slice(0, 2000)}\n\`\`\``
+                        : '';
+                    const title = `test failure: ${shortFile}`;
+                    const body = `## Failing Test\n\n\`${shortFile}\`${outputBlock}\n\n---\n*Reported from Test Results panel*`;
+                    const url = `https://github.com/CieloVistaSoftware/cielovista-tools/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=type:bug,project:cielovista-tools`;
+                    void vscode.env.openExternal(vscode.Uri.parse(url));
                 }
                 if (msg.command === 'checkMcpPort') {
                     const open = await isPortOpen(3000);
