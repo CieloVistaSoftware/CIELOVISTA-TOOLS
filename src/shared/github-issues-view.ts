@@ -639,7 +639,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .claim-btn:disabled{opacity:.5;cursor:wait}
 .in-progress-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(240,180,41,.18);color:#f0b429;border:1px solid rgba(240,180,41,.5);white-space:nowrap;margin-bottom:3px}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
-.proj-missing{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.5);white-space:nowrap}
 .run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
 .run-test-btn:hover{background:rgba(63,185,80,.28)}
 .run-test-btn:disabled{opacity:.4;cursor:default}
@@ -702,7 +701,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
     <td>${inProgressChip}${labels ? `<span class="tags">${labels}</span>` : (isInProgress ? '' : `<span class="muted">-</span>`)}</td>
-    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="proj-missing">⚠ No project</span>`}</td>
+    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="muted">-</span>`}</td>
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
