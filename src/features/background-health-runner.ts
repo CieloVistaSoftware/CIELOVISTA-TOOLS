@@ -44,8 +44,11 @@ function isPortOpen(port: number): Promise<boolean> {
 }
 
 const FEATURE    = 'bg-health-runner';
-const DATA_DIR   = path.join(__dirname, '..', 'data');
-const HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
+// One-time-one-place: data dir resolves to the workspace's data/ folder so
+// bg-health.json lives beside test-watch.json (both in <repo>/data/).
+// Falls back to the extension's own data/ when no workspace is open.
+let DATA_DIR    = path.join(__dirname, '..', 'data');
+let HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
 // Default gap between checks — overridden by cvs.bgHealthRunner.intervalSeconds setting
 const CHECK_GAP_DEFAULT_S    = 30;
 const TEST_RUN_INTERVAL_MS   = 60 * 60 * 1000; // 1 hour between full suite runs
@@ -606,7 +609,88 @@ async function runNextCheck(): Promise<void> {
     _timer = setTimeout(runNextCheck, getIntervalMs());
 }
 
-// ── Fix Bugs webview ──────────────────────────────────────────────────────────
+// ── Test Results webview helpers ──────────────────────────────────────────────
+
+interface TestWatchEntry {
+    passed:     number;
+    failed:     number;
+    durationMs: number;
+    lastRun:    string;
+    exit:       number;
+}
+interface TestWatchData {
+    startedAt:     string;
+    lastFullRun:   string;
+    totalRuns:     number;
+    fullSuiteRuns: number;
+    results:       Record<string, TestWatchEntry>;
+}
+
+function readTestWatch(): TestWatchData | null {
+    const f = path.join(DATA_DIR, 'test-watch.json');
+    try {
+        if (!fs.existsSync(f)) { return null; }
+        return JSON.parse(fs.readFileSync(f, 'utf8')) as TestWatchData;
+    } catch { return null; }
+}
+
+function _relTime(iso: string): string {
+    if (!iso) { return '—'; }
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) { return 'just now'; }
+    if (m < 60) { return `${m}m ago`; }
+    return `${Math.floor(m / 60)}h ago`;
+}
+
+function buildTestSuiteSection(tw: TestWatchData): string {
+    const entries = Object.entries(tw.results)
+        .map(([file, r]) => ({ file, ...r }))
+        .filter(e => !!e.lastRun);
+    if (entries.length === 0) { return ''; }
+
+    // Failing files first, then most-recently run
+    entries.sort((a, b) => {
+        const aFail = a.exit !== 0;
+        const bFail = b.exit !== 0;
+        if (aFail !== bFail) { return aFail ? -1 : 1; }
+        return b.lastRun.localeCompare(a.lastRun);
+    });
+
+    const totalPassed  = entries.reduce((s, e) => s + e.passed, 0);
+    const totalFailed  = entries.reduce((s, e) => s + e.failed, 0);
+    const failingCount = entries.filter(e => e.exit !== 0).length;
+
+    const summaryParts = [
+        `${entries.length} files`,
+        `<span style="color:#3fb950">${totalPassed} passed</span>`,
+        totalFailed > 0 ? `<span style="color:#f85149">${totalFailed} failed</span>` : '',
+        failingCount > 0
+            ? `<span style="color:#f85149">${failingCount} file${failingCount > 1 ? 's' : ''} failing</span>`
+            : '<span style="color:#3fb950">all passing</span>',
+    ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+    const rows = entries.map(e => {
+        const ok    = e.exit === 0;
+        const icon  = ok ? '✓' : '✗';
+        const cls   = ok ? 'tw-ok' : 'tw-fail';
+        const short = e.file.replace(/^tests[/\\]/, '');
+        const bad   = e.failed > 0 ? `<td class="tw-num tw-bad">${e.failed}</td>` : '<td class="tw-num"></td>';
+        return `<tr class="${cls}"><td class="tw-status">${icon}</td><td class="tw-file">${esc(short)}</td><td class="tw-num">${e.passed}</td>${bad}<td class="tw-time">${_relTime(e.lastRun)}</td></tr>`;
+    }).join('');
+
+    const meta = tw.lastFullRun
+        ? `Last full run: ${_relTime(tw.lastFullRun)} &nbsp;·&nbsp; ${tw.fullSuiteRuns} full runs &nbsp;·&nbsp; ${tw.totalRuns} total`
+        : '';
+
+    return `<div class="section-heading">Test Suite &nbsp;<span class="ts-summary">${summaryParts}</span></div>
+${meta ? `<div class="ts-meta">${meta}</div>` : ''}
+<table class="tw-table">
+  <thead><tr><th></th><th>File</th><th>✓</th><th>✗</th><th>Age</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
+}
+
+// ── Fix Bugs / Test Results webview ───────────────────────────────────────────
 
 function buildFixBugsHtml(state: HealthState): string {
     const activeBugs = state.bugs.filter(b => !b.fixed);
@@ -702,6 +786,17 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .empty{padding:40px;text-align:center;color:var(--vscode-descriptionForeground)}
 .spin{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.ts-summary{font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;color:var(--vscode-descriptionForeground)}
+.ts-meta{font-size:10px;color:var(--vscode-descriptionForeground);margin-bottom:8px;font-style:italic;padding:0 1px}
+.tw-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px}
+.tw-table th{text-align:left;color:var(--vscode-descriptionForeground);font-weight:600;font-size:10px;padding:3px 6px;border-bottom:1px solid var(--vscode-panel-border)}
+.tw-table td{padding:2px 6px;border-bottom:1px solid var(--vscode-panel-border);white-space:nowrap}
+.tw-table tr:last-child td{border-bottom:none}
+.tw-ok .tw-status{color:#3fb950}.tw-fail .tw-status{color:#f85149;font-weight:700}
+.tw-fail .tw-file{color:#f85149}
+.tw-file{width:100%;overflow:hidden;text-overflow:ellipsis;font-family:var(--vscode-editor-font-family,monospace)}
+.tw-num{text-align:right;width:36px}.tw-bad{color:#f85149}
+.tw-time{color:var(--vscode-descriptionForeground);font-size:10px;text-align:right;padding-left:12px}
 `;
 
     const JS = `
@@ -730,6 +825,9 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         vscode.postMessage({ command: 'open-evidence', path: btn.dataset.path, line: parseInt(btn.dataset.line || '1', 10), column: parseInt(btn.dataset.col || '1', 10) });
     }
+  if (btn.dataset.action === 'regression-log') {
+    vscode.postMessage({ command: 'regression-log' });
+  }
   if (btn.dataset.action === 'stop-runner') {
         vscode.postMessage({ command: 'stop-runner' });
         btn.textContent = 'Stopping...';
@@ -792,18 +890,23 @@ window.addEventListener('message', function(e) {
         // MCP status indicator (async, so we use a placeholder and update via script)
         const mcpStatusHtml = `<span id="mcp-status-dot" class="mcp-dot red"></span><span id="mcp-status-text">MCP Checking...</span>`;
 
+        const tw            = readTestWatch();
+        const testSuiteHtml = tw ? buildTestSuiteSection(tw) : '';
+
         return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <div id="toolbar">
-    <h1>&#128027; Fix Bugs</h1>
+    <h1>&#129514; Test Results</h1>
     <div class="controls">
-        <span class="stat"><strong>${activeBugs.length}</strong> active &nbsp;|&nbsp; <strong>${fixedBugs.length}</strong> fixed &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
+        <span class="stat"><strong>${activeBugs.length}</strong> bugs &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
         <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
+        <button class="issue-btn" data-action="regression-log">Regression Log</button>
         <button class="stop-btn" data-action="stop-runner">Stop Runner</button>
     </div>
 </div>
 <div id="progress-bar-wrap"><div id="progress-bar" style="width:${pct}%"></div></div>
 <div id="next-check">&#9203; Next: ${nextCheck}</div>
 <div id="content">
+    ${testSuiteHtml}
     ${emptyHtml}
     ${sorted.length > 0 ? `<div class="section-heading">Active bugs (${sorted.length})</div>${bugRows}` : ''}
     ${fixedBugs.length > 0 ? `<div class="section-heading">Fixed this session (${fixedBugs.length})</div>
@@ -962,6 +1065,9 @@ export async function showFixBugsPanel(): Promise<void> {
                 if (msg.command === 'stop-runner') {
                     stopRunner();
                 }
+                if (msg.command === 'regression-log') {
+                    void vscode.commands.executeCommand('cvs.tools.regressionLog');
+                }
                 if (msg.command === 'dismiss') {
                     clearBug(msg.bugId);
                     saveState();
@@ -1059,6 +1165,14 @@ export function activate(context: vscode.ExtensionContext): void {
     if (isAlreadyRunning()) {
         log(FEATURE, 'Runner already active — skipping duplicate activation');
         return;
+    }
+
+    // Resolve data dir to the open workspace so bg-health.json and test-watch.json
+    // share one location (one-time-one-place rule). Fallback: extension's own data/.
+    const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (wsRoot) {
+        DATA_DIR    = path.join(wsRoot, 'data');
+        HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
     }
 
     log(FEATURE, 'Background health runner starting');
