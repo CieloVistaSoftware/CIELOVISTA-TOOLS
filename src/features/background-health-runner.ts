@@ -156,8 +156,7 @@ function addBug(bug: Omit<HealthBug, 'detectedAt' | 'fixed'>): void {
         _state.bugs.push({ ...bug, detectedAt: new Date().toISOString(), fixed: false });
     }
     // Mirror to error log so the Error Log panel shows it without a separate viewer
-    // No caught exception here — stack stored in bug.stack; pass '' per logError contract
-    logError(`[bg-health] ${bug.title}`, '', `${bug.detail || bug.id}${bug.stack ? '\n' + bug.stack : ''}`);
+    logError(`[bg-health] ${bug.title}`, '', FEATURE);
 }
 
 function clearBug(id: string): void {
