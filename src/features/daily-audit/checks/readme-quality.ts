@@ -11,14 +11,14 @@ import type { AuditCheck } from '../../../shared/audit-schema';
 
 interface ProjectEntry { name: string; path: string; }
 
-interface ProjectResult { name: string; status: 'missing' | 'stub' | 'ok'; lines: number; }
+interface ProjectResult { name: string; path: string; status: 'missing' | 'stub' | 'ok'; lines: number; }
 
 function checkOne(project: ProjectEntry): ProjectResult {
     const readmePath = path.join(project.path, 'README.md');
-    if (!fs.existsSync(readmePath)) { return { name: project.name, status: 'missing', lines: 0 }; }
+    if (!fs.existsSync(readmePath)) { return { name: project.name, path: project.path, status: 'missing', lines: 0 }; }
     const content = fs.readFileSync(readmePath, 'utf8');
     const lines   = content.split('\n').length;
-    return { name: project.name, status: lines < 20 ? 'stub' : 'ok', lines };
+    return { name: project.name, path: project.path, status: lines < 20 ? 'stub' : 'ok', lines };
 }
 
 export function runReadmeQualityCheck(projects: ProjectEntry[]): AuditCheck {
@@ -56,7 +56,7 @@ export function runReadmeQualityCheck(projects: ProjectEntry[]): AuditCheck {
         summary,
         detail,
         affectedProjects: [...missing, ...stubs].map(r => r.name),
-        affectedFiles:    [...missing].map(r => path.join(r.name, 'README.md')),
+        affectedFiles:    [...missing, ...stubs].map(r => path.join(r.path, 'README.md')),
         action:           'cvs.readme.scan',
         actionLabel:      missing.length > 0 ? 'Generate Now' : stubs.length > 0 ? 'Fix Now' : 'Scan',
         ranAt:            new Date().toISOString(),
