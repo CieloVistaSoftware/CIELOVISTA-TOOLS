@@ -74,6 +74,7 @@ export interface HealthBug {
     checkId:     string;
     title:       string;
     detail:      string;
+    stack?:      string;
     recommendation?: string;
     evidence?:    string[];
     priority:    'critical' | 'high' | 'medium' | 'low';
@@ -154,6 +155,9 @@ function addBug(bug: Omit<HealthBug, 'detectedAt' | 'fixed'>): void {
     } else {
         _state.bugs.push({ ...bug, detectedAt: new Date().toISOString(), fixed: false });
     }
+    // Mirror to error log so the Error Log panel shows it without a separate viewer
+    const stackTrace = bug.stack ?? new Error(`bg-health: ${bug.id}`).stack ?? '';
+    logError(`[bg-health] ${bug.title}`, stackTrace, bug.detail || bug.id);
 }
 
 function clearBug(id: string): void {
@@ -527,12 +531,13 @@ const CHECKS: Check[] = [
                 fs.writeFileSync(testFile, 'ok');
                 fs.unlinkSync(testFile);
                 clearBug('bug-health-dir');
-            } catch {
+            } catch (e) {
                 addBug({
                     id: 'bug-health-dir',
                     checkId: 'chk-health-file',
                     title: 'data/ directory not writable',
                     detail: `Cannot write to ${DATA_DIR}. Health logs and fixes will not persist.`,
+                    stack: e instanceof Error ? e.stack : undefined,
                     priority: 'low',
                     category: 'Infrastructure',
                 });
