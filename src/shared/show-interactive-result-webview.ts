@@ -111,6 +111,8 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
         active.onRerun();
       } else if (msg.type === 'openLog' && active.onOpenLog) {
         active.onOpenLog();
+      } else if (msg.type === 'openUrl' && typeof msg.url === 'string') {
+        void vscode.env.openExternal(vscode.Uri.parse(msg.url));
       } else if (msg.type === 'close') {
         panel.dispose();
       }
@@ -203,6 +205,10 @@ export function showInteractiveResultWebview(opts: InteractiveResultOptions) {
               const btn = document.getElementById('rerunBtn');
               if (btn) { btn.disabled = true; btn.textContent = 'Running\u2026'; }
             }
+          });
+          document.addEventListener('click', function(e) {
+            var el = e.target.closest('[data-issue-url]');
+            if (el) { e.preventDefault(); vscode.postMessage({ type: 'openUrl', url: el.dataset.issueUrl }); }
           });
         </script>
       </body>
