@@ -156,8 +156,8 @@ function addBug(bug: Omit<HealthBug, 'detectedAt' | 'fixed'>): void {
         _state.bugs.push({ ...bug, detectedAt: new Date().toISOString(), fixed: false });
     }
     // Mirror to error log so the Error Log panel shows it without a separate viewer
-    const stackTrace = bug.stack ?? new Error(`bg-health: ${bug.id}`).stack ?? '';
-    logError(`[bg-health] ${bug.title}`, stackTrace, bug.detail || bug.id);
+    // No caught exception here — stack stored in bug.stack; pass '' per logError contract
+    logError(`[bg-health] ${bug.title}`, '', `${bug.detail || bug.id}${bug.stack ? '\n' + bug.stack : ''}`);
 }
 
 function clearBug(id: string): void {
@@ -760,6 +760,9 @@ function buildFixBugsHtml(state: HealthState): string {
                 const evidenceHtml = b.evidence && b.evidence.length > 0
                         ? renderEvidenceHtml(b.evidence)
                         : '';
+        const stackHtml = b.stack
+            ? `<details class="bug-stack"><summary>Stack trace</summary><pre class="bug-stack-pre">${esc(b.stack)}</pre></details>`
+            : '';
         return `<div class="bug-card" data-id="${b.id}">
   <div class="bug-header">
     <span class="bug-priority" style="background:${color};color:${b.priority === 'high' ? '#000' : '#fff'}">${b.priority.toUpperCase()}</span>
@@ -769,6 +772,7 @@ function buildFixBugsHtml(state: HealthState): string {
     <div class="bug-detail">${esc(b.detail)}</div>
     <div class="bug-recommendation"><strong>Recommended fix:</strong> ${esc(recommendation)}</div>
     ${evidenceHtml}
+    ${stackHtml}
   <div class="bug-footer">
     <span class="bug-time">Detected: ${new Date(b.detectedAt).toLocaleString()}</span>
     ${fixBtn}
@@ -817,6 +821,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .bug-evidence-line + .bug-evidence-line{margin-top:2px}
 .bug-evidence-link{color:var(--vscode-textLink-foreground);text-decoration:none}
 .bug-evidence-link:hover{text-decoration:underline}
+.bug-stack{font-size:11px}.bug-stack summary{cursor:pointer;color:var(--vscode-textLink-foreground);user-select:none}.bug-stack-pre{margin-top:5px;padding:6px 8px;background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-radius:3px;font-family:var(--vscode-editor-font-family,monospace);font-size:10px;white-space:pre-wrap;word-break:break-all;max-height:180px;overflow:auto}
 .bug-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .bug-time{font-size:10px;color:var(--vscode-descriptionForeground);flex:1}
 .fix-btn{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600}
