@@ -54,14 +54,112 @@ function normalizeWorkspaceDisplayName(name: string): string {
     .replace(/\b([a-z])/g, (m) => m.toUpperCase());
 }
 
+let browsePanel: vscode.WebviewPanel | undefined;
+
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.tools.home', () => showHomePage(context))
+        vscode.commands.registerCommand('cvs.tools.home', () => showHomePage(context)),
+        vscode.commands.registerCommand('cvs.commands.browseAll', () => void showBrowseAllPanel()),
     );
 
   // Opening the webview synchronously during startup is unreliable on reload
   // because VS Code may still be restoring editors. Defer slightly.
   setTimeout(() => showHomePage(context), 300);
+}
+
+async function showBrowseAllPanel(): Promise<void> {
+    if (browsePanel) { browsePanel.reveal(vscode.ViewColumn.Beside); return; }
+
+    const registered = new Set(await vscode.commands.getCommands(false));
+    const grouped    = buildGroupedCommands(registered);
+    const totalCmds  = Object.values(grouped).reduce((n, a) => n + a.length, 0);
+
+    browsePanel = vscode.window.createWebviewPanel(
+        'cvsBrowseAll',
+        `Browse All Commands (${totalCmds})`,
+        vscode.ViewColumn.Beside,
+        { enableScripts: true }
+    );
+
+    browsePanel.webview.html = buildBrowseAllHtml(grouped, totalCmds);
+
+    browsePanel.webview.onDidReceiveMessage(async (msg: { type: string; cmd?: string }) => {
+        if (msg.type === 'run' && msg.cmd) {
+            await vscode.commands.executeCommand(msg.cmd);
+        }
+    });
+
+    browsePanel.onDidDispose(() => { browsePanel = undefined; });
+}
+
+function buildBrowseAllHtml(
+    grouped: Record<string, Array<{title:string;command:string;description?:string}>>,
+    totalCmds: number,
+): string {
+    const browseHtml = Object.entries(grouped).map(([prefix, cmds]) => {
+        const items = cmds.map(cmd => {
+            const label = cmd.title.includes(':') ? cmd.title.slice(cmd.title.indexOf(':') + 1).trim() : cmd.title;
+            const desc  = cmd.description ? `<span class="browse-desc">${esc(cmd.description)}</span>` : '';
+            return `<div class="browse-item"><button class="browse-link" data-cmd="${esc(cmd.command)}">${esc(label)}</button>${desc}</div>`;
+        }).join('');
+        return `<div class="browse-group">
+  <div class="browse-group-hd">${esc(prefix.replace(/:$/, ''))}</div>
+  <div class="browse-items">${items}</div>
+</div>`;
+    }).join('');
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px}
+h1{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--vscode-editor-foreground)}
+#filter-wrap{position:sticky;top:0;background:var(--vscode-editor-background);padding:0 0 10px;z-index:10}
+#filter{width:100%;padding:5px 10px;border:1px solid var(--vscode-input-border);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:4px;font-size:12px;outline:none}
+#filter:focus{border-color:var(--vscode-focusBorder)}
+#total{font-size:11px;color:var(--vscode-descriptionForeground);margin-top:4px}
+.browse-group{margin-bottom:16px}
+.browse-group-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--vscode-descriptionForeground);margin-bottom:6px;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:3px}
+.browse-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 12px}
+.browse-item{display:flex;flex-direction:column;gap:2px}
+.browse-link{background:none;border:none;color:var(--vscode-textLink-foreground);cursor:pointer;text-align:left;padding:2px 0;font-size:12px;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.browse-link:hover{text-decoration:underline;color:var(--vscode-textLink-activeForeground)}
+.browse-desc{font-size:10px;color:var(--vscode-descriptionForeground);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hidden{display:none}
+</style>
+</head><body>
+<div id="filter-wrap">
+  <input id="filter" type="text" placeholder="Filter commands… (e.g. FileList, Audit)" autocomplete="off" spellcheck="false">
+  <div id="total">${totalCmds} commands registered</div>
+</div>
+<div id="browse-body">${browseHtml}</div>
+<script>
+(function(){
+'use strict';
+const vscode = acquireVsCodeApi();
+document.getElementById('browse-body').addEventListener('click', function(e) {
+    var btn = e.target.closest('.browse-link');
+    if (btn && btn.dataset.cmd) {
+        vscode.postMessage({ type: 'run', cmd: btn.dataset.cmd });
+    }
+});
+var filterEl = document.getElementById('filter');
+filterEl.addEventListener('input', function() {
+    var q = filterEl.value.trim().toLowerCase();
+    document.querySelectorAll('.browse-group').forEach(function(grp) {
+        var any = false;
+        grp.querySelectorAll('.browse-item').forEach(function(item) {
+            var text = item.textContent.toLowerCase();
+            var show = !q || text.includes(q);
+            item.classList.toggle('hidden', !show);
+            if (show) { any = true; }
+        });
+        grp.classList.toggle('hidden', !any);
+    });
+});
+})();
+</script>
+</body></html>`;
 }
 
 export function buildGroupedCommands(registered: Set<string>): Record<string, Array<{title:string;command:string;description?:string}>> {
@@ -113,9 +211,17 @@ function _startMetricsSampler(panel: vscode.WebviewPanel): () => void {
   return () => clearInterval(id);
 }
 
+/** Move the Home panel to position 1 (leftmost) in its tab group. */
+export function ensureHomeIsLeftmost(): void {
+  if (!homePanel) { return; }
+  homePanel.reveal(vscode.ViewColumn.One);
+  setTimeout(() => void vscode.commands.executeCommand('workbench.action.moveEditorFirst'), 50);
+}
+
 function showHomePage(context: vscode.ExtensionContext): void {
   if (homePanel) {
     homePanel.reveal(vscode.ViewColumn.One);
+    setTimeout(() => void vscode.commands.executeCommand('workbench.action.moveEditorFirst'), 50);
     return;
   }
 
@@ -126,6 +232,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
     { enableScripts: true }
   );
   homePanel = panel;
+  setTimeout(() => void vscode.commands.executeCommand('workbench.action.moveEditorFirst'), 50);
 
   const wsFolder = vscode.workspace.workspaceFolders?.[0];
   const wsName   = normalizeWorkspaceDisplayName(wsFolder?.name ?? 'No Workspace');
@@ -769,6 +876,14 @@ document.querySelectorAll('.rec-chat').forEach(function(b){
 });
 
 // Browse All toggle
+var browseOpenPanel = document.getElementById('browse-open-panel');
+if (browseOpenPanel) {
+  browseOpenPanel.addEventListener('click', function(e) {
+    e.stopPropagation();
+    vsc.postMessage({ type: 'runCommand', command: 'cvs.commands.browseAll' });
+  });
+}
+
 var browseToggle = document.getElementById('browse-toggle');
 var browseBody   = document.getElementById('browse-body');
 var browseArrow  = document.getElementById('browse-arrow');
@@ -943,6 +1058,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
       <span id="browse-arrow">\u25b6</span>
       Browse All Commands
       <span style="font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px">(${totalCmds})</span>
+      <button id="browse-open-panel" data-cmd="cvs.commands.browseAll" style="margin-left:auto;font-size:10px;padding:1px 8px;border:1px solid var(--vscode-button-border,#444);border-radius:3px;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);cursor:pointer" title="Open Browse All Commands in its own panel">Open in Panel \u2197</button>
     </div>
       <div id="browse-search-wrap">
         <input id="browse-search" type="text" placeholder="Filter commands\u2026" autocomplete="off" spellcheck="false">
