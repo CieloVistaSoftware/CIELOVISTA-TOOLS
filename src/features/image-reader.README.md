@@ -1,18 +1,3 @@
----
-docid: 150.1.image-reader-readme
-id: image-reader-feature
-title: Image Reader Feature
-project: cielovista-tools
-description: This feature provides an image reader webview panel using HTML, CSS, and JS assets migrated from CodePilot-Wake-Monitor.
-status: active
-tags: [image, reader, readme]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/image-reader.README.md
----
 # feature: Image Reader Feature
 
 ## Overview
@@ -57,3 +42,19 @@ activate()
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
+
+---
+docid: 150.1.image-reader-readme
+id: image-reader-feature
+title: Image Reader Feature
+project: cielovista-tools
+description: This feature provides an image reader webview panel using HTML, CSS, and JS assets migrated from CodePilot-Wake-Monitor.
+status: active
+tags: [image, reader, readme]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/image-reader.README.md
+---

@@ -607,6 +607,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .action-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit}
 .action-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}
 .action-btn:disabled{opacity:.5;cursor:default}
+#auto-timer{font-size:11px;color:var(--vscode-descriptionForeground);opacity:.65;white-space:nowrap;min-width:44px;text-align:right;user-select:none}
 #body{padding:14px 20px;width:100% !important;max-width:none !important;display:flex;flex-direction:column;align-items:stretch}
 .loading{padding:24px;text-align:center;color:var(--vscode-descriptionForeground)}
 .error{padding:14px 16px;border:1px solid #f85149;border-radius:6px;background:rgba(248,81,73,.08);color:#f85149;margin-bottom:14px;line-height:1.5;overflow-wrap:break-word;word-break:break-word}
@@ -638,7 +639,6 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .claim-btn:disabled{opacity:.5;cursor:wait}
 .in-progress-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(240,180,41,.18);color:#f0b429;border:1px solid rgba(240,180,41,.5);white-space:nowrap;margin-bottom:3px}
 .proj-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(0,82,204,.15);color:#4a90e2;border:1px solid rgba(0,82,204,.35);white-space:nowrap}
-.proj-missing{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.5);white-space:nowrap}
 .run-test-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
 .run-test-btn:hover{background:rgba(63,185,80,.28)}
 .run-test-btn:disabled{opacity:.4;cursor:default}
@@ -674,7 +674,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
             const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress');
             const inProgressChip = isInProgress ? '<span class="in-progress-chip">in-progress</span>' : '';
-            const labels = iss.labels.map((l) => {
+            const labels = iss.labels.filter((l) => !l.name.startsWith('project:')).map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
                 return `<span class="label" style="background:#${esc(bg)};color:${fg}">${esc(l.name)}</span>`;
@@ -701,7 +701,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
     <td>${inProgressChip}${labels ? `<span class="tags">${labels}</span>` : (isInProgress ? '' : `<span class="muted">-</span>`)}</td>
-    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="proj-missing">⚠ No project</span>`}</td>
+    <td>${projectName ? `<span class="proj-pill">${esc(projectName)}</span>` : `<span class="muted">-</span>`}</td>
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
@@ -842,10 +842,25 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     if (stateClosedBtn) {
         stateClosedBtn.addEventListener('click', function() { vsc.postMessage({ type: 'setState', state: 'closed' }); });
     }
+    var autoTimerSec = document.getElementById('auto-timer-sec');
+    var _arSecs = 60;
+    setInterval(function(){
+        _arSecs--;
+        if (autoTimerSec) { autoTimerSec.textContent = String(_arSecs); }
+        if (_arSecs <= 0) {
+            _arSecs = 60;
+            if (autoTimerSec) { autoTimerSec.textContent = '60'; }
+            vsc.postMessage({ type: 'refresh' });
+        }
+    }, 1000);
     var refresh = document.getElementById('refresh');
-  if (refresh) {
-    refresh.addEventListener('click', function(){ vsc.postMessage({ type: 'refresh' }); });
-  }
+    if (refresh) {
+        refresh.addEventListener('click', function(){
+            _arSecs = 60;
+            if (autoTimerSec) { autoTimerSec.textContent = '60'; }
+            vsc.postMessage({ type: 'refresh' });
+        });
+    }
     var newIssue = document.getElementById('new-issue');
     if (newIssue) {
         newIssue.addEventListener('click', function(){ vsc.postMessage({ type: 'newIssue' }); });
@@ -995,6 +1010,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <button id="new-issue" class="action-btn" type="button" title="Create a new issue on GitHub">New Issue</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>
+        <span id="auto-timer" title="Auto-refreshes every 60 seconds">\u21ba <span id="auto-timer-sec">60</span>s</span>
     </div>
 </div>
 <div id="body">${bodyHtml}</div>

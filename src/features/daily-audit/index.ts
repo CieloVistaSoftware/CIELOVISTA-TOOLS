@@ -12,8 +12,55 @@ import { log } from '../../shared/output-channel';
 import { showInteractiveResultWebview } from '../../shared/show-interactive-result-webview';
 import { runDailyAudit } from './runner';
 import { AUDIT_REPORT_PATH } from '../../shared/audit-schema';
+import { fileDailyAuditCheckAsIssue } from '../../shared/github-issue-filer';
 
 const FEATURE = 'daily-audit';
+
+type IssueLink = { issueUrl: string; issueNumber: number };
+
+function esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildAuditOutputHtml(
+    result: Awaited<ReturnType<typeof runDailyAudit>>,
+    issueMap: Map<string, IssueLink>
+): string {
+    const r      = result.report.summary;
+    const checks = result.report.checks;
+    const runAt  = new Date(result.report.generatedAt).toLocaleTimeString();
+    let html = `<pre style="font-family:var(--vscode-editor-font-family);white-space:pre-wrap;margin:0">`;
+    html += `Projects audited (${result.projectNames.length}): ${esc(result.projectNames.join(', '))}\n`;
+    html += `\n=== Daily Audit Results ===\n`;
+    html += `Fresh scan — ran at ${runAt}\n`;
+    html += `Scanned ${checks.length} checks in ${result.report.durationMs}ms\n`;
+    html += `Summary: ${r.red} red, ${r.yellow} yellow, ${r.green} green, ${r.grey} grey\n\n---\n`;
+    for (const check of checks) {
+        const icon = check.status === 'green' ? '✅' : check.status === 'red' ? '❌' : check.status === 'yellow' ? '⚠️' : '▫️';
+        html += `${icon} ${esc(check.title)} [${esc(check.category)}] — ${esc(check.summary)}`;
+        const link = issueMap.get(check.checkId);
+        if (link) {
+            html += ` <a href="#" data-issue-url="${esc(link.issueUrl)}" style="color:var(--vscode-textLink-foreground);text-decoration:none" title="View GitHub issue #${link.issueNumber}">#${link.issueNumber}</a>`;
+        }
+        html += '\n';
+        if (check.detail && check.status !== 'green') {
+            html += `   Detail: ${esc(check.detail.slice(0, 300))}\n`;
+        }
+        if (check.affectedProjects?.length) {
+            html += `   Affected: ${esc(check.affectedProjects.slice(0, 6).join(', '))}\n`;
+        }
+        if (check.affectedFiles?.length) {
+            html += `   Files: ${esc(check.affectedFiles.slice(0, 3).join(', '))}\n`;
+        }
+        if (check.actionLabel && check.action && check.status !== 'green') {
+            html += `   Fix: ${esc(check.actionLabel)} → ${esc(check.action)}\n`;
+        }
+        html += '\n';
+    }
+    html += `---\nAudit complete — ${r.red} red, ${r.yellow} yellow, ${r.green} green`;
+    html += `</pre>`;
+    return html;
+}
 
 function buildMarkdownReport(result: Awaited<ReturnType<typeof runDailyAudit>>): string {
     const r = result.report.summary;
@@ -205,6 +252,37 @@ export function activate(context: vscode.ExtensionContext): void {
                             vscode.commands.executeCommand('cvs.audit.runDaily');
                         },
                     });
+
+                    // Fire-and-forget: auto-file issues for red/yellow checks, then
+                    // update the panel with clickable issue links once filing is done.
+                    if (result.written) {
+                        const _capturedResult = result;
+                        const _capturedTitle  = title;
+                        const _capturedFailed = failed;
+                        void (async () => {
+                            const failures = _capturedResult.report.checks.filter(c => c.status === 'red' || c.status === 'yellow');
+                            if (!failures.length) { return; }
+                            const issueMap = new Map<string, IssueLink>();
+                            for (const check of failures) {
+                                try {
+                                    const r = await fileDailyAuditCheckAsIssue(check);
+                                    if (r.ok && r.issueUrl && r.issueNumber != null) {
+                                        issueMap.set(check.checkId, { issueUrl: r.issueUrl, issueNumber: r.issueNumber });
+                                    }
+                                } catch { /* best-effort */ }
+                            }
+                            if (!issueMap.size) { return; }
+                            showInteractiveResultWebview({
+                                title: _capturedTitle,
+                                action: 'Run Daily Health Check',
+                                output: buildAuditOutputHtml(_capturedResult, issueMap),
+                                durationMs: _capturedResult.report.durationMs,
+                                failed: _capturedFailed,
+                                viewType: 'dailyAuditResults',
+                                onRerun: () => { vscode.commands.executeCommand('cvs.audit.runDaily'); },
+                            });
+                        })();
+                    }
 
                     // Also log to output channel
                     if (result.written) {

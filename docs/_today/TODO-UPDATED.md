@@ -1,18 +1,3 @@
----
-docid: 150.9.todo-updated
-id: todo-updated
-title: TODO UPDATED
-project: cielovista-tools
-description: Monolith src/features/readme-compliance.ts is still fully active (~600 lines). Folder has 6 modules already. Method: Create html.ts, commands.ts, a…
-status: active
-tags: [todo, updated, audited]
-category: 150.9 — Meta
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: docs/_today/TODO-UPDATED.md
----
 ## ✅ TODO (audited 2026-04-13)
 
 ### Open tasks — priority order
@@ -84,3 +69,19 @@ Code reads `data/tools-errors.json` correctly. Probably just an empty log. Trigg
 | doc-catalog (split) | `src\features\doc-catalog\` |
 | Marketplace (split) | `src\features\marketplace-compliance\` |
 | Build command | `npm run rebuild` |
+
+---
+docid: 150.9.todo-updated
+id: todo-updated
+title: TODO UPDATED
+project: cielovista-tools
+description: Monolith src/features/readme-compliance.ts is still fully active (~600 lines). Folder has 6 modules already. Method: Create html.ts, commands.ts, a…
+status: active
+tags: [todo, updated, audited]
+category: 150.9 — Meta
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: docs/_today/TODO-UPDATED.md
+---

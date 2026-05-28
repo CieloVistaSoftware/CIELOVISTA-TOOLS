@@ -57,7 +57,15 @@ mustContain(src, '_checkStatus',
 mustContain(src, 'prevStatus',
     'SOURCE: must compare prevStatus to implement delta logging');
 
-// 6) Setting declared in package.json
+// 6) One-time-one-place: DATA_DIR resolves from workspace folder, not __dirname
+mustContain(src, 'workspaceFolders',
+    'SOURCE: DATA_DIR must resolve from vscode.workspace.workspaceFolders (one-time-one-place rule)');
+mustContain(src, 'let DATA_DIR',
+    'SOURCE: DATA_DIR must be let (not const) so activate() can override it from the workspace');
+mustContain(src, 'let HEALTH_FILE',
+    'SOURCE: HEALTH_FILE must be let (not const) so activate() can override it from the workspace');
+
+// 7) Setting declared in package.json
 const props = pkg?.contributes?.configuration?.properties ?? {};
 assert.ok(
     'cvs.bgHealthRunner.intervalSeconds' in props,
@@ -74,4 +82,4 @@ assert.strictEqual(
     'PACKAGE.JSON: intervalSeconds minimum must be 5'
 );
 
-console.log('PASS: REG-090 bg-health-runner output format checks passed.');
+console.log('PASS: REG-090 bg-health-runner output format / one-place data checks passed.');

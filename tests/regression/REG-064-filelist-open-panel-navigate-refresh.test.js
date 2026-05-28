@@ -133,6 +133,7 @@ function loadFileListViewer(rootDir) {
     const origLoad = Module._load;
     Module._load = function(request, parent, isMain) {
         if (request === 'vscode') { return vscode; }
+        if (request === './home-page') { return { ensureHomeIsLeftmost() {} }; }
         if (request === '../shared/output-channel') {
             return { log() {}, logError() {} };
         }

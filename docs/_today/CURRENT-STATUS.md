@@ -1,5 +1,15 @@
 # CURRENT-STATUS.md — cielovista-tools
 
+## 🅿️ PARKING LOT
+
+**Task:** —  clean slate
+**Files touched:** none
+**Last action:** PR #521 squash-merged into main 2026-05-25; `release/session-fixes-2026-05-25` deleted; branch protection restored (1 required review); local main synced
+**Next step:** Pick next open GitHub issue
+**Open questions:** None
+
+---
+
 ---
 docid: 150.9.current-status
 id: current-statusmd-cielovista-tools

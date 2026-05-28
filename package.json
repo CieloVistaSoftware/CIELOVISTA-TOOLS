@@ -155,6 +155,12 @@
         "description": "Show a searchable picker of all CieloVista Tools commands in the status bar."
       },
       {
+        "command": "cvs.commands.browseAll",
+        "title": "Commands: Browse All Commands",
+        "category": "CieloVista",
+        "description": "Open Browse All Commands in a dedicated panel — all registered CVT commands grouped by category, with live filter."
+      },
+      {
         "command": "cvs.commands.quickRun",
         "title": "Commands: Quick Run (quick pick)",
         "category": "CieloVista",
@@ -798,7 +804,13 @@
         "command": "cvs.diskcleanup.openDashboard",
         "title": "DiskCleanUp: Open Dashboard",
         "category": "CieloVista",
-        "description": "Launch the DiskCleanUp dashboard in the default browser. Starts the --serve process if it is not already running."
+        "description": "Launch the DiskCleanUp dashboard in VS Code Simple Browser. Starts the --serve process if it is not already running."
+      },
+      {
+        "command": "cvs.diskcleanup.consoleMode",
+        "title": "DiskCleanUp: Console Mode",
+        "category": "CieloVista",
+        "description": "Run DiskCleanUp in console mode — streams stdout/stderr into a smart webview, highlights errors and warnings, counts errors in the panel title, and provides Copy Output, Copy to Chat, and File Issue buttons."
       },
       {
         "command": "cvs.tools.runningTasks",

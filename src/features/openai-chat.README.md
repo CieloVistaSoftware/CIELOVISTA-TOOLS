@@ -1,18 +1,3 @@
----
-docid: 150.1.openai-chat-readme
-id: feature-openai-chatts
-title: "feature: openai-chat.ts"
-project: cielovista-tools
-description: Adds OpenAI-powered commands to VS Code: explain selected code, suggest refactoring, generate a JSDoc docstring, and open a persistent chat panel. …
-status: active
-tags: [openai, chat, readme]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/openai-chat.README.md
----
 # feature: openai-chat.ts
 
 ## What it does
@@ -96,3 +81,19 @@ The API key is read from VS Code settings at call time — never stored in modul
 3. A result panel should open beside the editor with the explanation.
 4. Run `OpenAI: Open Chat Panel`, type a question — reply should appear in the panel.
 5. Remove the API key, run any command — should show a clear error message.
+
+---
+docid: 150.1.openai-chat-readme
+id: feature-openai-chatts
+title: "feature: openai-chat.ts"
+project: cielovista-tools
+description: Adds OpenAI-powered commands to VS Code: explain selected code, suggest refactoring, generate a JSDoc docstring, and open a persistent chat panel. …
+status: active
+tags: [openai, chat, readme]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/openai-chat.README.md
+---

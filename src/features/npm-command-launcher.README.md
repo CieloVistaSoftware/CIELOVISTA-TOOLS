@@ -1,18 +1,3 @@
----
-docid: 150.1.npm-command-launcher-readme
-id: feature-npm-command-launcher
-title: "Feature: NPM Command Launcher"
-project: cielovista-tools
-description: Adds a NPM Cmds button to the VS Code status bar. When clicked, it discovers every npm script across all workspace package.json files and lets you …
-status: active
-tags: [npm, command, launcher]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/npm-command-launcher.README.md
----
 # Feature: NPM Command Launcher
 
 ## What it does
@@ -86,3 +71,19 @@ addScriptDescription()
 1. Open a workspace that has a `package.json` with at least one script. Click `NPM Cmds` in the status bar — the QuickPick should list all scripts with their commands as detail text.
 2. Select a script — a terminal should open, `cd` to the package folder, and run `npm run <script>`.
 3. Run [`cvs.npm.addScriptDescription`](command:cvs.npm.addScriptDescription), pick a script, type a description. Open the picker again — the description should now appear under the script name.
+
+---
+docid: 150.1.npm-command-launcher-readme
+id: feature-npm-command-launcher
+title: "Feature: NPM Command Launcher"
+project: cielovista-tools
+description: Adds a NPM Cmds button to the VS Code status bar. When clicked, it discovers every npm script across all workspace package.json files and lets you …
+status: active
+tags: [npm, command, launcher]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/npm-command-launcher.README.md
+---

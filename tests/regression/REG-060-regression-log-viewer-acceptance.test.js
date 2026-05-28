@@ -9,8 +9,10 @@
 const fs   = require('fs');
 const path = require('path');
 
-const SRC = path.join(__dirname, '../../src/features/regression-log-viewer.ts');
-const src = fs.readFileSync(SRC, 'utf8');
+const SRC     = path.join(__dirname, '../../src/features/regression-log-viewer.ts');
+const EXT_SRC = path.join(__dirname, '../../src/extension.ts');
+const src     = fs.readFileSync(SRC, 'utf8');
+const extSrc  = fs.readFileSync(EXT_SRC, 'utf8');
 
 let passed = 0;
 let failed = 0;
@@ -29,7 +31,7 @@ console.log('\nREG-060: regression-log-viewer acceptance criteria\n' + '─'.rep
 
 // ── Command registration ──────────────────────────────────────────────────────
 check("command 'cvs.tools.regressionLog' registered",
-    src.includes("'cvs.tools.regressionLog'"));
+    src.includes("'cvs.tools.regressionLog'") || extSrc.includes("'cvs.tools.regressionLog'"));
 
 // ── Header pills: open count + fixed count ────────────────────────────────────
 check('openCount computed from entries',

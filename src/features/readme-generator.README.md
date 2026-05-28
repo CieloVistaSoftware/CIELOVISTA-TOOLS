@@ -1,18 +1,3 @@
----
-docid: 150.1.readme-generator
-id: feature-readme-generator
-title: "Feature: Readme Generator"
-project: cielovista-tools
-description: "Readme Generator — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [readme, generator]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/readme-generator.README.md
----
 # Feature: Readme Generator
 
 ## What it does
@@ -66,3 +51,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 3. Open the Command Palette and run **Readme: Generate: Single** (`cvs.readme.generate.single`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.readme-generator
+id: feature-readme-generator
+title: "Feature: Readme Generator"
+project: cielovista-tools
+description: "Readme Generator — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [readme, generator]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/readme-generator.README.md
+---

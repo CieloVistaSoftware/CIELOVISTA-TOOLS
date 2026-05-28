@@ -1,18 +1,3 @@
----
-docid: 150.1.mcp-viewer-dir
-id: feature-mcp-viewer
-title: "Feature: Mcp Viewer"
-project: cielovista-tools
-description: "Mcp Viewer — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [mcp, viewer]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/mcp-viewer/README.md
----
 # Feature: Mcp Viewer
 
 ## What it does
@@ -73,3 +58,19 @@ activate(context)
 
 1. Open the Command Palette and run **Mcp: Viewer: Open** (`cvs.mcp.viewer.open`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.mcp-viewer-dir
+id: feature-mcp-viewer
+title: "Feature: Mcp Viewer"
+project: cielovista-tools
+description: "Mcp Viewer — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [mcp, viewer]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/mcp-viewer/README.md
+---

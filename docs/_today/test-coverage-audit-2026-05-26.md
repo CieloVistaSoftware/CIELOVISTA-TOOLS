@@ -1,18 +1,18 @@
 # Test Coverage Audit
 
-**Date:** 2026-05-26 21:50:59
+**Date:** 2026-05-26 15:58:31
 **Project:** cielovista-tools
 **Strategy:** Tiered Testing (Tiers 1–5)
 
-> **ℹ️ Coverage Status:** 59 of 63 features have tests.**
+> **ℹ️ Coverage Status:** 58 of 62 features have tests.**
 
 ## 📊 Summary
 
 | Metric | Count |
 |---|---|
-| Test Files | 227 |
-| Test Cases | 2145 |
-| Features Covered | 59/63 |
+| Test Files | 231 |
+| Test Cases | 2160 |
+| Features Covered | 58/62 |
 
 ## 📋 Tier Breakdown
 
@@ -179,11 +179,11 @@
 
 **Description:** Specific bug fixes, prevents re-breaking
 
-**Files:** 104 | **Test Cases:** 530
+**Files:** 108 | **Test Cases:** 545
 
 | Test File | Test Cases | Bug Refs |
 |---|---|---|
-| `regression\REG-001-extension-activation.test.js` | 13 | — |
+| `regression\REG-001-extension-activation.test.js` | 12 | — |
 | `regression\REG-015-package-json-round-trip.test.js` | 3 | — |
 | `regression\REG-017-launcher-filter.test.js` | 14 | — |
 | `regression\REG-018-mcp-lifecycle-and-dedup.test.js` | 11 | — |
@@ -286,6 +286,10 @@
 | `regression\REG-105-launcher-panel-context.test.js` | 1 | — |
 | `regression\REG-106-tags-enrichment-and-shared-categories.test.js` | 2 | — |
 | `regression\REG-107-bg-health-runner-schedule-after-close.test.js` | 7 | — |
+| `regression\REG-108-no-duplicate-command-ids.test.js` | 7 | — |
+| `regression\REG-109-issue-viewer-no-project-label-in-status.test.js` | 3 | — |
+| `regression\REG-110-viewer-md-links-open-beside.test.js` | 2 | — |
+| `regression\REG-111-md-frontmatter-at-bottom.test.js` | 4 | — |
 | `three-bugs.test.js` | 18 | — |
 
 ## 🎯 Feature Coverage Matrix
@@ -339,7 +343,6 @@
 | `playwright-check` | — | ✅ | — | — | — |
 | `playwright-runner` | — | ✅ | — | — | ✅ |
 | `project-home-opener` | — | ✅ | — | — | — |
-| `project-launcher` | — | ✅ | — | — | — |
 | `python-runner` | — | ✅ | — | — | — |
 | `readme-compliance` | — | ✅ | — | — | ✅ |
 | `readme-compliance` | — | ✅ | — | — | ✅ |
@@ -374,5 +377,5 @@
 
 ---
 
-**Generated:** 2026-05-26T02:50:59.771Z
+**Generated:** 2026-05-26T20:58:31.919Z
 **Command:** `node scripts/audit-test-coverage.js`

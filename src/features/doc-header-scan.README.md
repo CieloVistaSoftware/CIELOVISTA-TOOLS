@@ -1,18 +1,3 @@
----
-docid: 150.1.doc-header-scan
-id: feature-doc-header-scan
-title: "Feature: Doc Header Scan"
-project: cielovista-tools
-description: "Doc Header Scan — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [doc, header, scan]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/doc-header-scan.README.md
----
 # Feature: Doc Header Scan
 
 ## What it does
@@ -50,3 +35,19 @@ activate(context)
 
 1. Open the Command Palette and run **Headers: Scan** (`cvs.headers.scan`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.doc-header-scan
+id: feature-doc-header-scan
+title: "Feature: Doc Header Scan"
+project: cielovista-tools
+description: "Doc Header Scan — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [doc, header, scan]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/doc-header-scan.README.md
+---

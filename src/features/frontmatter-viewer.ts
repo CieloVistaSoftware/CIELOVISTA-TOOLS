@@ -127,6 +127,7 @@ interface FmFile {
     filename:       string;
     path:           string;
     hasFrontmatter: boolean;
+    atBottom:       boolean;   // true when frontmatter is at end of file (current standard)
     fieldCount:     number;
     keys:           string[];
     fields:         Record<string, string>;
@@ -163,25 +164,37 @@ function walkMd(dir: string, root: string, acc: string[] = []): string[] {
     return acc;
 }
 
-function parseFm(content: string): { hasFrontmatter: boolean; fields: Record<string, string>; error: string | null } {
-    if (!content.startsWith('---')) { return { hasFrontmatter: false, fields: {}, error: null }; }
-    const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-    if (!m) { return { hasFrontmatter: true, fields: {}, error: 'Missing closing frontmatter delimiter' }; }
+function _parseFmFields(block: string): Record<string, string> {
     const fields: Record<string, string> = {};
-    for (const line of m[1].split(/\r?\n/)) {
+    for (const line of block.split(/\r?\n/)) {
         const kv = line.match(/^\s*([A-Za-z0-9_.-]+)\s*:\s*(.*)\s*$/);
         if (kv) { fields[kv[1]] = kv[2].replace(/^['"]|['"]$/g, ''); }
     }
-    return { hasFrontmatter: true, fields, error: null };
+    return fields;
+}
+
+function parseFm(content: string): { hasFrontmatter: boolean; atBottom: boolean; fields: Record<string, string>; error: string | null } {
+    // Bottom-first: current standard is frontmatter at end of file
+    const bottom = content.match(/\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
+    if (bottom) {
+        return { hasFrontmatter: true, atBottom: true, fields: _parseFmFields(bottom[1]), error: null };
+    }
+    // Top position: legacy — detect but flag as violation
+    if (content.startsWith('---')) {
+        const top = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+        if (!top) { return { hasFrontmatter: true, atBottom: false, fields: {}, error: 'Missing closing frontmatter delimiter' }; }
+        return { hasFrontmatter: true, atBottom: false, fields: _parseFmFields(top[1]), error: null };
+    }
+    return { hasFrontmatter: false, atBottom: false, fields: {}, error: null };
 }
 
 function scanProject(root: string): Report {
     const files = walkMd(root, root);
     const rows: FmFile[] = files.map(fp => {
         const content = fs.readFileSync(fp, 'utf8');
-        const { hasFrontmatter, fields, error } = parseFm(content);
+        const { hasFrontmatter, atBottom, fields, error } = parseFm(content);
         const keys = Object.keys(fields).sort((a, b) => a.localeCompare(b));
-        return { filename: path.basename(fp), path: path.relative(root, fp).replace(/\\/g, '/'), hasFrontmatter, fieldCount: keys.length, keys, fields, error };
+        return { filename: path.basename(fp), path: path.relative(root, fp).replace(/\\/g, '/'), hasFrontmatter, atBottom, fieldCount: keys.length, keys, fields, error };
     });
     rows.sort((a, b) => a.filename.localeCompare(b.filename) || a.path.localeCompare(b.path));
 
@@ -217,6 +230,7 @@ function violations(f: FmFile, dupNames: Set<string>): string[] {
     const r: string[] = [];
     if (!f.hasFrontmatter)                         { r.push('missing frontmatter'); }
     if (f.error)                                   { r.push('frontmatter parse error'); }
+    if (f.hasFrontmatter && !f.atBottom)           { r.push('frontmatter-not-at-bottom'); }
     if (!f.fields['docid'])                        { r.push('missing docid'); }
     if (f.fields['docid']?.trim() === '')          { r.push('empty docid'); }
     if ('dewey'   in f.fields)                     { r.push('legacy field: dewey'); }
@@ -234,7 +248,10 @@ function toIssueLabel(v: string): string {
 function proposedFixes(violationList: string[]): string[] {
     const fixes: string[] = [];
     if (violationList.includes('missing frontmatter')) {
-        fixes.push('Add a YAML frontmatter block at the top of the markdown file (`---` ... `---`).');
+        fixes.push('Add a YAML frontmatter block at the bottom of the markdown file (`---` ... `---`).');
+    }
+    if (violationList.includes('frontmatter-not-at-bottom')) {
+        fixes.push('Move the frontmatter block to the end of the file — it must appear after all document content.');
     }
     if (violationList.includes('frontmatter parse error')) {
         fixes.push('Repair malformed frontmatter and ensure a valid closing `---` delimiter.');
@@ -266,13 +283,15 @@ function buildFailureTestContent(relativePath: string, filename: string, violati
     const rel = relativePath.replace(/\\/g, '/');
     const checks: string[] = [];
 
+    // Bottom-position frontmatter is the current standard
+    checks.push("const fmMatch = raw.match(/\\n---\\r?\\n([\\s\\S]*?)\\r?\\n---\\s*$/);");
     if (violationList.includes('missing frontmatter') || violationList.includes('frontmatter parse error')) {
-        checks.push("assert.ok(raw.startsWith('---'), 'Expected YAML frontmatter at top of file');");
-        checks.push("const fmMatch = raw.match(/^---\\r?\\n([\\s\\S]*?)\\r?\\n---(?:\\r?\\n|$)/);");
-        checks.push("assert.ok(fmMatch, 'Expected parseable frontmatter with closing delimiter');");
+        checks.push("assert.ok(fmMatch, 'Expected YAML frontmatter block at end of file');");
     } else {
-        checks.push("const fmMatch = raw.match(/^---\\r?\\n([\\s\\S]*?)\\r?\\n---(?:\\r?\\n|$)/);");
-        checks.push("assert.ok(fmMatch, 'Expected parseable frontmatter with closing delimiter');");
+        checks.push("assert.ok(fmMatch, 'Expected parseable frontmatter with closing delimiter at end of file');");
+    }
+    if (violationList.includes('frontmatter-not-at-bottom')) {
+        checks.push("assert.ok(fmMatch, 'Frontmatter must appear at the bottom of the file, not the top');");
     }
     if (violationList.includes('missing docid') || violationList.includes('empty docid')) {
         checks.push("assert.match(fmMatch[1], /^docid:\\s*\\S+/m, 'Expected non-empty docid field in frontmatter');");
@@ -374,7 +393,7 @@ function buildViewerHtml(report: Report, filedIssues: Map<string, { number: numb
         const fixId = `fm-fix-${idx}`;
         const violationsAttr = esc(v.join('|'));
         const statusHtml = bad
-            ? v.map(r => `<span class="reason">${esc(r)}</span>`).join('')
+            ? v.map(r => `<span class="${r === 'frontmatter-not-at-bottom' ? 'reason reason-info' : 'reason'}">${esc(r)}</span>`).join('')
             : '<span class="ok">ok</span>';
         const fieldsHtml = Object.keys(f.fields).length === 0
             ? '<span class="muted">none</span>'
@@ -446,6 +465,7 @@ tr:hover td{background:var(--vscode-list-hoverBackground)}
 .muted{color:var(--vscode-descriptionForeground)}
 .status-stack{display:flex;flex-wrap:wrap;gap:4px;align-items:flex-start}
 .reason{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.35);margin:1px 4px 1px 0}
+.reason-info{background:rgba(56,189,248,.12)!important;color:#38bdf8!important;border-color:rgba(56,189,248,.35)!important}
 .ok{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(63,185,80,.12);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
 .file-link{cursor:pointer;color:var(--vscode-textLink-foreground);text-decoration:underline dotted;text-underline-offset:2px}
 .file-link:hover{color:var(--vscode-textLink-activeForeground);text-decoration:underline}

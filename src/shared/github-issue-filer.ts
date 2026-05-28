@@ -27,6 +27,7 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import type { ErrorEntry } from './error-log-adapter';
+import type { AuditCheck } from './audit-schema';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
@@ -467,6 +468,73 @@ export async function fetchAutoFiledIssueMap(): Promise<Map<string, { number: nu
         req.on('error', () => resolve(null));
         req.end();
     });
+}
+
+/**
+ * File a GitHub issue for a failing daily-audit check.
+ * Title is deterministic — `[daily-audit] {check.title}` — so the dedup
+ * check finds it on subsequent runs and adds a comment instead of a duplicate.
+ */
+export async function fileDailyAuditCheckAsIssue(check: AuditCheck): Promise<FileIssueResult> {
+    const token = await getGithubToken();
+    const title = `[daily-audit] ${check.title}`;
+    const lines: string[] = [
+        '## Daily Audit Failure',
+        '',
+        `**Check ID:** \`${check.checkId}\``,
+        `**Category:** ${check.category}`,
+        `**Status:** ${check.status}`,
+        `**Ran at:** ${check.ranAt}`,
+        '',
+        '### Summary',
+        check.summary,
+    ];
+    if (check.detail) {
+        lines.push('', '### Detail', check.detail);
+    }
+    if (check.affectedProjects?.length) {
+        lines.push('', `**Affected projects:** ${check.affectedProjects.join(', ')}`);
+    }
+    if (check.affectedFiles?.length) {
+        lines.push('', '**Affected files:**', '```', ...check.affectedFiles.slice(0, 20), '```');
+    }
+    if (check.actionLabel && check.action) {
+        lines.push('', `**Fix:** ${check.actionLabel} → \`${check.action}\``);
+    }
+    lines.push('', '---', '*Filed from CVT Daily Audit on ' + new Date().toISOString() + '*');
+
+    const body   = lines.join('\n');
+    const labels = withRequiredProjectLabel(['auto-filed', 'daily-audit', 'type:bug', `area:${check.category.toLowerCase().replace(/\s+/g, '-')}`]);
+
+    if (!token) {
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: 'GitHub authentication was canceled or failed.', copiedToClipboard: copied };
+    }
+
+    const existing = await findOpenAutoFiledIssue(token, title);
+    if (existing) {
+        const comment = [
+            `Recurrence detected at ${new Date().toISOString()}.`,
+            '',
+            `**Status:** ${check.status}`,
+            `**Summary:** ${check.summary}`,
+            '',
+            '_Posted via dedup — title matched this open auto-filed issue._',
+        ].join('\n');
+        const ok = await postIssueComment(token, existing.number, comment);
+        return ok
+            ? { ok: true, issueUrl: existing.html_url, issueNumber: existing.number }
+            : { ok: false, error: `Matched issue #${existing.number} but comment failed to post.` };
+    }
+
+    try {
+        const res = await postIssue(token, title, body, labels);
+        return { ok: true, issueUrl: res.html_url, issueNumber: res.number };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const copied = await copyIssueToClipboard(title, body);
+        return { ok: false, error: msg, copiedToClipboard: copied };
+    }
 }
 
 export interface FrontmatterIssueInput {

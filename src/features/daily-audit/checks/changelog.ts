@@ -17,21 +17,21 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
     const t0  = Date.now();
     const now = Date.now();
 
-    const missing: string[] = [];
-    const stale:   string[] = [];
-    const fresh:   string[] = [];
+    const missing: ProjectEntry[] = [];
+    const stale:   ProjectEntry[] = [];
+    const fresh:   ProjectEntry[] = [];
 
     for (const p of projects) {
         if (!fs.existsSync(p.path)) { continue; }
         const clPath = path.join(p.path, 'CHANGELOG.md');
         if (!fs.existsSync(clPath)) {
-            missing.push(p.name);
+            missing.push(p);
             continue;
         }
         const mtime   = fs.statSync(clPath).mtimeMs;
         const ageDays = (now - mtime) / (1000 * 60 * 60 * 24);
-        if (ageDays > STALE_DAYS) { stale.push(p.name); }
-        else                       { fresh.push(p.name); }
+        if (ageDays > STALE_DAYS) { stale.push(p); }
+        else                       { fresh.push(p); }
     }
 
     let status: AuditCheck['status'];
@@ -40,13 +40,13 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
 
     if (missing.length > 0) {
         status  = 'red';
-        summary = `No CHANGELOG in: ${missing.join(', ')}`;
-        detail  = `${missing.length} project(s) have no CHANGELOG.md: ${missing.join(', ')}\n` +
-                  (stale.length > 0 ? `${stale.length} project(s) have changelogs not updated in ${STALE_DAYS}+ days: ${stale.join(', ')}` : '');
+        summary = `No CHANGELOG in: ${missing.map(p => p.name).join(', ')}`;
+        detail  = `${missing.length} project(s) have no CHANGELOG.md: ${missing.map(p => p.name).join(', ')}\n` +
+                  (stale.length > 0 ? `${stale.length} project(s) have changelogs not updated in ${STALE_DAYS}+ days: ${stale.map(p => p.name).join(', ')}` : '');
     } else if (stale.length > 0) {
         status  = 'yellow';
-        summary = `${stale.length} changelog${stale.length > 1 ? 's' : ''} not updated in ${STALE_DAYS}+ days — ${stale.join(', ')}`;
-        detail  = `These projects have changelogs that haven't been touched in over ${STALE_DAYS} days:\n${stale.join(', ')}`;
+        summary = `${stale.length} changelog${stale.length > 1 ? 's' : ''} not updated in ${STALE_DAYS}+ days — ${stale.map(p => p.name).join(', ')}`;
+        detail  = `These projects have changelogs that haven't been touched in over ${STALE_DAYS} days:\n${stale.map(p => p.name).join(', ')}`;
     } else {
         status  = 'green';
         summary = `All ${fresh.length} changelogs up to date`;
@@ -60,8 +60,8 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
         status,
         summary,
         detail,
-        affectedProjects: [...missing, ...stale],
-        affectedFiles:    [...missing, ...stale].map(n => path.join(n, 'CHANGELOG.md')),
+        affectedProjects: [...missing, ...stale].map(p => p.name),
+        affectedFiles:    [...missing, ...stale].map(p => path.join(p.path, 'CHANGELOG.md')),
         action:           'cvs.marketplace.scan',
         actionLabel:      missing.length > 0 ? 'Auto-Fix' : 'Review',
         ranAt:            new Date().toISOString(),

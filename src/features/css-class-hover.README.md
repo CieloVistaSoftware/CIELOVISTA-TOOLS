@@ -1,18 +1,3 @@
----
-docid: 150.1.css-class-hover-readme
-id: feature-css-class-hoverts
-title: "feature: css-class-hover.ts"
-project: cielovista-tools
-description: Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…
-status: active
-tags: [css, class, hover]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/css-class-hover.README.md
----
 # feature: css-class-hover.ts
 
 ## What it does
@@ -80,3 +65,19 @@ Each resolved file is read synchronously and concatenated. This is fast enough f
 2. Hover over a class name in a `className="..."` attribute.
 3. A hover popup should appear showing the matching CSS rule.
 4. Hover over a class name that doesn't exist in any import — popup should say "No CSS rule found".
+
+---
+docid: 150.1.css-class-hover-readme
+id: feature-css-class-hoverts
+title: "feature: css-class-hover.ts"
+project: cielovista-tools
+description: Hover over a CSS class name in HTML, JSX, or TSX and instantly see the CSS rule definition in a hover popup — without switching files. Resolves imp…
+status: active
+tags: [css, class, hover]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/css-class-hover.README.md
+---
