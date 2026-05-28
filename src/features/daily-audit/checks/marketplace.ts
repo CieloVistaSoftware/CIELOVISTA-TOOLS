@@ -14,15 +14,16 @@ interface ProjectEntry { name: string; path: string; type: string; }
 const OPEN_SOURCE_LICENSES = ['MIT', 'ISC', 'Apache-2.0', 'GPL-2.0', 'GPL-3.0', 'BSD-2-Clause', 'BSD-3-Clause'];
 
 interface ProjectResult {
-    name:    string;
-    score:   number;
-    missing: string[];
+    name:     string;
+    projPath: string;
+    score:    number;
+    missing:  string[];
 }
 
 function checkOne(project: ProjectEntry): ProjectResult {
     const missing: string[] = [];
     const isExtension = project.type === 'vscode-extension';
-    if (!fs.existsSync(project.path)) { return { name: project.name, score: 0, missing: ['project folder not found'] }; }
+    if (!fs.existsSync(project.path)) { return { name: project.name, projPath: project.path, score: 0, missing: ['project folder not found'] }; }
 
     if (!fs.existsSync(path.join(project.path, 'LICENSE')) &&
         !fs.existsSync(path.join(project.path, 'LICENSE.txt'))) { missing.push('LICENSE'); }
@@ -51,7 +52,22 @@ function checkOne(project: ProjectEntry): ProjectResult {
     const errors   = missing.filter(m => !m.includes('icon') && !m.includes('CHANGELOG')).length;
     const warnings = missing.filter(m =>  m.includes('icon') ||  m.includes('CHANGELOG')).length;
     const score    = Math.max(0, 100 - errors * 20 - warnings * 8);
-    return { name: project.name, score, missing };
+    return { name: project.name, projPath: project.path, score, missing };
+}
+
+function missingToFiles(r: ProjectResult): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const m of r.missing) {
+        let file: string;
+        if (m.startsWith('package.json')) { file = path.join(r.projPath, 'package.json'); }
+        else if (m === 'LICENSE' || m === 'LICENSE.txt') { file = path.join(r.projPath, 'LICENSE'); }
+        else if (m === 'CHANGELOG.md') { file = path.join(r.projPath, 'CHANGELOG.md'); }
+        else if (m === 'icon.png')     { file = path.join(r.projPath, 'icon.png'); }
+        else { continue; }
+        if (!seen.has(file)) { seen.add(file); out.push(file); }
+    }
+    return out;
 }
 
 export function runMarketplaceCheck(projects: ProjectEntry[]): AuditCheck {
@@ -89,7 +105,7 @@ export function runMarketplaceCheck(projects: ProjectEntry[]): AuditCheck {
         summary,
         detail,
         affectedProjects: [...red, ...yellow].map(r => r.name),
-        affectedFiles:    [...red, ...yellow].flatMap(r => r.missing),
+        affectedFiles:    [...red, ...yellow].flatMap(r => missingToFiles(r)),
         action:           'cvs.marketplace.scan',
         actionLabel:      red.length > 0 ? 'Fix Now' : yellow.length > 0 ? 'Review' : 'Open',
         ranAt:            new Date().toISOString(),
