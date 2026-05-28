@@ -62,6 +62,24 @@ function registerPanelMessages(panel: vscode.WebviewPanel): void {
                 }
                 break;
             }
+            case 'delete-report': {
+                const rp = typeof msg.data === 'string' ? msg.data : '';
+                if (!rp) { break; }
+                const confirm = await vscode.window.showWarningMessage(
+                    `Delete ${path.basename(rp)}? This cannot be undone.`,
+                    { modal: true }, 'Delete'
+                );
+                if (confirm !== 'Delete') { break; }
+                try {
+                    fs.unlinkSync(rp);
+                    if (_panel) {
+                        _panel.webview.html = `<!DOCTYPE html><html lang="en"><body style="font-family:var(--vscode-font-family);padding:18px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)"><p>Report deleted. Run <strong>Docs Audit</strong> to generate a new one.</p></body></html>`;
+                    }
+                } catch (err) {
+                    vscode.window.showErrorMessage(`Could not delete report: ${err}`);
+                }
+                break;
+            }
             case 'walkGroup': {
                 const paths: string[] = Array.isArray(msg.data) ? msg.data : [msg.data];
                 for (const fp of paths) {
@@ -97,8 +115,9 @@ async function runFullAudit(): Promise<void> {
             });
             if (!results || !_panel || runId !== _auditRunId) { return; }
 
-            _panel.webview.html = buildAuditHtml(results);
             const reportPath = saveAuditReport(results);
+            const writtenAt = (() => { try { return fs.statSync(reportPath).mtime.toLocaleString(); } catch { return new Date().toLocaleString(); } })();
+            _panel.webview.html = buildAuditHtml(results, { reportPath, writtenAt });
             const total = results.duplicates.length + results.similar.length + results.moveCandidates.length + results.orphans.length;
             if (total === 0) {
                 vscode.window.showInformationMessage('Audit complete — no issues found. ✅');

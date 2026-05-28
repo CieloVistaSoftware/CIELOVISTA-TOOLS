@@ -3,6 +3,7 @@
 
 // component: aud
 
+import * as path from 'path';
 import type { AuditResults, DocFile } from './types';
 
 export function esc(s: string): string {
@@ -59,7 +60,7 @@ function buildTabPreview(groupId: string, files: DocFile[]): string {
     return `<div class="tab-block"><div class="tab-bar">${tabs}</div><div class="tab-panes">${panes}</div></div>`;
 }
 
-export function buildAuditHtml(results: AuditResults): string {
+export function buildAuditHtml(results: AuditResults, reportInfo?: { reportPath: string; writtenAt: string }): string {
     const warnings = results.warningCandidates ?? [];
   type TableRow = { category: string; fileName: string; project: string; filePath: string; sizeBytes: number; modifiedAt: string };
   const tableRows: TableRow[] = [];
@@ -114,6 +115,13 @@ export function buildAuditHtml(results: AuditResults): string {
       modifiedAt: o.file.modifiedAt ?? 'n/a',
     });
   }
+
+  const filterBarHtml = tableRows.length === 0 ? '' : `<div class="table-filter-bar">
+    <input type="text" id="location-filter" placeholder="Filter by location…" autocomplete="off" spellcheck="false">
+    <label class="toggle-label"><input type="checkbox" id="exclude-claude" checked> Exclude CLAUDE.md</label>
+    <label class="toggle-label"><input type="checkbox" id="exclude-readme" checked> Exclude README.md</label>
+    <span class="filter-count" id="filter-count"></span>
+  </div>`;
 
   const tableHtml = tableRows.length === 0
     ? '<p class="ok">No findings to list. ✅</p>'
@@ -196,11 +204,20 @@ export function buildAuditHtml(results: AuditResults): string {
     const section = (title: string, count: number, body: string, sid: string) =>
         `<div class="section" data-section="${sid}"><h2>${title} <span class="badge">${count}</span></h2>${count===0?`<p class="ok">None found. ✅</p>`:body}</div>`;
 
-    const CSS = `*{box-sizing:border-box}body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px;margin:0}h1{font-size:1.3em;margin-bottom:4px}h2{font-size:1.05em;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:6px;margin-top:24px}.summary{display:flex;gap:12px;margin:12px 0 16px;flex-wrap:wrap}.stat{background:var(--vscode-textCodeBlock-background);padding:8px 14px;border-radius:4px;text-align:center;min-width:78px;cursor:pointer}.stat-n{font-size:1.5em;font-weight:700;display:block}.stat-label{font-size:0.8em;color:var(--vscode-descriptionForeground)}.stat:hover{outline:2px solid var(--vscode-focusBorder)}.stat.active-filter{outline:2px solid var(--vscode-focusBorder);background:var(--vscode-button-background)}.stat.active-filter .stat-n,.stat.active-filter .stat-label{color:var(--vscode-button-foreground)}.section.filtered-out{display:none}.guidance{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 16px;margin-bottom:20px;line-height:1.6}.guidance ul{margin:6px 0 6px 18px;padding:0}.guidance li{margin:4px 0}.tip{color:var(--vscode-descriptionForeground);font-size:0.88em;margin:8px 0 0}.ok-box{color:var(--vscode-testing-iconPassed)}.section{margin-bottom:28px}.card{border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 14px;margin-bottom:12px}.card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}.recommendation{font-size:0.85em;margin:4px 0 10px;padding:6px 10px;border-radius:3px;background:var(--vscode-editor-background);border-left:3px solid var(--vscode-focusBorder)}.muted{color:var(--vscode-descriptionForeground);font-size:0.85em;margin:2px 0 6px}.badge{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 8px;font-size:0.8em}.ok{color:var(--vscode-testing-iconPassed)}.audit-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}.findings-table-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto}.findings-table{width:100%;border-collapse:collapse;min-width:920px}.findings-table th,.findings-table td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 10px;text-align:left;vertical-align:top}.findings-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);position:sticky;top:0}.table-path-btn{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-family:var(--vscode-editor-font-family);font-size:11px;text-align:left;cursor:pointer;padding:0}.table-path-btn:hover{text-decoration:underline}.tab-block{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:hidden;margin:8px 0 10px}.tab-bar{display:flex;flex-wrap:wrap;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border)}.tab-btn{background:transparent;color:var(--vscode-descriptionForeground);border:none;border-right:1px solid var(--vscode-panel-border);padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tab-btn:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-editor-foreground)}.tab-btn.active{background:var(--vscode-textCodeBlock-background);color:var(--vscode-editor-foreground);font-weight:600;border-bottom:2px solid var(--vscode-focusBorder)}.tab-pane{display:block}.tab-pane.hidden{display:none}.file-meta{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}.path-label{font-family:var(--vscode-editor-font-family);font-size:0.8em;color:var(--vscode-descriptionForeground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.size-label{font-size:0.78em;color:var(--vscode-descriptionForeground);white-space:nowrap}.sm-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:11px;white-space:nowrap}.sm-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}pre.preview{margin:0;padding:10px;background:var(--vscode-textCodeBlock-background);font-family:var(--vscode-editor-font-family);font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}.actions{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:5px 12px;border-radius:2px;cursor:pointer;font-size:12px}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}button.danger:hover{opacity:0.85}`;
+    const CSS = `*{box-sizing:border-box}body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px;margin:0}h1{font-size:1.3em;margin-bottom:4px}h2{font-size:1.05em;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:6px;margin-top:24px}.summary{display:flex;gap:12px;margin:12px 0 16px;flex-wrap:wrap}.stat{background:var(--vscode-textCodeBlock-background);padding:8px 14px;border-radius:4px;text-align:center;min-width:78px;cursor:pointer}.stat-n{font-size:1.5em;font-weight:700;display:block}.stat-label{font-size:0.8em;color:var(--vscode-descriptionForeground)}.stat:hover{outline:2px solid var(--vscode-focusBorder)}.stat.active-filter{outline:2px solid var(--vscode-focusBorder);background:var(--vscode-button-background)}.stat.active-filter .stat-n,.stat.active-filter .stat-label{color:var(--vscode-button-foreground)}.section.filtered-out{display:none}.guidance{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 16px;margin-bottom:20px;line-height:1.6}.guidance ul{margin:6px 0 6px 18px;padding:0}.guidance li{margin:4px 0}.tip{color:var(--vscode-descriptionForeground);font-size:0.88em;margin:8px 0 0}.ok-box{color:var(--vscode-testing-iconPassed)}.section{margin-bottom:28px}.card{border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 14px;margin-bottom:12px}.card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}.recommendation{font-size:0.85em;margin:4px 0 10px;padding:6px 10px;border-radius:3px;background:var(--vscode-editor-background);border-left:3px solid var(--vscode-focusBorder)}.muted{color:var(--vscode-descriptionForeground);font-size:0.85em;margin:2px 0 6px}.badge{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 8px;font-size:0.8em}.ok{color:var(--vscode-testing-iconPassed)}.audit-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}.report-meta{display:flex;align-items:center;gap:8px;margin:4px 0 10px;flex-wrap:wrap}.report-meta-link{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-size:12px;font-family:var(--vscode-editor-font-family);padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}.report-meta-link:hover{color:var(--vscode-textLink-activeForeground)}.report-meta .muted{margin:0;font-size:11px}.table-filter-bar{display:flex;align-items:center;gap:12px;padding:8px 0 10px;flex-wrap:wrap}.table-filter-bar input[type=text]{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:2px;padding:3px 8px;font-size:12px;font-family:var(--vscode-font-family);min-width:200px;outline:none}.table-filter-bar input[type=text]:focus{border-color:var(--vscode-focusBorder)}.toggle-label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;user-select:none;color:var(--vscode-descriptionForeground)}.toggle-label input{cursor:pointer;margin:0}.filter-count{font-size:11px;color:var(--vscode-descriptionForeground)}.findings-table-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto}.findings-table{width:100%;border-collapse:collapse;min-width:920px}.findings-table th,.findings-table td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 10px;text-align:left;vertical-align:top}.findings-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);position:sticky;top:0}.table-path-btn{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-family:var(--vscode-editor-font-family);font-size:11px;text-align:left;cursor:pointer;padding:0}.table-path-btn:hover{text-decoration:underline}.tab-block{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:hidden;margin:8px 0 10px}.tab-bar{display:flex;flex-wrap:wrap;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border)}.tab-btn{background:transparent;color:var(--vscode-descriptionForeground);border:none;border-right:1px solid var(--vscode-panel-border);padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tab-btn:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-editor-foreground)}.tab-btn.active{background:var(--vscode-textCodeBlock-background);color:var(--vscode-editor-foreground);font-weight:600;border-bottom:2px solid var(--vscode-focusBorder)}.tab-pane{display:block}.tab-pane.hidden{display:none}.file-meta{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}.path-label{font-family:var(--vscode-editor-font-family);font-size:0.8em;color:var(--vscode-descriptionForeground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.size-label{font-size:0.78em;color:var(--vscode-descriptionForeground);white-space:nowrap}.sm-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:11px;white-space:nowrap}.sm-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}pre.preview{margin:0;padding:10px;background:var(--vscode-textCodeBlock-background);font-family:var(--vscode-editor-font-family);font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}.actions{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:5px 12px;border-radius:2px;cursor:pointer;font-size:12px}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}button.danger:hover{opacity:0.85}`;
+
+    const reportMetaHtml = reportInfo
+        ? `<div class="report-meta">
+  <button class="report-meta-link" data-action="open-file" data-path="${esc(reportInfo.reportPath)}" title="Open in editor">${esc(path.basename(reportInfo.reportPath))}</button>
+  <span class="muted">· ${esc(reportInfo.writtenAt)}</span>
+  <button class="danger" style="font-size:11px;padding:2px 8px" data-action="delete-report" data-path="${esc(reportInfo.reportPath)}" title="Delete this report">🗑 Delete</button>
+</div>`
+        : '';
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <h1>📋 CieloVista Docs Audit</h1>
 <p class="muted">Scanned ${results.totalDocsScanned} docs across ${results.projectsScanned} projects</p>
+${reportMetaHtml}
 <div class="summary">
   <div class="stat" data-action="filter-section" data-section="all"><span class="stat-n">${results.totalDocsScanned}</span><span class="stat-label">Docs scanned</span></div>
   <div class="stat" data-action="filter-section" data-section="duplicates"><span class="stat-n" style="color:${results.duplicates.length?'var(--vscode-inputValidation-warningForeground)':'inherit'}">${results.duplicates.length}</span><span class="stat-label">Duplicates</span></div>
@@ -215,6 +232,7 @@ ${guidanceHtml}
 </div>
 <div class="section" data-section="table">
   <h2>📑 Findings Table <span class="badge">${tableRows.length}</span></h2>
+  ${filterBarHtml}
   ${tableHtml}
 </div>
 ${warnings.length ? `<div class="section" data-section="claude-warnings"><h2>⚠️ CLAUDE.md Warnings <span class="badge">${warnings.length}</span></h2>${warningRows}</div>` : ''}
@@ -280,8 +298,42 @@ document.addEventListener('click', function(e) {
     vscode.postMessage({command:'moveToGlobal', data:el.dataset.path});
   } else if (action === 'cmd-delete') {
     vscode.postMessage({command:'delete', data:el.dataset.path});
+  } else if (action === 'delete-report') {
+    vscode.postMessage({command:'delete-report', data:el.dataset.path});
   }
 });
+// Table filters
+function applyTableFilters() {
+  var locEl = document.getElementById('location-filter');
+  var claudeEl = document.getElementById('exclude-claude');
+  var readmeEl = document.getElementById('exclude-readme');
+  var locFilter = locEl ? locEl.value.toLowerCase() : '';
+  var excludeClaude = claudeEl ? claudeEl.checked : false;
+  var excludeReadme = readmeEl ? readmeEl.checked : false;
+  var total = 0; var visible = 0;
+  document.querySelectorAll('.findings-table tbody tr').forEach(function(tr) {
+    total++;
+    var cells = tr.querySelectorAll('td');
+    if (cells.length < 4) { tr.style.display = ''; visible++; return; }
+    var filename = (cells[1].textContent || '').trim().toLowerCase();
+    var location = (cells[3].textContent || '').trim().toLowerCase();
+    var hide = false;
+    if (locFilter && location.indexOf(locFilter) === -1) { hide = true; }
+    if (!hide && excludeClaude && filename === 'claude.md') { hide = true; }
+    if (!hide && excludeReadme && filename === 'readme.md') { hide = true; }
+    tr.style.display = hide ? 'none' : '';
+    if (!hide) { visible++; }
+  });
+  var countEl = document.getElementById('filter-count');
+  if (countEl && total > 0) { countEl.textContent = 'Showing ' + visible + ' of ' + total; }
+}
+var _locEl = document.getElementById('location-filter');
+var _claudeEl = document.getElementById('exclude-claude');
+var _readmeEl = document.getElementById('exclude-readme');
+if (_locEl) { _locEl.addEventListener('input', applyTableFilters); }
+if (_claudeEl) { _claudeEl.addEventListener('change', applyTableFilters); }
+if (_readmeEl) { _readmeEl.addEventListener('change', applyTableFilters); }
+applyTableFilters();
 })();
 </script></body></html>`;
 }
