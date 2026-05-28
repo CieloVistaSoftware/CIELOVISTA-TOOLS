@@ -161,16 +161,6 @@ export function buildCatalogInitPayload(
     };
 }
 
-// ─── Legacy shim — kept so callers don't break during transition ──────────────
-// TODO: remove once commands.ts is updated to use buildCatalogInitPayload
-
-export function buildCatalogHtml(
-    cards: CatalogCard[],
-    projectInfos: ProjectInfo[] = [],
-    builtAt = '',
-    registryEntries: Array<{ name: string; path: string; type: string; description: string }> = []
-): string {
-    // Return the shell — the panel will postMessage 'init' with the card data
-    // This is called by commands.ts; it should follow up with postMessage immediately.
+export function buildCatalogHtml(): string {
     return getCatalogShellHtml();
 }
