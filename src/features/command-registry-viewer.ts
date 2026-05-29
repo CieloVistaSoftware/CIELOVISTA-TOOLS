@@ -77,8 +77,13 @@ function showRegistry(): void {
             if (root) {
                 const fp = path.join(root, msg.url);
                 if (fs.existsSync(fp)) {
-                    void vscode.workspace.openTextDocument(vscode.Uri.file(fp))
-                        .then(doc => vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true }));
+                    const uri = vscode.Uri.file(fp);
+                    if (fp.toLowerCase().endsWith('.md')) {
+                        void vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
+                    } else {
+                        void vscode.workspace.openTextDocument(uri)
+                            .then(doc => vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true }));
+                    }
                 }
             }
         }
@@ -118,8 +123,13 @@ function showComponents(): void {
             if (root) {
                 const fp = path.join(root, msg.url);
                 if (fs.existsSync(fp)) {
-                    void vscode.workspace.openTextDocument(vscode.Uri.file(fp))
-                        .then(doc => vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true }));
+                    const uri = vscode.Uri.file(fp);
+                    if (fp.toLowerCase().endsWith('.md')) {
+                        void vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
+                    } else {
+                        void vscode.workspace.openTextDocument(uri)
+                            .then(doc => vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true }));
+                    }
                 }
             }
         }
