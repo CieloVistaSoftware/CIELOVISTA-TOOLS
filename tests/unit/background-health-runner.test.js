@@ -29,6 +29,7 @@ const vscodeMock = {
             webview: { html: '', onDidReceiveMessage: () => {}, postMessage: () => {} },
             reveal: () => {}, onDidDispose: () => {}, dispose: () => {},
         }),
+        createOutputChannel: () => ({ appendLine: () => {}, show: () => {}, dispose: () => {} }),
         withProgress: async (_opts, fn) => fn({ report: () => {} }),
     },
     ProgressLocation: { Notification: 15 },
