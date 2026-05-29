@@ -20,14 +20,21 @@ import { getActiveOrCreateTerminal } from '../shared/terminal-utils';
 const FEATURE = 'html-template-downloader';
 
 /** Base URL for the CieloVistaSoftware HTML templates repo. */
-const REPO_RAW_BASE = 'https://raw.githubusercontent.com/CieloVistaSoftware/htmltemplates/main';
+const REPO_RAW_BASE = 'https://raw.githubusercontent.com/CieloVistaSoftware/htmltemplates/main/src/html-templates';
 
 /** Known templates available for download. */
 const TEMPLATES: Array<{ label: string; file: string; description: string }> = [
-    { label: 'Starter Page',         file: 'starter.html',        description: 'Minimal HTML5 boilerplate' },
-    { label: 'Dashboard',            file: 'dashboard.html',      description: 'Admin dashboard layout' },
-    { label: 'Landing Page',         file: 'landing.html',        description: 'Marketing landing page' },
-    { label: 'Component Playground', file: 'playground.html',     description: 'WB component test page' },
+    { label: 'Bank Portfolio',       file: 'bankportfolio.html',       description: 'Bank / finance portfolio layout' },
+    { label: 'Corporate Pro',        file: 'corporatePro.html',        description: 'Professional corporate site' },
+    { label: 'Creative Studio',      file: 'creativeStudio.html',      description: 'Creative agency / studio layout' },
+    { label: 'Game Hub',             file: 'gamehub.html',             description: 'Gaming / entertainment hub' },
+    { label: 'Header Top Layout',    file: 'header-top-layout.html',   description: 'Top-nav header layout' },
+    { label: 'Nav Left (Tailwind)',  file: 'nav-left-tailwind.html',   description: 'Left sidebar nav, Tailwind CSS' },
+    { label: 'Nav Right Layout',     file: 'nav-right-layout.html',    description: 'Right sidebar nav layout' },
+    { label: 'Nav Top Layout',       file: 'nav-top-layout.html',      description: 'Top nav layout' },
+    { label: 'Portfolio Elegant',    file: 'PortfolioElegant.html',    description: 'Elegant portfolio / personal site' },
+    { label: 'Tech Flow',            file: 'techflow.html',            description: 'Tech product / SaaS landing page' },
+    { label: 'Test Page',            file: 'test.html',                description: 'Component test / sandbox page' },
 ];
 
 // ─── Download helper ─────────────────────────────────────────────────────────
