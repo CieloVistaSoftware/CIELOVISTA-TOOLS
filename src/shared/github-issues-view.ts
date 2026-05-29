@@ -713,7 +713,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
-    <td><div class="actions-cell">${iss.state === 'open' ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
+    <td><div class="actions-cell">${iss.state === 'open' ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : ''}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
