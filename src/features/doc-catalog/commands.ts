@@ -117,7 +117,7 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
                 return a.fileName.localeCompare(b.fileName);
             });
             _cachedCards = cards;
-            log(FEATURE, `Catalog built: ${cards.length} cards`);
+            log(FEATURE, `Catalog cached: ${cards.length} cards`);
             return cards;
         }
     ) as unknown as CatalogCard[];

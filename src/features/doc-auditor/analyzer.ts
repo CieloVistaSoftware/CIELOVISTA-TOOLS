@@ -50,7 +50,17 @@ export function filterDuplicates(byName: Map<string, DocFile[]>): Array<{ fileNa
             for (const f of files) { projectCounts.set(f.projectName, (projectCounts.get(f.projectName) ?? 0) + 1); }
             if (![...projectCounts.values()].some(n => n > 1)) { continue; }
         }
-        results.push({ fileName: files[0].fileName, files });
+        // Sub-group by byte count — only same-size files are true duplicates
+        const bySizeMap = new Map<number, DocFile[]>();
+        for (const f of files) {
+            if (!bySizeMap.has(f.sizeBytes)) { bySizeMap.set(f.sizeBytes, []); }
+            bySizeMap.get(f.sizeBytes)!.push(f);
+        }
+        for (const sameSize of bySizeMap.values()) {
+            if (sameSize.length >= 2) {
+                results.push({ fileName: sameSize[0].fileName, files: sameSize });
+            }
+        }
     }
     return results;
 }
