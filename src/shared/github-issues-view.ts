@@ -738,7 +738,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 (function(){
     var vsc = acquireVsCodeApi();
     var STORAGE_KEY = 'cvt.issuePriorities.v1';
-    var sortState = { key: 'priority', dir: 'asc' };
+    var sortState = { key: 'number', dir: 'desc' };
 
     function loadPriorities(){
         try {
@@ -899,7 +899,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                 sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
                 sortState.key = key;
-                sortState.dir = key === 'updated' ? 'desc' : 'asc';
+                sortState.dir = (key === 'updated' || key === 'number') ? 'desc' : 'asc';
             }
             applySort();
         });
