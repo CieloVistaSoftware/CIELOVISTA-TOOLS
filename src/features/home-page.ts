@@ -772,7 +772,7 @@ window.addEventListener('message', function(e) {
     var cpuBar = document.getElementById('mg-cpu-bar');
     var cpuVal = document.getElementById('mg-cpu-val');
     if (memBar) { memBar.style.width = msg.memPct + '%'; }
-    if (memVal) { memVal.textContent = msg.heapUsedMb + '/' + msg.heapTotalMb + 'MB'; }
+    if (memVal) { memVal.textContent = msg.memPct + '%'; }
     if (cpuBar) { cpuBar.style.width = msg.cpuPct + '%'; }
     if (cpuVal) { cpuVal.textContent = msg.cpuPct + '%'; }
   }
