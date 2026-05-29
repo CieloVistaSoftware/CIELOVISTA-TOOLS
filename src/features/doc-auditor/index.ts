@@ -62,6 +62,23 @@ function registerPanelMessages(panel: vscode.WebviewPanel): void {
                 }
                 break;
             }
+            case 'open-report':
+                if (msg.data && fs.existsSync(msg.data)) {
+                    const doc = await vscode.workspace.openTextDocument(msg.data);
+                    await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                }
+                break;
+            case 'delete-report': {
+                const rpath = msg.data as string;
+                if (rpath && fs.existsSync(rpath)) {
+                    const confirm = await vscode.window.showWarningMessage(`Delete ${path.basename(rpath)}?`, { modal: true }, 'Delete');
+                    if (confirm === 'Delete') {
+                        fs.unlinkSync(rpath);
+                        if (_panel) { _panel.webview.html = buildAuditLoadingHtml('Report deleted.'); }
+                    }
+                }
+                break;
+            }
             case 'walkGroup': {
                 const paths: string[] = Array.isArray(msg.data) ? msg.data : [msg.data];
                 for (const fp of paths) {
@@ -97,8 +114,9 @@ async function runFullAudit(): Promise<void> {
             });
             if (!results || !_panel || runId !== _auditRunId) { return; }
 
-            _panel.webview.html = buildAuditHtml(results);
             const reportPath = saveAuditReport(results);
+            const reportMtime = fs.statSync(reportPath).mtime;
+            _panel.webview.html = buildAuditHtml(results, { path: reportPath, mtime: reportMtime });
             const total = results.duplicates.length + results.similar.length + results.moveCandidates.length + results.orphans.length;
             if (total === 0) {
                 vscode.window.showInformationMessage('Audit complete — no issues found. ✅');
