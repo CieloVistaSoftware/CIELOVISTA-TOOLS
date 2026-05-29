@@ -323,6 +323,8 @@ function showHomePage(context: vscode.ExtensionContext): void {
           vscode.commands.executeCommand(msg.command)
         );
       } else {
+        // Reveal home page in column 1 first so ViewColumn.Beside in runWithOutput lands in column 2
+        panel.reveal(vscode.ViewColumn.One, false);
         vscode.commands.executeCommand('cvs.launcher.runWithOutput', msg.command);
       }
     }
@@ -511,7 +513,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #hd{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}
 #ws-meta{flex:1 1 260px;min-width:220px}
 #ws-name{font-size:1.2em;font-weight:800;flex:1}
-#ws-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px}
+#ws-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px;background:transparent;border:none;padding:0;cursor:pointer;text-align:left;text-decoration:underline dotted;text-underline-offset:2px}#ws-path:hover{color:var(--vscode-textLink-activeForeground);text-decoration:underline}
 .mcp-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 12px;border-radius:20px;border:1px solid;flex-shrink:0}
 .mcp-on{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.1)}
 .mcp-off{color:#f85149;border-color:#f85149;background:rgba(248,81,73,.1);cursor:pointer}
@@ -875,6 +877,15 @@ document.querySelectorAll('.rec-chat').forEach(function(b){
   });
 });
 
+// Workspace path — click to open folder as CWD
+var wsPathBtn = document.getElementById('ws-path');
+if (wsPathBtn) {
+  wsPathBtn.addEventListener('click', function() {
+    var p = wsPathBtn.dataset ? wsPathBtn.dataset.path : '';
+    if (p) { vsc.postMessage({ type:'openFolder', path:p }); }
+  });
+}
+
 // Browse All toggle
 var browseOpenPanel = document.getElementById('browse-open-panel');
 if (browseOpenPanel) {
@@ -1004,7 +1015,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
 <div id="hd">
   <div id="ws-meta">
     <div id="ws-name">\u26a1 ${esc(wsName)}</div>
-    ${wsPath ? `<div id="ws-path">${esc(wsPath)}</div>` : ''}
+    ${wsPath ? `<button id="ws-path" data-action="open-folder" data-path="${esc(wsPath)}" title="Change current working directory">${esc(wsPath)}</button>` : ''}
   </div>
   <div id="mcp-badge" class="mcp-badge ${mcpRunning ? 'mcp-on' : 'mcp-off'}">
     <span class="mcp-dot"></span>
