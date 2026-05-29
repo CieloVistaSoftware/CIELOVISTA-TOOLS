@@ -68,7 +68,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 async function showBrowseAllPanel(): Promise<void> {
-    if (browsePanel) { browsePanel.reveal(vscode.ViewColumn.Beside); return; }
+    if (browsePanel) { browsePanel.reveal(vscode.ViewColumn.Beside); browsePanel.webview.postMessage({ type: 'flash' }); return; }
 
     const registered = new Set(await vscode.commands.getCommands(false));
     const grouped    = buildGroupedCommands(registered);
@@ -112,6 +112,8 @@ function buildBrowseAllHtml(
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
+.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px}
 h1{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--vscode-editor-foreground)}
 #filter-wrap{position:sticky;top:0;background:var(--vscode-editor-background);padding:0 0 10px;z-index:10}
@@ -156,6 +158,13 @@ filterEl.addEventListener('input', function() {
         });
         grp.classList.toggle('hidden', !any);
     });
+});
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'flash') {
+        document.body.classList.remove('cvs-flash');
+        void document.body.offsetWidth;
+        document.body.classList.add('cvs-flash');
+    }
 });
 })();
 </script>
@@ -221,6 +230,7 @@ export function ensureHomeIsLeftmost(): void {
 function showHomePage(context: vscode.ExtensionContext): void {
   if (homePanel) {
     homePanel.reveal(vscode.ViewColumn.One);
+    homePanel.webview.postMessage({ type: 'flash' });
     setTimeout(() => void vscode.commands.executeCommand('workbench.action.moveEditorFirst'), 50);
     return;
   }
@@ -507,6 +517,8 @@ function buildDashboardHtml(
     // ── CSS ───────────────────────────────────────────────────────────────────
     const css = `
 *{box-sizing:border-box;margin:0;padding:0}
+@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
+.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);min-height:100vh}
 
 /* Header */
@@ -777,6 +789,10 @@ window.addEventListener('message', function(e) {
     if (memVal) { memVal.textContent = msg.memPct + '%'; }
     if (cpuBar) { cpuBar.style.width = msg.cpuPct + '%'; }
     if (cpuVal) { cpuVal.textContent = msg.cpuPct + '%'; }
+  } else if (msg.type === 'flash') {
+    document.body.classList.remove('cvs-flash');
+    void document.body.offsetWidth;
+    document.body.classList.add('cvs-flash');
   }
 });
 var vsc = acquireVsCodeApi();
