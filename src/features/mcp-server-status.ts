@@ -406,7 +406,11 @@ function runMcpProcess(): void {
         // before the crash-dump + logError + retry path.
         const isExpectedTermSignal = signal === 'SIGTERM' || signal === 'SIGINT';
         const isCleanExit          = !signal && code === 0;
-        if (isExpectedTermSignal || isCleanExit) {
+        // 0x40010004 (1073807364) = DBG_TERMINATE_PROCESS — Windows kills child
+        // processes via TerminateProcess() on VS Code window reload/shutdown.
+        // Not a crash; suppress to avoid noisy auto-filed issues (#586).
+        const isWindowsForceKill   = !signal && code === 1073807364;
+        if (isExpectedTermSignal || isCleanExit || isWindowsForceKill) {
             log(FEATURE, `MCP ${reason} — expected lifecycle event, not retrying`);
             return;
         }
