@@ -19,6 +19,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import * as os     from 'os';
+import * as net    from 'net';
 import { getHistory }        from './cvs-command-launcher/command-history';
 import { CATALOG }          from './cvs-command-launcher/catalog';
 import {
@@ -193,6 +194,31 @@ export function buildGroupedCommands(registered: Set<string>): Record<string, Ar
   return grouped;
 }
 
+function _startDcPoller(panel: vscode.WebviewPanel): () => void {
+  const DC_PORT = 5100;
+  let lastStatus: 'up' | 'down' | null = null;
+
+  const check = () => {
+    if (!panel.visible) { return; }
+    const socket = net.createConnection({ port: DC_PORT, host: '127.0.0.1' });
+    socket.setTimeout(800);
+    const done = (status: 'up' | 'down') => {
+      socket.destroy();
+      if (status !== lastStatus) {
+        lastStatus = status;
+        void panel.webview.postMessage({ type: 'dcStatus', status });
+      }
+    };
+    socket.once('connect',  () => done('up'));
+    socket.once('error',    () => done('down'));
+    socket.once('timeout',  () => done('down'));
+  };
+
+  check(); // immediate first check
+  const id = setInterval(check, 12000);
+  return () => clearInterval(id);
+}
+
 function _startMetricsSampler(panel: vscode.WebviewPanel): () => void {
   let prevCpu  = process.cpuUsage();
   let prevTime = process.hrtime.bigint();
@@ -270,12 +296,14 @@ function showHomePage(context: vscode.ExtensionContext): void {
   };
   onMcpServerStatusChange(mcpStatusHandler);
   const stopMetrics = _startMetricsSampler(panel);
+  const stopDcPoller = _startDcPoller(panel);
   panel.onDidDispose(() => {
     if (homePanel === panel) {
       homePanel = undefined;
     }
     offMcpServerStatusChange(mcpStatusHandler);
     stopMetrics();
+    stopDcPoller();
   }, null, context.subscriptions);
 
   panel.webview.onDidReceiveMessage(async msg => {
@@ -398,6 +426,9 @@ function showHomePage(context: vscode.ExtensionContext): void {
     }
     if (msg.type === 'startMcp') {
       startMcpServer();
+    }
+    if (msg.type === 'startDiskCleanUp') {
+      await vscode.commands.executeCommand('cvs.launch.diskcleanup.start');
     }
   });
 }
@@ -531,6 +562,14 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .mcp-off{color:#f85149;border-color:#f85149;background:rgba(248,81,73,.1);cursor:pointer}
 .mcp-off:hover{background:rgba(248,81,73,.2);border-color:#ff6e67}
 .mcp-dot{width:8px;height:8px;border-radius:50%}
+.dc-badge{cursor:pointer}
+.dc-on{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.1)}
+.dc-off{color:#f85149;border-color:#f85149;background:rgba(248,81,73,.1)}
+.dc-off:hover{background:rgba(248,81,73,.2);border-color:#ff6e67}
+.dc-unknown{color:#888;border-color:#555;background:transparent}
+.dc-on .mcp-dot{background:#3fb950;box-shadow:0 0 5px #3fb950}
+.dc-off .mcp-dot{background:#f85149}
+.dc-unknown .mcp-dot{background:#555}
 #metrics-gauge{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .mg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--vscode-descriptionForeground)}
 .mg-label{font-weight:600;min-width:28px}
@@ -780,6 +819,14 @@ window.addEventListener('message', function(e) {
     var lbl = badge.querySelector('.mcp-label');
     if (lbl) { lbl.textContent = 'MCP ' + (msg.status === 'up' ? 'Running' : 'Stopped'); }
     updateBadgeInteractivity(badge);
+  } else if (msg.type === 'dcStatus') {
+    var dcBadge = document.getElementById('dc-badge');
+    if (!dcBadge) { return; }
+    var up = msg.status === 'up';
+    dcBadge.className = 'mcp-badge dc-badge ' + (up ? 'dc-on' : 'dc-off');
+    dcBadge.title = up ? 'DiskCleanUp backend is running — click to open dashboard' : 'DiskCleanUp backend is stopped — click to start';
+    var dcLbl = dcBadge.querySelector('.mcp-label');
+    if (dcLbl) { dcLbl.textContent = 'DiskCleanUp ' + (up ? 'Running' : 'Stopped'); }
   } else if (msg.type === 'metrics') {
     var memBar = document.getElementById('mg-mem-bar');
     var memVal = document.getElementById('mg-mem-val');
@@ -805,6 +852,14 @@ if (mcpBadge) {
     if (mcpBadge.classList.contains('mcp-off')) {
       vsc.postMessage({ type: 'startMcp' });
     }
+  });
+}
+
+// DiskCleanUp badge click — start when stopped, open dashboard when running
+var dcBadge = document.getElementById('dc-badge');
+if (dcBadge) {
+  dcBadge.addEventListener('click', function() {
+    vsc.postMessage({ type: 'startDiskCleanUp' });
   });
 }
 
@@ -1036,6 +1091,10 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   <div id="mcp-badge" class="mcp-badge ${mcpRunning ? 'mcp-on' : 'mcp-off'}">
     <span class="mcp-dot"></span>
     <span class="mcp-label">MCP ${mcpRunning ? 'Running' : 'Stopped'}</span>
+  </div>
+  <div id="dc-badge" class="mcp-badge dc-badge dc-unknown" title="Checking DiskCleanUp backend…">
+    <span class="mcp-dot"></span>
+    <span class="mcp-label">DiskCleanUp …</span>
   </div>
   <div id="metrics-gauge">
     <div class="mg-item">
