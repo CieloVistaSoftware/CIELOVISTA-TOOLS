@@ -23,6 +23,7 @@ interface WorktreeInfo {
     branch:       string;
     commit:       string;
     isMerged:     boolean;
+    isDirty:      boolean; // uncommitted changes in working tree
     isActive:     boolean; // current working worktree
 }
 
@@ -61,7 +62,14 @@ async function listClaudeWorktrees(root: string): Promise<WorktreeInfo[]> {
             isMerged = merged.split('\n').some(b => b.trim().replace(/^\*\s*/, '') === branch);
         } catch { /* branch may not exist locally */ }
 
-        results.push({ worktreePath: wtPath, branch, commit, isMerged, isActive: false });
+        // Check for uncommitted changes in the worktree
+        let isDirty = false;
+        try {
+            const status = await run('git', ['status', '--porcelain'], wtPath);
+            isDirty = status.length > 0;
+        } catch { /* worktree may be gone */ }
+
+        results.push({ worktreePath: wtPath, branch, commit, isMerged, isDirty, isActive: false });
     }
     return results;
 }
@@ -100,17 +108,24 @@ async function cleanWorktrees(_context: vscode.ExtensionContext): Promise<void> 
         return;
     }
 
-    const items = worktrees.map(w => ({
-        label:       `$(git-branch) ${w.branch}`,
-        description: `${w.commit}${w.isMerged ? '  ✓ merged' : '  ⚠ unmerged'}`,
-        detail:      w.worktreePath,
-        picked:      w.isMerged,
-        worktree:    w,
-    }));
+    const items = worktrees.map(w => {
+        const flags = [
+            w.isMerged ? '✓ merged' : '⚠ unmerged',
+            w.isDirty  ? '🔴 uncommitted changes' : '',
+        ].filter(Boolean).join('  ');
+        return {
+            label:       `$(git-branch) ${w.branch}`,
+            description: `${w.commit}  ${flags}`,
+            detail:      w.worktreePath,
+            // Only pre-select if merged AND no uncommitted changes
+            picked:      w.isMerged && !w.isDirty,
+            worktree:    w,
+        };
+    });
 
     const picked = await vscode.window.showQuickPick(items, {
         title:        'Remove Claude Worktrees',
-        placeHolder:  'Select worktrees to remove (merged ones are pre-checked)',
+        placeHolder:  'Select worktrees to remove (safe ones are pre-checked)',
         canPickMany:  true,
         matchOnDescription: true,
         matchOnDetail: true,
@@ -118,7 +133,22 @@ async function cleanWorktrees(_context: vscode.ExtensionContext): Promise<void> 
 
     if (!picked || picked.length === 0) { return; }
 
-    const unmerged = picked.filter(p => !p.worktree.isMerged);
+    // Warn about dirty worktrees first — these have uncommitted work
+    const dirty = picked.filter(p => p.worktree.isDirty);
+    if (dirty.length > 0) {
+        const names = dirty.map(p => p.worktree.branch).join(', ');
+        const confirm = await vscode.window.showWarningMessage(
+            `${dirty.length} selected worktree(s) have UNCOMMITTED CHANGES: ${names}.\n\nRemoving will permanently lose that work.`,
+            { modal: true }, 'Remove Anyway', 'Skip These'
+        );
+        if (!confirm) { return; }
+        if (confirm === 'Skip These') {
+            picked.splice(0, picked.length, ...picked.filter(p => !p.worktree.isDirty));
+            if (picked.length === 0) { return; }
+        }
+    }
+
+    const unmerged = picked.filter(p => !p.worktree.isMerged && !p.worktree.isDirty);
     if (unmerged.length > 0) {
         const names = unmerged.map(p => p.worktree.branch).join(', ');
         const confirm = await vscode.window.showWarningMessage(
