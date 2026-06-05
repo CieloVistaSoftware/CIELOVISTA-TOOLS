@@ -36,7 +36,14 @@ function repoDisplayName(name: string): string {
 }
 
 function detectRepoFromWorkspace(): { owner: string; name: string } {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    // Prefer the workspace folder of the active editor so multi-root workspaces
+    // show issues for the project the user is actually working in, not folder[0].
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    const activeFolder = activeUri
+        ? vscode.workspace.getWorkspaceFolder(activeUri)
+        : undefined;
+    const workspaceRoot = activeFolder?.uri.fsPath
+        ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) { return { owner: REPO_OWNER, name: REPO_NAME }; }
     try {
         const output = execFileSync('git', ['remote', 'get-url', 'origin'], {
