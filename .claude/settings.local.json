@@ -13,7 +13,14 @@
       "Bash(node tests/unit/registry-promote.test.js)",
       "Bash(git checkout *)",
       "mcp__vscode-claude-runner__powershell_command",
-      "Bash(node tests/unit/frontmatter-header.test.js)"
+      "Bash(node tests/unit/frontmatter-header.test.js)",
+      "Bash(ls -la \"C:\\\\Users\\\\jwpmi\\\\Downloads\\\\VSCode\\\\projects\\\\DiskCleanUp\" | head -20)",
+      "Bash(xargs grep -l \"DiskCleanUp\")",
+      "PowerShell(gh repo view CieloVistaSoftware/disk-cleanup --json defaultBranchRef,url 2>&1)",
+      "PowerShell(head -5)",
+      "PowerShell(gh issue list --repo CieloVistaSoftware/disk-cleanup --state open --limit 20)",
+      "PowerShell(gh repo clone CieloVistaSoftware/DiskCleanUp \"$env:TEMP\\\\dc-check\" --depth 5 2>&1; git -C \"$env:TEMP\\\\dc-check\" log --oneline -15)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
