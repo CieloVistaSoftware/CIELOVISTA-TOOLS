@@ -1,10 +1,46 @@
-// REG-114: NPM Scripts project selector runs scripts in the correct project folder
-// Behavioral test — creates real temp projects and verifies scripts are loaded
-// from the selected project, not the current workspace.
+// REG-114: NPM Scripts project selector loads scripts from the SELECTED project's folder.
+//
+// This test requires the REAL compiled module (out/shared/npm-scripts-reader.js) —
+// the exact code that ships and runs when a project is picked. It is NOT a copy.
+// If the production logic breaks, this test breaks.
+//
+// Behavior proven:
+//   - Selecting project A returns A's scripts, never B's
+//   - Selecting project B returns B's scripts, never A's
+//   - The returned absDir is the selected project's folder (this IS the terminal cwd)
+//   - Script commands are preserved verbatim for terminal execution
+//   - Empty / missing projects are handled without crashing
 'use strict';
 const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
+
+// Require the ACTUAL compiled production function — never a copy.
+// If the compiled output is missing or stale (source newer), recompile just this
+// one module so the test always validates the CURRENT source, in any run mode.
+const ROOT     = path.join(__dirname, '../..');
+const srcFile  = path.join(ROOT, 'src/shared/npm-scripts-reader.ts');
+const compiled = path.join(ROOT, 'out/shared/npm-scripts-reader.js');
+
+function isStale() {
+    if (!fs.existsSync(compiled)) { return true; }
+    try { return fs.statSync(srcFile).mtimeMs > fs.statSync(compiled).mtimeMs; }
+    catch { return true; }
+}
+
+if (isStale()) {
+    const { spawnSync } = require('child_process');
+    const res = spawnSync(process.execPath, [
+        require.resolve('esbuild/bin/esbuild'),
+        srcFile, '--bundle', '--platform=node', '--format=cjs',
+        `--outfile=${compiled}`,
+    ], { cwd: ROOT, stdio: 'pipe' });
+    if (res.status !== 0 || !fs.existsSync(compiled)) {
+        console.error(`  FAIL could not compile npm-scripts-reader: ${res.stderr || res.error}`);
+        process.exit(1);
+    }
+}
+const { readPkgScripts } = require(compiled);
 
 let passed = 0; let failed = 0;
 function check(desc, ok) {
@@ -12,107 +48,74 @@ function check(desc, ok) {
     else     { console.error(`  FAIL ${desc}`); failed++; }
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
 function makeTempProject(name, scripts) {
-    const dir = path.join(os.tmpdir(), `cvt-reg114-${name}-${Date.now()}`);
+    const dir = path.join(os.tmpdir(), `cvt-reg114-${name}-${process.pid}-${Math.floor(process.hrtime()[1])}`);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name, scripts }, null, 2));
     return dir;
 }
 
-// Extract the pure readPkgScripts logic from compiled output
-// This IS the function that runs when a project is selected — it reads the
-// package.json from the selected project's folder.
-function readPkgScripts(absDir, wsRoot) {
-    const pkgFile = path.join(absDir, 'package.json');
-    if (!fs.existsSync(pkgFile)) { return null; }
-    try {
-        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
-        const scripts = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => ({ name, cmd }));
-        if (!scripts.length) { return null; }
-        const relPath = wsRoot
-            ? path.relative(wsRoot, pkgFile).replace(/\\/g, '/')
-            : pkgFile;
-        return { label: path.basename(absDir), relPath, absDir, scripts };
-    } catch { return null; }
-}
-
-// ── behavioral tests ──────────────────────────────────────────────────────────
+// 0. The compiled module actually exports the function
+check('compiled module exports readPkgScripts', typeof readPkgScripts === 'function');
 
 let projectA, projectB;
 try {
     projectA = makeTempProject('project-alpha', {
         'start':   'node server.js',
         'rebuild': 'npm run compile && node install.js',
-        'test':    'jest'
+        'test':    'jest',
     });
-
     projectB = makeTempProject('project-beta', {
         'serve':  'dotnet run',
         'deploy': 'dotnet publish',
     });
 
-    // Test 1: selecting project A returns project A's scripts only
-    const entriesA = readPkgScripts(projectA, projectA);
-    check('selecting project A returns project A scripts',
-        entriesA !== null &&
-        entriesA.absDir === projectA &&
-        entriesA.scripts.some(s => s.name === 'start') &&
-        entriesA.scripts.some(s => s.name === 'rebuild'));
+    // Simulate selecting project A in the picker → switchProject → readPkgScripts(A)
+    const a = readPkgScripts(projectA, projectA);
+    // Simulate selecting project B in the picker → switchProject → readPkgScripts(B)
+    const b = readPkgScripts(projectB, projectB);
 
-    // Test 2: project A does NOT include project B scripts
-    check('project A does not contain project B scripts',
-        entriesA !== null &&
-        !entriesA.scripts.some(s => s.name === 'serve') &&
-        !entriesA.scripts.some(s => s.name === 'deploy'));
+    check('selecting project A returns A scripts',
+        !!a && a.scripts.some(s => s.name === 'start') && a.scripts.some(s => s.name === 'rebuild'));
 
-    // Test 3: selecting project B returns project B's scripts only
-    const entriesB = readPkgScripts(projectB, projectB);
-    check('selecting project B returns project B scripts',
-        entriesB !== null &&
-        entriesB.absDir === projectB &&
-        entriesB.scripts.some(s => s.name === 'serve') &&
-        entriesB.scripts.some(s => s.name === 'deploy'));
+    check('project A result excludes B scripts',
+        !!a && !a.scripts.some(s => s.name === 'serve') && !a.scripts.some(s => s.name === 'deploy'));
 
-    // Test 4: project B does NOT include project A scripts
-    check('project B does not contain project A scripts',
-        entriesB !== null &&
-        !entriesB.scripts.some(s => s.name === 'start') &&
-        !entriesB.scripts.some(s => s.name === 'rebuild'));
+    check('selecting project B returns B scripts',
+        !!b && b.scripts.some(s => s.name === 'serve') && b.scripts.some(s => s.name === 'deploy'));
 
-    // Test 5: absDir matches the selected project path — this IS the terminal cwd
-    check('absDir equals selected project path — terminal will open in correct folder',
-        entriesA?.absDir === projectA &&
-        entriesB?.absDir === projectB);
+    check('project B result excludes A scripts',
+        !!b && !b.scripts.some(s => s.name === 'start') && !b.scripts.some(s => s.name === 'rebuild'));
 
-    // Test 6: switching from A to B gives different scripts
-    check('switching project changes scripts — not cached/stale from previous selection',
-        entriesA?.scripts.length !== entriesB?.scripts.length ||
-        entriesA?.scripts[0]?.name !== entriesB?.scripts[0]?.name);
+    check('A.absDir is the selected project folder — terminal cwd will be project A',
+        !!a && a.absDir === projectA);
 
-    // Test 7: project with no scripts returns null — not added to list
-    const emptyDir = makeTempProject('project-empty', {});
-    const emptyEntries = readPkgScripts(emptyDir, emptyDir);
-    check('project with no scripts returns null — not shown in picker',
-        emptyEntries === null);
-    fs.rmSync(emptyDir, { recursive: true, force: true });
+    check('B.absDir is the selected project folder — terminal cwd will be project B',
+        !!b && b.absDir === projectB);
 
-    // Test 8: non-existent path returns null gracefully
-    const badPath = path.join(os.tmpdir(), 'cvt-reg114-nonexistent-999999');
-    const badEntries = readPkgScripts(badPath, badPath);
-    check('non-existent project path returns null — no crash',
-        badEntries === null);
+    check('A and B yield different scripts — no stale/cached result on switch',
+        !!a && !!b && a.scripts.map(s => s.name).join() !== b.scripts.map(s => s.name).join());
 
-    // Test 9: script command is preserved exactly — run will send the right command
-    check('script command value is preserved exactly for terminal execution',
-        entriesA?.scripts.find(s => s.name === 'rebuild')?.cmd === 'npm run compile && node install.js');
+    check('rebuild command preserved verbatim for terminal execution',
+        !!a && a.scripts.find(s => s.name === 'rebuild')?.cmd === 'npm run compile && node install.js');
 
-    // Test 10: TS source still wires switchProject to collectEntries with msg.projectPath
-    const tsSrc = fs.readFileSync(
-        path.join(__dirname, '../../src/features/npm-scripts-tree.ts'), 'utf8');
-    check('TS switchProject handler calls collectEntries(msg.projectPath)',
+    // Edge: project with no scripts → null (not shown in picker)
+    const empty = makeTempProject('project-empty', {});
+    check('project with no scripts returns null', readPkgScripts(empty, empty) === null);
+    fs.rmSync(empty, { recursive: true, force: true });
+
+    // Edge: non-existent path → null (no crash)
+    check('non-existent project path returns null',
+        readPkgScripts(path.join(os.tmpdir(), 'cvt-reg114-nope-000'), '') === null);
+
+    // Wiring: TS still routes switchProject → collectEntries(msg.projectPath)
+    const tsSrc = fs.readFileSync(path.join(__dirname, '../../src/features/npm-scripts-tree.ts'), 'utf8');
+    check('switchProject handler calls collectEntries(msg.projectPath)',
         /case 'switchProject'[\s\S]{0,300}collectEntries\(msg\.projectPath\)/.test(tsSrc));
+
+    // Wiring: run handler uses msg.dir as terminal cwd
+    check('run handler sets terminal cwd to msg.dir',
+        /case 'run'[\s\S]{0,800}cwd:\s*msg\.dir/.test(tsSrc));
 
 } finally {
     if (projectA) { try { fs.rmSync(projectA, { recursive: true, force: true }); } catch {} }

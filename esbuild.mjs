@@ -125,6 +125,14 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone npm-scripts-reader — no vscode dep, consumed by REG-114 unit test
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/npm-scripts-reader.ts'],
+    outfile:     'out/shared/npm-scripts-reader.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Copy doc-catalog HTML shell for playwright UI tests
   fs.mkdirSync('out/features/doc-catalog', { recursive: true });
   fs.copyFileSync(

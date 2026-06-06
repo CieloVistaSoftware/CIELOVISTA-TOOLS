@@ -22,6 +22,7 @@ import * as fs     from 'fs';
 import { log, logError } from '../shared/output-channel';
 import { registerLaunchedTerminal } from '../shared/terminal-utils';
 import { loadRegistry } from '../shared/registry';
+import { readPkgScripts, type PkgEntry } from '../shared/npm-scripts-reader';
 
 const FEATURE = 'npm-scripts-tree';
 const COMMAND  = 'cvs.npm.tree';
@@ -31,9 +32,6 @@ let _panel: vscode.WebviewPanel | undefined;
 // Map from terminal → { dir, script } for exit-status tracking
 const _termMap = new Map<vscode.Terminal, { dir: string; script: string }>();
 
-interface ScriptEntry { name: string; cmd: string; }
-interface PkgEntry    { label: string; relPath: string; absDir: string; scripts: ScriptEntry[]; }
-
 // ─── Registered projects ──────────────────────────────────────────────────────
 
 interface RegistryProject { name: string; path: string; }
@@ -41,34 +39,15 @@ interface RegistryProject { name: string; path: string; }
 function getRegisteredProjects(): RegistryProject[] {
     try {
         const reg = loadRegistry();
-        if (!reg?.projects) { return []; }
-        return Object.values(reg.projects as Record<string, { name?: string; path?: string; localPath?: string }>)
-            .filter(p => p && (p.path || p.localPath))
-            .map(p => ({ name: p.name ?? path.basename(p.path ?? p.localPath ?? ''), path: p.path ?? p.localPath ?? '' }))
+        if (!reg?.projects?.length) { return []; }
+        return reg.projects
+            .filter(p => p && p.path)
+            .map(p => ({ name: p.name ?? path.basename(p.path), path: p.path }))
             .filter(p => p.path && fs.existsSync(p.path));
     } catch { return []; }
 }
 
 // ─── Data collection ──────────────────────────────────────────────────────────
-
-/**
- * Pure filesystem read — exported for testing.
- * Reads package.json scripts from a single directory.
- * Returns null if directory has no package.json or no scripts.
- */
-export function readPkgScripts(absDir: string, wsRoot: string): PkgEntry | null {
-    const pkgFile = path.join(absDir, 'package.json');
-    if (!fs.existsSync(pkgFile)) { return null; }
-    try {
-        const pkg     = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as { scripts?: Record<string, string> };
-        const scripts = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => ({ name, cmd }));
-        if (!scripts.length) { return null; }
-        const relPath = wsRoot
-            ? path.relative(wsRoot, pkgFile).replace(/\\/g, '/')
-            : pkgFile;
-        return { label: path.basename(absDir), relPath, absDir, scripts };
-    } catch { return null; }
-}
 
 async function collectEntries(explicitRoot?: string): Promise<PkgEntry[]> {
     const wsRoot  = explicitRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
