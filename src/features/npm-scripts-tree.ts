@@ -51,6 +51,25 @@ function getRegisteredProjects(): RegistryProject[] {
 
 // ─── Data collection ──────────────────────────────────────────────────────────
 
+/**
+ * Pure filesystem read — exported for testing.
+ * Reads package.json scripts from a single directory.
+ * Returns null if directory has no package.json or no scripts.
+ */
+export function readPkgScripts(absDir: string, wsRoot: string): PkgEntry | null {
+    const pkgFile = path.join(absDir, 'package.json');
+    if (!fs.existsSync(pkgFile)) { return null; }
+    try {
+        const pkg     = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as { scripts?: Record<string, string> };
+        const scripts = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => ({ name, cmd }));
+        if (!scripts.length) { return null; }
+        const relPath = wsRoot
+            ? path.relative(wsRoot, pkgFile).replace(/\\/g, '/')
+            : pkgFile;
+        return { label: path.basename(absDir), relPath, absDir, scripts };
+    } catch { return null; }
+}
+
 async function collectEntries(explicitRoot?: string): Promise<PkgEntry[]> {
     const wsRoot  = explicitRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     const seen    = new Set<string>();
@@ -60,24 +79,22 @@ async function collectEntries(explicitRoot?: string): Promise<PkgEntry[]> {
         const lower = absDir.toLowerCase();
         if (seen.has(lower)) { return; }
         seen.add(lower);
-        const pkgFile = path.join(absDir, 'package.json');
-        if (!fs.existsSync(pkgFile)) { return; }
-        try {
-            const pkg     = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as { scripts?: Record<string, string> };
-            const scripts = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => ({ name, cmd }));
-            if (!scripts.length) { return; }
-            const relPath = wsRoot
-                ? path.relative(wsRoot, pkgFile).replace(/\\/g, '/')
-                : pkgFile;
-            entries.push({ label: path.basename(absDir), relPath, absDir, scripts });
-        } catch (err) {
+        const entry = readPkgScripts(absDir, wsRoot);
+        if (entry) { entries.push(entry); }
+        else if (!fs.existsSync(path.join(absDir, 'package.json'))) { return; }
+        else {
             logError(
-                `npm-scripts-tree: failed to parse ${pkgFile}`,
-                err instanceof Error ? (err.stack ?? String(err)) : String(err),
-                FEATURE
+                `npm-scripts-tree: failed to parse ${path.join(absDir, 'package.json')}`,
+                'parse error', FEATURE
             );
         }
     };
+
+    // When explicit root given, only scan that directory
+    if (explicitRoot) {
+        addDir(explicitRoot);
+        return entries;
+    }
 
     // Workspace roots first
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
