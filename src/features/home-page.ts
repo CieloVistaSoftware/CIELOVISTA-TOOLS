@@ -195,7 +195,7 @@ export function buildGroupedCommands(registered: Set<string>): Record<string, Ar
 }
 
 function _startDcPoller(panel: vscode.WebviewPanel): () => void {
-  const DC_PORT = 5100;
+  const DC_PORT = 5000;
   let lastStatus: 'up' | 'down' | null = null;
 
   const check = () => {
@@ -285,7 +285,16 @@ function showHomePage(context: vscode.ExtensionContext): void {
     let cvtPaths: Set<string>;
     try { cvtPaths = registryPathSet(loadRegistry()); }
     catch { cvtPaths = new Set(); }
-    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered);
+    // Detect npm start script in workspace package.json
+    let hasStartScript = false;
+    if (wsPath) {
+      try {
+        const pkgRaw = fs.readFileSync(path.join(wsPath, 'package.json'), 'utf8');
+        const pkg = JSON.parse(pkgRaw);
+        hasStartScript = !!(pkg?.scripts?.start);
+      } catch { /* no package.json or parse error */ }
+    }
+    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered, hasStartScript);
   };
 
   void render();
@@ -308,10 +317,28 @@ function showHomePage(context: vscode.ExtensionContext): void {
 
   panel.webview.onDidReceiveMessage(async msg => {
     if (!msg?.type) { return; }
+    if (msg.type === 'npmStart') {
+      const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
+      terminal.show();
+      terminal.sendText('npm start');
+      return;
+    }
+    if (msg.type === 'npmRestart') {
+      // POST /api/restart to the running DC service, then fall back to terminal restart
+      try {
+        await fetch('http://127.0.0.1:5000/api/restart', { method: 'POST' });
+      } catch {
+        // Service already down or no /api/restart — do a terminal restart
+        const terminal = vscode.window.createTerminal({ name: `npm restart — ${wsName}`, cwd: wsPath });
+        terminal.show();
+        terminal.sendText('npm restart');
+      }
+      return;
+    }
     if (msg.type === 'runCommand' && msg.command) {
       const previewMode = Boolean(msg.previewMode);
       if (msg.command === '__openIssues__') {
-        showGithubIssues(vscode.ViewColumn.Two);
+        showGithubIssues(vscode.ViewColumn.Two, wsPath);
         return;
       }
       const OPEN_DIRECT = [
@@ -443,7 +470,8 @@ function buildDashboardHtml(
     recents:   ReturnType<typeof getDisplayProjects>,
     grouped:   Record<string, Array<{title:string;command:string;description?:string}>>,
   cvtPaths:  Set<string>,
-  registered: Set<string>
+  registered: Set<string>,
+  hasStartScript: boolean = false
 ): string {
 
     // ── Quick Launch buttons ──────────────────────────────────────────────────
@@ -582,6 +610,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .mcp-off .mcp-dot{background:#f85149}
 #btn-configure,#btn-reload{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;flex-shrink:0}
 #btn-configure:hover,#btn-reload:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.btn-hidden{display:none!important}
+#btn-npm-start{background:#1a3a1a;color:#3fb950;border:1px solid #3fb950;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0}
+#btn-npm-start:hover{background:#3fb950;color:#000}
+#btn-npm-restart{background:#3a2a0a;color:#e3b341;border:1px solid #e3b341;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0}
+#btn-npm-restart:hover{background:#e3b341;color:#000}
 
 /* Layout */
 #body{display:grid;grid-template-columns:minmax(16rem,.9fr) minmax(0,1.6fr);grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;width:100%;box-sizing:border-box}
@@ -827,6 +860,11 @@ window.addEventListener('message', function(e) {
     dcBadge.title = up ? 'DiskCleanUp backend is running — click to open dashboard' : 'DiskCleanUp backend is stopped — click to start';
     var dcLbl = dcBadge.querySelector('.mcp-label');
     if (dcLbl) { dcLbl.textContent = 'DiskCleanUp ' + (up ? 'Running' : 'Stopped'); }
+    // Toggle Start/Restart based on service status
+    var startBtn = document.getElementById('btn-npm-start');
+    var restartBtn = document.getElementById('btn-npm-restart');
+    if (startBtn)   { startBtn.classList.toggle('btn-hidden', up); }
+    if (restartBtn) { restartBtn.classList.toggle('btn-hidden', !up); }
   } else if (msg.type === 'metrics') {
     var memBar = document.getElementById('mg-mem-bar');
     var memVal = document.getElementById('mg-mem-val');
@@ -1065,6 +1103,18 @@ document.getElementById('btn-configure').addEventListener('click', function() {
   buildCfgList();
   overlay.style.display = 'flex';
 });
+var btnStart = document.getElementById('btn-npm-start');
+if (btnStart) {
+  btnStart.addEventListener('click', function() {
+    vsc.postMessage({ type: 'npmStart' });
+  });
+}
+var btnRestart = document.getElementById('btn-npm-restart');
+if (btnRestart) {
+  btnRestart.addEventListener('click', function() {
+    vsc.postMessage({ type: 'npmRestart' });
+  });
+}
 cfgClose.addEventListener('click', function() { overlay.style.display = 'none'; });
 overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.style.display = 'none'; });
 })();
@@ -1110,6 +1160,8 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   </div>
   <button id="btn-reload" title="Reload VS Code window">\uD83D\uDD04 Reload Window</button>
   <button id="btn-configure">\u2699\ufe0f Configure</button>
+  ${hasStartScript ? `<button id="btn-npm-start" title="Run 'npm start' \u2014 opens a new terminal and starts the project's dev server. Hidden automatically when the service is already running.">\u25B6 Start</button>` : ''}
+  ${hasStartScript ? `<button id="btn-npm-restart" class="btn-hidden" title="Restart the service \u2014 sends POST /api/restart. Use when you need to apply config changes or clear a hung state.">\u21BA Restart</button>` : ''}
 </div>
 
 <div id="home-search-wrap">
