@@ -103,7 +103,8 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 <body>
 
 <div id="toolbar">
-  <input id="filter" type="text" placeholder="Filter scripts by name or command…" autocomplete="off" spellcheck="false">
+  <select id="project-picker" title="Switch project — defaults to current workspace" style="padding:5px 8px;border:1px solid var(--vscode-panel-border);border-radius:4px;background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-foreground);font-family:inherit;font-size:12px;cursor:pointer;max-width:200px"><option value="">Current workspace</option></select>
+  <input id="filter" type="text" placeholder="Filter scripts…" autocomplete="off" spellcheck="false">
   <button id="btn-refresh">↻ Refresh</button>
 </div>
 
@@ -118,6 +119,15 @@ var content  = document.getElementById('content');
 var loading  = document.getElementById('loading');
 var empty    = document.getElementById('empty');
 var filter   = document.getElementById('filter');
+var picker   = document.getElementById('project-picker');
+
+picker.addEventListener('change', function() {
+  filter.value = '';
+  loading.style.display = 'block';
+  content.style.display = 'none';
+  empty.style.display   = 'none';
+  vsc.postMessage({ type: 'switchProject', projectPath: picker.value });
+});
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -272,7 +282,25 @@ function setBtn(btn, state){
 window.addEventListener('message', function(e){
   var msg = e.data;
   if(!msg){ return; }
-  if(msg.type === 'init'){ render(msg.entries); return; }
+  if(msg.type === 'init'){
+    // Populate project picker on first init (when projects list is provided)
+    if(msg.projects && msg.projects.length > 0){
+      var currentVal = picker.value;
+      // Clear all options except the first (current workspace)
+      while(picker.options.length > 1){ picker.remove(1); }
+      msg.projects.forEach(function(p){
+        var opt = document.createElement('option');
+        opt.value = p.path;
+        opt.textContent = p.name;
+        picker.appendChild(opt);
+      });
+      // Restore selection or set to currentPath
+      if(msg.currentPath){ picker.value = msg.currentPath; }
+      else if(currentVal){ picker.value = currentVal; }
+    }
+    render(msg.entries);
+    return;
+  }
   if(msg.type === 'run-state'){
     var key = msg.dir + '|||' + msg.script;
     var btn = null;

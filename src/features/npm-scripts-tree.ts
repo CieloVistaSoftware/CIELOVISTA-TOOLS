@@ -21,6 +21,7 @@ import * as path   from 'path';
 import * as fs     from 'fs';
 import { log, logError } from '../shared/output-channel';
 import { registerLaunchedTerminal } from '../shared/terminal-utils';
+import { loadRegistry } from '../shared/registry';
 
 const FEATURE = 'npm-scripts-tree';
 const COMMAND  = 'cvs.npm.tree';
@@ -33,10 +34,25 @@ const _termMap = new Map<vscode.Terminal, { dir: string; script: string }>();
 interface ScriptEntry { name: string; cmd: string; }
 interface PkgEntry    { label: string; relPath: string; absDir: string; scripts: ScriptEntry[]; }
 
+// ─── Registered projects ──────────────────────────────────────────────────────
+
+interface RegistryProject { name: string; path: string; }
+
+function getRegisteredProjects(): RegistryProject[] {
+    try {
+        const reg = loadRegistry();
+        if (!reg?.projects) { return []; }
+        return Object.values(reg.projects as Record<string, { name?: string; path?: string; localPath?: string }>)
+            .filter(p => p && (p.path || p.localPath))
+            .map(p => ({ name: p.name ?? path.basename(p.path ?? p.localPath ?? ''), path: p.path ?? p.localPath ?? '' }))
+            .filter(p => p.path && fs.existsSync(p.path));
+    } catch { return []; }
+}
+
 // ─── Data collection ──────────────────────────────────────────────────────────
 
-async function collectEntries(): Promise<PkgEntry[]> {
-    const wsRoot  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+async function collectEntries(explicitRoot?: string): Promise<PkgEntry[]> {
+    const wsRoot  = explicitRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
     const seen    = new Set<string>();
     const entries: PkgEntry[] = [];
 
@@ -120,16 +136,27 @@ async function openPanel(): Promise<void> {
 
     _panel.webview.html = getShellHtml();
 
-    _panel.webview.onDidReceiveMessage(async (msg: { type: string; dir?: string; script?: string }) => {
+    _panel.webview.onDidReceiveMessage(async (msg: { type: string; dir?: string; script?: string; projectPath?: string }) => {
         switch (msg.type) {
             case 'ready': {
-                const entries = await collectEntries();
-                void _panel?.webview.postMessage({ type: 'init', entries });
+                const wsRoot  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+                const entries = await collectEntries(wsRoot);
+                const projects = getRegisteredProjects();
+                void _panel?.webview.postMessage({ type: 'init', entries, projects, currentPath: wsRoot });
                 break;
             }
             case 'refresh': {
-                const fresh = await collectEntries();
-                void _panel?.webview.postMessage({ type: 'init', entries: fresh });
+                const wsRoot  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+                const fresh   = await collectEntries(wsRoot);
+                const projects = getRegisteredProjects();
+                void _panel?.webview.postMessage({ type: 'init', entries: fresh, projects, currentPath: wsRoot });
+                break;
+            }
+            case 'switchProject': {
+                if (!msg.projectPath) { break; }
+                const entries = await collectEntries(msg.projectPath);
+                void _panel?.webview.postMessage({ type: 'init', entries, currentPath: msg.projectPath });
+                log(FEATURE, `switchProject: ${msg.projectPath}`);
                 break;
             }
             case 'create-issue': {
