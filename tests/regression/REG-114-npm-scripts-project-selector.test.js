@@ -108,14 +108,16 @@ try {
     check('non-existent project path returns null',
         readPkgScripts(path.join(os.tmpdir(), 'cvt-reg114-nope-000'), '') === null);
 
-    // Wiring: TS still routes switchProject → collectEntries(msg.projectPath)
+    // Wiring: switchProject routes msg.projectPath → sendInit → collectEntries(root)
     const tsSrc = fs.readFileSync(path.join(__dirname, '../../src/features/npm-scripts-tree.ts'), 'utf8');
-    check('switchProject handler calls collectEntries(msg.projectPath)',
-        /case 'switchProject'[\s\S]{0,300}collectEntries\(msg\.projectPath\)/.test(tsSrc));
+    check('switchProject handler routes msg.projectPath through sendInit to collectEntries',
+        /case 'switchProject'[\s\S]{0,200}sendInit\(_panel, msg\.projectPath/.test(tsSrc) &&
+        /async function sendInit[\s\S]{0,200}collectEntries\(root\)/.test(tsSrc));
 
-    // Wiring: run handler uses msg.dir as terminal cwd
-    check('run handler sets terminal cwd to msg.dir',
-        /case 'run'[\s\S]{0,800}cwd:\s*msg\.dir/.test(tsSrc));
+    // Wiring: run → runScript → acquireTerminal opens a terminal with cwd = project dir
+    check('run handler opens terminal with cwd set to the project dir',
+        /case 'run'[\s\S]{0,120}runScript\(_panel, msg\.dir/.test(tsSrc) &&
+        /function acquireTerminal[\s\S]{0,400}cwd:\s*dir/.test(tsSrc));
 
 } finally {
     if (projectA) { try { fs.rmSync(projectA, { recursive: true, force: true }); } catch {} }

@@ -44,8 +44,8 @@ check('cvs-command-launcher calls registerLaunchedTerminal after sendText',
 check('npm-scripts-tree imports registerLaunchedTerminal',
     NPM_SRC.includes('registerLaunchedTerminal') && NPM_SRC.includes('terminal-utils'));
 
-check('npm-scripts-tree calls registerLaunchedTerminal before sendText',
-    NPM_SRC.includes("registerLaunchedTerminal(`npm: ${msg.script}`"));
+check('npm-scripts-tree calls registerLaunchedTerminal with npm: terminal name',
+    NPM_SRC.includes('registerLaunchedTerminal(`npm:'));
 
 // ── bg-health-runner: onDidCloseTerminal handler ─────────────────────────────
 
