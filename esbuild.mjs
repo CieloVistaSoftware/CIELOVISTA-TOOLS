@@ -105,6 +105,15 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone readme-generator — vscode external, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/readme-generator.ts'],
+    outfile:     'out/features/readme-generator.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
 }
 
 async function buildMcpServer() {
