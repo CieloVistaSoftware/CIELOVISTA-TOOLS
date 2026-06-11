@@ -416,7 +416,7 @@ async function showPanel(): Promise<void> {
                     if (msg.command === 'open' && msg.path) {
                         try {
                             const doc  = await vscode.workspace.openTextDocument(msg.path);
-                            const ed   = await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                            const ed   = await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
                             const line = Math.max(0, (msg.line ?? 1) - 1);
                             const pos  = new vscode.Position(line, 0);
                             ed.selection = new vscode.Selection(pos, pos);

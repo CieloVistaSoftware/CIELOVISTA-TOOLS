@@ -1,18 +1,3 @@
----
-docid: 150.1.regression-log-viewer
-id: feature-regression-log-viewer
-title: "Feature: Regression Log Viewer"
-project: cielovista-tools
-description: "Regression Log Viewer — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [regression, log, viewer]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/regression-log-viewer.README.md
----
 # Feature: Regression Log Viewer
 
 ## What it does
@@ -52,3 +37,19 @@ activate(context)
 
 1. Open the Command Palette and run **Tools: RegressionLog** (`cvs.tools.regressionLog`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.regression-log-viewer
+id: feature-regression-log-viewer
+title: "Feature: Regression Log Viewer"
+project: cielovista-tools
+description: "Regression Log Viewer — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [regression, log, viewer]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/regression-log-viewer.README.md
+---

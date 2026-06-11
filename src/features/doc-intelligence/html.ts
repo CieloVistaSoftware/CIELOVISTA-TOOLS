@@ -622,15 +622,28 @@ function hideStrip() {
 window.addEventListener('message', function(e) {
   var msg = e.data;
   if (msg.type === 'progress') { showStrip(msg.text); }
-  if (msg.type === 'decision') { setDecision(msg.id, msg.decision); }
-  if (msg.type === 'fileDeleted') {
-    var row = document.querySelector('[data-path="' + msg.filePath + '"]');
-    if (row) {
-      row.style.transition = 'opacity 0.3s';
-      row.style.opacity = '0.25';
-      row.style.textDecoration = 'line-through';
-      row.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+  if (msg.type === 'decision') {
+    setDecision(msg.id, msg.decision);
+    if (msg.executed && msg.decision === 'accepted') {
+      setTimeout(function() {
+        var card = document.querySelector('.di-card[data-id="' + msg.id + '"], .di-cluster[data-id="' + msg.id + '"]');
+        if (card) {
+          card.style.transition = 'opacity 0.4s, max-height 0.5s';
+          card.style.opacity = '0';
+          setTimeout(function() { card.classList.add('hidden'); card.style.opacity = ''; card.style.transition = ''; updateProgress(); }, 450);
+        }
+      }, 900);
     }
+  }
+  if (msg.type === 'fileDeleted') {
+    document.querySelectorAll('[data-path]').forEach(function(el) {
+      if (el.getAttribute('data-path') === msg.filePath) {
+        el.style.transition = 'opacity 0.3s';
+        el.style.opacity = '0.25';
+        el.style.textDecoration = 'line-through';
+        el.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+      }
+    });
   }
   if (msg.type === 'done') {
     // Re-enable any stuck trash buttons (e.g. user cancelled the modal)

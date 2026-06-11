@@ -110,6 +110,9 @@ async function runFullAudit(): Promise<void> {
 
             log(FEATURE, `Audit complete — ${results.totalDocsScanned} docs, ${results.duplicates.length} dupes, ${results.similar.length} similar, ${results.moveCandidates.length} move candidates, ${results.orphans.length} orphans`);
         } catch (err) {
+            // VS Code cancels in-flight promises on extension host shutdown — not a real error
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg === 'Canceled' || msg.startsWith('Canceled:')) { return; }
             if (_panel && runId === _auditRunId) {
                 _panel.webview.postMessage({ type: 'progress', status: 'Audit failed.' });
             }

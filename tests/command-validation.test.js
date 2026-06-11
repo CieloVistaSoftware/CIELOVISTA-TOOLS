@@ -14,19 +14,47 @@
 
 'use strict';
 
-const fs   = require('fs');
-const path = require('path');
+const fs            = require('fs');
+const path          = require('path');
+const { execSync }  = require('child_process');
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 const ROOT          = path.join(__dirname, '..');
 const SRC           = path.join(ROOT, 'src');
 const DATA          = path.join(ROOT, 'data');
 const CATALOG_FILE  = path.join(SRC, 'features', 'cvs-command-launcher', 'catalog.ts');
-const LAUNCHER_FILE = path.join(SRC, 'features', 'project-launcher.ts');
+const LAUNCHER_FILE = path.join(SRC, 'features', 'cvs-command-launcher', 'index.ts');
 const EXT_FILE      = path.join(SRC, 'extension.ts');
 const PKG_FILE      = path.join(ROOT, 'package.json');
 const ERRORS_FILE   = path.join(DATA, 'command-errors.json');
 const FIXES_FILE    = path.join(DATA, 'fixes.json');
+
+// ── Auto-issue filer (called on any failure or crash) ─────────────────────────
+function fileIssueOnFailure(title, bodyText) {
+    if (!fs.existsSync(DATA)) { fs.mkdirSync(DATA, { recursive: true }); }
+    const tmpBody = path.join(DATA, '_test-commands-issue-body.md');
+    try {
+        fs.writeFileSync(tmpBody, bodyText);
+        const url = execSync(
+            `gh issue create --repo CieloVistaSoftware/cielovista-tools --title "${title.replace(/"/g, "'")}" --body-file "${tmpBody}" --label "type:bug" --label "priority:1"`,
+            { cwd: ROOT, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+        ).trim();
+        console.log(`\n📋 GitHub issue filed automatically: ${url}`);
+    } catch (e) {
+        console.error('\n⚠️  Failed to file GitHub issue:', e.message);
+    } finally {
+        try { fs.unlinkSync(tmpBody); } catch { /* ignore */ }
+    }
+}
+
+// Catch unhandled crashes (e.g. missing files, parse errors) and file an issue
+process.on('uncaughtException', (err) => {
+    const title = `test:commands crash — ${err.message.slice(0, 80)}`;
+    const body  = `## test:commands Crashed\n\n**Date:** ${new Date().toISOString().slice(0, 10)}\n**Command:** \`npm run test:commands\`\n\n## Error\n\n\`\`\`\n${err.stack || err.message}\n\`\`\`\n\nThis is an automated report from \`tests/command-validation.test.js\`.`;
+    console.error('\n💥 Unhandled exception:', err.message);
+    fileIssueOnFailure(title, body);
+    process.exit(1);
+});
 
 const TODAY   = new Date().toISOString().slice(0, 10);
 const SESSION = `command-validation.test.js — ${TODAY}`;
@@ -63,13 +91,14 @@ while ((em = ENTRY_RE.exec(catalogSrc)) !== null) {
     });
 }
 
-// ── Parse project-launcher registerFixed calls ────────────────────────────────
+// ── Parse cvs-command-launcher _launchInTerminal registrations ────────────────
+// Matches: registerCommand('cvs.launch.*', () => _launchInTerminal('name', 'cmd', ...))
 const launcherCmds = [...launcherSrc.matchAll(
-    /registerFixed\([^,]+,\s*'([^']+)',\s*'[^']+',\s*'([^']+)',\s*(\w+)\)/g
-)].map(m => ({ id: m[1], cmd: m[2], pathVar: m[3] }));
+    /registerCommand\(\s*'(cvs\.launch\.[^']+)',\s*\(\)\s*=>\s*_launchInTerminal\(\s*'[^']+',\s*'([^']+)'/g
+)].map(m => ({ id: m[1], cmd: m[2], pathVar: '' }));
 
-const snapitPath    = (launcherSrc.match(/const SNAPIT\s*=\s*'([^']+)'/)    || [])[1] || '';
-const diskcleanPath = (launcherSrc.match(/const DISKCLEAN\s*=\s*'([^']+)'/) || [])[1] || '';
+const snapitPath    = (launcherSrc.match(/const _SNAPIT_ROOT\s*=\s*'([^']+)'/)      || [])[1] || '';
+const diskcleanPath = (launcherSrc.match(/const _DISKCLEANUP_ROOT\s*=\s*'([^']+)'/) || [])[1] || '';
 
 function getScripts(p) {
     const pp = path.join(p, 'package.json');
@@ -79,6 +108,20 @@ function getScripts(p) {
 function hasSln(p) {
     if (!fs.existsSync(p)) return false;
     return fs.readdirSync(p).some(f => /\.(sln|slnx)$/i.test(f));
+}
+// dotnet run only needs a .csproj somewhere in the tree (not necessarily a .sln at root)
+function hasCsproj(p) {
+    if (!fs.existsSync(p)) return false;
+    if (fs.readdirSync(p).some(f => f.endsWith('.csproj'))) return true;
+    try {
+        for (const e of fs.readdirSync(p, { withFileTypes: true })) {
+            if (e.isDirectory()) {
+                const sub = path.join(p, e.name);
+                if (fs.existsSync(sub) && fs.readdirSync(sub).some(f => f.endsWith('.csproj'))) return true;
+            }
+        }
+    } catch { /* ignore */ }
+    return false;
 }
 const snapitScripts    = getScripts(snapitPath);
 const diskcleanScripts = getScripts(diskcleanPath);
@@ -360,13 +403,14 @@ for (const { id, cmd } of launcherCmds) {
             pass(`${id} — "npm start"`, `'start' script confirmed in ${projName} package.json`);
         }
     } else if (cmd.startsWith('dotnet ')) {
-        if (!hasSln(projPath)) {
-            fail(`${id} — uses dotnet but no .sln found in ${projPath}`,
-                `The command runs dotnet but no solution file exists at the project path`, {
-                category: 'configuration', severity: 'critical', file: 'project-launcher.ts', commandId: id,
+        if (!hasSln(projPath) && !hasCsproj(projPath)) {
+            fail(`${id} — uses dotnet but no .sln/.csproj found in ${projPath}`,
+                `The command runs dotnet but no solution or project file exists at the project path`, {
+                category: 'configuration', severity: 'critical', file: 'features/cvs-command-launcher/index.ts', commandId: id,
             });
         } else {
-            pass(`${id} — "${cmd}"`, `.sln file confirmed in ${projName} project folder`);
+            const found = hasSln(projPath) ? '.sln' : '.csproj';
+            pass(`${id} — "${cmd}"`, `${found} confirmed in ${projName} project folder`);
         }
     } else if (cmd.startsWith('npx kill-port')) {
         pass(`${id} — "${cmd}"`, `npx kill-port is always valid`);
@@ -456,6 +500,26 @@ if (ERRORS.length) {
 const autoFixable = ERRORS.filter(e => e.autoFixable);
 if (!autoFixable.length) {
     console.log('\n🔧 No auto-fixable issues found.\n');
+    if (failed > 0) {
+        const crit = ERRORS.filter(e => e.severity === 'critical').length;
+        const high = ERRORS.filter(e => e.severity === 'high').length;
+        const low  = ERRORS.filter(e => e.severity === 'low').length;
+        const body = [
+            `## test:commands Failures`,
+            ``,
+            `**Date:** ${TODAY}`,
+            `**Command:** \`npm run test:commands\``,
+            `**Results:** ${failed} failed / ${passed + failed} total checks`,
+            `**Severity:** ${crit} critical  ${high} high  ${low} low`,
+            ``,
+            `## Failing Checks`,
+            ``,
+            ERRORS.map(e => `- **[${e.severity.toUpperCase()}]** \`${e.title}\`  \n  ${e.description}${e.fixHint ? `  \n  _Fix:_ ${e.fixHint}` : ''}`).join('\n'),
+            ``,
+            `_Automated report from \`tests/command-validation.test.js\`_`,
+        ].join('\n');
+        fileIssueOnFailure(`test:commands — ${failed} failure${failed > 1 ? 's' : ''} (${crit} critical)`, body);
+    }
     process.exit(failed > 0 ? 1 : 0);
 }
 
@@ -500,7 +564,7 @@ function applyFix(errId, fixTitle, fixDescription, filesChanged, applyFn) {
     }
 }
 
-// ── Fix: cd /d in project-launcher.ts ────────────────────────────────────────
+// ── Fix: cd /d in cvs-command-launcher/index.ts ──────────────────────────────
 const cdErr = autoFixable.find(e => e.title.includes('cd /d'));
 if (cdErr) {
     let src = fs.readFileSync(LAUNCHER_FILE, 'utf8');
@@ -509,9 +573,9 @@ if (cdErr) {
     if (src !== original) {
         applyFix(
             cdErr.id,
-            'Fix: remove cmd.exe "cd /d" from project-launcher.ts',
-            'Replaced `cd /d "${cwd}"` with `cd "${cwd}"` in runInTerminal(). The /d flag is cmd.exe-only syntax — PowerShell does not support it and throws a visible red error every time a reused terminal changes directory.',
-            ['src/features/project-launcher.ts — replaced cd /d with plain cd'],
+            'Fix: remove cmd.exe "cd /d" from cvs-command-launcher/index.ts',
+            'Replaced `cd /d "${cwd}"` with `cd "${cwd}"` in _launchInTerminal(). The /d flag is cmd.exe-only syntax — PowerShell does not support it and throws a visible red error every time a reused terminal changes directory.',
+            ['src/features/cvs-command-launcher/index.ts — replaced cd /d with plain cd'],
             () => fs.writeFileSync(LAUNCHER_FILE, src)
         );
     }
@@ -530,4 +594,24 @@ if (FIXES_ADDED.length) {
 }
 
 console.log('');
+if (failed > 0) {
+    const crit = ERRORS.filter(e => e.severity === 'critical').length;
+    const high = ERRORS.filter(e => e.severity === 'high').length;
+    const low  = ERRORS.filter(e => e.severity === 'low').length;
+    const body = [
+        `## test:commands Failures`,
+        ``,
+        `**Date:** ${TODAY}`,
+        `**Command:** \`npm run test:commands\``,
+        `**Results:** ${failed} failed / ${passed + failed} total checks`,
+        `**Severity:** ${crit} critical  ${high} high  ${low} low`,
+        ``,
+        `## Failing Checks`,
+        ``,
+        ERRORS.map(e => `- **[${e.severity.toUpperCase()}]** \`${e.title}\`  \n  ${e.description}${e.fixHint ? `  \n  _Fix:_ ${e.fixHint}` : ''}`).join('\n'),
+        ``,
+        `_Automated report from \`tests/command-validation.test.js\`_`,
+    ].join('\n');
+    fileIssueOnFailure(`test:commands — ${failed} failure${failed > 1 ? 's' : ''} (${crit} critical)`, body);
+}
 process.exit(failed > 0 ? 1 : 0);

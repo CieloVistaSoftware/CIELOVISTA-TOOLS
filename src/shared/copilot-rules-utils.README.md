@@ -1,18 +1,3 @@
----
-docid: 150.1.copilot-rules-utils-readme
-id: feature-sharedcopilot-rules-utilsts
-title: "feature: shared/copilot-rules-utils.ts"
-project: cielovista-tools
-description: All business logic for reading, applying, and removing Copilot instruction rules. Three different extensions originally duplicated this logic (Rule…
-status: active
-tags: [copilot, rules, utils]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/shared/copilot-rules-utils.README.md
----
 # feature: shared/copilot-rules-utils.ts
 
 ## Purpose
@@ -137,3 +122,19 @@ activate()
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
+
+---
+docid: 150.1.copilot-rules-utils-readme
+id: feature-sharedcopilot-rules-utilsts
+title: "feature: shared/copilot-rules-utils.ts"
+project: cielovista-tools
+description: All business logic for reading, applying, and removing Copilot instruction rules. Three different extensions originally duplicated this logic (Rule…
+status: active
+tags: [copilot, rules, utils]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/shared/copilot-rules-utils.README.md
+---

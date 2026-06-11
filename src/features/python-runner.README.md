@@ -1,18 +1,3 @@
----
-docid: 150.1.python-runner-readme
-id: feature-python-runnerts
-title: "feature: python-runner.ts"
-project: cielovista-tools
-description: Right-click any .py file in the VS Code Explorer and run it in the terminal with a single click. Uses the Python interpreter configured in VS Code …
-status: active
-tags: [python, runner, readme]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/python-runner.README.md
----
 # feature: python-runner.ts
 
 ## What it does
@@ -70,3 +55,19 @@ activate()
 3. Terminal should open and execute `python "path/to/file.py"`.
 4. Open a `.py` file in the editor, run from command palette — same result.
 5. Try right-clicking a non-`.py` file — the menu item should not appear.
+
+---
+docid: 150.1.python-runner-readme
+id: feature-python-runnerts
+title: "feature: python-runner.ts"
+project: cielovista-tools
+description: Right-click any .py file in the VS Code Explorer and run it in the terminal with a single click. Uses the Python interpreter configured in VS Code …
+status: active
+tags: [python, runner, readme]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/python-runner.README.md
+---

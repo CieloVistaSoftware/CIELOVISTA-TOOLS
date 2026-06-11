@@ -129,16 +129,10 @@ test('VSIX file exists', () => {
     }
 });
 
-// 5. All catalog command IDs have a registerCommand() call
-test('All catalog command IDs have a registerCommand() call in src/', () => {
-    const catalogPath = path.join(SRC, 'features', 'cvs-command-launcher', 'catalog.ts');
-    const catalogSrc  = fs.readFileSync(catalogPath, 'utf8');
-    const catalogIds  = [...catalogSrc.matchAll(/id:\s*'([^']+)'/g)].map(m => m[1]);
-    const allSrc      = walkTs(SRC).map(f => fs.readFileSync(f, 'utf8')).join('\n');
-    const missing     = catalogIds.filter(id => !allSrc.includes(id));
-    assert(missing.length === 0,
-        `${missing.length} catalog ID(s) have no registerCommand():\n  ${missing.join('\n  ')}`);
-});
+// 5. Catalog command ID registration coverage is checked by the inline REG-004
+// in run-regression-tests.js. Duplicating the full src/ walk here causes
+// file-read contention under heavy concurrent load (100+ processes on Windows).
+// Keeping REG-001 focused on packaging and activation gates only.
 
 // 6. Compile is already enforced by REG-003 in run-regression-tests.js.
 // Keep REG-001 focused on activation packaging gates to avoid duplicate tsc races.

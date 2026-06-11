@@ -1,18 +1,3 @@
----
-docid: 150.1.project-home-opener-readme
-id: feature-project-home-opener
-title: "Feature: Project Home Opener"
-project: cielovista-tools
-description: Adds a single command that opens your configured CieloVista home project root in VS Code from any workspace. Useful when you need to jump back to t…
-status: active
-tags: [project, home, opener]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/project-home-opener.README.md
----
 # Feature: Project Home Opener
 
 ## What it does
@@ -67,3 +52,19 @@ openHome()
 1. Set `cielovistaTools.homeProjectPath` to a valid folder path in User Settings.
 2. Open any other workspace. Run [`cvs.project.openHome`](command:cvs.project.openHome) — VS Code should switch to the configured folder as the workspace root.
 3. Clear the setting. Run the command again — an error notification should appear saying the path is not configured.
+
+---
+docid: 150.1.project-home-opener-readme
+id: feature-project-home-opener
+title: "Feature: Project Home Opener"
+project: cielovista-tools
+description: Adds a single command that opens your configured CieloVista home project root in VS Code from any workspace. Useful when you need to jump back to t…
+status: active
+tags: [project, home, opener]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/project-home-opener.README.md
+---

@@ -1,18 +1,3 @@
----
-docid: 150.1.marketplace-compliance-dir
-id: feature-marketplace-compliance
-title: "Feature: Marketplace Compliance"
-project: cielovista-tools
-description: "Marketplace Compliance — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [marketplace, compliance]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/marketplace-compliance/README.md
----
 # Feature: Marketplace Compliance
 
 ## What it does
@@ -52,3 +37,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 3. Open the Command Palette and run **Marketplace: FixOne** (`cvs.marketplace.fixOne`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.marketplace-compliance-dir
+id: feature-marketplace-compliance
+title: "Feature: Marketplace Compliance"
+project: cielovista-tools
+description: "Marketplace Compliance — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [marketplace, compliance]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/marketplace-compliance/README.md
+---

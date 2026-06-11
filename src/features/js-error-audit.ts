@@ -734,6 +734,10 @@ async function runJsErrorAudit(): Promise<void> {
         }
 
         const state = mergeState(root, report);
+        for (const entry of state.entries) {
+            const issues = entry.issues.join('; ') || entry.id;
+            logError(`[js-error-audit] ${entry.severity} ${entry.id}: ${entry.file}`, '', issues);
+        }
         showPanel(report, state, root);
     } catch (err) {
         logError('runJsErrorAudit failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);

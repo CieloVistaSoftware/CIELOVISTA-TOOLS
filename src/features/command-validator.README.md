@@ -1,18 +1,3 @@
----
-docid: 150.1.command-validator
-id: feature-command-validator
-title: "Feature: Command Validator"
-project: cielovista-tools
-description: "Command Validator — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [command, validator]
-category: 150.1 — Components / Features
-created: 2026-05-25
-updated: 2026-05-25
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/command-validator.README.md
----
 # Feature: Command Validator
 
 ## What it does
@@ -70,3 +55,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 3. Open the Command Palette and run **Commands: SyncTagsDry** (`cvs.commands.syncTagsDry`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.command-validator
+id: feature-command-validator
+title: "Feature: Command Validator"
+project: cielovista-tools
+description: "Command Validator — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [command, validator]
+category: 150.1 — Components / Features
+created: 2026-05-25
+updated: 2026-05-25
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/command-validator.README.md
+---

@@ -455,7 +455,7 @@ function showPanel(report: IntelligenceReport): void {
                     await keepAndDeleteRest(keepPath, deletePaths);
                     const finding = _report.findings.find(f => f.id === findingId);
                     if (finding) { finding.decision = 'accepted'; }
-                    _panel?.webview.postMessage({ type: 'decision', id: findingId, decision: 'accepted' });
+                    _panel?.webview.postMessage({ type: 'decision', id: findingId, decision: 'accepted', executed: true });
                 } catch (err) {
                     logError('keepAndDeleteRest failed', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
                     void vscode.window.showErrorMessage(`Failed to delete duplicates: ${String(err)}`);
@@ -506,6 +506,14 @@ function showPanel(report: IntelligenceReport): void {
                     try {
                         await trashFile(delPath);
                         _panel?.webview.postMessage({ type: 'fileDeleted', filePath: delPath, findingId: fid });
+                        const finding = _report?.findings.find(f => f.id === fid);
+                        if (finding) {
+                            finding.decision = 'accepted';
+                            const remaining = finding.paths.filter(p => p !== delPath && p !== finding.keepPath && fs.existsSync(p));
+                            if (remaining.length === 0) {
+                                _panel?.webview.postMessage({ type: 'decision', id: fid, decision: 'accepted', executed: true });
+                            }
+                        }
                     } catch (err) {
                         void vscode.window.showErrorMessage(`Failed to trash file: ${String(err)}`);
                     }
@@ -528,6 +536,11 @@ function showPanel(report: IntelligenceReport): void {
                     try {
                         await trashFolder(delFolder);
                         _panel?.webview.postMessage({ type: 'fileDeleted', filePath: delFolder, findingId: ffid });
+                        const finding = _report?.findings.find(f => f.id === ffid);
+                        if (finding) {
+                            finding.decision = 'accepted';
+                            _panel?.webview.postMessage({ type: 'decision', id: ffid, decision: 'accepted', executed: true });
+                        }
                     } catch (err) {
                         void vscode.window.showErrorMessage(`Failed to trash folder: ${String(err)}`);
                     }
@@ -542,7 +555,7 @@ function showPanel(report: IntelligenceReport): void {
                 _panel?.webview.postMessage({ type: 'progress', text: `Executing: ${finding.title}…` });
                 const ok = await executeFinding(finding);
                 finding.decision = ok ? 'accepted' : 'pending';
-                _panel?.webview.postMessage({ type: 'decision', id: finding.id, decision: finding.decision });
+                _panel?.webview.postMessage({ type: 'decision', id: finding.id, decision: finding.decision, executed: ok });
                 _panel?.webview.postMessage({ type: 'done' });
                 break;
             }
@@ -569,7 +582,7 @@ function showPanel(report: IntelligenceReport): void {
                     });
                     const ok = await executeFinding(finding);
                     finding.decision = ok ? 'accepted' : 'pending';
-                    _panel?.webview.postMessage({ type: 'decision', id: finding.id, decision: finding.decision });
+                    _panel?.webview.postMessage({ type: 'decision', id: finding.id, decision: finding.decision, executed: ok });
                 }
 
                 _panel?.webview.postMessage({ type: 'done' });

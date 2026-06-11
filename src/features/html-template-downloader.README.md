@@ -1,18 +1,3 @@
----
-docid: 150.1.html-template-downloader-readme
-id: feature-html-template-downloaderts
-title: "feature: html-template-downloader.ts"
-project: cielovista-tools
-description: Downloads HTML starter templates from the CieloVistaSoftware GitHub repository into your workspace. Also provides a utility to open any path curren…
-status: active
-tags: [html, template, downloader]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/html-template-downloader.README.md
----
 # feature: html-template-downloader.ts
 
 ## What it does
@@ -91,3 +76,19 @@ No other changes needed. The download URL is constructed automatically.
 3. Choose a save location.
 4. File should download and open in the editor.
 5. Copy a valid folder path to clipboard, run `HTML Template: Open Clipboard Path` — Explorer should open to that folder.
+
+---
+docid: 150.1.html-template-downloader-readme
+id: feature-html-template-downloaderts
+title: "feature: html-template-downloader.ts"
+project: cielovista-tools
+description: Downloads HTML starter templates from the CieloVistaSoftware GitHub repository into your workspace. Also provides a utility to open any path curren…
+status: active
+tags: [html, template, downloader]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/html-template-downloader.README.md
+---

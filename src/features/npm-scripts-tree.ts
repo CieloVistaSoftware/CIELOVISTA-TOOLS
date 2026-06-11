@@ -161,21 +161,31 @@ async function openPanel(): Promise<void> {
             }
             case 'run': {
                 if (!msg.dir || !msg.script) { break; }
-                // Open in the editor area, beside the NPM Scripts panel.
-                // We do NOT call term.show() — that's what was stealing focus.
-                // After creating, we explicitly re-reveal the webview so it stays active.
-                const term = vscode.window.createTerminal({
-                    name: `npm: ${msg.script}`,
-                    cwd:  msg.dir,
-                    location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-                });
-                _termMap.set(term, { dir: msg.dir, script: msg.script });
-                registerLaunchedTerminal(`npm: ${msg.script}`, {
-                    script:  msg.script,
-                    command: `npm run ${msg.script}`,
-                    cwd:     msg.dir,
-                    project: path.basename(msg.dir),
-                });
+
+                // Reuse existing terminal if one is still open for this script + dir
+                let term: vscode.Terminal | undefined;
+                for (const [t, info] of _termMap) {
+                    if (info.dir === msg.dir && info.script === msg.script) { term = t; break; }
+                }
+
+                if (term) {
+                    // Already open — bring it to view without moving it or stealing focus
+                    term.show(true);
+                } else {
+                    term = vscode.window.createTerminal({
+                        name: `npm: ${msg.script}`,
+                        cwd:  msg.dir,
+                        location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+                    });
+                    _termMap.set(term, { dir: msg.dir, script: msg.script });
+                    registerLaunchedTerminal(`npm: ${msg.script}`, {
+                        script:  msg.script,
+                        command: `npm run ${msg.script}`,
+                        cwd:     msg.dir,
+                        project: path.basename(msg.dir),
+                    });
+                }
+
                 term.sendText(`npm run ${msg.script}`);
                 // Re-reveal the webview panel so it keeps focus after the terminal opens
                 _panel?.reveal(vscode.ViewColumn.One, false);

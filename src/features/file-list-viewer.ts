@@ -25,6 +25,7 @@ import * as path   from 'path';
 import { spawn }   from 'child_process';
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'http';
 import { log, logError } from '../shared/output-channel';
+import { ensureHomeIsLeftmost } from './home-page';
 import {
     sortEntries,
     DEFAULT_EXCLUDES,
@@ -838,6 +839,7 @@ async function openEntryFromCurrentDir(name: string, mode: 'navigate' | 'open'):
 }
 
 export function openFileListPanel(): void {
+    ensureHomeIsLeftmost();
     if (_panel) { _panel.reveal(vscode.ViewColumn.One); return; }
 
     const root = workspaceRoot();

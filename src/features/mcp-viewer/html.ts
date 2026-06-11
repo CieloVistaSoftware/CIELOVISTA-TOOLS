@@ -525,19 +525,20 @@ function renderDocViolations(data){
     return;
   }
 
+  var _vc = (_sortState[currentEndpoint] || {}).col;
+
   var summary = '';
   if (data && data.byCode && data.byCode.length) {
     summary = '<div class="group-hd"><span>Violation Summary</span><span class="count">' +
       esc(String(data.totalViolations || rows.length)) + ' total</span></div>' +
-      '<table><thead><tr><th>Code</th><th>Count</th></tr></thead><tbody>' +
-      data.byCode.map(function(r){
+      '<table><thead><tr>' + _th('Code','code') + _th('Count','count') + '</tr></thead><tbody>' +
+      _sortBy(data.byCode, _vc).map(function(r){
         return '<tr><td class="c-name">' + esc(r.code) + '</td><td class="c-idx">' + esc(r.count) + '</td></tr>';
       }).join('') +
       '</tbody></table>';
   }
 
   var html = summary;
-  var _vc = (_sortState[currentEndpoint] || {}).col;
   var rowsSorted = _sortBy(rows, _vc);
   html += '<div class="group-hd"><span>Violations</span><span class="count">' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + '</span></div>';
   html += '<table><thead><tr><th>#</th>' + _th('Project','project') + _th('Code','code') + _th('Identity','identity') + _th('Message','message') + _th('File','file') + '</tr></thead><tbody>';
@@ -842,6 +843,7 @@ var _SORT_KEY = {
   scope:       function(x){ return x.scope; },
   group:       function(x){ return x.group; },
   code:        function(x){ return x.code; },
+  count:       function(x){ return x.count; },
   identity:    function(x){ return x.identity; },
   message:     function(x){ return x.message; },
   project:     function(x){ return x.projectName; },

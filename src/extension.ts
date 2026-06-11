@@ -32,7 +32,6 @@ import { activate as marketplaceCompliance,   deactivate as deactivateMarketplac
 import { activate as docHeader,               deactivate as deactivateDocHeader        } from './features/doc-header/index';
 import { activate as docHeaderScan,           deactivate as deactivateDocHeaderScan    } from './features/doc-header-scan';
 import { activate as frontmatterViewer,       deactivate as deactivateFrontmatterViewer } from './features/frontmatter-viewer';
-import { activate as projectLauncher,         deactivate as deactivateProjectLauncher  } from './features/project-launcher';
 import { activate as cvsCommandLauncher,      deactivate as deactivateCvsCommandLauncher } from './features/cvs-command-launcher/index';
 import { activate as projectHomeOpener,       deactivate as deactivateProjectHomeOpener  } from './features/project-home-opener';
 import { activate as npmScriptsTree,          deactivate as deactivateNpmScriptsTree      } from './features/npm-scripts-tree';
@@ -139,7 +138,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('docHeader',               'Doc Header',                    docHeader,               context);
     activateIfEnabled('docHeaderScan',           'Doc Header Scan',               docHeaderScan,           context);
     activateIfEnabled('frontmatterViewer',       'Frontmatter Viewer',            frontmatterViewer,       context);
-    activateIfEnabled('projectLauncher',         'Project Launcher',              projectLauncher,         context);
+
     activateIfEnabled('cvsCommandLauncher',      'CVS Command Launcher',          cvsCommandLauncher,      context);
     activateIfEnabled('projectHomeOpener',       'Project Home Opener',           projectHomeOpener,       context);
     activateIfEnabled('npmScriptsTree',          'NPM Scripts Tree',              npmScriptsTree,          context);
@@ -231,7 +230,7 @@ export function deactivate(): void {
     commandRegistryDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
-    deactivateProjectLauncher();
+
     deactivateTestCoverageAuditor();
     deactivateHomePage();
     disposeChannel();

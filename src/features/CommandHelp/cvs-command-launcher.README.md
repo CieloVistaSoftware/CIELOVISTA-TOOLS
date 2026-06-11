@@ -1,21 +1,5 @@
 # feature: cvs command launcher
 
----
-docid: 150.1  
-id: cvs-command-launcher-readme  
-title: cvs command launcher README  
-project: cielovista-tools  
-description: ...moving canonical file...  
-status: active  
-tags: [cvs, command, launcher]  
-category: 150.1 — Components / Features  
-created: 2026-04-22  
-updated: 2026-04-27  
-version: 1.0.0  
-author: CieloVista Software  
-relativepath: src/features/CommandHelp/cvs-command-launcher.README.md  
----
-
 ...moving canonical file...
 
 ## What it does
@@ -45,3 +29,19 @@ The architecture ensures extensibility, allowing new commands to be added with m
    ```
 5. Confirm that the command executes successfully and outputs the expected result.  
 6. Test edge cases, such as invalid commands, and ensure appropriate error messages are displayed.
+
+---
+docid: 150.1  
+id: cvs-command-launcher-readme  
+title: cvs command launcher README  
+project: cielovista-tools  
+description: ...moving canonical file...  
+status: active  
+tags: [cvs, command, launcher]  
+category: 150.1 — Components / Features  
+created: 2026-04-22  
+updated: 2026-04-27  
+version: 1.0.0  
+author: CieloVista Software  
+relativepath: src/features/CommandHelp/cvs-command-launcher.README.md  
+---

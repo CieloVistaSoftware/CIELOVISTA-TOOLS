@@ -1,18 +1,3 @@
----
-docid: 150.1.doc-catalog-dir
-id: feature-doc-catalog
-title: "Feature: Doc Catalog"
-project: cielovista-tools
-description: "Doc Catalog — 4 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [doc, catalog]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/doc-catalog/README.md
----
 # Feature: Doc Catalog
 
 ## What it does
@@ -56,3 +41,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 4. Open the Command Palette and run **Catalog: ViewArchived** (`cvs.catalog.viewArchived`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.doc-catalog-dir
+id: feature-doc-catalog
+title: "Feature: Doc Catalog"
+project: cielovista-tools
+description: "Doc Catalog — 4 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [doc, catalog]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/doc-catalog/README.md
+---
