@@ -54,7 +54,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
     _server.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'EADDRINUSE') {
-            logError('Notify server: port 52199 already in use — another instance may be running', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            // Expected when another CVT window already owns the notify bridge.
+            // Use log() — output channel only — rather than the persisted error
+            // log, which auto-files an APP_ERROR for this benign condition (#591).
+            log(FEATURE, `⚠ Notify bridge port ${PORT} already in use — another CVT window owns it; this window will not start a second bridge.`);
         } else {
             logError('Notify server error', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         }
