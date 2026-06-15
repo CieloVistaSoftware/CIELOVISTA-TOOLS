@@ -104,6 +104,9 @@ let _running = false;
 let _panel: vscode.WebviewPanel | undefined;
 let _testRunTimer: NodeJS.Timeout | undefined;
 let _testRunInProgress = false;
+// Dedupe guard for saveState failures — a momentarily locked data dir (e.g. an
+// antivirus/OneDrive lock) used to auto-file an APP_ERROR on every 30s tick (#601).
+let _saveFailedLogged = false;
 
 // Last logged pass/fail per check — used to emit delta-only output
 const _checkStatus = new Map<string, 'pass' | 'fail'>();
@@ -138,12 +141,24 @@ function loadState(): void {
 }
 
 function saveState(): void {
-    try {
-        ensureDataDir();
-        _state.lastRun = new Date().toISOString();
-        fs.writeFileSync(HEALTH_FILE, JSON.stringify(_state, null, 2), 'utf8');
-    } catch (e) {
-        logError('Failed to save health state', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+    _state.lastRun = new Date().toISOString();
+    const payload = JSON.stringify(_state, null, 2);
+    // Retry to ride out a transient lock on the data dir; only the final attempt
+    // reports. Persistent failure is logged once per streak (reset on recovery)
+    // so a locked dir does not spam APP_ERROR / auto-file every tick (#601).
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            ensureDataDir();
+            fs.writeFileSync(HEALTH_FILE, payload, 'utf8');
+            _saveFailedLogged = false;
+            return;
+        } catch (e) {
+            if (attempt < 3) { continue; }
+            if (!_saveFailedLogged) {
+                _saveFailedLogged = true;
+                logError('Failed to save health state', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
+            }
+        }
     }
 }
 
