@@ -90,6 +90,14 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone corequisite decision logic — no vscode dep, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/corequisite-logic.ts'],
+    outfile:     'out/shared/corequisite-logic.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Standalone doc-auditor scanner — no vscode dep, consumed by unit tests
   await esbuild.build({
     ...nodeBase,
