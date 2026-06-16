@@ -111,14 +111,34 @@ function findCodeInsidersBin(): string {
 
 function installViaCli(bin: string, vsix: string): string {
     const args = ['--install-extension', vsix];
-    // Use shell:true for .cmd/.bat so Windows resolves them correctly without
-    // manual cmd.exe /c quoting (which breaks on paths with spaces).
-    const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
-    const result = cp.spawnSync(bin, args, {
+
+    // A .cmd/.bat cannot be exec'd directly — it must run through the command
+    // processor. We do NOT use spawn's `shell: true`, because that joins the
+    // command and args with spaces and quotes nothing, so a bin path containing
+    // spaces (e.g. "…\Programs\Microsoft VS Code Insiders\bin\code-insiders.cmd")
+    // gets split at the first space — the exact failure in issue #592
+    // ('…\Programs\Microsoft' is not recognized…). Instead we invoke cmd.exe
+    // ourselves and hand it a fully-quoted command line verbatim, mirroring how
+    // Node spawns .cmd files internally (`/d /s /c "…"` with verbatim args).
+    const isCmdScript = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
+
+    let result: cp.SpawnSyncReturns<string>;
+    if (isCmdScript) {
+        const comspec = process.env.ComSpec || 'cmd.exe';
+        // Wrap the whole command in an outer quote pair; cmd.exe /s strips it.
+        // Each token is individually quoted so embedded spaces survive.
+        const quoted  = [bin, ...args].map(a => `"${a}"`).join(' ');
+        result = cp.spawnSync(comspec, ['/d', '/s', '/c', `"${quoted}"`], {
             encoding: 'utf8',
             windowsHide: true,
-            shell: useShell,
+            windowsVerbatimArguments: true,
         });
+    } else {
+        result = cp.spawnSync(bin, args, {
+            encoding: 'utf8',
+            windowsHide: true,
+        });
+    }
 
     if (result.error) {
         throw result.error;
