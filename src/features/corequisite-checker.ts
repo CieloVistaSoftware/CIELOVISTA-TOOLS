@@ -28,6 +28,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import { log, logError } from '../shared/output-channel';
+import { buildInstallCommand } from '../shared/install-command';
 
 const FEATURE = 'corequisite-checker';
 
@@ -110,14 +111,16 @@ function findCodeInsidersBin(): string {
 }
 
 function installViaCli(bin: string, vsix: string): string {
-    const args = ['--install-extension', vsix];
-    // Use shell:true for .cmd/.bat so Windows resolves them correctly without
-    // manual cmd.exe /c quoting (which breaks on paths with spaces).
-    const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
-    const result = cp.spawnSync(bin, args, {
+    // A .cmd/.bat shim must run through a shell, but shell:true does NOT
+    // auto-quote — an unquoted binary path with spaces (the real
+    // code-insiders.cmd lives under "Microsoft VS Code Insiders") is split by
+    // cmd.exe and fails with "'...\Microsoft' is not recognized" (#592).
+    // buildInstallCommand emits a fully-quoted command line in that case.
+    const { command, args, shell } = buildInstallCommand(bin, vsix);
+    const result = cp.spawnSync(command, args, {
             encoding: 'utf8',
             windowsHide: true,
-            shell: useShell,
+            shell,
         });
 
     if (result.error) {
