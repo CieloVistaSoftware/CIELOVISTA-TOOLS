@@ -55,8 +55,15 @@ test('source has Windows-safe CLI fallback for .cmd/.bat', () => {
     if (!fs.existsSync(src)) return;
     const text = fs.readFileSync(src, 'utf8');
     assert.ok(text.includes('spawnSync'));
-    assert.ok(text.includes('/\\.(cmd|bat)\\$/i'));
-    assert.ok(text.includes("process.env.ComSpec || 'cmd.exe'"));
+    // #592: the .cmd/.bat detection + quoting now lives in shared/install-command.ts;
+    // corequisite-checker delegates to buildInstallCommand for a quoted command line.
+    assert.ok(text.includes('buildInstallCommand'));
+    const shared = path.join(__dirname, '../../src/shared/install-command.ts');
+    if (fs.existsSync(shared)) {
+        const sharedText = fs.readFileSync(shared, 'utf8');
+        assert.ok(sharedText.includes('/\\.(cmd|bat)$/i'));
+        assert.ok(sharedText.includes('shellQuote'));
+    }
 });
 test('activate does not throw synchronously', () => {
     const ctx = { subscriptions: [] };

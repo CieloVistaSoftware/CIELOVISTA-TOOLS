@@ -150,6 +150,14 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone install-command — no vscode dep, consumed by REG-117 unit test
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/install-command.ts'],
+    outfile:     'out/shared/install-command.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Copy doc-catalog HTML shell for playwright UI tests
   fs.mkdirSync('out/features/doc-catalog', { recursive: true });
   fs.copyFileSync(
