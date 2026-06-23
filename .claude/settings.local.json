@@ -13,7 +13,14 @@
       "Bash(node tests/unit/registry-promote.test.js)",
       "Bash(git checkout *)",
       "mcp__vscode-claude-runner__powershell_command",
-      "Bash(node tests/unit/frontmatter-header.test.js)"
+      "Bash(node tests/unit/frontmatter-header.test.js)",
+      "WebSearch",
+      "WebFetch(domain:www.csoonline.com)",
+      "PowerShell(cd \"C:\\\\Users\\\\jwpmi\\\\Downloads\\\\AI\\\\wb-starter\"; \"BRANCH: \" + \\(git branch --show-current\\); \"---RECENT---\"; git log --oneline -3; \"---DIRTY FILES REMAINING---\"; \\(git status --short | Measure-Object -Line\\).Lines; \"---MAIN UNTOUCHED?---\"; git log main --oneline -1)",
+      "PowerShell(cd \"C:\\\\Users\\\\jwpmi\\\\Downloads\\\\AI\\\\wb-starter\"; npx playwright test tests/compliance/v3-syntax-compliance.spec.ts --reporter=line 2>&1 | Select-String -Pattern \"missing|\\\\$view|\\\\$methods|\\\\$cssAPI|schema|fail|Error:|expect\" | Select-Object -First 50)",
+      "Bash(gh pr create --base main --head feat/mvvm-migration --title 'feat\\(mvvm\\): complete MVVM migration — add behavior schema tier' --body ' *)",
+      "Bash(gh repo *)",
+      "Bash(python -c \"import sys,json;print\\(len\\(json.load\\(sys.stdin\\)\\)\\)\")"
     ]
   }
 }
