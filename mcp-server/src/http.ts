@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'node:http';
+import { readBody } from './shared/request-utils.js';
 
 const HOST = '127.0.0.1';
 const PORT = parseInt(process.env.MCP_PORT || '3000', 10);
@@ -22,23 +23,12 @@ interface McpStreamableResponse {
  * Parse JSON-RPC request from body
  */
 async function parseJsonRpcRequest(req: IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk.toString();
-      if (body.length > 1024 * 1024) {
-        reject(new Error('Request body too large'));
-      }
-    });
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(body));
-      } catch (e) {
-        reject(new Error('Invalid JSON'));
-      }
-    });
-    req.on('error', reject);
-  });
+    const raw = await readBody(req);
+    try {
+        return JSON.parse(raw);
+    } catch {
+        throw new Error('Invalid JSON');
+    }
 }
 
 /**

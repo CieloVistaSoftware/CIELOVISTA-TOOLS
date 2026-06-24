@@ -17,7 +17,7 @@ _No commands registered — utility/shared module._
 
 ## Internal architecture
 
-```
+```text
 activate(context)
   └── registers 0 command(s)
 

@@ -40,6 +40,21 @@ function _launchInTerminal(name: string, cmd: string, cwd?: string): void {
     registerLaunchedTerminal(name, { script: cmd, command: cmd, cwd: cwd ?? '', project: name });
 }
 
+async function _startDiskCleanUp(): Promise<void> {
+    const net = await import('net');
+    const inUse = await new Promise<boolean>((resolve) => {
+        const s = net.createConnection({ host: '127.0.0.1', port: 5000 });
+        s.once('connect', () => { s.destroy(); resolve(true); });
+        s.once('error',   () => { s.destroy(); resolve(false); });
+    });
+    if (inUse) {
+        void vscode.window.showInformationMessage('DiskCleanUp service already running on port 5000.');
+        void vscode.commands.executeCommand('cvs.diskcleanup.openDashboard');
+        return;
+    }
+    _launchInTerminal('DiskCleanUp', 'dotnet run', _DISKCLEANUP_SVC);
+}
+
 function normalizeWorkspaceDisplayName(name: string): string {
     const raw = String(name ?? '').trim();
     if (!raw) { return 'CieloVista Tools'; }
@@ -644,7 +659,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
             if (picked) { await vscode.commands.executeCommand(picked.id); }
         }),
-        vscode.commands.registerCommand('cvs.launch.diskcleanup.start',   () => _launchInTerminal('DiskCleanUp',         'dotnet run',                                                                                                                                          _DISKCLEANUP_SVC)),
+        vscode.commands.registerCommand('cvs.launch.diskcleanup.start',   () => void _startDiskCleanUp()),
         vscode.commands.registerCommand('cvs.launch.diskcleanup.console', () => void vscode.commands.executeCommand('cvs.diskcleanup.consoleMode')),
         vscode.commands.registerCommand('cvs.launch.diskcleanup.build',   () => _launchInTerminal('DiskCleanUp Build',   'dotnet build DiskCleanUp.sln',                                                                                                                       _DISKCLEANUP_ROOT)),
         vscode.commands.registerCommand('cvs.launch.diskcleanup.stop',    () => _launchInTerminal('DiskCleanUp Stop',    'Stop-Process -Id (Get-NetTCPConnection -LocalPort 5100 -ErrorAction SilentlyContinue).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host "Port 5100 freed"')),

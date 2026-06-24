@@ -60,7 +60,11 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
     let content: string;
     try { content = fs.readFileSync(filePath, 'utf8'); } catch { return results; }
 
-    const lines = content.split('\n');
+    // Split on CRLF or LF. Splitting on '\n' alone leaves a trailing '\r' on
+    // every line in CRLF files, so a fence line "```\r" never matches the
+    // ^([`~]{3,})(.*)$ pattern (`.`/`$` don't cover `\r`) and no blocks are
+    // detected — making the audit silently under-report on CRLF docs (#610).
+    const lines = content.split(/\r?\n/);
     let insideBlock = false;
     let blockStartLine = 0;
     let blockLang = '';

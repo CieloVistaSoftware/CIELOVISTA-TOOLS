@@ -20,7 +20,12 @@ async function main() {
         console.log('\nActivation test PASSED');
         process.exit(0);
     } catch (err) {
-        console.error('\nActivation test FAILED:', err && err.message ? err.message : err);
+        const msg = err && err.message ? err.message : String(err);
+        if (/vscodeinsiders-updating|currently being updated/i.test(msg)) {
+            console.warn('\nSKIP: VS Code Insiders is updating — wait for the update to finish, then re-run.');
+            process.exit(0);
+        }
+        console.error('\nActivation test FAILED:', msg);
         process.exit(1);
     }
 }

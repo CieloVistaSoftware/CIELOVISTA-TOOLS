@@ -1,47 +1,25 @@
 # Feature: Error Log Viewer
 
+## Commands
+
+| Command ID | Title | Keybinding |
+|---|---|---|
+| `cvs.tools.errorLog` | Tools: Error Log Viewer | — |
+
 ## What it does
 
 Shows the persistent CieloVista Tools error log in a webview panel, displaying error type, context, triggering command, timestamp, and stack trace for each entry. Supports refresh, clear all, open raw JSON, and filing selected errors directly as GitHub issues.
 
 ---
-
-## Commands
-
-| Command ID | Title |
-|---|---|
-| [`cvs.tools.errorLog`](command:cvs.tools.errorLog) | Tools: Error Log |
-
-
----
-
-## Internal architecture
-
-```text
-activate(context)
-  └── registers 0 command(s)
-
-```
-
-**Key internal functions:**
-- `typeColor()`
-- `buildHtml()`
-
----
-
-## Manual test
-
-1. Open a workspace with the CieloVista Tools extension active.
-2. Verify Error Log Viewer activates without errors in the Output channel.
-
----
+| [`cvs.tools.errorLog`](command: cvs.tools.errorLog) | Tools: Error Log |
+**Key internal functions: **
 docid: 150.1.error-log-viewer
 id: feature-error-log-viewer
-title: "Feature: Error Log Viewer"
+title: Feature: Error Log Viewer
 project: cielovista-tools
-description: "Error Log Viewer — 0 command(s). Auto-generated stub: fill in What it does and Manual test."
+description: Error Log Viewer — 0 command(s). Auto-generated stub: fill in What it does and Manual test.
 status: active
-tags: [error, log, viewer]
+tags: [cvs.tools.errorLog, error, log, viewer]
 category: 150.1 — Components / Features
 created: 2026-05-15
 updated: 2026-05-15

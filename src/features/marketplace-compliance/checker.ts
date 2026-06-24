@@ -28,7 +28,7 @@ export function checkProject(project: ProjectEntry): ProjectCompliance {
             if (OPEN_SOURCE_LICENSES.includes(lic)) {
                 issues.push({ severity: 'error', file: 'package.json', message: `License is "${lic}" — CieloVista projects must use PROPRIETARY`, fixable: true, fixKey: 'pkg:license' });
             }
-            if (!pkg['icon']) {
+            if (project.type === 'vscode-extension' && !pkg['icon']) {
                 issues.push({ severity: 'warning', file: 'package.json', message: 'Missing "icon" field (should be "icon.png")', fixable: true, fixKey: 'pkg:icon' });
             }
             if (project.type === 'vscode-extension') {
@@ -53,7 +53,7 @@ export function checkProject(project: ProjectEntry): ProjectCompliance {
     if (!fs.existsSync(path.join(project.path, 'LICENSE')) && !fs.existsSync(path.join(project.path, 'LICENSE.txt'))) {
         issues.push({ severity: 'error', file: 'LICENSE', message: 'Missing LICENSE file', fixable: true, fixKey: 'create:license' });
     }
-    if (!fs.existsSync(path.join(project.path, 'icon.png'))) {
+    if (project.type === 'vscode-extension' && !fs.existsSync(path.join(project.path, 'icon.png'))) {
         issues.push({ severity: 'warning', file: 'icon.png', message: 'Missing icon.png', fixable: true, fixKey: 'create:icon' });
     }
 

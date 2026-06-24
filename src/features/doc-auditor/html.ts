@@ -3,6 +3,7 @@
 
 // component: aud
 
+import * as path from 'path';
 import type { AuditResults, DocFile } from './types';
 
 export function esc(s: string): string {
@@ -59,7 +60,7 @@ function buildTabPreview(groupId: string, files: DocFile[]): string {
     return `<div class="tab-block"><div class="tab-bar">${tabs}</div><div class="tab-panes">${panes}</div></div>`;
 }
 
-export function buildAuditHtml(results: AuditResults): string {
+export function buildAuditHtml(results: AuditResults, reportMeta?: { path: string; mtime: Date }): string {
     const warnings = results.warningCandidates ?? [];
   type TableRow = { category: string; fileName: string; project: string; filePath: string; sizeBytes: number; modifiedAt: string };
   const tableRows: TableRow[] = [];
@@ -115,11 +116,12 @@ export function buildAuditHtml(results: AuditResults): string {
     });
   }
 
+  const filterBar = `<div class="findings-filter"><input id="loc-filter" type="text" placeholder="Filter by location…"><label class="excl-label"><input type="checkbox" id="excl-claude" checked> Exclude CLAUDE.md</label><label class="excl-label"><input type="checkbox" id="excl-readme" checked> Exclude README.md</label><span id="filter-count" class="filter-count"></span></div>`;
   const tableHtml = tableRows.length === 0
     ? '<p class="ok">No findings to list. ✅</p>'
-    : `<div class="findings-table-wrap"><table class="findings-table"><thead><tr>
+    : `${filterBar}<div class="findings-table-wrap"><table class="findings-table"><thead><tr>
       <th>Category</th><th>Filename</th><th>Project</th><th>Location</th><th>Size (bytes)</th><th>Last updated</th>
-       </tr></thead><tbody>${tableRows.map((r, i) => `<tr data-row-index="${i}">
+       </tr></thead><tbody>${tableRows.map((r, i) => `<tr data-row-index="${i}" data-filename="${esc(r.fileName.toLowerCase())}" data-location="${esc(r.filePath.toLowerCase())}">
       <td>${esc(r.category)}</td>
       <td>${esc(r.fileName)}</td>
       <td>${esc(r.project)}</td>
@@ -196,10 +198,11 @@ export function buildAuditHtml(results: AuditResults): string {
     const section = (title: string, count: number, body: string, sid: string) =>
         `<div class="section" data-section="${sid}"><h2>${title} <span class="badge">${count}</span></h2>${count===0?`<p class="ok">None found. ✅</p>`:body}</div>`;
 
-    const CSS = `*{box-sizing:border-box}body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px;margin:0}h1{font-size:1.3em;margin-bottom:4px}h2{font-size:1.05em;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:6px;margin-top:24px}.summary{display:flex;gap:12px;margin:12px 0 16px;flex-wrap:wrap}.stat{background:var(--vscode-textCodeBlock-background);padding:8px 14px;border-radius:4px;text-align:center;min-width:78px;cursor:pointer}.stat-n{font-size:1.5em;font-weight:700;display:block}.stat-label{font-size:0.8em;color:var(--vscode-descriptionForeground)}.stat:hover{outline:2px solid var(--vscode-focusBorder)}.stat.active-filter{outline:2px solid var(--vscode-focusBorder);background:var(--vscode-button-background)}.stat.active-filter .stat-n,.stat.active-filter .stat-label{color:var(--vscode-button-foreground)}.section.filtered-out{display:none}.guidance{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 16px;margin-bottom:20px;line-height:1.6}.guidance ul{margin:6px 0 6px 18px;padding:0}.guidance li{margin:4px 0}.tip{color:var(--vscode-descriptionForeground);font-size:0.88em;margin:8px 0 0}.ok-box{color:var(--vscode-testing-iconPassed)}.section{margin-bottom:28px}.card{border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 14px;margin-bottom:12px}.card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}.recommendation{font-size:0.85em;margin:4px 0 10px;padding:6px 10px;border-radius:3px;background:var(--vscode-editor-background);border-left:3px solid var(--vscode-focusBorder)}.muted{color:var(--vscode-descriptionForeground);font-size:0.85em;margin:2px 0 6px}.badge{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 8px;font-size:0.8em}.ok{color:var(--vscode-testing-iconPassed)}.audit-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}.findings-table-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto}.findings-table{width:100%;border-collapse:collapse;min-width:920px}.findings-table th,.findings-table td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 10px;text-align:left;vertical-align:top}.findings-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);position:sticky;top:0}.table-path-btn{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-family:var(--vscode-editor-font-family);font-size:11px;text-align:left;cursor:pointer;padding:0}.table-path-btn:hover{text-decoration:underline}.tab-block{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:hidden;margin:8px 0 10px}.tab-bar{display:flex;flex-wrap:wrap;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border)}.tab-btn{background:transparent;color:var(--vscode-descriptionForeground);border:none;border-right:1px solid var(--vscode-panel-border);padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tab-btn:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-editor-foreground)}.tab-btn.active{background:var(--vscode-textCodeBlock-background);color:var(--vscode-editor-foreground);font-weight:600;border-bottom:2px solid var(--vscode-focusBorder)}.tab-pane{display:block}.tab-pane.hidden{display:none}.file-meta{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}.path-label{font-family:var(--vscode-editor-font-family);font-size:0.8em;color:var(--vscode-descriptionForeground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.size-label{font-size:0.78em;color:var(--vscode-descriptionForeground);white-space:nowrap}.sm-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:11px;white-space:nowrap}.sm-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}pre.preview{margin:0;padding:10px;background:var(--vscode-textCodeBlock-background);font-family:var(--vscode-editor-font-family);font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}.actions{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:5px 12px;border-radius:2px;cursor:pointer;font-size:12px}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}button.danger:hover{opacity:0.85}`;
+    const CSS = `*{box-sizing:border-box}body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px;margin:0}h1{font-size:1.3em;margin-bottom:4px}h2{font-size:1.05em;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:6px;margin-top:24px}.summary{display:flex;gap:12px;margin:12px 0 16px;flex-wrap:wrap}.stat{background:var(--vscode-textCodeBlock-background);padding:8px 14px;border-radius:4px;text-align:center;min-width:78px;cursor:pointer}.stat-n{font-size:1.5em;font-weight:700;display:block}.stat-label{font-size:0.8em;color:var(--vscode-descriptionForeground)}.stat:hover{outline:2px solid var(--vscode-focusBorder)}.stat.active-filter{outline:2px solid var(--vscode-focusBorder);background:var(--vscode-button-background)}.stat.active-filter .stat-n,.stat.active-filter .stat-label{color:var(--vscode-button-foreground)}.section.filtered-out{display:none}.guidance{background:var(--vscode-textCodeBlock-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 16px;margin-bottom:20px;line-height:1.6}.guidance ul{margin:6px 0 6px 18px;padding:0}.guidance li{margin:4px 0}.tip{color:var(--vscode-descriptionForeground);font-size:0.88em;margin:8px 0 0}.ok-box{color:var(--vscode-testing-iconPassed)}.section{margin-bottom:28px}.card{border:1px solid var(--vscode-panel-border);border-radius:4px;padding:12px 14px;margin-bottom:12px}.card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}.recommendation{font-size:0.85em;margin:4px 0 10px;padding:6px 10px;border-radius:3px;background:var(--vscode-editor-background);border-left:3px solid var(--vscode-focusBorder)}.muted{color:var(--vscode-descriptionForeground);font-size:0.85em;margin:2px 0 6px}.badge{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 8px;font-size:0.8em}.ok{color:var(--vscode-testing-iconPassed)}.audit-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}.findings-table-wrap{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:auto}.findings-table{width:100%;border-collapse:collapse;min-width:920px}.findings-table th,.findings-table td{border-bottom:1px solid var(--vscode-panel-border);padding:7px 10px;text-align:left;vertical-align:top}.findings-table th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);position:sticky;top:0}.table-path-btn{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-family:var(--vscode-editor-font-family);font-size:11px;text-align:left;cursor:pointer;padding:0}.table-path-btn:hover{text-decoration:underline}.tab-block{border:1px solid var(--vscode-panel-border);border-radius:4px;overflow:hidden;margin:8px 0 10px}.tab-bar{display:flex;flex-wrap:wrap;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border)}.tab-btn{background:transparent;color:var(--vscode-descriptionForeground);border:none;border-right:1px solid var(--vscode-panel-border);padding:5px 12px;cursor:pointer;font-size:11px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}.tab-btn:hover{background:var(--vscode-list-hoverBackground);color:var(--vscode-editor-foreground)}.tab-btn.active{background:var(--vscode-textCodeBlock-background);color:var(--vscode-editor-foreground);font-weight:600;border-bottom:2px solid var(--vscode-focusBorder)}.tab-pane{display:block}.tab-pane.hidden{display:none}.file-meta{display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}.path-label{font-family:var(--vscode-editor-font-family);font-size:0.8em;color:var(--vscode-descriptionForeground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.size-label{font-size:0.78em;color:var(--vscode-descriptionForeground);white-space:nowrap}.sm-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:2px 8px;border-radius:2px;cursor:pointer;font-size:11px;white-space:nowrap}.sm-btn:hover{background:var(--vscode-button-secondaryHoverBackground)}pre.preview{margin:0;padding:10px;background:var(--vscode-textCodeBlock-background);font-family:var(--vscode-editor-font-family);font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow-y:auto}.actions{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:5px 12px;border-radius:2px;cursor:pointer;font-size:12px}button:hover{background:var(--vscode-button-hoverBackground)}button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}button.danger:hover{opacity:0.85}.findings-filter{display:flex;align-items:center;gap:10px;padding:6px 0 10px;flex-wrap:wrap}.findings-filter input[type=text]{flex:1;min-width:180px;max-width:300px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,var(--vscode-panel-border));border-radius:2px;padding:4px 8px;font-size:12px}.excl-label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;white-space:nowrap}.filter-count{font-size:11px;color:var(--vscode-descriptionForeground);margin-left:auto}.report-meta{display:flex;align-items:center;gap:8px;margin:2px 0 6px;flex-wrap:wrap}.report-name-btn{background:transparent;border:none;color:var(--vscode-textLink-foreground);font-family:var(--vscode-editor-font-family);font-size:12px;cursor:pointer;padding:0;text-decoration:underline dotted;text-underline-offset:2px}.report-name-btn:hover{text-decoration:underline}.report-date{font-size:11px;color:var(--vscode-descriptionForeground)}`;
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>${CSS}</style></head><body>
 <h1>📋 CieloVista Docs Audit</h1>
+${reportMeta ? `<div class="report-meta"><button class="report-name-btn" data-action="open-report" data-path="${esc(reportMeta.path)}">${esc(path.basename(reportMeta.path))}</button><span class="report-date">${esc(reportMeta.mtime.toLocaleString())}</span><button class="danger sm-btn" data-action="delete-report" data-path="${esc(reportMeta.path)}">🗑 Delete</button></div>` : ''}
 <p class="muted">Scanned ${results.totalDocsScanned} docs across ${results.projectsScanned} projects</p>
 <div class="summary">
   <div class="stat" data-action="filter-section" data-section="all"><span class="stat-n">${results.totalDocsScanned}</span><span class="stat-label">Docs scanned</span></div>
@@ -241,6 +244,30 @@ function switchTab(gid, idx) {
   document.querySelectorAll('[data-group="' + gid + '"].tab-btn').forEach(function(b, i) { b.classList.toggle('active', i === idx); });
   document.querySelectorAll('[data-group="' + gid + '"][data-pane]').forEach(function(p) { p.classList.toggle('hidden', parseInt(p.dataset.pane || '-1') !== idx); });
 }
+function applyFindingsFilter() {
+  var locInput = document.getElementById('loc-filter');
+  var locVal = locInput ? (locInput.value || '').toLowerCase() : '';
+  var exclClaude = document.getElementById('excl-claude') ? document.getElementById('excl-claude').checked : false;
+  var exclReadme = document.getElementById('excl-readme') ? document.getElementById('excl-readme').checked : false;
+  var rows = document.querySelectorAll('.findings-table tbody tr');
+  var visible = 0;
+  rows.forEach(function(tr) {
+    var fn = tr.dataset.filename || '';
+    var loc = tr.dataset.location || '';
+    var hide = (locVal && loc.indexOf(locVal) === -1) || (exclClaude && fn === 'claude.md') || (exclReadme && fn === 'readme.md');
+    tr.style.display = hide ? 'none' : '';
+    if (!hide) { visible++; }
+  });
+  var countEl = document.getElementById('filter-count');
+  if (countEl) { countEl.textContent = rows.length ? ('Showing ' + visible + ' of ' + rows.length) : ''; }
+}
+var _locInput = document.getElementById('loc-filter');
+if (_locInput) { _locInput.addEventListener('input', applyFindingsFilter); }
+var _exclClaude = document.getElementById('excl-claude');
+if (_exclClaude) { _exclClaude.addEventListener('change', applyFindingsFilter); }
+var _exclReadme = document.getElementById('excl-readme');
+if (_exclReadme) { _exclReadme.addEventListener('change', applyFindingsFilter); }
+applyFindingsFilter();
 document.addEventListener('click', function(e) {
   var el = e.target.closest('[data-action]');
   if (!el) { return; }
@@ -280,6 +307,10 @@ document.addEventListener('click', function(e) {
     vscode.postMessage({command:'moveToGlobal', data:el.dataset.path});
   } else if (action === 'cmd-delete') {
     vscode.postMessage({command:'delete', data:el.dataset.path});
+  } else if (action === 'open-report') {
+    vscode.postMessage({command:'open-report', data:el.dataset.path});
+  } else if (action === 'delete-report') {
+    vscode.postMessage({command:'delete-report', data:el.dataset.path});
   }
 });
 })();

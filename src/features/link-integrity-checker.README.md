@@ -9,15 +9,15 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 ## Commands
 
-| Command ID | Title |
-|---|---|
-_No commands registered — utility/shared module._
+| Command ID | Title | Keybinding |
+|---|---|---|
+| `cvs.links.check` | Tools: Link Integrity Check | — |
 
 ---
 
 ## Internal architecture
 
-```
+```text
 activate(context)
   └── registers 0 command(s)
 

@@ -28,7 +28,7 @@ function checkOne(project: ProjectEntry): ProjectResult {
         !fs.existsSync(path.join(project.path, 'LICENSE.txt'))) { missing.push('LICENSE'); }
 
     if (!fs.existsSync(path.join(project.path, 'CHANGELOG.md'))) { missing.push('CHANGELOG.md'); }
-    if (!fs.existsSync(path.join(project.path, 'icon.png')))     { missing.push('icon.png'); }
+    if (isExtension && !fs.existsSync(path.join(project.path, 'icon.png'))) { missing.push('icon.png'); }
 
     if (isExtension) {
         const pkgPath = path.join(project.path, 'package.json');
@@ -78,7 +78,7 @@ export function runMarketplaceCheck(projects: ProjectEntry[]): AuditCheck {
     } else {
         status  = 'green';
         summary = `All ${green.length} projects fully compliant`;
-        detail  = 'All projects have LICENSE, CHANGELOG, and icon.png. Extension projects also have valid package.json metadata.';
+        detail  = 'All projects have LICENSE and CHANGELOG. Extension projects also have icon.png and valid package.json metadata.';
     }
 
     return {

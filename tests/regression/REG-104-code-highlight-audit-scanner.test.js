@@ -67,5 +67,16 @@ check('Summary text references "text" as fallback language',
     SRC.includes('"text" is used when no language can be inferred') ||
     SRC.includes('text') && SRC.includes('inferred'));
 
+// ── #610: CRLF line-ending support ────────────────────────────────────────────
+// scanFile must split on CRLF-or-LF. Splitting on '\n' alone leaves a trailing
+// '\r' on each line in CRLF files, so a fence line "```\r" never matches the
+// ^([`~]{3,})(.*)$ pattern and NO blocks are detected — silently under-reporting.
+
+check('#610 — scanFile splits on CRLF-or-LF (content.split(/\\r?\\n/))',
+    SRC.includes('content.split(/\\r?\\n/)'));
+
+check('#610 — fix references the issue in a comment',
+    SRC.includes('#610'));
+
 console.log(`\nREG-104: ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

@@ -21,6 +21,8 @@ import * as path   from 'path';
 import * as fs     from 'fs';
 import { log, logError } from '../shared/output-channel';
 import { registerLaunchedTerminal } from '../shared/terminal-utils';
+import { loadRegistry } from '../shared/registry';
+import { readPkgScripts, type PkgEntry } from '../shared/npm-scripts-reader';
 
 const FEATURE = 'npm-scripts-tree';
 const COMMAND  = 'cvs.npm.tree';
@@ -30,62 +32,81 @@ let _panel: vscode.WebviewPanel | undefined;
 // Map from terminal → { dir, script } for exit-status tracking
 const _termMap = new Map<vscode.Terminal, { dir: string; script: string }>();
 
-interface ScriptEntry { name: string; cmd: string; }
-interface PkgEntry    { label: string; relPath: string; absDir: string; scripts: ScriptEntry[]; }
+// ─── Registered projects ──────────────────────────────────────────────────────
+
+interface RegistryProject { name: string; path: string; }
+
+function getRegisteredProjects(): RegistryProject[] {
+    try {
+        const reg = loadRegistry();
+        if (!reg?.projects?.length) { return []; }
+        return reg.projects
+            .filter(p => p && p.path)
+            .map(p => ({ name: p.name ?? path.basename(p.path), path: p.path }))
+            .filter(p => p.path && fs.existsSync(p.path));
+    } catch { return []; }
+}
 
 // ─── Data collection ──────────────────────────────────────────────────────────
 
-async function collectEntries(): Promise<PkgEntry[]> {
-    const wsRoot  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    const seen    = new Set<string>();
-    const entries: PkgEntry[] = [];
+/** The first workspace folder's path, or '' when no workspace is open. */
+function workspaceRoot(): string {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+}
 
-    const addDir = (absDir: string) => {
-        const lower = absDir.toLowerCase();
-        if (seen.has(lower)) { return; }
-        seen.add(lower);
-        const pkgFile = path.join(absDir, 'package.json');
-        if (!fs.existsSync(pkgFile)) { return; }
-        try {
-            const pkg     = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as { scripts?: Record<string, string> };
-            const scripts = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => ({ name, cmd }));
-            if (!scripts.length) { return; }
-            const relPath = wsRoot
-                ? path.relative(wsRoot, pkgFile).replace(/\\/g, '/')
-                : pkgFile;
-            entries.push({ label: path.basename(absDir), relPath, absDir, scripts });
-        } catch (err) {
-            logError(
-                `npm-scripts-tree: failed to parse ${pkgFile}`,
-                err instanceof Error ? (err.stack ?? String(err)) : String(err),
-                FEATURE
-            );
-        }
-    };
+/** Read one directory's scripts into `entries`, deduped via `seen`. */
+function addPkgDir(absDir: string, wsRoot: string, seen: Set<string>, entries: PkgEntry[]): void {
+    const lower = absDir.toLowerCase();
+    if (seen.has(lower)) { return; }
+    seen.add(lower);
+    const entry = readPkgScripts(absDir, wsRoot);
+    if (entry) { entries.push(entry); }
+}
 
-    // Workspace roots first
-    for (const folder of vscode.workspace.workspaceFolders ?? []) {
-        addDir(folder.uri.fsPath);
-    }
-
-    // Sub-packages via findFiles
+/** All directories under the workspace that contain a package.json (excludes build/output dirs). */
+async function findWorkspacePackageDirs(): Promise<string[]> {
     try {
         const files = await vscode.workspace.findFiles(
             '**/package.json',
             '{**/node_modules/**,**/.claude/**,**/out/**,**/dist/**,**/.vscode-test/**}'
         );
-        for (const f of files) { addDir(path.dirname(f.fsPath)); }
-    } catch { /* workspace not ready */ }
+        return files.map(f => path.dirname(f.fsPath));
+    } catch { return []; }
+}
 
-    // Workspace root first, then alpha
+/** Sort the workspace root first, then alphabetically by label. */
+function sortWorkspaceFirst(entries: PkgEntry[], wsRoot: string): void {
+    const root = wsRoot.toLowerCase();
     entries.sort((a, b) => {
-        const aRoot = a.absDir.toLowerCase() === wsRoot.toLowerCase();
-        const bRoot = b.absDir.toLowerCase() === wsRoot.toLowerCase();
-        if (aRoot && !bRoot) { return -1; }
-        if (!aRoot && bRoot) { return  1; }
+        const aRoot = a.absDir.toLowerCase() === root;
+        const bRoot = b.absDir.toLowerCase() === root;
+        if (aRoot !== bRoot) { return aRoot ? -1 : 1; }
         return a.label.localeCompare(b.label);
     });
+}
 
+/**
+ * Collect npm-script entries. With an explicit root, scans only that folder
+ * (project picker). Otherwise scans the whole workspace.
+ */
+async function collectEntries(explicitRoot?: string): Promise<PkgEntry[]> {
+    const wsRoot  = explicitRoot ?? workspaceRoot();
+    const seen    = new Set<string>();
+    const entries: PkgEntry[] = [];
+
+    if (explicitRoot) {
+        addPkgDir(explicitRoot, wsRoot, seen, entries);
+        return entries;
+    }
+
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+        addPkgDir(folder.uri.fsPath, wsRoot, seen, entries);
+    }
+    for (const dir of await findWorkspacePackageDirs()) {
+        addPkgDir(dir, wsRoot, seen, entries);
+    }
+
+    sortWorkspaceFirst(entries, wsRoot);
     log(FEATURE, `found ${entries.length} package.json files`);
     return entries;
 }
@@ -104,6 +125,60 @@ function getShellHtml(): string {
     </body></html>`;
 }
 
+// ─── Message handlers ─────────────────────────────────────────────────────────
+
+/** Collect entries for `root` and post an `init` message; optionally include the project list. */
+async function sendInit(panel: vscode.WebviewPanel, root: string, withProjects: boolean): Promise<void> {
+    const entries  = await collectEntries(root);
+    const projects = withProjects ? getRegisteredProjects() : undefined;
+    void panel.webview.postMessage({ type: 'init', entries, projects, currentPath: root });
+}
+
+/** Build the GitHub new-issue URL for a failed npm script. */
+function buildNpmIssueUrl(script: string, dir: string): string {
+    const title = `[npm] \`npm run ${script}\` failed`;
+    const body = [
+        '## npm script failure', '',
+        `**Script:** \`${script}\``,
+        `**Project:** \`${dir}\``,
+        `**Time:** ${new Date().toISOString()}`, '',
+        'Running the script above exited with a non-zero exit code.',
+        'Please check the terminal output for the full error message.', '',
+        '---', '*Filed from CVT NPM Scripts viewer*',
+    ].join('\n');
+    const repo = dir.toLowerCase().includes('diskcleanup')
+        ? 'CieloVistaSoftware/DiskCleanUp'
+        : 'CieloVistaSoftware/cielovista-tools';
+    const params = new URLSearchParams({ title, body, labels: 'type:bug,status:triage' });
+    return `https://github.com/${repo}/issues/new?${params.toString()}`;
+}
+
+/** Reuse an open terminal for this script+dir, or create and register a new one. */
+function acquireTerminal(dir: string, script: string): vscode.Terminal {
+    for (const [t, info] of _termMap) {
+        if (info.dir === dir && info.script === script) { t.show(true); return t; }
+    }
+    const term = vscode.window.createTerminal({
+        name: `npm: ${script}`,
+        cwd:  dir,
+        location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+    });
+    _termMap.set(term, { dir, script });
+    registerLaunchedTerminal(`npm: ${script}`, {
+        script, command: `npm run ${script}`, cwd: dir, project: path.basename(dir),
+    });
+    return term;
+}
+
+/** Run a script in its project folder and notify the webview it is running. */
+function runScript(panel: vscode.WebviewPanel, dir: string, script: string): void {
+    const term = acquireTerminal(dir, script);
+    term.sendText(`npm run ${script}`);
+    panel.reveal(vscode.ViewColumn.One, false);
+    void panel.webview.postMessage({ type: 'run-state', dir, script, state: 'running' });
+    log(FEATURE, `run: ${script} in ${dir}`);
+}
+
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 async function openPanel(): Promise<void> {
@@ -120,82 +195,28 @@ async function openPanel(): Promise<void> {
 
     _panel.webview.html = getShellHtml();
 
-    _panel.webview.onDidReceiveMessage(async (msg: { type: string; dir?: string; script?: string }) => {
+    _panel.webview.onDidReceiveMessage(async (msg: { type: string; dir?: string; script?: string; projectPath?: string }) => {
+        if (!_panel) { return; }
         switch (msg.type) {
-            case 'ready': {
-                const entries = await collectEntries();
-                void _panel?.webview.postMessage({ type: 'init', entries });
+            case 'ready':
+            case 'refresh':
+                await sendInit(_panel, workspaceRoot(), true);
                 break;
-            }
-            case 'refresh': {
-                const fresh = await collectEntries();
-                void _panel?.webview.postMessage({ type: 'init', entries: fresh });
-                break;
-            }
-            case 'create-issue': {
-                if (!msg.script || !msg.dir) { break; }
-                const title = `[npm] \`npm run ${msg.script}\` failed`;
-                const body = [
-                    '## npm script failure',
-                    '',
-                    `**Script:** \`${msg.script}\``,
-                    `**Project:** \`${msg.dir}\``,
-                    `**Time:** ${new Date().toISOString()}`,
-                    '',
-                    'Running the script above exited with a non-zero exit code.',
-                    'Please check the terminal output for the full error message.',
-                    '',
-                    '---',
-                    '*Filed from CVT NPM Scripts viewer*',
-                ].join('\n');
-                const isDiskCleanup = msg.dir.toLowerCase().includes('diskcleanup');
-                const repo = isDiskCleanup
-                    ? 'CieloVistaSoftware/DiskCleanUp'
-                    : 'CieloVistaSoftware/cielovista-tools';
-                const params = new URLSearchParams({ title, body, labels: 'type:bug,status:triage' });
-                void vscode.env.openExternal(vscode.Uri.parse(
-                    `https://github.com/${repo}/issues/new?${params.toString()}`
-                ));
-                log(FEATURE, `create-issue: ${msg.script} in ${msg.dir}`);
-                break;
-            }
-            case 'run': {
-                if (!msg.dir || !msg.script) { break; }
-
-                // Reuse existing terminal if one is still open for this script + dir
-                let term: vscode.Terminal | undefined;
-                for (const [t, info] of _termMap) {
-                    if (info.dir === msg.dir && info.script === msg.script) { term = t; break; }
+            case 'switchProject':
+                if (msg.projectPath) {
+                    await sendInit(_panel, msg.projectPath, false);
+                    log(FEATURE, `switchProject: ${msg.projectPath}`);
                 }
-
-                if (term) {
-                    // Already open — bring it to view without moving it or stealing focus
-                    term.show(true);
-                } else {
-                    term = vscode.window.createTerminal({
-                        name: `npm: ${msg.script}`,
-                        cwd:  msg.dir,
-                        location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-                    });
-                    _termMap.set(term, { dir: msg.dir, script: msg.script });
-                    registerLaunchedTerminal(`npm: ${msg.script}`, {
-                        script:  msg.script,
-                        command: `npm run ${msg.script}`,
-                        cwd:     msg.dir,
-                        project: path.basename(msg.dir),
-                    });
-                }
-
-                term.sendText(`npm run ${msg.script}`);
-                // Re-reveal the webview panel so it keeps focus after the terminal opens
-                _panel?.reveal(vscode.ViewColumn.One, false);
-                // Tell the webview this script is now running
-                void _panel?.webview.postMessage({
-                    type: 'run-state', dir: msg.dir, script: msg.script, state: 'running',
-                });
-                log(FEATURE, `run: ${msg.script} in ${msg.dir}`);
                 break;
-            }
+            case 'create-issue':
+                if (msg.script && msg.dir) {
+                    void vscode.env.openExternal(vscode.Uri.parse(buildNpmIssueUrl(msg.script, msg.dir)));
+                    log(FEATURE, `create-issue: ${msg.script} in ${msg.dir}`);
+                }
+                break;
+            case 'run':
+                if (msg.dir && msg.script) { runScript(_panel, msg.dir, msg.script); }
+                break;
         }
     });
 

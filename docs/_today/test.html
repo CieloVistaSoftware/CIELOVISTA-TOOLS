@@ -375,10 +375,22 @@
                 var oldText = btn.innerHTML;
                 btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">hourglass_top</span><span class="font-label-md text-label-md">Checking...</span>';
 
+                // Open the tab synchronously inside the click handler. Calling
+                // window.open() AFTER the await below loses the user-activation
+                // context, so the popup blocker silently blocks it (button
+                // appears to do nothing). Open now, navigate once resolved.
+                var demoWindow = window.open('', '_blank');
+
                 var base = await findDemoBaseUrl();
                 if (base) {
-                    window.open(base + '/test.html', '_blank');
+                    if (demoWindow) {
+                        demoWindow.location.href = base + '/test.html';
+                    } else {
+                        // Popup blocked entirely — fall back to same-tab nav.
+                        window.location.href = base + '/test.html';
+                    }
                 } else {
+                    if (demoWindow) { demoWindow.close(); }
                     alert('Demo server is not running yet. Start it first, then try again.');
                 }
 

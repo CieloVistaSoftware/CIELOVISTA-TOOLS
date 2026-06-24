@@ -229,6 +229,23 @@ function verifyInstalledFiles() {
     return true;
 }
 
+function verifyInstalledMatchesSource() {
+    const sourceJs    = path.join(__dirname, 'out', 'extension.js');
+    const installedJs = path.join(installedRoot, 'out', 'extension.js');
+    if (!fs.existsSync(sourceJs) || !fs.existsSync(installedJs)) { return true; } // can't compare — skip
+    const srcSize  = fs.statSync(sourceJs).size;
+    const instSize = fs.statSync(installedJs).size;
+    if (srcSize !== instSize) {
+        console.warn(`\n⚠  STALE INSTALL DETECTED`);
+        console.warn(`   Source  out/extension.js: ${srcSize.toLocaleString()} bytes`);
+        console.warn(`   Installed extension.js:   ${instSize.toLocaleString()} bytes`);
+        console.warn(`   The installed extension does not match the compiled source.`);
+        console.warn(`   Commands registered in source may be missing at runtime.\n`);
+        return false;
+    }
+    return true;
+}
+
 function removeInstalledRootWithRetry() {
     for (let i = 0; i < 4; i++) {
         try {
@@ -369,6 +386,7 @@ if (!installed) {
 
     if (verifyInstalledFiles()) {
         registerInExtensionsJson();
+        verifyInstalledMatchesSource(); // warn only — direct copy should always match
         console.log(`Direct copy succeeded (${copied} files${skippedLocked ? `, ${skippedLocked} locked skipped` : ''}). Reload VS Code window.`);
         process.exit(0);
     }
@@ -379,6 +397,12 @@ if (!installed) {
 
 if (!verifyInstalledFiles()) {
     console.error('Install finished but verification failed: extension files look incomplete.');
+    process.exit(1);
+}
+
+if (!verifyInstalledMatchesSource()) {
+    console.error('Install finished but the installed extension.js does not match the compiled source.');
+    console.error('Run "npm run rebuild" to recompile and reinstall.');
     process.exit(1);
 }
 
