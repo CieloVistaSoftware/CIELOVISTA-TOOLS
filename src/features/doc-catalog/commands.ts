@@ -432,7 +432,7 @@ export async function openCatalog(forceRebuild = false): Promise<void> {
     const cards = await buildCatalog(forceRebuild);
     if (!cards?.length) { vscode.window.showWarningMessage('No docs found to catalog.'); return; }
     queueCatalogInit(cards, projectInfos, registry?.projects ?? []);
-    const html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
+    const html = buildCatalogHtml();
     const hadPanel = Boolean(_catalogPanel);
     if (_catalogPanel) {
         _catalogPanel.webview.html = html;
@@ -955,7 +955,7 @@ export function deserializeCatalogPanel(panel: vscode.WebviewPanel): void {
         _pendingInitCards           = cards;
         _pendingInitProjectInfos    = projectInfos;
         _pendingInitRegistryEntries = registry?.projects ?? [];
-        _catalogPanel!.webview.html = buildCatalogHtml(cards, projectInfos, new Date().toLocaleString(), registry?.projects ?? []);
+        _catalogPanel!.webview.html = buildCatalogHtml();
         trySendPendingCatalogInit(_catalogPanel!);
     });
     _catalogPanel.onDidDispose(() => { _catalogPanel = undefined; });
