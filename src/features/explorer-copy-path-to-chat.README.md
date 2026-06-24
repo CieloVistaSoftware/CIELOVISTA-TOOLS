@@ -39,7 +39,7 @@ title: Explorer Copy Path to Copilot Chat
 project: cielovista-tools
 description: Add an Explorer context-menu command for files that sends the selected file's absolute path into the GitHub Copilot Chat input.
 status: active
-tags: [explorer, copy, path]
+tags: [copy, cvs.explorer.copyPathToCopilotChat, explorer, path]
 category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-05-21

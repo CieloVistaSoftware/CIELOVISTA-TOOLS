@@ -17,40 +17,18 @@ This feature provides an image reader webview panel using HTML, CSS, and JS asse
 - Open the command and verify the panel loads and functions as expected.
 
 ---
-
-**Migrated from CodePilot-Wake-Monitor.**
-
----
-
-## What it does
-
 _TODO: one paragraph describing the single responsibility of this file._
-
----
-
-## Internal architecture
-
-```text
-activate()
-  └── TODO: describe call flow
-```text
-
----
-
-## Manual test
-
+└── TODO: describe call flow
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
-
----
 docid: 150.1.image-reader-readme
 id: image-reader-feature
 title: Image Reader Feature
 project: cielovista-tools
 description: This feature provides an image reader webview panel using HTML, CSS, and JS assets migrated from CodePilot-Wake-Monitor.
 status: active
-tags: [image, reader, readme]
+tags: [cvs.imageReader.open, image, reader, readme]
 category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27

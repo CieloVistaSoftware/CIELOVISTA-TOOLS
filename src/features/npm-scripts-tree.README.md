@@ -9,9 +9,9 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 ## Commands
 
-| Command ID | Title |
-|---|---|
-_No commands registered — utility/shared module._
+| Command ID | Title | Keybinding |
+|---|---|---|
+| `cvs.npm.tree` | NPM Scripts: Tree View | — |
 
 ---
 

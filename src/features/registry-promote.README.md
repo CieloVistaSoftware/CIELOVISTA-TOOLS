@@ -2,6 +2,14 @@
 
 Register a folder as a CieloVista product. One-click alternative to hand-editing `project-registry.json`.
 
+## Commands
+
+| Command ID | Title | Keybinding |
+|---|---|---|
+| `cvs.registry.promote` | Registry: Promote Folder to Product | — |
+| `cvs.registry.demote` | Registry: Demote Project to Workbench | — |
+| `cvs.registry.archive` | Registry: Archive Project | — |
+
 ## Command
 
 `cvs.registry.promote` — "Promote Folder to Product"
@@ -61,30 +69,17 @@ The `status` field supports four values — `product`, `workbench`, `generated`,
 - `package.json` — command contribution and Explorer context menu entry.
 
 ---
-
-## Internal architecture
-
-```text
-activate()
-  └── TODO: describe call flow
-```
-
----
-
-## Manual test
-
+└── TODO: describe call flow
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
-
----
 docid: 150.1.registry-promote-readme
 id: registry-promote
 title: registry-promote
 project: cielovista-tools
 description: Register a folder as a CieloVista product. One-click alternative to hand-editing project-registry.json.
 status: active
-tags: [registry, promote, readme]
+tags: [cvs.registry.demote, cvs.registry.promote, promote, readme, registry]
 category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27

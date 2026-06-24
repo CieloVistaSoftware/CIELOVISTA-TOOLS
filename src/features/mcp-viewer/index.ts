@@ -16,13 +16,15 @@
  * Command: `cvs.mcp.viewer.open`
  */
 
-import * as vscode from 'vscode';
-import * as http   from 'http';
-import * as fs     from 'fs';
-import * as path   from 'path';
+import * as vscode       from 'vscode';
+import * as http         from 'http';
+import * as fs           from 'fs';
+import * as path         from 'path';
+import { execFile }      from 'child_process';
 import { log } from '../../shared/output-channel';
 import { mdToHtml } from '../../shared/md-renderer';
 import { loadRegistry } from '../../shared/registry';
+import { readRequestBody } from '../../shared/http-utils';
 import { buildCatalog } from '../doc-catalog/commands';
 import type { CatalogCard } from '../doc-catalog/types';
 import {
@@ -557,6 +559,51 @@ function handleListCvtCommands(params: URLSearchParams): unknown {
     return { group: group || '(all)', totalCommands: all.length, matchCount: filtered.length, commands: filtered };
 }
 
+/* ── report_viewer_error ─────────────────────────────────────────────────── */
+
+function handleReportViewerError(params: { message?: string; endpoint?: string; url?: string }): { filed: boolean; issueUrl?: string } {
+    const message  = params.message  || 'unknown viewer error';
+    const endpoint = params.endpoint || 'unknown';
+    const title    = `fix(mcp-viewer): empty/error result on ${endpoint} — ${message.slice(0, 80)}`;
+    const body     = [
+        '## Auto-filed by MCP Viewer',
+        '',
+        `**Endpoint:** \`${endpoint}\``,
+        `**Error:** ${message}`,
+        `**Viewer URL:** ${params.url || 'unknown'}`,
+        `**Time:** ${new Date().toISOString()}`,
+        '',
+        '## Steps to reproduce',
+        `1. Open MCP Endpoint Viewer`,
+        `2. Click the \`${endpoint}\` tab and press **Run**`,
+        `3. Observe error: ${message}`,
+        '',
+        '## Expected',
+        'Data rendered in the viewer panel without JavaScript errors.',
+    ].join('\n');
+
+    log(FEATURE, `Viewer error on ${endpoint}: ${message}`);
+
+    return new Promise<{ filed: boolean; issueUrl?: string }>((resolve) => {
+        execFile('gh', [
+            'issue', 'create',
+            '--repo', 'CieloVistaSoftware/CIELOVISTA-TOOLS',
+            '--title', title,
+            '--body', body,
+            '--label', 'priority:1',
+        ], { cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd() }, (err, stdout) => {
+            if (err) {
+                log(FEATURE, `Auto-issue filing failed: ${err.message}`);
+                resolve({ filed: false });
+            } else {
+                const issueUrl = stdout.trim();
+                log(FEATURE, `Auto-filed issue: ${issueUrl}`);
+                resolve({ filed: true, issueUrl });
+            }
+        });
+    }) as unknown as { filed: boolean; issueUrl?: string };
+}
+
 /* ── normalize_doc, get_doc_by_identity, list_old_dewey ─────────────────── */
 
 interface NormalizeDocJson {
@@ -1073,6 +1120,9 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
                     case 'lookup_dewey':
                         result = await handleLookupDewey(new URLSearchParams(params as Record<string, string>));
                         break;
+                    case 'report_viewer_error':
+                        result = await handleReportViewerError(params as { message?: string; endpoint?: string; url?: string });
+                        break;
                     default:
                         jsonResponse(res, 200, {
                             jsonrpc: '2.0',
@@ -1110,20 +1160,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     res.end('Not found');
 }
 
-/** Helper function to read request body */
-async function readRequestBody(req: http.IncomingMessage): Promise<string> {
-    return new Promise((resolve, reject) => {
-        let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-            if (body.length > 1024 * 1024) {
-                reject(new Error('Request body too large'));
-            }
-        });
-        req.on('end', () => resolve(body));
-        req.on('error', reject);
-    });
-}
+// readRequestBody is imported from '../../shared/http-utils'
 
 /** Ensure the HTTP server is running, then open the browser. */
 async function openViewer(): Promise<void> {

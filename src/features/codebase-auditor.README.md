@@ -8,9 +8,9 @@ Scans `src/` for nine categories of structural health issues: oversized files (3
 
 ## Commands
 
-| Command ID | Title |
-|---|---|
-_No commands registered — utility/shared module._
+| Command ID | Title | Keybinding |
+|---|---|---|
+| `cvs.audit.codebase` | Audit: Codebase Health | — |
 
 ---
 

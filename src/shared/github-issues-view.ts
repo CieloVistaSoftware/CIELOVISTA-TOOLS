@@ -24,9 +24,35 @@ import { execFile, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getChannel } from './output-channel';
+import { getRecentProjects } from '../features/cvs-command-launcher/recent-projects';
+import { loadRegistry } from './registry';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
+
+/** Build list of { fsPath, owner, name } for all known CVT projects */
+function getKnownProjectRepos(): Array<{ fsPath: string; label: string; owner: string; name: string }> {
+    const seen = new Set<string>();
+    const results: Array<{ fsPath: string; label: string; owner: string; name: string }> = [];
+    const add = (fsPath: string, label: string) => {
+        if (!fsPath || seen.has(fsPath)) { return; }
+        seen.add(fsPath);
+        const repo = detectRepoFromPath(fsPath);
+        if (repo) { results.push({ fsPath, label, owner: repo.owner, name: repo.name }); }
+    };
+    // Recent projects (includes current)
+    for (const p of getRecentProjects()) { add(p.fsPath, p.name); }
+    // Registry projects
+    try {
+        const reg = loadRegistry();
+        if (reg?.projects) {
+            for (const [, proj] of Object.entries(reg.projects) as [string, any][]) {
+                if (proj?.localPath) { add(proj.localPath, proj.name ?? path.basename(proj.localPath)); }
+            }
+        }
+    } catch { /* registry unavailable */ }
+    return results;
+}
 
 let currentRepo = { owner: REPO_OWNER, name: REPO_NAME };
 
@@ -35,16 +61,31 @@ function repoDisplayName(name: string): string {
     return name;
 }
 
-function detectRepoFromWorkspace(): { owner: string; name: string } {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) { return { owner: REPO_OWNER, name: REPO_NAME }; }
+function detectRepoFromPath(fsPath: string): { owner: string; name: string } | undefined {
     try {
         const output = execFileSync('git', ['remote', 'get-url', 'origin'], {
-            cwd: workspaceRoot, timeout: 3000, windowsHide: true,
+            cwd: fsPath, timeout: 3000, windowsHide: true,
         }).toString().trim();
         const match = output.match(/github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/);
         if (match) { return { owner: match[1], name: match[2] }; }
-    } catch { /* not a git repo or no remote — fall through */ }
+    } catch { /* not a git repo */ }
+    return undefined;
+}
+
+function detectRepoFromWorkspace(wsPath?: string): { owner: string; name: string } {
+    // If caller passes the explicit workspace path (e.g. from CVT Home), use it directly.
+    if (wsPath) {
+        const repo = detectRepoFromPath(wsPath);
+        if (repo) { return repo; }
+    }
+    // Fall back to active editor's workspace folder
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    const activeFolder = activeUri ? vscode.workspace.getWorkspaceFolder(activeUri) : undefined;
+    const fallbackPath = activeFolder?.uri.fsPath ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (fallbackPath) {
+        const repo = detectRepoFromPath(fallbackPath);
+        if (repo) { return repo; }
+    }
     return { owner: REPO_OWNER, name: REPO_NAME };
 }
 
@@ -122,8 +163,8 @@ export function newIssueForProject(projectName?: string): void {
     void vscode.env.openExternal(vscode.Uri.parse(url));
 }
 
-export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColumn.Two): void {
-    const detected = detectRepoFromWorkspace();
+export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColumn.Two, wsPath?: string): void {
+    const detected = detectRepoFromWorkspace(wsPath);
     // If the panel is already open for a different repo, close it so we reopen for the new one.
     if (activePanel && activeRepo && (activeRepo.owner !== detected.owner || activeRepo.name !== detected.name)) {
         activePanel.dispose();
@@ -162,10 +203,11 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
         return `${repoDisplayName(currentRepo.name)} \u2014 ${state === 'closed' ? 'Closed' : 'Open'} Issues`;
     }
 
+    let knownProjects = getKnownProjectRepos();
     const setHtml = (loading: boolean, issues: GHIssue[] | null, error: string | null): void => {
         latestIssues = Array.isArray(issues) ? issues : [];
         panel.title = panelTitleFor(currentState);
-        panel.webview.html = buildHtml(loading, issues, error, currentState);
+        panel.webview.html = buildHtml(loading, issues, error, currentState, knownProjects);
     };
 
     const refresh = async (): Promise<void> => {
@@ -193,7 +235,16 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
 
     panel.webview.onDidReceiveMessage((msg: { type?: string; url?: string; state?: string; number?: number; testRef?: string }) => {
         if (!msg?.type) { return; }
-        if (msg.type === 'refresh') {
+        if (msg.type === 'switchRepo') {
+            const { owner, name } = msg as { owner?: string; name?: string };
+            if (owner && name) {
+                currentRepo = { owner, name };
+                activeRepo  = { owner, name };
+                panel.title = panelTitleFor(currentState);
+                void refresh();
+            }
+        } else if (msg.type === 'refresh') {
+            knownProjects = getKnownProjectRepos(); // refresh project list too
             void refresh();
         } else if (msg.type === 'setState') {
             const nextState = msg.state === 'closed' ? 'closed' : 'open';
@@ -587,7 +638,7 @@ function normalizeIssuePath(rawPath: string, workspaceRoot: string): string | un
 
 // ─── HTML ───────────────────────────────────────────────────────────────────
 
-function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null, viewState: IssueState = 'open'): string {
+function buildHtml(loading: boolean, issues: GHIssue[] | null, error: string | null, viewState: IssueState = 'open', projectRepos: ReturnType<typeof getKnownProjectRepos> = []): string {
     const css = `
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100% !important;max-width:none !important}
@@ -713,7 +764,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
-    <td><div class="actions-cell">${iss.state === 'open' ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
+    <td><div class="actions-cell">${iss.state === 'open' ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : ''}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
 </tr>`;
         }).join('');
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
@@ -738,7 +789,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 (function(){
     var vsc = acquireVsCodeApi();
     var STORAGE_KEY = 'cvt.issuePriorities.v1';
-    var sortState = { key: 'priority', dir: 'asc' };
+    var sortState = { key: 'number', dir: 'desc' };
 
     function loadPriorities(){
         try {
@@ -861,6 +912,13 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             vsc.postMessage({ type: 'refresh' });
         });
     }
+    var projectPicker = document.getElementById('project-picker');
+    if (projectPicker) {
+        projectPicker.addEventListener('change', function() {
+            var parts = projectPicker.value.split('/');
+            if (parts.length === 2) { vsc.postMessage({ type: 'switchRepo', owner: parts[0], name: parts[1] }); }
+        });
+    }
     var newIssue = document.getElementById('new-issue');
     if (newIssue) {
         newIssue.addEventListener('click', function(){ vsc.postMessage({ type: 'newIssue' }); });
@@ -899,7 +957,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                 sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
                 sortState.key = key;
-                sortState.dir = key === 'updated' ? 'desc' : 'asc';
+                sortState.dir = (key === 'updated' || key === 'number') ? 'desc' : 'asc';
             }
             applySort();
         });
@@ -1007,6 +1065,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             <button id="state-open" class="state-toggle-btn${viewState === 'open' ? ' active' : ''}" type="button">Open</button>
             <button id="state-closed" class="state-toggle-btn${viewState === 'closed' ? ' active' : ''}" type="button">Closed</button>
         </div>
+        ${projectRepos.length > 1 ? `<select id="project-picker" title="Switch project" style="font-size:11px;padding:3px 6px;border-radius:4px;background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-foreground);border:1px solid var(--vscode-dropdown-border);cursor:pointer">${projectRepos.map(p => `<option value="${esc(p.owner)}/${esc(p.name)}"${p.owner === currentRepo.owner && p.name === currentRepo.name ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}</select>` : ''}
         <button id="new-issue" class="action-btn" type="button" title="Create a new issue on GitHub">New Issue</button>
         <button id="copy-all" class="action-btn" type="button" title="Copy all visible issue details to the clipboard"${copyDisabled}>Copy All</button>
         <button id="refresh" class="action-btn" type="button" title="Re-fetch from GitHub">\u21bb Reload</button>

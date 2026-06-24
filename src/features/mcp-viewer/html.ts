@@ -157,7 +157,9 @@ var currentEndpoint = 'list_projects';
 var catalogSortBy = 'recent';
 var projectOptions = [];
 var pendingCatalogProjectName = '';
-var navStack = [];   // navigation history for ← Back button
+var navStack    = [];   // navigation history for ← Back button
+var _lastData   = {};   // cached result per endpoint — used by _rerender() and sort
+var _sortState  = {};   // { col, dir } per endpoint
 
 function pushNav(endpoint) {
   navStack.push(endpoint);
@@ -240,6 +242,18 @@ var CONTROLS = {
                 '<label><input id="includeCommands" type="checkbox" checked> include commands</label>' +
                 '<button id="btn-run">Run</button>'
 };
+
+function _reportViewerError(message, endpoint) {
+  fetch(BASE + '/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000),
+      method: 'report_viewer_error',
+      params: { message: message, endpoint: endpoint, url: window.location.href }
+    })
+  }).catch(function(){});
+}
 
 function toast(msg){
   toastEl.textContent = msg;
@@ -759,7 +773,9 @@ function runEndpoint(params){
         }
         var result = json.result;
         if (!result) {
-          resultEl.innerHTML = '<div class="state err">No result in response</div>';
+          var emptyMsg = 'Viewer returned empty result for endpoint: ' + currentEndpoint;
+          resultEl.innerHTML = '<div class="state err">' + esc(emptyMsg) + '</div>';
+          _reportViewerError(emptyMsg, currentEndpoint);
           return;
         }
         _lastData[currentEndpoint] = result;
@@ -781,8 +797,10 @@ function runEndpoint(params){
     })
     .catch(function(err){
       var ms = Date.now() - t0;
-      setMeta(url, 0, ms, err.message || 'network error');
-      resultEl.innerHTML = '<div class="state err">' + esc(err.message || 'network error') + '</div>';
+      var errMsg = err.message || 'network error';
+      setMeta(url, 0, ms, errMsg);
+      resultEl.innerHTML = '<div class="state err">' + esc(errMsg) + '</div>';
+      _reportViewerError(errMsg, currentEndpoint);
     });
 }
 

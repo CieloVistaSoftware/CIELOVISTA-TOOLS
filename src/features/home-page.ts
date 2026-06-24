@@ -19,6 +19,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import * as os     from 'os';
+import * as net    from 'net';
 import { getHistory }        from './cvs-command-launcher/command-history';
 import { CATALOG }          from './cvs-command-launcher/catalog';
 import {
@@ -68,7 +69,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 async function showBrowseAllPanel(): Promise<void> {
-    if (browsePanel) { browsePanel.reveal(vscode.ViewColumn.Beside); return; }
+    if (browsePanel) { browsePanel.reveal(vscode.ViewColumn.Beside); browsePanel.webview.postMessage({ type: 'flash' }); return; }
 
     const registered = new Set(await vscode.commands.getCommands(false));
     const grouped    = buildGroupedCommands(registered);
@@ -112,6 +113,8 @@ function buildBrowseAllHtml(
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
+.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px}
 h1{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--vscode-editor-foreground)}
 #filter-wrap{position:sticky;top:0;background:var(--vscode-editor-background);padding:0 0 10px;z-index:10}
@@ -157,6 +160,13 @@ filterEl.addEventListener('input', function() {
         grp.classList.toggle('hidden', !any);
     });
 });
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'flash') {
+        document.body.classList.remove('cvs-flash');
+        void document.body.offsetWidth;
+        document.body.classList.add('cvs-flash');
+    }
+});
 })();
 </script>
 </body></html>`;
@@ -182,6 +192,31 @@ export function buildGroupedCommands(registered: Set<string>): Record<string, Ar
   }
 
   return grouped;
+}
+
+function _startDcPoller(panel: vscode.WebviewPanel): () => void {
+  const DC_PORT = 5000;
+  let lastStatus: 'up' | 'down' | null = null;
+
+  const check = () => {
+    if (!panel.visible) { return; }
+    const socket = net.createConnection({ port: DC_PORT, host: '127.0.0.1' });
+    socket.setTimeout(800);
+    const done = (status: 'up' | 'down') => {
+      socket.destroy();
+      if (status !== lastStatus) {
+        lastStatus = status;
+        void panel.webview.postMessage({ type: 'dcStatus', status });
+      }
+    };
+    socket.once('connect',  () => done('up'));
+    socket.once('error',    () => done('down'));
+    socket.once('timeout',  () => done('down'));
+  };
+
+  check(); // immediate first check
+  const id = setInterval(check, 12000);
+  return () => clearInterval(id);
 }
 
 function _startMetricsSampler(panel: vscode.WebviewPanel): () => void {
@@ -221,6 +256,7 @@ export function ensureHomeIsLeftmost(): void {
 function showHomePage(context: vscode.ExtensionContext): void {
   if (homePanel) {
     homePanel.reveal(vscode.ViewColumn.One);
+    homePanel.webview.postMessage({ type: 'flash' });
     setTimeout(() => void vscode.commands.executeCommand('workbench.action.moveEditorFirst'), 50);
     return;
   }
@@ -249,7 +285,16 @@ function showHomePage(context: vscode.ExtensionContext): void {
     let cvtPaths: Set<string>;
     try { cvtPaths = registryPathSet(loadRegistry()); }
     catch { cvtPaths = new Set(); }
-    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered);
+    // Detect npm start script in workspace package.json
+    let hasStartScript = false;
+    if (wsPath) {
+      try {
+        const pkgRaw = fs.readFileSync(path.join(wsPath, 'package.json'), 'utf8');
+        const pkg = JSON.parse(pkgRaw);
+        hasStartScript = !!(pkg?.scripts?.start);
+      } catch { /* no package.json or parse error */ }
+    }
+    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered, hasStartScript);
   };
 
   void render();
@@ -260,20 +305,40 @@ function showHomePage(context: vscode.ExtensionContext): void {
   };
   onMcpServerStatusChange(mcpStatusHandler);
   const stopMetrics = _startMetricsSampler(panel);
+  const stopDcPoller = _startDcPoller(panel);
   panel.onDidDispose(() => {
     if (homePanel === panel) {
       homePanel = undefined;
     }
     offMcpServerStatusChange(mcpStatusHandler);
     stopMetrics();
+    stopDcPoller();
   }, null, context.subscriptions);
 
   panel.webview.onDidReceiveMessage(async msg => {
     if (!msg?.type) { return; }
+    if (msg.type === 'npmStart') {
+      const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
+      terminal.show();
+      terminal.sendText('npm start');
+      return;
+    }
+    if (msg.type === 'npmRestart') {
+      // POST /api/restart to the running DC service, then fall back to terminal restart
+      try {
+        await fetch('http://127.0.0.1:5000/api/restart', { method: 'POST' });
+      } catch {
+        // Service already down or no /api/restart — do a terminal restart
+        const terminal = vscode.window.createTerminal({ name: `npm restart — ${wsName}`, cwd: wsPath });
+        terminal.show();
+        terminal.sendText('npm restart');
+      }
+      return;
+    }
     if (msg.type === 'runCommand' && msg.command) {
       const previewMode = Boolean(msg.previewMode);
       if (msg.command === '__openIssues__') {
-        showGithubIssues(vscode.ViewColumn.Two);
+        showGithubIssues(vscode.ViewColumn.Two, wsPath);
         return;
       }
       const OPEN_DIRECT = [
@@ -323,6 +388,8 @@ function showHomePage(context: vscode.ExtensionContext): void {
           vscode.commands.executeCommand(msg.command)
         );
       } else {
+        // Reveal home page in column 1 first so ViewColumn.Beside in runWithOutput lands in column 2
+        panel.reveal(vscode.ViewColumn.One, false);
         vscode.commands.executeCommand('cvs.launcher.runWithOutput', msg.command);
       }
     }
@@ -387,6 +454,9 @@ function showHomePage(context: vscode.ExtensionContext): void {
     if (msg.type === 'startMcp') {
       startMcpServer();
     }
+    if (msg.type === 'startDiskCleanUp') {
+      await vscode.commands.executeCommand('cvs.launch.diskcleanup.start');
+    }
   });
 }
 
@@ -400,7 +470,8 @@ function buildDashboardHtml(
     recents:   ReturnType<typeof getDisplayProjects>,
     grouped:   Record<string, Array<{title:string;command:string;description?:string}>>,
   cvtPaths:  Set<string>,
-  registered: Set<string>
+  registered: Set<string>,
+  hasStartScript: boolean = false
 ): string {
 
     // ── Quick Launch buttons ──────────────────────────────────────────────────
@@ -505,18 +576,28 @@ function buildDashboardHtml(
     // ── CSS ───────────────────────────────────────────────────────────────────
     const css = `
 *{box-sizing:border-box;margin:0;padding:0}
+@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
+.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);min-height:100vh}
 
 /* Header */
 #hd{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}
 #ws-meta{flex:1 1 260px;min-width:220px}
 #ws-name{font-size:1.2em;font-weight:800;flex:1}
-#ws-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px}
+#ws-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px;background:transparent;border:none;padding:0;cursor:pointer;text-align:left;text-decoration:underline dotted;text-underline-offset:2px}#ws-path:hover{color:var(--vscode-textLink-activeForeground);text-decoration:underline}
 .mcp-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 12px;border-radius:20px;border:1px solid;flex-shrink:0}
 .mcp-on{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.1)}
 .mcp-off{color:#f85149;border-color:#f85149;background:rgba(248,81,73,.1);cursor:pointer}
 .mcp-off:hover{background:rgba(248,81,73,.2);border-color:#ff6e67}
 .mcp-dot{width:8px;height:8px;border-radius:50%}
+.dc-badge{cursor:pointer}
+.dc-on{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.1)}
+.dc-off{color:#f85149;border-color:#f85149;background:rgba(248,81,73,.1)}
+.dc-off:hover{background:rgba(248,81,73,.2);border-color:#ff6e67}
+.dc-unknown{color:#888;border-color:#555;background:transparent}
+.dc-on .mcp-dot{background:#3fb950;box-shadow:0 0 5px #3fb950}
+.dc-off .mcp-dot{background:#f85149}
+.dc-unknown .mcp-dot{background:#555}
 #metrics-gauge{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .mg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--vscode-descriptionForeground)}
 .mg-label{font-weight:600;min-width:28px}
@@ -529,6 +610,11 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .mcp-off .mcp-dot{background:#f85149}
 #btn-configure,#btn-reload{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;flex-shrink:0}
 #btn-configure:hover,#btn-reload:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.btn-hidden{display:none!important}
+#btn-npm-start{background:#1a3a1a;color:#3fb950;border:1px solid #3fb950;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0}
+#btn-npm-start:hover{background:#3fb950;color:#000}
+#btn-npm-restart{background:#3a2a0a;color:#e3b341;border:1px solid #e3b341;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0}
+#btn-npm-restart:hover{background:#e3b341;color:#000}
 
 /* Layout */
 #body{display:grid;grid-template-columns:minmax(16rem,.9fr) minmax(0,1.6fr);grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;width:100%;box-sizing:border-box}
@@ -766,15 +852,32 @@ window.addEventListener('message', function(e) {
     var lbl = badge.querySelector('.mcp-label');
     if (lbl) { lbl.textContent = 'MCP ' + (msg.status === 'up' ? 'Running' : 'Stopped'); }
     updateBadgeInteractivity(badge);
+  } else if (msg.type === 'dcStatus') {
+    var dcBadge = document.getElementById('dc-badge');
+    if (!dcBadge) { return; }
+    var up = msg.status === 'up';
+    dcBadge.className = 'mcp-badge dc-badge ' + (up ? 'dc-on' : 'dc-off');
+    dcBadge.title = up ? 'DiskCleanUp backend is running — click to open dashboard' : 'DiskCleanUp backend is stopped — click to start';
+    var dcLbl = dcBadge.querySelector('.mcp-label');
+    if (dcLbl) { dcLbl.textContent = 'DiskCleanUp ' + (up ? 'Running' : 'Stopped'); }
+    // Toggle Start/Restart based on service status
+    var startBtn = document.getElementById('btn-npm-start');
+    var restartBtn = document.getElementById('btn-npm-restart');
+    if (startBtn)   { startBtn.classList.toggle('btn-hidden', up); }
+    if (restartBtn) { restartBtn.classList.toggle('btn-hidden', !up); }
   } else if (msg.type === 'metrics') {
     var memBar = document.getElementById('mg-mem-bar');
     var memVal = document.getElementById('mg-mem-val');
     var cpuBar = document.getElementById('mg-cpu-bar');
     var cpuVal = document.getElementById('mg-cpu-val');
     if (memBar) { memBar.style.width = msg.memPct + '%'; }
-    if (memVal) { memVal.textContent = msg.heapUsedMb + '/' + msg.heapTotalMb + 'MB'; }
+    if (memVal) { memVal.textContent = msg.memPct + '%'; }
     if (cpuBar) { cpuBar.style.width = msg.cpuPct + '%'; }
     if (cpuVal) { cpuVal.textContent = msg.cpuPct + '%'; }
+  } else if (msg.type === 'flash') {
+    document.body.classList.remove('cvs-flash');
+    void document.body.offsetWidth;
+    document.body.classList.add('cvs-flash');
   }
 });
 var vsc = acquireVsCodeApi();
@@ -787,6 +890,14 @@ if (mcpBadge) {
     if (mcpBadge.classList.contains('mcp-off')) {
       vsc.postMessage({ type: 'startMcp' });
     }
+  });
+}
+
+// DiskCleanUp badge click — start when stopped, open dashboard when running
+var dcBadge = document.getElementById('dc-badge');
+if (dcBadge) {
+  dcBadge.addEventListener('click', function() {
+    vsc.postMessage({ type: 'startDiskCleanUp' });
   });
 }
 
@@ -874,6 +985,15 @@ document.querySelectorAll('.rec-chat').forEach(function(b){
     vsc.postMessage({ type:'sendPathToChat', path:folderPath });
   });
 });
+
+// Workspace path — click to open folder as CWD
+var wsPathBtn = document.getElementById('ws-path');
+if (wsPathBtn) {
+  wsPathBtn.addEventListener('click', function() {
+    var p = wsPathBtn.dataset ? wsPathBtn.dataset.path : '';
+    if (p) { vsc.postMessage({ type:'openFolder', path:p }); }
+  });
+}
 
 // Browse All toggle
 var browseOpenPanel = document.getElementById('browse-open-panel');
@@ -983,6 +1103,18 @@ document.getElementById('btn-configure').addEventListener('click', function() {
   buildCfgList();
   overlay.style.display = 'flex';
 });
+var btnStart = document.getElementById('btn-npm-start');
+if (btnStart) {
+  btnStart.addEventListener('click', function() {
+    vsc.postMessage({ type: 'npmStart' });
+  });
+}
+var btnRestart = document.getElementById('btn-npm-restart');
+if (btnRestart) {
+  btnRestart.addEventListener('click', function() {
+    vsc.postMessage({ type: 'npmRestart' });
+  });
+}
 cfgClose.addEventListener('click', function() { overlay.style.display = 'none'; });
 overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.style.display = 'none'; });
 })();
@@ -1004,11 +1136,15 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
 <div id="hd">
   <div id="ws-meta">
     <div id="ws-name">\u26a1 ${esc(wsName)}</div>
-    ${wsPath ? `<div id="ws-path">${esc(wsPath)}</div>` : ''}
+    ${wsPath ? `<button id="ws-path" data-action="open-folder" data-path="${esc(wsPath)}" title="Change current working directory">${esc(wsPath)}</button>` : ''}
   </div>
   <div id="mcp-badge" class="mcp-badge ${mcpRunning ? 'mcp-on' : 'mcp-off'}">
     <span class="mcp-dot"></span>
     <span class="mcp-label">MCP ${mcpRunning ? 'Running' : 'Stopped'}</span>
+  </div>
+  <div id="dc-badge" class="mcp-badge dc-badge dc-unknown" title="Checking DiskCleanUp backend…">
+    <span class="mcp-dot"></span>
+    <span class="mcp-label">DiskCleanUp …</span>
   </div>
   <div id="metrics-gauge">
     <div class="mg-item">
@@ -1024,6 +1160,8 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   </div>
   <button id="btn-reload" title="Reload VS Code window">\uD83D\uDD04 Reload Window</button>
   <button id="btn-configure">\u2699\ufe0f Configure</button>
+  ${hasStartScript ? `<button id="btn-npm-start" title="Run 'npm start' \u2014 opens a new terminal and starts the project's dev server. Hidden automatically when the service is already running.">\u25B6 Start</button>` : ''}
+  ${hasStartScript ? `<button id="btn-npm-restart" class="btn-hidden" title="Restart the service \u2014 sends POST /api/restart. Use when you need to apply config changes or clear a hung state.">\u21BA Restart</button>` : ''}
 </div>
 
 <div id="home-search-wrap">
