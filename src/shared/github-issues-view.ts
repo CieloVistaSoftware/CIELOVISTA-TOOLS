@@ -24,9 +24,19 @@ import { execFile, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getChannel } from './output-channel';
+import { readJobStatus, summarizeJob, defaultStatusPath } from './job-status-reader';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
+
+/**
+ * Location of the current-job status file Claude writes while it works.
+ * Prefer the open workspace's data/ dir; fall back to the bundled path.
+ */
+function jobStatusPath(): string {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return root ? path.join(root, 'data', 'claude-job-status.json') : defaultStatusPath();
+}
 
 let currentRepo = { owner: REPO_OWNER, name: REPO_NAME };
 
@@ -215,6 +225,9 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/new`));
         } else if (msg.type === 'startWork' && msg.number) {
             void startWorkOnIssue(msg.number, String((msg as { title?: string }).title || ''), panel);
+        } else if (msg.type === 'jobPoll') {
+            const summary = summarizeJob(readJobStatus(jobStatusPath()), Date.now());
+            void panel.webview.postMessage({ type: 'jobStatus', summary });
         }
     });
 
@@ -646,6 +659,29 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .fix-link-btn:hover{background:rgba(100,181,246,.28)}
 .actions-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #proj-filter{background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-panel-border));border-radius:4px;padding:7px 8px;font-size:12px;font-family:inherit;cursor:pointer}
+.current-job{border:1px solid var(--vscode-panel-border);border-left:3px solid #58a6ff;border-radius:6px;background:var(--vscode-textCodeBlock-background);padding:10px 14px;margin-bottom:14px;width:100%;max-width:none}
+.current-job.hidden{display:none}
+.current-job.done{border-left-color:#3fb950}
+.job-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.job-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.job-dot.running{background:#58a6ff;box-shadow:0 0 0 0 rgba(88,166,255,.6);animation:job-pulse 1.6s infinite}
+.job-dot.done{background:#3fb950}
+@keyframes job-pulse{0%{box-shadow:0 0 0 0 rgba(88,166,255,.5)}70%{box-shadow:0 0 0 6px rgba(88,166,255,0)}100%{box-shadow:0 0 0 0 rgba(88,166,255,0)}}
+.job-title{font-size:1em;font-weight:700}
+.job-meta{font-size:11px;color:var(--vscode-descriptionForeground)}
+.job-updated{margin-left:auto;font-size:11px;color:var(--vscode-descriptionForeground);opacity:.75;white-space:nowrap}
+.job-progress{height:6px;border-radius:4px;background:var(--vscode-panel-border);overflow:hidden;margin:8px 0}
+.job-bar{height:100%;background:#58a6ff;border-radius:4px;transition:width .4s ease}
+.current-job.done .job-bar{background:#3fb950}
+.job-active{font-size:12px;margin-bottom:6px;overflow-wrap:break-word;word-break:break-word}
+.job-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.job-step{font-size:12px;display:flex;align-items:baseline;gap:7px}
+.job-step .job-icon{width:13px;flex-shrink:0;text-align:center}
+.job-step.done{color:var(--vscode-descriptionForeground)}
+.job-step.done .job-icon{color:#3fb950}
+.job-step.active{font-weight:700}
+.job-step.active .job-icon{color:#58a6ff}
+.job-step.pending{color:var(--vscode-descriptionForeground);opacity:.7}
 `;
 
     const copyDisabled = loading || !!error || !issues || issues.length === 0 ? ' disabled' : '';
@@ -977,9 +1013,45 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             vsc.postMessage({ type: 'startWork', number: num, title: title });
         });
     });
+    // ── Current Job banner (issue #3) ──────────────────────────────────────────
+    function jesc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function stepIcon(status){ return status === 'done' ? '✓' : status === 'active' ? '▶' : '○'; }
+    function renderJobBanner(sum){
+        var box = document.getElementById('current-job');
+        if (!box) { return; }
+        if (!sum || sum.state === 'none' || sum.state === 'stale') {
+            box.className = 'current-job hidden';
+            box.innerHTML = '';
+            return;
+        }
+        var cls = sum.state === 'done' ? 'done' : 'running';
+        box.className = 'current-job ' + cls;
+        var stepsHtml = (sum.steps || []).map(function(st){
+            return '<li class="job-step ' + jesc(st.status) + '"><span class="job-icon">' + stepIcon(st.status) + '</span><span>' + jesc(st.name) + '</span></li>';
+        }).join('');
+        var activeLine = sum.activeStepName
+            ? '▶ ' + jesc(sum.activeStepName) + (sum.detail ? ' — ' + jesc(sum.detail) : '')
+            : '✓ All steps complete';
+        box.innerHTML =
+            '<div class="job-head">' +
+                '<span class="job-dot ' + cls + '"></span>' +
+                '<strong class="job-title">' + jesc(sum.title) + '</strong>' +
+                '<span class="job-meta">' + Number(sum.stepsDone || 0) + '/' + Number(sum.stepsTotal || 0) + ' steps · ' + jesc(sum.elapsedText) + ' elapsed · ETA ' + jesc(sum.etaText) + '</span>' +
+                '<span class="job-updated">updated ' + jesc(sum.updatedAgoText) + '</span>' +
+            '</div>' +
+            '<div class="job-progress"><div class="job-bar" style="width:' + Number(sum.percent || 0) + '%"></div></div>' +
+            '<div class="job-active">' + activeLine + '</div>' +
+            '<ul class="job-steps">' + stepsHtml + '</ul>';
+    }
+    function pollJob(){ vsc.postMessage({ type: 'jobPoll' }); }
+    pollJob();
+    setInterval(pollJob, 4000);
+
     window.addEventListener('message', function(ev){
         var m = ev.data || {};
-        if (m.type === 'claimed') {
+        if (m.type === 'jobStatus') {
+            renderJobBanner(m.summary);
+        } else if (m.type === 'claimed') {
             var btn = document.querySelector('.claim-btn[data-number="' + m.number + '"]');
             if (btn) { btn.textContent = '✓ Claimed'; btn.style.color = '#3fb950'; btn.style.borderColor = 'rgba(63,185,80,.45)'; }
         } else if (m.type === 'workStarted') {
@@ -1013,7 +1085,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <span id="auto-timer" title="Auto-refreshes every 60 seconds">\u21ba <span id="auto-timer-sec">60</span>s</span>
     </div>
 </div>
-<div id="body">${bodyHtml}</div>
+<div id="body"><div id="current-job" class="current-job hidden" aria-live="polite"></div>${bodyHtml}</div>
 <script>${js}</script>
 </body></html>`;
 }
