@@ -28,16 +28,15 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import { log, logError } from '../shared/output-channel';
+import {
+    decideStatus,
+    installedVersionFromDirNames,
+    type CorequisiteSpec,
+    type Status,
+} from '../shared/corequisite-logic';
+import { buildInstallCommand } from '../shared/install-command';
 
 const FEATURE = 'corequisite-checker';
-
-interface CorequisiteSpec {
-    minVersion?: string;
-    displayName?: string;
-    vsixPath?: string;
-}
-
-type Status = 'ok' | 'missing' | 'outdated' | 'unknown-version';
 
 interface CheckResult {
     id: string;
@@ -47,19 +46,12 @@ interface CheckResult {
     message: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────
-
-/** Numeric compare of two semver-shaped strings (no pre-release handling). */
-function compareVersions(a: string, b: string): number {
-    const pa = a.split('.').map(n => parseInt(n, 10) || 0);
-    const pb = b.split('.').map(n => parseInt(n, 10) || 0);
-    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-        const da = pa[i] || 0;
-        const db = pb[i] || 0;
-        if (da !== db) return da - db;
-    }
-    return 0;
+/** A corequisite needs user action only when it is missing or outdated. */
+function isProblem(status: Status): boolean {
+    return status === 'missing' || status === 'outdated';
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
 
 /** Read the cieloRequires block from this extension's package.json. */
 function readCieloRequires(extensionPath: string): Record<string, CorequisiteSpec> {
@@ -75,26 +67,43 @@ function readCieloRequires(extensionPath: string): Record<string, CorequisiteSpe
     }
 }
 
-/** Check one declared peer against the live VS Code extension registry. */
-function checkOne(id: string, spec: CorequisiteSpec): CheckResult {
+/** Scan the extensions folder for an installed-on-disk version of `id`. */
+function installedVersionOnDisk(id: string, extensionsDir: string): string | undefined {
+    try {
+        const names = fs.readdirSync(extensionsDir, { withFileTypes: true })
+            .filter(e => e.isDirectory())
+            .map(e => e.name);
+        return installedVersionFromDirNames(id, names);
+    } catch {
+        return undefined;
+    }
+}
+
+/** Human-readable status message for a checked corequisite. */
+function messageFor(id: string, spec: CorequisiteSpec, status: Status, installedVersion?: string): string {
+    const name = spec.displayName || id;
+    switch (status) {
+        case 'ok':              return `${name} v${installedVersion} OK`;
+        case 'pending-reload':  return `${name} v${installedVersion} installed — reload window to activate`;
+        case 'outdated':        return `${name} v${installedVersion} is below required v${spec.minVersion}`;
+        case 'unknown-version': return `${id} is installed but version is unreadable`;
+        case 'missing':         return `${name} is not installed`;
+    }
+}
+
+/**
+ * Check one declared peer. The live registry is authoritative, but a freshly
+ * installed extension is not visible there until the window reloads (#602), so
+ * fall back to an on-disk scan and report `pending-reload` instead of `missing`.
+ */
+function checkOne(id: string, spec: CorequisiteSpec, extensionsDir: string): CheckResult {
     const ext = vscode.extensions.getExtension(id);
-    if (!ext) {
-        return { id, spec, status: 'missing', message: `${spec.displayName || id} is not installed` };
-    }
-    const installedVersion: string | undefined = ext.packageJSON?.version;
-    if (!installedVersion) {
-        return { id, spec, status: 'unknown-version', message: `${id} is installed but version is unreadable` };
-    }
-    if (spec.minVersion && compareVersions(installedVersion, spec.minVersion) < 0) {
-        return {
-            id, spec, status: 'outdated', installedVersion,
-            message: `${spec.displayName || id} v${installedVersion} is below required v${spec.minVersion}`
-        };
-    }
-    return {
-        id, spec, status: 'ok', installedVersion,
-        message: `${spec.displayName || id} v${installedVersion} OK`
-    };
+    const registryPresent = !!ext;
+    const registryVersion: string | undefined = ext?.packageJSON?.version;
+    const diskVersion = registryPresent ? undefined : installedVersionOnDisk(id, extensionsDir);
+
+    const { status, installedVersion } = decideStatus({ spec, registryPresent, registryVersion, diskVersion });
+    return { id, spec, status, installedVersion, message: messageFor(id, spec, status, installedVersion) };
 }
 
 /** Locate code-insiders.cmd on disk; falls back to PATH lookup. */
@@ -110,14 +119,16 @@ function findCodeInsidersBin(): string {
 }
 
 function installViaCli(bin: string, vsix: string): string {
-    const args = ['--install-extension', vsix];
-    // Use shell:true for .cmd/.bat so Windows resolves them correctly without
-    // manual cmd.exe /c quoting (which breaks on paths with spaces).
-    const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
-    const result = cp.spawnSync(bin, args, {
+    // A .cmd/.bat shim must run through a shell, but shell:true does NOT
+    // auto-quote — an unquoted binary path with spaces (the real
+    // code-insiders.cmd lives under "Microsoft VS Code Insiders") is split by
+    // cmd.exe and fails with "'...\Microsoft' is not recognized" (#592).
+    // buildInstallCommand emits a fully-quoted command line in that case.
+    const { command, args, shell } = buildInstallCommand(bin, vsix);
+    const result = cp.spawnSync(command, args, {
             encoding: 'utf8',
             windowsHide: true,
-            shell: useShell,
+            shell,
         });
 
     if (result.error) {
@@ -212,11 +223,14 @@ async function runCheck(
         log(FEATURE, 'No cieloRequires entries — nothing to check.');
         return [];
     }
-    const results = ids.map(id => checkOne(id, requires[id]));
+    // The extensions folder is this extension's own parent directory — robust
+    // across stable/insiders without hardcoding a profile path.
+    const extensionsDir = path.dirname(extensionPath);
+    const results = ids.map(id => checkOne(id, requires[id], extensionsDir));
     for (const r of results) {
         log(FEATURE, `[${r.status.toUpperCase()}] ${r.message}`);
     }
-    const problems = results.filter(r => r.status === 'missing' || r.status === 'outdated');
+    const problems = results.filter(r => isProblem(r.status));
     if (problems.length === 0 && options.silentIfClean) return results;
 
     if (options.autoInstall) {
@@ -240,11 +254,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 vscode.window.showInformationMessage('No corequisites declared in package.json.');
                 return;
             }
-            const ok = results.filter(r => r.status === 'ok');
-            const problems = results.filter(r => r.status !== 'ok');
+            const fine = results.filter(r => r.status === 'ok' || r.status === 'pending-reload');
+            const problems = results.filter(r => isProblem(r.status));
             if (problems.length === 0) {
-                const summary = ok.map(r => `${r.spec.displayName || r.id} v${r.installedVersion}`).join(', ');
-                vscode.window.showInformationMessage(`All ${ok.length} corequisite extension(s) OK: ${summary}`);
+                const summary = fine.map(r => `${r.spec.displayName || r.id} v${r.installedVersion}${r.status === 'pending-reload' ? ' (reload to activate)' : ''}`).join(', ');
+                vscode.window.showInformationMessage(`All ${fine.length} corequisite extension(s) OK: ${summary}`);
             }
         }),
         vscode.commands.registerCommand('cvs.corequisites.install', async () => {

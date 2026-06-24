@@ -258,6 +258,8 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void vscode.env.clipboard.writeText(formatIssuesForClipboard(latestIssues));
         } else if (msg.type === 'claim' && msg.number) {
             void claimIssue(msg.number, panel);
+        } else if (msg.type === 'answered' && msg.number) {
+            void answeredIssue(msg.number, panel);
         } else if (msg.type === 'runTest' && msg.testRef) {
             void runLinkedTest(String(msg.testRef));
         } else if (msg.type === 'openLocal' && typeof (msg as { relativePath?: string }).relativePath === 'string') {
@@ -286,6 +288,22 @@ async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<v
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         void vscode.window.showErrorMessage(`Failed to claim issue #${number}: ${msg}`);
+    }
+}
+
+// ─── Answered (clear Question status) ────────────────────────────────────────
+
+async function answeredIssue(number: number, panel: vscode.WebviewPanel): Promise<void> {
+    const run = (args: string[]) => new Promise<void>((resolve, reject) => {
+        execFile('gh', args, { shell: true }, (err) => err ? reject(err) : resolve());
+    });
+    try {
+        await run(['issue', 'edit', String(number), '--remove-label', 'status:question', '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
+        panel.webview.postMessage({ type: 'answered', number });
+        void vscode.window.showInformationMessage(`Issue #${number} — status:question cleared.`);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Failed to clear question on #${number}: ${msg}`);
     }
 }
 
@@ -684,7 +702,19 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 .tags{display:flex;gap:4px;flex-wrap:wrap}
 .label{padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;line-height:1.45;border:1px solid rgba(0,0,0,.1)}
 .priority{background:var(--vscode-dropdown-background, var(--vscode-input-background));color:var(--vscode-dropdown-foreground, var(--vscode-input-foreground));border:1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));border-radius:4px;padding:2px 4px;font-size:11px}
-.state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(63,185,80,.14);color:#3fb950;border:1px solid rgba(63,185,80,.45)}
+.state-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;border:1px solid;white-space:nowrap}
+.state-pill.open{background:rgba(88,166,255,.14);color:#58a6ff;border-color:rgba(88,166,255,.45)}
+.state-pill.in-progress{background:rgba(240,180,41,.18);color:#f0b429;border-color:rgba(240,180,41,.5)}
+.state-pill.question{background:rgba(163,113,247,.16);color:#a371f7;border-color:rgba(163,113,247,.5)}
+.state-pill.closed{background:rgba(63,185,80,.14);color:#3fb950;border-color:rgba(63,185,80,.45)}
+.q-banner{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:8px 12px;border-radius:8px;background:rgba(163,113,247,.12);border:1px solid rgba(163,113,247,.4);font-size:12px;color:#c8a8f9}
+.q-banner strong{color:#a371f7}
+.q-banner button{margin-left:auto;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(163,113,247,.18);color:#c8a8f9;border:1px solid rgba(163,113,247,.5);cursor:pointer;font-family:inherit}
+.q-banner button + button{margin-left:6px}
+.q-banner button:hover{background:rgba(163,113,247,.32)}
+.answered-btn{padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(163,113,247,.14);color:#a371f7;border:1px solid rgba(163,113,247,.45);cursor:pointer;font-family:inherit;white-space:nowrap}
+.answered-btn:hover{background:rgba(163,113,247,.28)}
+.answered-btn:disabled{opacity:.5;cursor:wait}
 .claim-btn{margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(88,166,255,.14);color:#58a6ff;border:1px solid rgba(88,166,255,.45);cursor:pointer;font-family:inherit}
 .claim-btn:hover{background:rgba(88,166,255,.28)}
 .claim-btn:disabled{opacity:.5;cursor:wait}
@@ -723,8 +753,23 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
                 const rows = issues.map((iss) => {
             const testRef   = extractTestRef(iss.body);
             const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
-            const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress');
+            // An issue counts as "being worked on" when it carries the explicit
+            // status:in-progress label (set by Claim/Start Work) OR priority:1
+            // (John's convention for flagging active work).
+            const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress' || l.name === 'priority:1');
             const inProgressChip = isInProgress ? '<span class="in-progress-chip">in-progress</span>' : '';
+            // An issue is a Question when it is blocked on the user (status:question).
+            const isQuestion = iss.labels.some((l) => l.name === 'status:question');
+            // State pill is a traffic light: open = blue (needs attention),
+            // in-progress = amber (being worked on), question = purple (blocked on
+            // the user), closed = green (resolved / all is well). gh returns state
+            // uppercase ("OPEN"), REST lowercase — normalise before comparing.
+            // Precedence: closed > question > in-progress > open, so a blocked
+            // issue shows QUESTION even when it is also active work.
+            const isOpen = iss.state.toLowerCase() === 'open';
+            const statePillClass = !isOpen ? 'closed' : (isQuestion ? 'question' : (isInProgress ? 'in-progress' : 'open'));
+            const statePillText  = !isOpen ? 'CLOSED' : (isQuestion ? 'QUESTION' : (isInProgress ? 'IN PROGRESS' : 'OPEN'));
+            const isOpenQuestion = isOpen && isQuestion;
             const labels = iss.labels.filter((l) => !l.name.startsWith('project:')).map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
@@ -745,10 +790,11 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-updated="${new Date(iss.updated_at).getTime()}"
     data-closed="${closedAtTs}"
     data-comments="${iss.comments}"
-    data-state="${esc(iss.state.toLowerCase())}"
+    data-state="${esc(statePillClass)}"
     data-author="${esc(iss.user.login.toLowerCase())}"
     data-project="${esc(projectName.toLowerCase())}"
     data-priority="3"
+    data-question="${isOpenQuestion ? '1' : '0'}"
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
     <td>${inProgressChip}${labels ? `<span class="tags">${labels}</span>` : (isInProgress ? '' : `<span class="muted">-</span>`)}</td>
@@ -757,16 +803,23 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
     <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></td>
-    <td><span class="state-pill">${esc(iss.state)}</span>${iss.state === 'open' ? `<button class="claim-btn" type="button" data-number="${iss.number}" title="Assign to me and set status:in-progress">Claim</button>` : ''}</td>
+    <td><span class="state-pill ${statePillClass}">${statePillText}</span>${isOpen ? `<button class="claim-btn" type="button" data-number="${iss.number}" title="Assign to me and set status:in-progress">Claim</button>` : ''}</td>
     <td><span class="muted">@${esc(iss.user.login)}</span></td>
     <td>${assigneesText ? `<span class="muted">${esc(assigneesText)}</span>` : `<span class="muted">-</span>`}</td>
     <td>${iss.comments}</td>
     <td title="${esc(iss.created_at)}">${esc(ago(iss.created_at))}</td>
     <td title="${esc(iss.updated_at)}">${esc(ago(iss.updated_at))}</td>
     <td title="${iss.closed_at ? esc(iss.closed_at) : ''}">${esc(closedAtAgo)}</td>
-    <td><div class="actions-cell">${iss.state === 'open' ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : ''}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
+    <td><div class="actions-cell">${isOpenQuestion ? `<button class="answered-btn" type="button" data-number="${iss.number}" title="Mark answered — removes status:question">&#10003; Answered</button>` : ''}${isOpen ? `<button class="start-work-btn" type="button" data-number="${iss.number}" data-title="${esc(iss.title)}" title="Set priority 1, create branch, open issue #${iss.number}">&#9654; Start Work</button>` : ''}${testRef ? `<button class="run-test-btn" type="button" data-number="${iss.number}" data-testref="${esc(testRef)}" title="Run ${esc(testRef)}">&#9654; Run Test</button>` : `<button class="run-test-btn" type="button" disabled title="No test linked">&#9654; Run Test</button>`}${fixLinksHtml || `<span class="muted">-</span>`}</div></td>
 </tr>`;
         }).join('');
+                // Surface issues blocked on the user so they can validate one by one.
+                const questionCount = issues.filter((i) =>
+                    i.state.toLowerCase() === 'open' && i.labels.some((l) => l.name === 'status:question')
+                ).length;
+                const qBanner = (viewState === 'open' && questionCount > 0)
+                    ? `<div class="q-banner"><span>&#10067; <strong>${questionCount}</strong> ${questionCount === 1 ? 'issue is' : 'issues are'} waiting on you</span><button id="q-filter-btn" type="button">Show questions</button><button id="q-clear-btn" type="button" style="display:none">Show all</button></div>`
+                    : '';
                 const table = `<div class="table-wrap"><table id="issuesTable"><thead><tr>
 <th><button type="button" data-sort="number">number <span class="sort-ind"></span></button></th>
 <th><button type="button" data-sort="labels">Status <span class="sort-ind"></span></button></th>
@@ -782,7 +835,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
 <th><button type="button" data-sort="closed">closed_at <span class="sort-ind"></span></button></th>
 <th>actions</th>
 </tr></thead><tbody id="issueRows">${rows}</tbody></table></div>`;
-                bodyHtml = summary + controls + table;
+                bodyHtml = summary + qBanner + controls + table;
     }
 
     const js = `
@@ -862,6 +915,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         });
     }
 
+    var qOnly = false;
     function applyFilter(){
         var input = document.getElementById('search');
         var q = input ? String(input.value || '').trim().toLowerCase() : '';
@@ -875,7 +929,8 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             var proj = String(row.dataset.project || '');
             var okText = !q || txt.indexOf(q) !== -1;
             var okProj = !projQ || proj === projQ;
-            var ok = okText && okProj;
+            var okQ = !qOnly || row.getAttribute('data-question') === '1';
+            var ok = okText && okProj && okQ;
             row.style.display = ok ? '' : 'none';
             if (ok) { shown++; }
         });
@@ -1035,6 +1090,33 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             vsc.postMessage({ type: 'startWork', number: num, title: title });
         });
     });
+    document.querySelectorAll('.answered-btn').forEach(function(b){
+        b.addEventListener('click', function(){
+            var num = Number(b.getAttribute('data-number'));
+            if (!num) { return; }
+            b.disabled = true;
+            b.textContent = '…';
+            vsc.postMessage({ type: 'answered', number: num });
+        });
+    });
+    var qFilterBtn = document.getElementById('q-filter-btn');
+    var qClearBtn = document.getElementById('q-clear-btn');
+    if (qFilterBtn) {
+        qFilterBtn.addEventListener('click', function(){
+            qOnly = true;
+            qFilterBtn.style.display = 'none';
+            if (qClearBtn) { qClearBtn.style.display = ''; }
+            applyFilter();
+        });
+    }
+    if (qClearBtn) {
+        qClearBtn.addEventListener('click', function(){
+            qOnly = false;
+            qClearBtn.style.display = 'none';
+            if (qFilterBtn) { qFilterBtn.style.display = ''; }
+            applyFilter();
+        });
+    }
     window.addEventListener('message', function(ev){
         var m = ev.data || {};
         if (m.type === 'claimed') {
@@ -1043,6 +1125,11 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         } else if (m.type === 'workStarted') {
             var swBtn = document.querySelector('.start-work-btn[data-number="' + m.number + '"]');
             if (swBtn) { swBtn.textContent = m.branch ? '✓ ' + m.branch : '✓ Branched'; swBtn.style.color = '#a371f7'; swBtn.style.borderColor = 'rgba(163,113,247,.45)'; }
+        } else if (m.type === 'answered') {
+            var qRow = document.querySelector('.issue-row[data-number="' + m.number + '"]');
+            if (qRow) { qRow.setAttribute('data-question', '0'); }
+            applyFilter();
+            setTimeout(function(){ vsc.postMessage({ type: 'refresh' }); }, 400);
         }
     });
     applySort();
