@@ -146,7 +146,9 @@ function runBtnTitle(name, cmd) {
   var desc = SCRIPT_DESCRIPTIONS[name];
   var lines = [];
   if (desc) { lines.push(desc); }
-  lines.push('Command: ' + cmd);
+  lines.push('Run: ' + cmd);
+  lines.push('Output: opens in terminal panel beside editor');
+  lines.push('Error: non-zero exit code highlighted in red');
   return lines.join('\n');
 }
 
@@ -250,11 +252,6 @@ function setBtn(btn, state){
   } else if(state === 'ok'){
     btn.classList.add('ok');
     btn.innerHTML = '&#10003; Run';
-    // Auto-reset to default blue after 2s so button doesn't stay green permanently
-    setTimeout(function(){
-      btn.classList.remove('ok');
-      btn.innerHTML = '&#9654; Run';
-    }, 2000);
   } else if(state === 'error'){
     btn.classList.add('error');
     btn.innerHTML = '&#8635; Retry';
@@ -278,7 +275,10 @@ window.addEventListener('message', function(e){
   if(msg.type === 'init'){ render(msg.entries); return; }
   if(msg.type === 'run-state'){
     var key = msg.dir + '|||' + msg.script;
-    var btn = document.querySelector('.btn-run[data-key="' + key.replace(/"/g,'&quot;') + '"]');
+    var btn = null;
+    document.querySelectorAll('.btn-run[data-key]').forEach(function(el){
+      if(el.getAttribute('data-key') === key){ btn = el; }
+    });
     if(btn){ setBtn(btn, msg.state); }
   }
 });

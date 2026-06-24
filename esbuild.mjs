@@ -1,6 +1,8 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 import * as esbuild from 'esbuild';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const production = process.argv.includes('--production');
 const mcpOnly    = process.argv.includes('--mcp-only');
@@ -105,6 +107,15 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone background-health-runner — vscode external, consumed by unit tests
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/background-health-runner.ts'],
+    outfile:     'out/features/background-health-runner.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Standalone readme-generator — vscode external, consumed by unit tests
   await esbuild.build({
     ...nodeBase,
@@ -114,6 +125,23 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone code-highlight-audit — vscode external, consumed by playwright spec
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/code-highlight-audit.ts'],
+    outfile:     'out/features/code-highlight-audit.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
+  // Copy doc-catalog HTML shell for playwright UI tests
+  fs.mkdirSync('out/features/doc-catalog', { recursive: true });
+  fs.copyFileSync(
+    path.join('src', 'features', 'doc-catalog', 'catalog.html'),
+    path.join('out', 'features', 'doc-catalog', 'html.html')
+  );
+  // Ensure out/data/ exists for background-health-runner unit tests
+  fs.mkdirSync('out/data', { recursive: true });
 }
 
 async function buildMcpServer() {

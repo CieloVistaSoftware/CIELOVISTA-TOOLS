@@ -1,18 +1,3 @@
----
-docid: 150.1.playwright-runner
-id: feature-playwright-runner
-title: "Feature: Playwright Runner"
-project: cielovista-tools
-description: "Playwright Runner — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [playwright, runner]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/playwright-runner.README.md
----
 # Feature: Playwright Runner
 
 ## What it does
@@ -59,3 +44,19 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 3. Open the Command Palette and run **Playwright: CleanResults** (`cvs.playwright.cleanResults`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
+
+---
+docid: 150.1.playwright-runner
+id: feature-playwright-runner
+title: "Feature: Playwright Runner"
+project: cielovista-tools
+description: "Playwright Runner — 3 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [playwright, runner]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/playwright-runner.README.md
+---

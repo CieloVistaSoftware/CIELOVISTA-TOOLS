@@ -1,18 +1,3 @@
----
-docid: 150.5.claude
-id: claudemd-cielovista-tools
-title: CLAUDE.md — cielovista-tools
-project: cielovista-tools
-description: 1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…
-status: active
-tags: [claude, claudemd, cielovistatools, AI]
-category: 150.5 — AI Coordination
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: CLAUDE.md
----
 # CLAUDE.md — cielovista-tools
 
 ## Session Start (DO THIS FIRST)
@@ -139,3 +124,19 @@ If the feature needs a shared utility → add it to `src/shared/`, never inline 
 - Never duplicate logic between feature files — shared/ exists for a reason
 - Never create a second OutputChannel
 - Never commit without running `node scripts/run-regression-tests.js` first — all tests must be green
+
+---
+docid: 150.5.claude
+id: claudemd-cielovista-tools
+title: CLAUDE.md — cielovista-tools
+project: cielovista-tools
+description: 1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…
+status: active
+tags: [claude, claudemd, cielovistatools, AI]
+category: 150.5 — AI Coordination
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: CLAUDE.md
+---

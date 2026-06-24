@@ -59,16 +59,21 @@ function collectMdFiles(dir: string): string[] {
 }
 
 function parseFrontmatter(content: string): Record<string, string> | null {
-    if (!content.trimStart().startsWith('---')) { return null; }
-    const end = content.indexOf('\n---', 3);
-    if (end === -1) { return null; }
-    const block = content.slice(content.indexOf('\n') + 1, end);
+    // Frontmatter lives at the bottom of the file (post #527 migration).
+    // Format: everything between the last pair of `---` delimiters.
+    const trimmed = content.trimEnd();
+    if (!trimmed.endsWith('---')) { return null; }
+    const closeIdx = trimmed.lastIndexOf('\n---');
+    if (closeIdx === -1) { return null; }
+    const openIdx = trimmed.lastIndexOf('\n---', closeIdx - 1);
+    if (openIdx === -1) { return null; }
+    const block = trimmed.slice(openIdx + 4, closeIdx); // between the two ---
     const fm: Record<string, string> = {};
     for (const line of block.split('\n')) {
         const m = line.match(/^(\w+):\s*(.+)/);
         if (m) { fm[m[1].trim()] = m[2].trim(); }
     }
-    return fm;
+    return Object.keys(fm).length > 0 ? fm : null;
 }
 
 let passed = 0, failed = 0;

@@ -1,18 +1,3 @@
----
-docid: 150.1.doc-auditor-readme
-id: feature-doc-auditorts-advanced-developer-guide
-title: "feature: doc-auditor.ts — Advanced Developer Guide"
-project: cielovista-tools
-description: The doc-auditor is a comprehensive, interactive tool for auditing documentation health across all CieloVista projects and the global standards fold…
-status: active
-tags: [doc, auditor, readme]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/doc-auditor.README.md
----
 # feature: doc-auditor.ts — Advanced Developer Guide
 
 ## Overview
@@ -143,3 +128,19 @@ actOnReport()
 ## What it does
 
 _TODO: one paragraph describing the single responsibility of this file._
+
+---
+docid: 150.1.doc-auditor-readme
+id: feature-doc-auditorts-advanced-developer-guide
+title: "feature: doc-auditor.ts — Advanced Developer Guide"
+project: cielovista-tools
+description: The doc-auditor is a comprehensive, interactive tool for auditing documentation health across all CieloVista projects and the global standards fold…
+status: active
+tags: [doc, auditor, readme]
+category: 150.1 — Components / Features
+created: 2026-04-22
+updated: 2026-04-27
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/doc-auditor.README.md
+---

@@ -30,7 +30,7 @@ const TOOLS       = path.join(ROOT, 'src', 'features', 'cvs-command-launcher');
 
 const catalogSrc   = fs.readFileSync(path.join(TOOLS, 'catalog.ts'), 'utf8');
 const extensionSrc = fs.readFileSync(path.join(SRC, 'extension.ts'), 'utf8');
-const launcherSrc  = fs.readFileSync(path.join(SRC, 'features', 'project-launcher.ts'), 'utf8');
+const launcherSrc  = fs.readFileSync(path.join(TOOLS, 'index.ts'), 'utf8');
 const packageJson  = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
 // ── Parse catalog ─────────────────────────────────────────────────────────────
@@ -48,8 +48,8 @@ const catalogActions= [...catalogSrc.matchAll(actionRe)].map(m => m[1]);
 const regFixedRe  = /registerFixed\([^,]+,\s*'([^']+)',\s*'[^']+',\s*'([^']+)',\s*\w+\)/g;
 const launcherCmds = [...launcherSrc.matchAll(regFixedRe)].map(m => ({ id: m[1], cmd: m[2] }));
 
-const snapitPathMatch    = launcherSrc.match(/const SNAPIT\s*=\s*'([^']+)'/);
-const diskcleanPathMatch = launcherSrc.match(/const DISKCLEAN\s*=\s*'([^']+)'/);
+const snapitPathMatch    = launcherSrc.match(/const _SNAPIT_ROOT\s*=\s*'([^']+)'/);
+const diskcleanPathMatch = launcherSrc.match(/const _DISKCLEANUP_ROOT\s*=\s*'([^']+)'/);
 const snapitPath    = snapitPathMatch    ? snapitPathMatch[1]    : '';
 const diskcleanPath = diskcleanPathMatch ? diskcleanPathMatch[1] : '';
 

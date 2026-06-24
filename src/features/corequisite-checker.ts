@@ -111,15 +111,13 @@ function findCodeInsidersBin(): string {
 
 function installViaCli(bin: string, vsix: string): string {
     const args = ['--install-extension', vsix];
-    const isWindowsCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
-    const result = isWindowsCmd
-        ? cp.spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${bin}" --install-extension "${vsix}"`], {
+    // Use shell:true for .cmd/.bat so Windows resolves them correctly without
+    // manual cmd.exe /c quoting (which breaks on paths with spaces).
+    const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
+    const result = cp.spawnSync(bin, args, {
             encoding: 'utf8',
             windowsHide: true,
-        })
-        : cp.spawnSync(bin, args, {
-            encoding: 'utf8',
-            windowsHide: true,
+            shell: useShell,
         });
 
     if (result.error) {

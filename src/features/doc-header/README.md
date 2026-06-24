@@ -1,18 +1,3 @@
----
-docid: 150.1.doc-header-dir
-id: feature-doc-header
-title: "Feature: Doc Header"
-project: cielovista-tools
-description: "Doc Header — 0 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [doc, header]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-05-15
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/doc-header/README.md
----
 # Feature: Doc Header
 
 ## What it does
@@ -44,3 +29,19 @@ activate(context)
 
 1. Open a workspace with the CieloVista Tools extension active.
 2. Verify Doc Header activates without errors in the Output channel.
+
+---
+docid: 150.1.doc-header-dir
+id: feature-doc-header
+title: "Feature: Doc Header"
+project: cielovista-tools
+description: "Doc Header — 0 command(s). Auto-generated stub: fill in What it does and Manual test."
+status: active
+tags: [doc, header]
+category: 150.1 — Components / Features
+created: 2026-05-15
+updated: 2026-05-15
+version: 1.0.0
+author: CieloVista Software
+relativepath: src/features/doc-header/README.md
+---

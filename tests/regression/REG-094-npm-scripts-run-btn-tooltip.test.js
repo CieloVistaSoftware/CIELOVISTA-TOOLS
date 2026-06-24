@@ -43,9 +43,9 @@ check('rebuild entry includes ⚠ slow warning',
 check('clean:project:apply entry includes ⚠ destructive warning',
     HTML.includes('clean:project:apply') && HTML.includes('irreversible'));
 
-// CHECK 6: full command always shown
-check('runBtnTitle() always appends "Command: " + cmd',
-    HTML.includes("'Command: ' + cmd"));
+// CHECK 6: full command always shown (prefix changed from "Command: " to "Run: " for clarity)
+check('runBtnTitle() always appends "Run: " + cmd',
+    HTML.includes("'Run: ' + cmd"));
 
 console.log(`\nREG-094: ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

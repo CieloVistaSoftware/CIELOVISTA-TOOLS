@@ -7,7 +7,7 @@ const path = require('path');
 const ROOT     = path.resolve(__dirname, '../..');
 const BG_SRC   = fs.readFileSync(path.join(ROOT, 'src/features/background-health-runner.ts'), 'utf8');
 const TERM_SRC = fs.readFileSync(path.join(ROOT, 'src/shared/terminal-utils.ts'), 'utf8');
-const PROJ_SRC = fs.readFileSync(path.join(ROOT, 'src/features/project-launcher.ts'), 'utf8');
+const PROJ_SRC = fs.readFileSync(path.join(ROOT, 'src/features/cvs-command-launcher/index.ts'), 'utf8');
 const NPM_SRC  = fs.readFileSync(path.join(ROOT, 'src/features/npm-scripts-tree.ts'), 'utf8');
 
 let pass = 0, fail = 0;
@@ -31,12 +31,12 @@ check('LaunchedTerminalInfo interface has script, command, cwd, project fields',
     TERM_SRC.includes('script:') && TERM_SRC.includes('command:') &&
     TERM_SRC.includes('cwd:')    && TERM_SRC.includes('project:'));
 
-// ── project-launcher: registers terminals ────────────────────────────────────
+// ── cvs-command-launcher: registers terminals ─────────────────────────────────
 
-check('project-launcher imports registerLaunchedTerminal',
+check('cvs-command-launcher imports registerLaunchedTerminal',
     PROJ_SRC.includes("registerLaunchedTerminal") && PROJ_SRC.includes('terminal-utils'));
 
-check('project-launcher calls registerLaunchedTerminal after sendText',
+check('cvs-command-launcher calls registerLaunchedTerminal after sendText',
     PROJ_SRC.includes('registerLaunchedTerminal(name,'));
 
 // ── npm-scripts-tree: registers terminals ────────────────────────────────────
