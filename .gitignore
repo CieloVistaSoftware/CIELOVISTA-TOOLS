@@ -26,3 +26,6 @@ _*.csv
 _*.tmp
 .scripts/
 .claude/worktrees/
+
+# Runtime: live Claude job status for the Issue Viewer Current Job panel (issue #3)
+data/claude-job-status.json
