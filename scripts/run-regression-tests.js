@@ -151,42 +151,42 @@ function ensureOutBuilt() {
   if (rebuilt) { console.log(''); }
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Preflight: ensure mcp-server/dist is built ────────────────────────────────
+// Like out/, mcp-server/dist is not shared across git worktrees. REG-074 probes
+// mcp-server/dist/http.js, so build it on first run with the same tsc the suite
+// uses for REG-003 — otherwise a fresh worktree fails on a missing build artifact
+// instead of a real test failure.
+function ensureMcpServerBuilt() {
+  const mcpRoot   = path.join(ROOT, 'mcp-server');
+  const mcpMarker = path.join(mcpRoot, 'dist', 'http.js');
+  if (!fs.existsSync(path.join(mcpRoot, 'tsconfig.json'))) { return; }
+  if (fs.existsSync(mcpMarker)) { return; }
 
-// ── Preflight: ensure out/ is built ──────────────────────────────────────────
-// Git worktrees have no shared out/ — auto-build on first run so tests that
-// probe out/extension.js and out/catalog.html don't fail with a missing-file
-// error instead of a real test failure.
-function ensureOutBuilt() {
-  const outBundle = path.join(ROOT, 'out', 'extension.js');
-  const outHtml   = path.join(ROOT, 'out', 'catalog.html');
-  let rebuilt = false;
-
-  if (!fs.existsSync(outBundle)) {
-    console.log('  ⚙  out/extension.js missing — running esbuild.mjs...');
-    try {
-      execSync(`node "${path.join(ROOT, 'esbuild.mjs')}"`, { cwd: ROOT, stdio: 'inherit' });
-      rebuilt = true;
-    } catch {
-      console.error('  ✗ esbuild.mjs failed — some tests may fail');
-    }
+  const tscBin = [
+    path.join(ROOT, 'node_modules', '.bin', 'tsc'),
+    path.join(ROOT, '..', '..', '..', 'node_modules', '.bin', 'tsc'),
+  ].find(p => fs.existsSync(p));
+  if (!tscBin) {
+    console.error('  ✗ tsc not found — cannot build mcp-server/dist (REG-074 will fail)');
+    return;
   }
 
-  if (!fs.existsSync(outHtml)) {
-    console.log('  ⚙  out/catalog.html missing — running copy-commandhelp.js...');
-    try {
-      execSync(`node "${path.join(ROOT, 'scripts', 'copy-commandhelp.js')}"`, { cwd: ROOT, stdio: 'inherit' });
-      rebuilt = true;
-    } catch {
-      console.error('  ✗ copy-commandhelp.js failed — REG-012 will fail');
-    }
+  // On Windows the .bin entry is a .cmd shim; execSync runs through cmd.exe.
+  const tscExe = process.platform === 'win32' ? `${tscBin}.cmd` : tscBin;
+  console.log('  ⚙  mcp-server/dist/http.js missing — building mcp-server...');
+  try {
+    execSync(`"${tscExe}" -p "${mcpRoot}"`, { cwd: ROOT, stdio: 'inherit' });
+    console.log('');
+  } catch {
+    console.error('  ✗ mcp-server build failed — REG-074 will fail');
   }
-
-  if (rebuilt) { console.log(''); }
 }
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   ensureOutBuilt();
+  ensureMcpServerBuilt();
   console.log('\nCieloVista Tools — Regression Test Suite');
   console.log('─'.repeat(50));
   console.log('  Launching all tests concurrently...\n');
