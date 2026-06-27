@@ -497,7 +497,7 @@ const CHECKS: Check[] = [
                 addBug({
                     id: 'bug-claude-md',
                     checkId: 'chk-claude-md',
-                    title: `${missing.length} project(s) missing CLAUDE.md`,
+                    title: `${missing.length} project(s) missing CLAUDE.md: ${missing.slice(0, 3).join(', ')}`,
                     detail: `Missing: ${missing.slice(0, 5).join(', ')}`,
                     priority: 'medium',
                     category: 'Documentation',
@@ -592,7 +592,7 @@ const CHECKS: Check[] = [
                 addBug({
                     id: 'bug-untagged-code',
                     checkId: 'chk-untagged-code-blocks',
-                    title: `${untagged} untagged fenced code block(s) across all docs`,
+                    title: `${untagged} untagged fenced code block(s); first at ${offenders[0] || 'n/a'}`,
                     detail: `Code blocks without language tags will not get syntax highlighting. Showing ${Math.min(offenders.length, 50)} example location(s).`,
                     recommendation: 'Replace bare fences with tagged fences such as ```ts, ```js, ```powershell, ```json, or ```bash so docs render with the right syntax highlighting.',
                     evidence: offenders,
