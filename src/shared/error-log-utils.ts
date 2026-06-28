@@ -111,12 +111,10 @@ export function logError(message: string, stacktrace: string, context: string): 
         entries[idx].lastOccurred = now;
         if (!entries[idx].stacktrace) { entries[idx].stacktrace = stacktrace; }
         writeLog(logFile, entries);
-        // Rate-limit known-error logging. The data file already tracks the running
-        // count, so only surface a known error on its first recurrence and then
-        // sparingly — avoids the ×1000+ output-channel spam (#633/#634/#635).
-        if (entries[idx].count === 2 || entries[idx].count % 100 === 0) {
-            log(FEATURE, `❌ Known error #${id} (×${entries[idx].count}): ${message}\n${stacktrace}`);
-        }
+        // A known/recurring error is NEVER re-logged to the output channel. The
+        // running count is persisted in the data file and shown in the Error Log
+        // viewer; re-emitting it every health cycle is exactly what produced the
+        // ×1000+ output-channel spam (#633/#634/#635). Stay silent on recurrence.
         return entries[idx].solved ? entries[idx].solution : undefined;
     }
 
