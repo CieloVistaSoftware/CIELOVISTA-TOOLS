@@ -570,8 +570,9 @@ const CHECKS: Check[] = [
             const scan = (dir: string, depth = 0) => {
                 if (depth > 3) { return; }
                 try {
+                    const SKIP_DIRS = new Set(['node_modules', '.git', '.claude', 'out', 'output', 'dist', 'build', 'coverage', '__pycache__', 'legacy', 'vendor', '.venv', 'test-results', '.playwright-artifacts']);
                     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.claude' || entry.name === 'out') { continue; }
+                        if (SKIP_DIRS.has(entry.name)) { continue; }
                         const full = path.join(dir, entry.name);
                         if (entry.isDirectory()) { scan(full, depth + 1); }
                         else if (entry.name.endsWith('.md')) {
@@ -585,7 +586,12 @@ const CHECKS: Check[] = [
                     }
                 } catch { /* skip */ }
             };
-            for (const p of registry.projects) {
+            // Scope this background check to cielovista-tools' own docs. Auditing
+            // every registered project (incl. external/personal repos) as a
+            // recurring health finding is noise; the on-demand Code Highlight
+            // Audit (cvs.audit.codeHighlight) covers any project on request. (#635)
+            const selfProjects = registry.projects.filter(p => p.name === 'cielovista-tools');
+            for (const p of (selfProjects.length ? selfProjects : registry.projects)) {
                 if (fs.existsSync(p.path)) { scan(p.path); }
             }
             if (untagged > 0) {
