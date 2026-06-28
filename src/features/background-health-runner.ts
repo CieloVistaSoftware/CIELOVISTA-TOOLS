@@ -497,7 +497,7 @@ const CHECKS: Check[] = [
                 addBug({
                     id: 'bug-claude-md',
                     checkId: 'chk-claude-md',
-                    title: `${missing.length} project(s) missing CLAUDE.md`,
+                    title: `${missing.length} project(s) missing CLAUDE.md: ${missing.slice(0, 3).join(', ')}`,
                     detail: `Missing: ${missing.slice(0, 5).join(', ')}`,
                     priority: 'medium',
                     category: 'Documentation',
@@ -570,8 +570,9 @@ const CHECKS: Check[] = [
             const scan = (dir: string, depth = 0) => {
                 if (depth > 3) { return; }
                 try {
+                    const SKIP_DIRS = new Set(['node_modules', '.git', '.claude', 'out', 'output', 'dist', 'build', 'coverage', '__pycache__', 'legacy', 'vendor', '.venv', 'test-results', '.playwright-artifacts']);
                     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.claude' || entry.name === 'out') { continue; }
+                        if (SKIP_DIRS.has(entry.name)) { continue; }
                         const full = path.join(dir, entry.name);
                         if (entry.isDirectory()) { scan(full, depth + 1); }
                         else if (entry.name.endsWith('.md')) {
@@ -585,14 +586,19 @@ const CHECKS: Check[] = [
                     }
                 } catch { /* skip */ }
             };
-            for (const p of registry.projects) {
+            // Scope this background check to cielovista-tools' own docs. Auditing
+            // every registered project (incl. external/personal repos) as a
+            // recurring health finding is noise; the on-demand Code Highlight
+            // Audit (cvs.audit.codeHighlight) covers any project on request. (#635)
+            const selfProjects = registry.projects.filter(p => p.name === 'cielovista-tools');
+            for (const p of (selfProjects.length ? selfProjects : registry.projects)) {
                 if (fs.existsSync(p.path)) { scan(p.path); }
             }
             if (untagged > 0) {
                 addBug({
                     id: 'bug-untagged-code',
                     checkId: 'chk-untagged-code-blocks',
-                    title: `${untagged} untagged fenced code block(s) across all docs`,
+                    title: `${untagged} untagged fenced code block(s); first at ${offenders[0] || 'n/a'}`,
                     detail: `Code blocks without language tags will not get syntax highlighting. Showing ${Math.min(offenders.length, 50)} example location(s).`,
                     recommendation: 'Replace bare fences with tagged fences such as ```ts, ```js, ```powershell, ```json, or ```bash so docs render with the right syntax highlighting.',
                     evidence: offenders,

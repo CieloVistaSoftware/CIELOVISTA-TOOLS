@@ -111,7 +111,10 @@ export function logError(message: string, stacktrace: string, context: string): 
         entries[idx].lastOccurred = now;
         if (!entries[idx].stacktrace) { entries[idx].stacktrace = stacktrace; }
         writeLog(logFile, entries);
-        log(FEATURE, `❌ Known error #${id} (×${entries[idx].count}): ${message}\n${stacktrace}`);
+        // A known/recurring error is NEVER re-logged to the output channel. The
+        // running count is persisted in the data file and shown in the Error Log
+        // viewer; re-emitting it every health cycle is exactly what produced the
+        // ×1000+ output-channel spam (#633/#634/#635). Stay silent on recurrence.
         return entries[idx].solved ? entries[idx].solution : undefined;
     }
 
