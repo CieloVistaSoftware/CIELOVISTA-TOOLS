@@ -2,10 +2,10 @@
 
 ## 🅿️ PARKING LOT
 
-**Task:** —  clean slate
-**Files touched:** none
-**Last action:** PR #521 squash-merged into main 2026-05-25; `release/session-fixes-2026-05-25` deleted; branch protection restored (1 required review); local main synced
-**Next step:** Pick next open GitHub issue
+**Task:** #615 — MCP server crashes on startup (0xC0000142 STATUS_DLL_INIT_FAILED) on Windows
+**Files touched:** `src/features/mcp-server-status.ts`, `tests/unit/mcp-server-status.test.js`, `tests/regression/REG-116-mcp-bundled-node-launch.test.js`, `data/claude-job-status.json`
+**Last action:** Launch MCP via VS Code bundled Node (`process.execPath` + `ELECTRON_RUN_AS_NODE=1`) instead of PATH `node`; added `windowsHide: true`; recorded resolved node path in crash diagnostics. Compile clean, all 133 regression tests green (built `mcp-server/dist` first — worktree gap).
+**Next step:** Commit + open PR for #615; then pick next open issue
 **Open questions:** None
 
 ---
