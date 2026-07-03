@@ -85,13 +85,23 @@ async function callCopilot(prompt: string, maxTokens: number): Promise<string> {
         family:  'gpt-4o',
     });
 
-    // Fall back to any available model if gpt-4o isn't present
-    const fallback = models.length === 0
-        ? await vscode.lm.selectChatModels()
-        : models;
+    // Fall back to any available model if gpt-4o isn't present — but skip Copilot's
+    // internal "utility" models (e.g. copilot-utility-small). Selecting one as the main
+    // model throws "No utility model is configured for copilot-utility-small" when the
+    // Copilot main model is BYOK, because BYOK doesn't resolve a utility model. We only
+    // want full chat models here. (#643)
+    const isUtilityModel = (m: vscode.LanguageModelChat): boolean =>
+        /utility/i.test(m.id) || /utility/i.test(m.family);
+
+    const fallback = models.length > 0
+        ? models
+        : (await vscode.lm.selectChatModels()).filter(m => !isUtilityModel(m));
 
     if (!fallback.length) {
-        throw new Error('No Copilot / VS Code language models available. Sign into GitHub Copilot.');
+        throw new Error(
+            'No usable Copilot / VS Code chat model available (utility-only models are skipped). ' +
+            'Sign into GitHub Copilot with a chat model, or add an Anthropic key in settings.'
+        );
     }
 
     const model = fallback[0];
