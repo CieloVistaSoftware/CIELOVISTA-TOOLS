@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ---
 
+## [Unreleased]
+
+### Removed
+
+**Issue Viewer**
+- Removed the **Start Work** button — it set `priority:1`, created a branch, and opened the issue, but was unrequested one-click UI. Use **Claim** plus your own branch workflow instead.
+
+---
+
 ## [1.0.2] — 2026-05
 
 ### Added
