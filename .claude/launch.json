@@ -4,8 +4,11 @@
     {
       "name": "wb-starter",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["C:/Users/jwpmi/Downloads/AI/wb-starter/server.js"],
-      "port": 3000
+      "runtimeArgs": [
+        "C:/Users/jwpmi/Downloads/AI/wb-starter/server.js"
+      ],
+      "port": 3000,
+      "autoPort": false
     }
   ]
 }
