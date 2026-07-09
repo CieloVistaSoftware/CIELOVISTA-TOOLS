@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "docs/_today", "-p", "4200", "--no-clipboard"],
       "port": 4200
+    },
+    {
+      "name": "cvt-landing",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", ".", "-p", "4201", "--no-clipboard"],
+      "port": 4201
     }
   ]
 }
