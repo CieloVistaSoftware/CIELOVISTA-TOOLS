@@ -42,6 +42,8 @@ import {
     removeFromRegistry
 } from '../shared/cvt-registry';
 import { esc } from '../shared/webview-utils';
+import { getDevServerConfig } from '../shared/dev-server-config';
+import { isPortOpen } from '../shared/port-check';
 
 let homePanel: vscode.WebviewPanel | undefined;
 
@@ -219,6 +221,31 @@ function _startDcPoller(panel: vscode.WebviewPanel): () => void {
   return () => clearInterval(id);
 }
 
+/** Mirrors _startDcPoller, but against the CURRENT workspace's own dev-server port (.claude/launch.json, default 4000) instead of the DiskCleanUp backend's fixed port 5000. */
+function _startDevServerPoller(panel: vscode.WebviewPanel, port: number): () => void {
+  let lastStatus: 'up' | 'down' | null = null;
+
+  const check = () => {
+    if (!panel.visible) { return; }
+    const socket = net.createConnection({ port, host: '127.0.0.1' });
+    socket.setTimeout(800);
+    const done = (status: 'up' | 'down') => {
+      socket.destroy();
+      if (status !== lastStatus) {
+        lastStatus = status;
+        void panel.webview.postMessage({ type: 'devServerStatus', status });
+      }
+    };
+    socket.once('connect',  () => done('up'));
+    socket.once('error',    () => done('down'));
+    socket.once('timeout',  () => done('down'));
+  };
+
+  check(); // immediate first check
+  const id = setInterval(check, 8000);
+  return () => clearInterval(id);
+}
+
 function _startMetricsSampler(panel: vscode.WebviewPanel): () => void {
   let prevCpu  = process.cpuUsage();
   let prevTime = process.hrtime.bigint();
@@ -300,16 +327,20 @@ function showHomePage(context: vscode.ExtensionContext): void {
   void render();
   setTimeout(() => { void render(); }, 1500);
 
+  const devServerConfig = getDevServerConfig(wsPath);
+
   const mcpStatusHandler = (status: 'up' | 'down') => {
     panel.webview.postMessage({ type: 'mcpStatus', status });
   };
   onMcpServerStatusChange(mcpStatusHandler);
   const stopMetrics = _startMetricsSampler(panel);
   const stopDcPoller = _startDcPoller(panel);
+  const stopDevServerPoller = _startDevServerPoller(panel, devServerConfig.port);
   panel.onDidDispose(() => {
     if (homePanel === panel) {
       homePanel = undefined;
     }
+    stopDevServerPoller();
     offMcpServerStatusChange(mcpStatusHandler);
     stopMetrics();
     stopDcPoller();
@@ -321,6 +352,20 @@ function showHomePage(context: vscode.ExtensionContext): void {
       const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
       terminal.show();
       terminal.sendText('npm start');
+      return;
+    }
+    if (msg.type === 'devServerAction') {
+      // The single "Start" button: if the workspace's own dev server is
+      // already up, just open it (to its default landing page); otherwise
+      // launch it the same way npmStart does.
+      const up = await isPortOpen(devServerConfig.port);
+      if (up) {
+        await vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${devServerConfig.port}/${devServerConfig.landingPage}`));
+      } else {
+        const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
+        terminal.show();
+        terminal.sendText('npm start');
+      }
       return;
     }
     if (msg.type === 'npmRestart') {
@@ -462,7 +507,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
 
 // ─── HTML ─────────────────────────────────────────────────────────────────────
 
-function buildDashboardHtml(
+export function buildDashboardHtml(
     wsName:    string,
     wsPath:    string,
     mcpRunning: boolean,
@@ -613,8 +658,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .btn-hidden{display:none!important}
 #btn-npm-start{background:#1a3a1a;color:#3fb950;border:1px solid #3fb950;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0}
 #btn-npm-start:hover{background:#3fb950;color:#000}
-#btn-npm-restart{background:#3a2a0a;color:#e3b341;border:1px solid #e3b341;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;flex-shrink:0}
-#btn-npm-restart:hover{background:#e3b341;color:#000}
+.devserver-badge{cursor:default}
 
 /* Layout */
 #body{display:grid;grid-template-columns:minmax(16rem,.9fr) minmax(0,1.6fr);grid-template-rows:auto auto auto;gap:16px;padding:16px 20px;width:100%;box-sizing:border-box}
@@ -860,11 +904,14 @@ window.addEventListener('message', function(e) {
     dcBadge.title = up ? 'DiskCleanUp backend is running — click to open dashboard' : 'DiskCleanUp backend is stopped — click to start';
     var dcLbl = dcBadge.querySelector('.mcp-label');
     if (dcLbl) { dcLbl.textContent = 'DiskCleanUp ' + (up ? 'Running' : 'Stopped'); }
-    // Toggle Start/Restart based on service status
-    var startBtn = document.getElementById('btn-npm-start');
-    var restartBtn = document.getElementById('btn-npm-restart');
-    if (startBtn)   { startBtn.classList.toggle('btn-hidden', up); }
-    if (restartBtn) { restartBtn.classList.toggle('btn-hidden', !up); }
+  } else if (msg.type === 'devServerStatus') {
+    var devBadge = document.getElementById('devserver-badge');
+    if (!devBadge) { return; }
+    var devUp = msg.status === 'up';
+    devBadge.className = 'mcp-badge devserver-badge ' + (devUp ? 'mcp-on' : 'mcp-off');
+    devBadge.title = devUp ? "This project's dev server is running — click Start to open it" : "This project's dev server is stopped — click Start to launch it";
+    var devLbl = devBadge.querySelector('.mcp-label');
+    if (devLbl) { devLbl.textContent = 'Dev Server ' + (devUp ? 'Running' : 'Stopped'); }
   } else if (msg.type === 'metrics') {
     var memBar = document.getElementById('mg-mem-bar');
     var memVal = document.getElementById('mg-mem-val');
@@ -1106,13 +1153,7 @@ document.getElementById('btn-configure').addEventListener('click', function() {
 var btnStart = document.getElementById('btn-npm-start');
 if (btnStart) {
   btnStart.addEventListener('click', function() {
-    vsc.postMessage({ type: 'npmStart' });
-  });
-}
-var btnRestart = document.getElementById('btn-npm-restart');
-if (btnRestart) {
-  btnRestart.addEventListener('click', function() {
-    vsc.postMessage({ type: 'npmRestart' });
+    vsc.postMessage({ type: 'devServerAction' });
   });
 }
 cfgClose.addEventListener('click', function() { overlay.style.display = 'none'; });
@@ -1146,6 +1187,10 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
     <span class="mcp-dot"></span>
     <span class="mcp-label">DiskCleanUp …</span>
   </div>
+  ${hasStartScript ? `<div id="devserver-badge" class="mcp-badge devserver-badge mcp-off" title="Checking this project's dev server…">
+    <span class="mcp-dot"></span>
+    <span class="mcp-label">Dev Server …</span>
+  </div>` : ''}
   <div id="metrics-gauge">
     <div class="mg-item">
       <span class="mg-label">RAM</span>
@@ -1160,8 +1205,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
   </div>
   <button id="btn-reload" title="Reload VS Code window">\uD83D\uDD04 Reload Window</button>
   <button id="btn-configure">\u2699\ufe0f Configure</button>
-  ${hasStartScript ? `<button id="btn-npm-start" title="Run 'npm start' \u2014 opens a new terminal and starts the project's dev server. Hidden automatically when the service is already running.">\u25B6 Start</button>` : ''}
-  ${hasStartScript ? `<button id="btn-npm-restart" class="btn-hidden" title="Restart the service \u2014 sends POST /api/restart. Use when you need to apply config changes or clear a hung state.">\u21BA Restart</button>` : ''}
+  ${hasStartScript ? `<button id="btn-npm-start" title="If this project's dev server is already running, opens it. Otherwise runs 'npm start' in a new terminal.">\u25B6 Start</button>` : ''}
 </div>
 
 <div id="home-search-wrap">
