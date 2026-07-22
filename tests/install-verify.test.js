@@ -7,6 +7,7 @@
 
 const cp   = require('child_process');
 const fs   = require('fs');
+const os   = require('os');
 const path = require('path');
 const pkg  = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 
@@ -52,7 +53,7 @@ if (fs.existsSync(vsix)) {
 //    copies from install.js until a reload. The disk folder is the source of
 //    truth for what will load on next reload.
 const extensionsRegistryPath = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    os.homedir(),
     '.vscode-insiders', 'extensions',
     'extensions.json'
 );
@@ -84,7 +85,7 @@ if (fs.existsSync(extensionsRegistryPath)) {
 
 const extId         = `${pkg.publisher.toLowerCase()}.${pkg.name}`;
 const extFolder     = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    os.homedir(),
     '.vscode-insiders', 'extensions',
     `${extId}-${pkg.version}`
 );
@@ -157,7 +158,7 @@ if (installerSrc.length > 0) {
 //    Checks the INSTALLED location, not the project source folder.
 //    A folder with only data/bg-health.json means the VSIX was never extracted.
 const installedRoot = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    os.homedir(),
     '.vscode-insiders', 'extensions',
     `${pkg.publisher.toLowerCase()}.${pkg.name}-${pkg.version}`
 );
