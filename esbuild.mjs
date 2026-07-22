@@ -106,6 +106,16 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone dev-server-config — no vscode dep, consumed by REG-118 to
+  // exercise the real getDevServerConfig() port-validation logic instead of
+  // just string-matching the source.
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/dev-server-config.ts'],
+    outfile:     'out/shared/dev-server-config.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Standalone home-page html builder — vscode external, consumed by regression tests
   await esbuild.build({
     ...nodeBase,

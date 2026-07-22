@@ -18,6 +18,11 @@ export interface DevServerConfig {
  * Falls back to DEFAULT_PORT/DEFAULT_LANDING_PAGE if the file, the
  * configurations array, or the port field is missing or invalid.
  */
+/** True for an integer in the valid TCP port range net.createConnection can actually use (1-65535 -- 0 means "let the OS assign one," not a fixed port to connect to). */
+function isValidPort(value: unknown): value is number {
+    return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535;
+}
+
 export function getDevServerConfig(wsPath: string): DevServerConfig {
     try {
         const launchJsonPath = path.join(wsPath, '.claude', 'launch.json');
@@ -25,7 +30,7 @@ export function getDevServerConfig(wsPath: string): DevServerConfig {
         const parsed = JSON.parse(raw);
         const port = parsed?.configurations?.[0]?.port;
         return {
-            port: typeof port === 'number' ? port : DEFAULT_PORT,
+            port: isValidPort(port) ? port : DEFAULT_PORT,
             landingPage: DEFAULT_LANDING_PAGE,
         };
     } catch {
