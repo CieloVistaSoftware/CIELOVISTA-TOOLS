@@ -563,8 +563,9 @@ export function buildDashboardHtml(
         }).join('');
 
     // ── Recent projects ───────────────────────────────────────────────────────
-    const recHtml = recents.length === 0
-        ? `<div class="empty-state">No recent projects yet. Use the Edit button to pin any folder, or open CVT in other workspaces to build your list.</div>`
+    const noRecents = recents.length === 0;
+    const recHtml = noRecents
+        ? `<div class="empty-state">No projects yet — click "+ Add Folder…" below to pick one, or open CVT in other workspaces to build this list automatically.</div>`
         : recents.map(r => {
             const isCurrent   = r.fsPath === wsPath;
             const inCvt       = cvtPaths.has(r.fsPath.toLowerCase());
@@ -746,7 +747,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #panel-recents.edit-mode .rec-cvt{display:inline-block}
 .rec-add-tile{display:none;width:100%;margin-top:8px;padding:8px 10px;border-radius:4px;border:1px dashed var(--vscode-panel-border);background:transparent;color:var(--vscode-descriptionForeground);cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;text-align:center;transition:border-color .12s,color .12s,background .12s}
 .rec-add-tile:hover{border-color:var(--vscode-focusBorder);color:var(--vscode-editor-foreground);background:var(--vscode-list-hoverBackground)}
-#panel-recents.edit-mode .rec-add-tile{display:block}
+#panel-recents.edit-mode .rec-add-tile,#panel-recents.is-empty .rec-add-tile{display:block}
 
 /* Browse All */
 #panel-browse{grid-column:1/-1}
@@ -1226,7 +1227,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
     ${histHtml}
   </div>
 
-  <div class="panel" id="panel-recents">
+  <div class="panel${noRecents ? ' is-empty' : ''}" id="panel-recents">
     <div class="panel-hd panel-hd-split">
       <span>\uD83D\uDCC1 Recent Projects</span>
       <button id="rec-edit-toggle" class="panel-hd-btn" title="Add or remove folders">Edit</button>

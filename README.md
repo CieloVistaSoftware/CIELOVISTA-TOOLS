@@ -63,7 +63,7 @@ The extension ships with a standalone MCP server that gives AI assistants struct
 - Command discovery
 - Project metadata access
 
-Add a project to `project-registry.json` and it becomes available instantly — no rebuild required.
+Add a project to your own `project-registry.json` (a personal file you create at `C:\Users\<you>\Downloads\CieloVistaStandards\project-registry.json` — see [FRESH-INSTALL-GUIDE.md](FRESH-INSTALL-GUIDE.md) for its format) and it becomes available instantly — no rebuild required.
 
 ## 📦 Quick Start
 ```powershell
