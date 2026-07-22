@@ -132,6 +132,23 @@ function test(name, fn) {
 
 function assert(condition, msg) { if (!condition) { throw new Error(msg); } }
 
+// SnapIt/DiskCleanUp are personal side-projects that live in a fixed local
+// path (see _SNAPIT_ROOT/_DISKCLEANUP_ROOT in cvs-command-launcher/index.ts)
+// -- they were never checked into this repo or any CI runner, so an
+// existsSync() check against them can only ever pass on the developer's own
+// machine. Skips (not fails) under CI so this stops permanently red-lighting
+// every PR for a condition no CI environment could ever satisfy; still a
+// real, meaningful assert locally, where a moved/renamed folder should fail.
+var skipped = 0;
+function skipInCi(name, fn) {
+    if (process.env.CI) {
+        console.log('  SKIP:', name, '(personal local path, not present on CI runners)');
+        skipped++;
+        return;
+    }
+    test(name, fn);
+}
+
 // ── LAYER 1 ───────────────────────────────────────────────────────────────────
 console.log('\n-- Layer 1: Catalog structure --\n');
 
@@ -207,12 +224,12 @@ test('No launcher command uses cmd.exe "cd /d" syntax', function() {
     assert(hits.length === 0, 'Found "cd /d" -- use plain cd for PowerShell');
 });
 
-test('SnapIt path exists on disk', function() {
+skipInCi('SnapIt path exists on disk', function() {
     assert(snapitPath.length > 0, 'Could not parse SNAPIT constant');
     assert(fs.existsSync(snapitPath), 'SnapIt path not found: ' + snapitPath);
 });
 
-test('DiskCleanUp path exists on disk', function() {
+skipInCi('DiskCleanUp path exists on disk', function() {
     assert(diskcleanPath.length > 0, 'Could not parse DISKCLEAN constant');
     assert(fs.existsSync(diskcleanPath), 'DiskCleanUp path not found: ' + diskcleanPath);
 });
@@ -255,7 +272,8 @@ test('All launcher command IDs are registered in the codebase', function() {
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log('\n' + '-'.repeat(60));
-console.log((passed + failed) + ' tests: ' + passed + ' passed, ' + failed + ' failed\n');
+console.log((passed + failed + skipped) + ' tests: ' + passed + ' passed, ' + failed + ' failed'
+    + (skipped > 0 ? ', ' + skipped + ' skipped' : '') + '\n');
 
 if (failed > 0) {
     console.error('CATALOG INTEGRITY FAILED -- fix before shipping');

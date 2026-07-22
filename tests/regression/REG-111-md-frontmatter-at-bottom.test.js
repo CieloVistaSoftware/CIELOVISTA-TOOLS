@@ -19,12 +19,32 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT    = path.resolve(__dirname, '../..');
-const EXCLUDE = new Set(['node_modules', '.vscode-test', '.claude', 'out', 'dist', 'mcp-server']);
+// docs/_today/REG-066-frontmatter-scope-control.md: REG-066 creates this
+// fixture with frontmatter DELIBERATELY at the top (to prove its own
+// scanner still includes real in-scope paths), then deletes it in its own
+// finally block. Unlike the OTHER fixtures a concurrently-running test
+// (see run-regression-tests.js -- every regression test is its own
+// subprocess sharing this checkout) might create, this one has genuine
+// well-formed frontmatter -- so if this scan catches it mid-existence,
+// it isn't a vanishing-file race the try/catches below can paper over,
+// it's a file that's legitimately violating the convention on purpose.
+// Excluded by exact name, not a real doc.
+const EXCLUDE = new Set(['node_modules', '.vscode-test', '.claude', 'out', 'dist', 'mcp-server', 'REG-066-frontmatter-scope-control.md']);
 const SAMPLE  = 100;
 
 // ── Collect all .md files ────────────────────────────────────────────────────
+// All regression tests run as concurrent subprocesses (see
+// run-regression-tests.js) sharing this same repo checkout -- another test
+// (e.g. REG-066) can create and delete its own temp fixture directories at
+// the repo root while this walk is in flight. A directory that existed when
+// listed by the parent's readdirSync but is gone by the time we recurse into
+// it isn't a real problem, just a benign race -- skip it, same defensive
+// pattern REG-027's own walkMd() already uses.
 function walk(dir, results = []) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch { return results; }
+    for (const entry of entries) {
         if (EXCLUDE.has(entry.name)) continue;
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) { walk(full, results); }
@@ -50,7 +70,17 @@ console.log(`\nREG-111: Frontmatter at bottom — checking ${sample.length} / ${
 const YAML_KEYS = /^(docid|id|title|description|status|tags|category|created|updated|version|author|project|relativepath)\s*:/im;
 
 for (const f of sample) {
-    const src   = fs.readFileSync(f, 'utf8');
+    // Another concurrently-running test (e.g. REG-066) can create and
+    // delete its own temp fixture files anywhere under the repo root while
+    // this scan is in flight (see run-regression-tests.js -- every
+    // regression test runs as its own subprocess sharing one checkout). A
+    // file that existed when this scan's own walk() listed it, but is gone
+    // by the time we get here to read it, isn't a real problem -- skip it,
+    // rather than exclude every fixture path some other test might ever use
+    // by name (which is what this file did before, and still missed one).
+    let src;
+    try { src = fs.readFileSync(f, 'utf8'); }
+    catch { continue; }
     const lines = src.split('\n');
 
     // Find first --- that opens a YAML frontmatter block
