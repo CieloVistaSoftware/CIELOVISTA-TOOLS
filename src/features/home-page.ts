@@ -300,6 +300,11 @@ function showHomePage(context: vscode.ExtensionContext): void {
   const wsFolder = vscode.workspace.workspaceFolders?.[0];
   const wsName   = normalizeWorkspaceDisplayName(wsFolder?.name ?? 'No Workspace');
   const wsPath   = wsFolder?.uri.fsPath ?? '';
+  // Reads the manifest of the ACTUAL installed extension (not a file path
+  // relative to this compiled/bundled module) -- correct regardless of how
+  // esbuild lays out out/extension.js, and always matches what's really
+  // running, not just what's in the source tree.
+  const version  = context.extension.packageJSON.version ?? '';
 
   startMcpServer();
 
@@ -321,7 +326,7 @@ function showHomePage(context: vscode.ExtensionContext): void {
         hasStartScript = !!(pkg?.scripts?.start);
       } catch { /* no package.json or parse error */ }
     }
-    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered, hasStartScript);
+    panel.webview.html = buildDashboardHtml(wsName, wsPath, mcpRunning, history, recents, grouped, cvtPaths, registered, hasStartScript, version);
   };
 
   void render();
@@ -516,7 +521,8 @@ export function buildDashboardHtml(
     grouped:   Record<string, Array<{title:string;command:string;description?:string}>>,
   cvtPaths:  Set<string>,
   registered: Set<string>,
-  hasStartScript: boolean = false
+  hasStartScript: boolean = false,
+  version: string = ''
 ): string {
 
     // ── Quick Launch buttons ──────────────────────────────────────────────────
@@ -630,6 +636,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #hd{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}
 #ws-meta{flex:1 1 260px;min-width:220px}
 #ws-name{font-size:1.2em;font-weight:800;flex:1}
+#cvt-version{font-size:0.55em;font-weight:600;color:var(--vscode-descriptionForeground);vertical-align:middle;margin-left:4px}
 #ws-path{font-family:var(--vscode-editor-font-family,monospace);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:2px;background:transparent;border:none;padding:0;cursor:pointer;text-align:left;text-decoration:underline dotted;text-underline-offset:2px}#ws-path:hover{color:var(--vscode-textLink-activeForeground);text-decoration:underline}
 .mcp-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 12px;border-radius:20px;border:1px solid;flex-shrink:0}
 .mcp-on{color:#3fb950;border-color:#3fb950;background:rgba(63,185,80,.1)}
@@ -1177,7 +1184,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
 
 <div id="hd">
   <div id="ws-meta">
-    <div id="ws-name">\u26a1 ${esc(wsName)}</div>
+    <div id="ws-name">\u26a1 ${esc(wsName)}${version ? ` <span id="cvt-version" title="Installed CieloVista Tools version">v${esc(version)}</span>` : ''}</div>
     ${wsPath ? `<button id="ws-path" data-action="open-folder" data-path="${esc(wsPath)}" title="Change current working directory">${esc(wsPath)}</button>` : ''}
   </div>
   <div id="mcp-badge" class="mcp-badge ${mcpRunning ? 'mcp-on' : 'mcp-off'}">
