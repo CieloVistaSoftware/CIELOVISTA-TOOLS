@@ -19,7 +19,14 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT    = path.resolve(__dirname, '../..');
-const EXCLUDE = new Set(['node_modules', '.vscode-test', '.claude', 'out', 'dist', 'mcp-server']);
+// REG-066-frontmatter-scope-control.md: REG-066 creates this fixture with
+// frontmatter deliberately AT THE TOP (to prove its scanner still includes
+// real in-scope paths), then deletes it in its own finally block. All
+// regression tests run as concurrent subprocesses sharing this same repo
+// checkout (see run-regression-tests.js), so this scan can transiently see
+// that fixture mid-existence and flag it for a convention it was never
+// meant to satisfy -- excluded by name, not a real doc file.
+const EXCLUDE = new Set(['node_modules', '.vscode-test', '.claude', 'out', 'dist', 'mcp-server', 'REG-066-frontmatter-scope-control.md']);
 const SAMPLE  = 100;
 
 // ── Collect all .md files ────────────────────────────────────────────────────
