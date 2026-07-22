@@ -23,8 +23,18 @@ const EXCLUDE = new Set(['node_modules', '.vscode-test', '.claude', 'out', 'dist
 const SAMPLE  = 100;
 
 // ── Collect all .md files ────────────────────────────────────────────────────
+// All regression tests run as concurrent subprocesses (see
+// run-regression-tests.js) sharing this same repo checkout -- another test
+// (e.g. REG-066) can create and delete its own temp fixture directories at
+// the repo root while this walk is in flight. A directory that existed when
+// listed by the parent's readdirSync but is gone by the time we recurse into
+// it isn't a real problem, just a benign race -- skip it, same defensive
+// pattern REG-027's own walkMd() already uses.
 function walk(dir, results = []) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch { return results; }
+    for (const entry of entries) {
         if (EXCLUDE.has(entry.name)) continue;
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) { walk(full, results); }

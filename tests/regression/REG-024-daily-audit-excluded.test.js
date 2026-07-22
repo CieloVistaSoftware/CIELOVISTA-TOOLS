@@ -51,14 +51,22 @@ test('run-audit.js filters out auditExcluded projects', () => {
 });
 
 // ─── 3. project-registry.json — container folders are flagged ─────────────────
+// project-registry.json is the developer's own personal project list -- it
+// only ever exists on their machine, never on a CI runner. Parts 1-2 above
+// (pure source-code checks) still run everywhere; only this registry-content
+// check is skipped under CI.
 
 const EXPECTED_EXCLUDED = ['VSCode-extensions', 'ai', 'company', 'language', 'protocols', 'samples', 'settings', 'tooling', 'templates'];
 
 let registry;
-test('project-registry.json is valid JSON', () => {
-  registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));
-  assert(Array.isArray(registry.projects), 'registry.projects is not an array');
-});
+if (process.env.CI) {
+  console.log('  SKIP project-registry.json is valid JSON (personal file, not present on CI runners)');
+} else {
+  test('project-registry.json is valid JSON', () => {
+    registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));
+    assert(Array.isArray(registry.projects), 'registry.projects is not an array');
+  });
+}
 
 if (registry) {
   for (const name of EXPECTED_EXCLUDED) {
