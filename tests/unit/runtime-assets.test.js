@@ -29,14 +29,23 @@ if (vsixFiles.length === 0) {
 
 const vsix = vsixFiles[0];
 
+// Windows uses PowerShell's own zip reader (no external tool needed there).
+// Everywhere else (CI's Linux runner, macOS) uses `unzip -Z1` (zipinfo mode,
+// one filename per line) -- a standard POSIX utility present on both by
+// default, so this needs no new npm dependency for a check that only ever
+// reads a zip's entry list.
 function getZipEntries(vsixPath) {
-    const script = [
-        "$ErrorActionPreference = 'Stop'",
-        `Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead('${vsixPath.replace(/'/g, "''")}')`,
-        "$zip.Entries | ForEach-Object { $_.FullName }",
-        '$zip.Dispose()'
-    ].join('; ');
-    const out = cp.execSync(`powershell -NoProfile -Command "${script}"`, { encoding: 'utf8' });
+    if (process.platform === 'win32') {
+        const script = [
+            "$ErrorActionPreference = 'Stop'",
+            `Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead('${vsixPath.replace(/'/g, "''")}')`,
+            "$zip.Entries | ForEach-Object { $_.FullName }",
+            '$zip.Dispose()'
+        ].join('; ');
+        const out = cp.execSync(`powershell -NoProfile -Command "${script}"`, { encoding: 'utf8' });
+        return out.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }
+    const out = cp.execFileSync('unzip', ['-Z1', vsixPath], { encoding: 'utf8' });
     return out.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 }
 

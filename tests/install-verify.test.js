@@ -7,6 +7,7 @@
 
 const cp   = require('child_process');
 const fs   = require('fs');
+const os   = require('os');
 const path = require('path');
 const pkg  = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 
@@ -52,7 +53,7 @@ if (fs.existsSync(vsix)) {
 //    copies from install.js until a reload. The disk folder is the source of
 //    truth for what will load on next reload.
 const extensionsRegistryPath = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    os.homedir(),
     '.vscode-insiders', 'extensions',
     'extensions.json'
 );
@@ -84,7 +85,7 @@ if (fs.existsSync(extensionsRegistryPath)) {
 
 const extId         = `${pkg.publisher.toLowerCase()}.${pkg.name}`;
 const extFolder     = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    os.homedir(),
     '.vscode-insiders', 'extensions',
     `${extId}-${pkg.version}`
 );
@@ -110,16 +111,23 @@ ok('Extension bundle out/extension.js is non-trivial (>500KB)', bundleSize > 500
     bundleSize > 0 ? `${Math.round(bundleSize / 1024)} KB` : 'MISSING');
 
 // 7. Registry file is valid JSON with required shape
+// project-registry.json is the developer's own personal project list -- it
+// only ever exists on their machine, never on a CI runner. Skip this whole
+// section under CI rather than failing on every single run.
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
 let registry = null;
-try { registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { /* handled below */ }
-ok('project-registry.json is valid JSON', !!registry, REGISTRY_PATH);
-if (registry) {
-    ok('Registry has globalDocsPath', typeof registry.globalDocsPath === 'string' && registry.globalDocsPath.length > 0, registry.globalDocsPath);
-    ok('Registry has projects array',  Array.isArray(registry.projects), `${registry.projects?.length ?? 0} projects`);
-    if (Array.isArray(registry.projects)) {
-        for (const p of registry.projects) {
-            ok(`Registry project "${p.name}" has path`, !!p.path, p.path);
+if (process.env.CI) {
+    console.log('  SKIP: project-registry.json checks (personal file, not present on CI runners)');
+} else {
+    try { registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { /* handled below */ }
+    ok('project-registry.json is valid JSON', !!registry, REGISTRY_PATH);
+    if (registry) {
+        ok('Registry has globalDocsPath', typeof registry.globalDocsPath === 'string' && registry.globalDocsPath.length > 0, registry.globalDocsPath);
+        ok('Registry has projects array',  Array.isArray(registry.projects), `${registry.projects?.length ?? 0} projects`);
+        if (Array.isArray(registry.projects)) {
+            for (const p of registry.projects) {
+                ok(`Registry project "${p.name}" has path`, !!p.path, p.path);
+            }
         }
     }
 }
@@ -150,7 +158,7 @@ if (installerSrc.length > 0) {
 //    Checks the INSTALLED location, not the project source folder.
 //    A folder with only data/bg-health.json means the VSIX was never extracted.
 const installedRoot = path.join(
-    process.env.USERPROFILE || 'C:\\Users\\jwpmi',
+    os.homedir(),
     '.vscode-insiders', 'extensions',
     `${pkg.publisher.toLowerCase()}.${pkg.name}-${pkg.version}`
 );
@@ -266,7 +274,14 @@ ok('#302 Smart fixer guessLanguage + LANG_HINTS exist in source',
     'src/features/readme-compliance/feature.ts must define guessLanguage() and LANG_HINTS');
 
 // #304 — Zero docid collisions across registry (structural: REG-027 inline)
+// project-registry.json is the developer's own personal project list -- it
+// only ever exists on their machine, never on a CI runner. Skip under CI
+// rather than failing on every single run.
 (function checkDocidCollisions() {
+    if (process.env.CI) {
+        console.log('  SKIP: #304 Zero docid collisions (personal registry file, not present on CI runners)');
+        return;
+    }
     const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
     const SKIP_DIRS = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
     let reg;
