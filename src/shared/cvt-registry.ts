@@ -69,11 +69,27 @@ export function isInRegistry(reg: ProjectRegistry, fsPath: string): boolean {
 }
 
 /**
+ * Creates an empty registry (and its parent folder) the FIRST time anything
+ * needs to write to it, so a brand-new install doesn't require hand-
+ * authoring project-registry.json before "+ CVT" works. Only acts when the
+ * file is genuinely absent — an EXISTING-but-malformed file is left alone,
+ * so a real parse error still surfaces via loadRegistry()'s own throw
+ * instead of being silently overwritten.
+ */
+function ensureRegistryExists(): void {
+    if (fs.existsSync(REGISTRY_PATH)) { return; }
+    const dir = path.dirname(REGISTRY_PATH);
+    fs.mkdirSync(dir, { recursive: true });
+    saveRegistry({ globalDocsPath: dir, projects: [] });
+}
+
+/**
  * Add a project to the registry. No-op if already present. Uses the folder's
  * basename as `name` and sensible defaults for the other fields. The user
  * can refine them later by editing project-registry.json directly.
  */
 export function addToRegistry(fsPath: string, name?: string): void {
+    ensureRegistryExists();
     const reg = loadRegistry();
     if (isInRegistry(reg, fsPath)) { return; }
     const entry: ProjectEntry = {
