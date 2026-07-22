@@ -380,7 +380,15 @@ if (!installed) {
         }
     }
 
-    for (const d of ['out', 'node_modules', 'docs', 'mcp-server']) {
+    // node_modules is deliberately NOT copied here -- esbuild.mjs's only
+    // `external` for both the main extension bundle and the MCP server
+    // bundle is 'vscode' itself (supplied by the extension host, never a
+    // real npm package), so nothing at runtime actually resolves into
+    // node_modules. Copying it anyway was pure bloat (it's easily the
+    // largest single directory in this repo) and directly contradicts
+    // post-install.test.js's own "node_modules NOT installed (deps
+    // inlined by esbuild)" check, which this fallback path used to fail.
+    for (const d of ['out', 'docs', 'mcp-server']) {
         copyDir(path.join(__dirname, d), path.join(installedRoot, d));
     }
 
