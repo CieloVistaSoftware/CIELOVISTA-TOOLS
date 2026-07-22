@@ -110,16 +110,23 @@ ok('Extension bundle out/extension.js is non-trivial (>500KB)', bundleSize > 500
     bundleSize > 0 ? `${Math.round(bundleSize / 1024)} KB` : 'MISSING');
 
 // 7. Registry file is valid JSON with required shape
+// project-registry.json is the developer's own personal project list -- it
+// only ever exists on their machine, never on a CI runner. Skip this whole
+// section under CI rather than failing on every single run.
 const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
 let registry = null;
-try { registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { /* handled below */ }
-ok('project-registry.json is valid JSON', !!registry, REGISTRY_PATH);
-if (registry) {
-    ok('Registry has globalDocsPath', typeof registry.globalDocsPath === 'string' && registry.globalDocsPath.length > 0, registry.globalDocsPath);
-    ok('Registry has projects array',  Array.isArray(registry.projects), `${registry.projects?.length ?? 0} projects`);
-    if (Array.isArray(registry.projects)) {
-        for (const p of registry.projects) {
-            ok(`Registry project "${p.name}" has path`, !!p.path, p.path);
+if (process.env.CI) {
+    console.log('  SKIP: project-registry.json checks (personal file, not present on CI runners)');
+} else {
+    try { registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { /* handled below */ }
+    ok('project-registry.json is valid JSON', !!registry, REGISTRY_PATH);
+    if (registry) {
+        ok('Registry has globalDocsPath', typeof registry.globalDocsPath === 'string' && registry.globalDocsPath.length > 0, registry.globalDocsPath);
+        ok('Registry has projects array',  Array.isArray(registry.projects), `${registry.projects?.length ?? 0} projects`);
+        if (Array.isArray(registry.projects)) {
+            for (const p of registry.projects) {
+                ok(`Registry project "${p.name}" has path`, !!p.path, p.path);
+            }
         }
     }
 }
@@ -266,7 +273,14 @@ ok('#302 Smart fixer guessLanguage + LANG_HINTS exist in source',
     'src/features/readme-compliance/feature.ts must define guessLanguage() and LANG_HINTS');
 
 // #304 — Zero docid collisions across registry (structural: REG-027 inline)
+// project-registry.json is the developer's own personal project list -- it
+// only ever exists on their machine, never on a CI runner. Skip under CI
+// rather than failing on every single run.
 (function checkDocidCollisions() {
+    if (process.env.CI) {
+        console.log('  SKIP: #304 Zero docid collisions (personal registry file, not present on CI runners)');
+        return;
+    }
     const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
     const SKIP_DIRS = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
     let reg;
