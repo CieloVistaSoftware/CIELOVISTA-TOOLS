@@ -113,6 +113,15 @@ let _testRunInProgress = false;
 // Dedupe guard for saveState failures — a momentarily locked data dir (e.g. an
 // antivirus/OneDrive lock) used to auto-file an APP_ERROR on every 30s tick (#601).
 let _saveFailedLogged = false;
+// Backoff state for a *persistent* saveState failure (e.g. the workspace's data/
+// dir cannot be created or written at all — different workspace open, missing
+// disk, permissions). Without this, a permanent failure would still attempt a
+// full write-with-retries on every single check tick forever (#651).
+let _consecutiveSaveFailures = 0;
+let _lastSaveAttemptMs = 0;
+const SAVE_BACKOFF_BASE_MS = 60_000;        // start backing off once this streak begins
+const SAVE_BACKOFF_MAX_MS  = 30 * 60_000;   // never wait longer than 30 minutes between attempts
+const SAVE_BACKOFF_AFTER_N_FAILURES = 3;
 
 // Last logged pass/fail per check — used to emit delta-only output
 const _checkStatus = new Map<string, 'pass' | 'fail'>();
@@ -146,25 +155,64 @@ function loadState(): void {
     } catch { /* start fresh */ }
 }
 
+/** Renders an error with its Node error code (e.g. ENOENT/EPERM/UNKNOWN) when available. */
+function describeError(e: unknown): string {
+    if (e instanceof Error) {
+        const code = (e as NodeJS.ErrnoException).code;
+        return code ? `[${code}] ${e.message}` : e.message;
+    }
+    return String(e);
+}
+
 function saveState(): void {
     _state.lastRun = new Date().toISOString();
     const payload = JSON.stringify(_state, null, 2);
+
+    // Once a failure streak is underway, back off exponentially instead of
+    // hammering the filesystem on every check tick (e.g. every 30s) forever —
+    // a persistent failure (wrong workspace, missing disk, permissions) should
+    // fail quietly on a growing schedule, not retry indefinitely (#651).
+    if (_consecutiveSaveFailures >= SAVE_BACKOFF_AFTER_N_FAILURES) {
+        const backoffMs = Math.min(
+            SAVE_BACKOFF_BASE_MS * 2 ** (_consecutiveSaveFailures - SAVE_BACKOFF_AFTER_N_FAILURES),
+            SAVE_BACKOFF_MAX_MS
+        );
+        if (Date.now() - _lastSaveAttemptMs < backoffMs) { return; }
+    }
+    _lastSaveAttemptMs = Date.now();
+
     // Retry to ride out a transient lock on the data dir; only the final attempt
     // reports. Persistent failure is logged once per streak (reset on recovery)
     // so a locked dir does not spam APP_ERROR / auto-file every tick (#601).
+    let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt++) {
+        // Atomic write: write to a unique temp file in the same dir, then rename
+        // over the target. A crash or lock mid-write can never leave bg-health.json
+        // half-written, and rename sidesteps some Windows AV/OneDrive lock
+        // contention that a direct writeFileSync to the final path can hit (#651).
+        const tmpFile = `${HEALTH_FILE}.tmp-${process.pid}-${Date.now()}-${attempt}`;
         try {
             ensureDataDir();
-            fs.writeFileSync(HEALTH_FILE, payload, 'utf8');
+            fs.writeFileSync(tmpFile, payload, 'utf8');
+            fs.renameSync(tmpFile, HEALTH_FILE);
             _saveFailedLogged = false;
+            _consecutiveSaveFailures = 0;
             return;
         } catch (e) {
-            if (attempt < 3) { continue; }
-            if (!_saveFailedLogged) {
-                _saveFailedLogged = true;
-                logError('Failed to save health state', e instanceof Error ? e.stack || String(e) : String(e), FEATURE);
-            }
+            lastError = e;
+            try { if (fs.existsSync(tmpFile)) { fs.unlinkSync(tmpFile); } } catch { /* best-effort cleanup */ }
         }
+    }
+
+    _consecutiveSaveFailures++;
+    if (!_saveFailedLogged) {
+        _saveFailedLogged = true;
+        logError(
+            'Failed to save health state',
+            `path=${HEALTH_FILE}\n${describeError(lastError)}` +
+                (lastError instanceof Error && lastError.stack ? `\n${lastError.stack}` : ''),
+            FEATURE
+        );
     }
 }
 
