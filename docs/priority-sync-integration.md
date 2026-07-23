@@ -16,7 +16,7 @@ This integration ensures that changes to the priority field in your Issue Viewer
 
 ## Example Usage
 
-```
+```typescript
 import { syncPriorityToProject } from '../src/shared/priority-sync';
 
 // When priority changes in Issue Viewer:

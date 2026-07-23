@@ -1,6 +1,13 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
+// Unauthorized copying or distribution of this file is strictly prohibited.
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'node:http';
 import { readBody } from './shared/request-utils.js';
+
+console.error(
+  `[cvt-mcp-http] process starting pid=${process.pid} node=${process.version} ` +
+  `platform=${process.platform} arch=${process.arch}`
+);
 
 const HOST = '127.0.0.1';
 const PORT = parseInt(process.env.MCP_PORT || '3000', 10);
@@ -180,20 +187,36 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 async function main(): Promise<void> {
   const server = createHttpServer(handleRequest);
 
+  // Port-already-in-use guard: a rapid restart loop (supervisor retries)
+  // could otherwise race a still-shutting-down previous instance for the
+  // same port, surfacing as an opaque EADDRINUSE crash. Fail with a clear,
+  // flushed message instead of an unhandled 'error' event.
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[cvt-mcp-http] Port ${PORT} is already in use — another MCP HTTP instance may still be running. Not starting a second one.`);
+    } else {
+      console.error('[cvt-mcp-http] Fatal server error:', err);
+    }
+    process.exitCode = 1;
+  });
+
   server.listen(PORT, HOST, () => {
-    console.error(`CieloVista MCP server running on http://${HOST}:${PORT}${ENDPOINT}`);
+    console.error(`[cvt-mcp-http] CieloVista MCP server running on http://${HOST}:${PORT}${ENDPOINT}`);
   });
 
   // Graceful shutdown
   process.on('SIGINT', () => {
-    console.error('Shutting down...');
+    console.error('[cvt-mcp-http] Shutting down...');
     server.close(() => {
-      process.exit(0);
+      // Setting exitCode (not exit()) lets Node exit naturally once the
+      // console.error above has actually flushed — see index.ts for the
+      // same Windows async-pipe rationale.
+      process.exitCode = 0;
     });
   });
 }
 
 main().catch((error) => {
-  console.error('Fatal error:', error);
-  process.exit(1);
+  console.error('[cvt-mcp-http] Fatal error:', error);
+  process.exitCode = 1;
 });
