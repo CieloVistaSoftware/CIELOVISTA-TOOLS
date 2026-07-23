@@ -42,7 +42,7 @@ import {
     removeFromRegistry
 } from '../shared/cvt-registry';
 import { esc } from '../shared/webview-utils';
-import { getDevServerConfig } from '../shared/dev-server-config';
+import { getDevServerConfig, buildPreviewUrl } from '../shared/dev-server-config';
 import { isPortOpen } from '../shared/port-check';
 
 let homePanel: vscode.WebviewPanel | undefined;
@@ -365,7 +365,9 @@ function showHomePage(context: vscode.ExtensionContext): void {
       // launch it the same way npmStart does.
       const up = await isPortOpen(devServerConfig.port);
       if (up) {
-        await vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${devServerConfig.port}/${devServerConfig.landingPage}`));
+        // #642: always cache-bust so a repeat click forces a hard reload
+        // instead of the browser reusing a stale disk-cached response.
+        await vscode.env.openExternal(vscode.Uri.parse(buildPreviewUrl(devServerConfig)));
       } else {
         const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
         terminal.show();

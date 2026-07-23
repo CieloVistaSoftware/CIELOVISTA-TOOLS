@@ -101,7 +101,12 @@ function loadHomePageModule() {
         },
       };
     }
-    if (request === '../shared/dev-server-config') { return { getDevServerConfig() { return { port: 4000, landingPage: 'index.html' }; } }; }
+    if (request === '../shared/dev-server-config') {
+      return {
+        getDevServerConfig() { return { port: 4000, landingPage: 'index.html' }; },
+        buildPreviewUrl(cfg, now) { return `http://127.0.0.1:${cfg.port}/${cfg.landingPage}?cvtPreview=${(now ?? 0).toString(36)}`; },
+      };
+    }
     if (request === '../shared/port-check') { return { isPortOpen() { return Promise.resolve(false); } }; }
     return origLoad.call(this, request, parent, isMain);
   };
