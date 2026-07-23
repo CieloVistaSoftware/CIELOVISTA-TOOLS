@@ -72,7 +72,15 @@ function detectRepoFromPath(fsPath: string): { owner: string; name: string } | u
     return undefined;
 }
 
-function detectRepoFromWorkspace(wsPath?: string): { owner: string; name: string } {
+/**
+ * Detect the {owner, name} GitHub repo for a workspace path (falling back to
+ * the active editor's workspace, then to the CVT repo itself).
+ *
+ * Exported so other features (e.g. session-activity) that need "what repo is
+ * this workspace pointed at" can reuse the same detection logic instead of
+ * re-implementing `git remote get-url origin` parsing.
+ */
+export function detectRepoFromWorkspace(wsPath?: string): { owner: string; name: string } {
     // If caller passes the explicit workspace path (e.g. from CVT Home), use it directly.
     if (wsPath) {
         const repo = detectRepoFromPath(wsPath);
@@ -92,8 +100,8 @@ function detectRepoFromWorkspace(wsPath?: string): { owner: string; name: string
 interface GHLabel    { name: string; color: string; }
 interface GHUser     { login: string; }
 interface GHAssignee { login: string; }
-type IssueState = 'open' | 'closed';
-interface GHIssue {
+export type IssueState = 'open' | 'closed';
+export interface GHIssue {
     number:       number;
     title:        string;
     html_url:     string;
@@ -143,6 +151,24 @@ function formatIssuesForClipboard(issues: GHIssue[]): string {
         }
         return parts.join('\n');
     }).join('\n\n---\n\n');
+}
+
+/**
+ * Fetch open (or closed) issues for an arbitrary repo, uncapped at the usual
+ * 50-item UI page size. Used by features that need the full issue list (e.g.
+ * the Session Activity dashboard's "Open Issues" section) without duplicating
+ * the gh CLI invocation / JSON-shape mapping already implemented here.
+ *
+ * gh-CLI only (no REST pagination fallback) — good enough for a live rollup
+ * view; the full Issue Viewer panel remains the place to go if gh is
+ * unavailable and the REST fallback path is needed.
+ */
+export function fetchIssuesForRepo(
+    repo: { owner: string; name: string },
+    state: IssueState = 'open',
+    limit = 200
+): Promise<GHIssue[]> {
+    return fetchIssuesViaGh(state, repo, limit);
 }
 
 /**
@@ -475,7 +501,11 @@ interface GhIssueRaw {
     comments?: number;
 }
 
-function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
+function fetchIssuesViaGh(
+    state: IssueState,
+    repo: { owner: string; name: string } = currentRepo,
+    limit = 50
+): Promise<GHIssue[]> {
     return new Promise((resolve, reject) => {
         const ghCandidates = [
             'gh',
@@ -490,9 +520,9 @@ function fetchIssuesViaGh(state: IssueState): Promise<GHIssue[]> {
 
         const args = [
             'issue', 'list',
-            '-R', `${currentRepo.owner}/${currentRepo.name}`,
+            '-R', `${repo.owner}/${repo.name}`,
             '--state', state,
-            '--limit', '50',
+            '--limit', String(limit),
             '--json', 'number,title,url,state,createdAt,updatedAt,closedAt,author,labels,assignees,body,comments',
         ];
 
