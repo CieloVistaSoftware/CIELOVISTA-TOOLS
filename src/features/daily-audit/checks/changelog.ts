@@ -8,14 +8,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { AuditCheck } from '../../../shared/audit-schema';
+import { CHANGELOG_STALE_DAYS, isChangelogStale } from '../../../shared/changelog-freshness';
 
 interface ProjectEntry { name: string; path: string; }
 
-const STALE_DAYS = 30;
+const STALE_DAYS = CHANGELOG_STALE_DAYS;
 
 export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
     const t0  = Date.now();
-    const now = Date.now();
 
     const missing: ProjectEntry[] = [];
     const stale:   ProjectEntry[] = [];
@@ -28,10 +28,9 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
             missing.push(p);
             continue;
         }
-        const mtime   = fs.statSync(clPath).mtimeMs;
-        const ageDays = (now - mtime) / (1000 * 60 * 60 * 24);
-        if (ageDays > STALE_DAYS) { stale.push(p); }
-        else                       { fresh.push(p); }
+        const mtime = fs.statSync(clPath).mtimeMs;
+        if (isChangelogStale(mtime)) { stale.push(p); }
+        else                          { fresh.push(p); }
     }
 
     let status: AuditCheck['status'];

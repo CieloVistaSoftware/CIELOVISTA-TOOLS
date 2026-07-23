@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 ---
 
+## [1.0.3] — 2026-07-23
+
+### Added
+
+**Daily Audit / Marketplace Compliance**
+- Marketplace Compliance scan/review (`cvs.marketplace.scan`) now surfaces stale CHANGELOG.md files (30+ days untouched), not just missing ones — closes the gap where the daily-audit "Changelog Status" check reported a project yellow/red but the Auto-Fix/Review action showed nothing to act on for that project (#649)
+- Shared `src/shared/changelog-freshness.ts` — single source of truth for the changelog staleness threshold, used by both the daily-audit changelog check and the marketplace-compliance checker so the dashboard and the fix flow never disagree
+
+### Fixed
+
+- `home-page` Start button now actually executes its command; added a real button-execution regression test (#654, #655)
+- Background health runner CI noise: SnapIt/DiskCleanUp path checks are now skipped under CI instead of failing (#656)
+- Landing page mobile font sizes increased 75% for readability (#646, #647)
+- `bg-health` output spam eliminated for real; CLAUDE.md and untagged-file checks are green again (#633, #634, #635, #636)
+- Daily audit: auto-file-as-issue path, project-path fixes, bg-health integration, doc-catalog cleanup landed (#548, #555, #556, #557)
+- Issue Viewer: state pill, corequisite-label fix, duplicate-images crash fix (#605, #601, #591, #602, #592)
+
+---
+
 ## [1.0.2] — 2026-05
 
 ### Added
@@ -126,8 +145,8 @@ status: active
 tags: [all, changelog, changes, cielovista, cielovistatools, deployment, documented, here, notable, project, release, tools, unreleased]
 category: 150.6 — Release & Deployment
 created: 2026-04-22
-updated: 2026-05-26
-version: 1.0.2
+updated: 2026-07-23
+version: 1.0.3
 author: CieloVista Software
 relativepath: CHANGELOG.md
 ---
