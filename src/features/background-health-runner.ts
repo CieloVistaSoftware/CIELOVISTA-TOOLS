@@ -68,6 +68,12 @@ let HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
 const CHECK_GAP_DEFAULT_S    = 30;
 const TEST_RUN_INTERVAL_MS   = 60 * 60 * 1000; // 1 hour between full suite runs
 const TEST_FIRST_DELAY_MS    = 2 * 60 * 1000;  // first run 2 min after activation
+// A git worktree can transiently fail the suite right after it's created (out/ still
+// building, src/ mid-edit by an active agent session) even though the code is fine —
+// #641/#652. Retry once before filing a bug: a real regression persists across the
+// retry, a transient worktree race does not.
+const REGRESSION_RETRY_DELAY_MS = 20 * 1000;
+const REGRESSION_MAX_ATTEMPTS   = 2;
 
 export interface HealthBug {
     id:          string;
@@ -1041,9 +1047,11 @@ function _regEvidence(extRoot: string, failLines: string[]): string[] {
     });
 }
 
-function runRegressionTests(): void {
-    if (_testRunInProgress) { return; }
-    _testRunInProgress = true;
+function runRegressionTests(attempt: number = 1): void {
+    if (attempt === 1) {
+        if (_testRunInProgress) { return; }
+        _testRunInProgress = true;
+    }
 
     const extensionRoot = path.join(__dirname, '..');
     const scriptPath    = path.join(extensionRoot, 'scripts', 'run-regression-tests.js');
@@ -1054,7 +1062,9 @@ function runRegressionTests(): void {
         return;
     }
 
-    log(FEATURE, '▶ Hourly regression run starting...');
+    log(FEATURE, attempt === 1
+        ? '▶ Hourly regression run starting...'
+        : `▶ Retry attempt ${attempt}/${REGRESSION_MAX_ATTEMPTS} — letting the worktree settle before re-checking...`);
     const lines: string[] = [];
 
     const proc = spawn('node', [scriptPath], { cwd: extensionRoot, stdio: 'pipe' });
@@ -1074,8 +1084,16 @@ function runRegressionTests(): void {
     });
 
     proc.on('close', (code: number | null) => {
-        _testRunInProgress = false;
         const failed = code !== 0;
+
+        // Transient-race guard (#641/#652): retry before filing a bug.
+        if (failed && attempt < REGRESSION_MAX_ATTEMPTS) {
+            log(FEATURE, `⚠ Attempt ${attempt} failed (exit ${code ?? '?'}) — retrying in ${REGRESSION_RETRY_DELAY_MS / 1000}s...`);
+            setTimeout(() => runRegressionTests(attempt + 1), REGRESSION_RETRY_DELAY_MS);
+            return;
+        }
+
+        _testRunInProgress = false;
 
         if (failed) {
             const failLines = lines
@@ -1097,12 +1115,14 @@ function runRegressionTests(): void {
                 category:       'Quality',
                 recommendation: 'Run node scripts/run-regression-tests.js and fix the failing tests.',
             });
-            log(FEATURE, `✗ Regression suite (exit ${code ?? '?'}) — ${failLines.length} failure line(s):`);
+            log(FEATURE, `✗ Regression suite (exit ${code ?? '?'}) failed on attempt ${attempt}/${REGRESSION_MAX_ATTEMPTS} — ${failLines.length} failure line(s):`);
             for (const ev of evidence) { log(FEATURE, `  ${ev}`); }
         } else {
             clearBug('bug-regression-tests');
             const summary = lines.find(l => /All \d+ regression/.test(l)) ?? 'all tests passed';
-            log(FEATURE, `✓ Regression suite: ${summary}`);
+            log(FEATURE, attempt === 1
+                ? `✓ Regression suite: ${summary}`
+                : `✓ Regression suite: ${summary} (recovered on retry attempt ${attempt} — prior failure was a transient worktree race)`);
         }
 
         saveState();
