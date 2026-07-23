@@ -2,6 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ProjectEntry, ProjectCompliance, ComplianceIssue } from './types';
+import { CHANGELOG_STALE_DAYS, ageDays, isChangelogStale } from '../../shared/changelog-freshness';
 
 const OPEN_SOURCE_LICENSES = ['MIT', 'ISC', 'Apache-2.0', 'GPL-2.0', 'GPL-3.0', 'BSD-2-Clause', 'BSD-3-Clause'];
 
@@ -47,8 +48,25 @@ export function checkProject(project: ProjectEntry): ProjectCompliance {
     if (!fs.existsSync(readmePath)) { issues.push({ severity: 'error', file: 'README.md', message: 'Missing README.md', fixable: false, fixKey: '' }); }
     else if (fs.statSync(readmePath).size < 100) { issues.push({ severity: 'warning', file: 'README.md', message: 'README.md exists but is nearly empty', fixable: false, fixKey: '' }); }
 
-    if (!fs.existsSync(path.join(project.path, 'CHANGELOG.md'))) {
+    const changelogPath = path.join(project.path, 'CHANGELOG.md');
+    if (!fs.existsSync(changelogPath)) {
         issues.push({ severity: 'warning', file: 'CHANGELOG.md', message: 'Missing CHANGELOG.md', fixable: true, fixKey: 'create:changelog' });
+    } else {
+        const mtime = fs.statSync(changelogPath).mtimeMs;
+        if (isChangelogStale(mtime)) {
+            // Staleness can't be auto-fixed (only a human knows what actually
+            // changed), but it must still be visible here — this is the same
+            // "Auto-Fix"/"Review" action the daily-audit changelog check
+            // points at, so silently omitting stale changelogs would leave
+            // that action with nothing to show for 30+-day-old changelogs.
+            issues.push({
+                severity: 'warning',
+                file: 'CHANGELOG.md',
+                message: `Not updated in ${Math.floor(ageDays(mtime))} days (stale, threshold is ${CHANGELOG_STALE_DAYS}) — update manually`,
+                fixable: false,
+                fixKey: '',
+            });
+        }
     }
     if (!fs.existsSync(path.join(project.path, 'LICENSE')) && !fs.existsSync(path.join(project.path, 'LICENSE.txt'))) {
         issues.push({ severity: 'error', file: 'LICENSE', message: 'Missing LICENSE file', fixable: true, fixKey: 'create:license' });
