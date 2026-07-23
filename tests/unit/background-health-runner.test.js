@@ -157,6 +157,34 @@ test('saveState persists fixed:true correctly', () => {
     eq(data.bugs[0].fixed, true, 'Persisted bug must retain fixed:true');
 });
 
+// ── #651: hardened write path ────────────────────────────────────────────────
+const DATA_DIR = path.dirname(DATA_FILE);
+
+test('saveState recreates the data directory when it does not exist (#651)', () => {
+    reset();
+    t.addBug(sampleBug);
+    // Simulate the reported failure mode: the target workspace has no data/ dir yet.
+    if (fs.existsSync(DATA_DIR)) { fs.rmSync(DATA_DIR, { recursive: true, force: true }); }
+    ok(!fs.existsSync(DATA_DIR), 'precondition: data dir must not exist before saveState()');
+
+    t.saveState();
+
+    ok(fs.existsSync(DATA_DIR), 'saveState must recreate the missing data directory');
+    ok(fs.existsSync(DATA_FILE), 'saveState must write bg-health.json into the recreated directory');
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    eq(data.bugs[0].id, 'bug-test');
+});
+
+test('saveState leaves no stray .tmp- files behind after a successful atomic write (#651)', () => {
+    reset();
+    t.addBug(sampleBug);
+    t.saveState();
+    t.saveState(); // run twice to catch any leaked temp file from a prior write
+
+    const leftover = fs.readdirSync(DATA_DIR).filter(f => f.includes('.tmp-'));
+    eq(leftover.length, 0, `no .tmp- files should remain in data/, found: ${leftover.join(', ')}`);
+});
+
 test('multiple bugs maintain insertion order', () => {
     reset();
     t.addBug({ ...sampleBug, id: 'bug-a', title: 'Alpha' });
