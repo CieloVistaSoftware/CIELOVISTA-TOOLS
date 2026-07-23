@@ -1,4 +1,4 @@
-// REG-120: Guards issue #642 -- "Preview never refreshes with the latest
+// REG-123: Guards issue #642 -- "Preview never refreshes with the latest
 // code (serves stale cached CSS/JS)". The home page's Start button is the
 // same thing called "the Preview button" in the commit history that
 // repointed it at the wb-starter dev server (commit 40b8491). It opens
@@ -65,5 +65,5 @@ check('the old un-cache-busted URL template is gone from home-page.ts',
     /\?cvtPreview=[0-9a-z]+$/.test(defaultUrl));
 }
 
-console.log(`\nREG-120: ${passed} passed, ${failed} failed`);
+console.log(`\nREG-123: ${passed} passed, ${failed} failed`);
 if (failed) { process.exit(1); }

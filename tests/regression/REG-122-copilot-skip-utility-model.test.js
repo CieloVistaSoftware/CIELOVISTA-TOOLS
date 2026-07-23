@@ -1,4 +1,4 @@
-// REG-120: callCopilot must skip Copilot "utility" models in its fallback (#643)
+// REG-122: callCopilot must skip Copilot "utility" models in its fallback (#643)
 //
 // Under a BYOK Copilot main model, selecting copilot-utility-small throws
 // "No utility model is configured for copilot-utility-small". The unfiltered
@@ -24,5 +24,5 @@ check('no unfiltered selectChatModels() taken directly as fallback',
 
 check('references #643', src.includes('#643'));
 
-console.log(`\nREG-120: ${passed} passed, ${failed} failed`);
+console.log(`\nREG-122: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

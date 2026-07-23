@@ -1,5 +1,5 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
-// REG-120: bg-health saveState must write atomically and back off on a
+// REG-121: bg-health saveState must write atomically and back off on a
 // persistent failure (#651).
 //
 // Root: "[APP_ERROR] Failed to save health state (x6)" was auto-filed from
@@ -37,7 +37,7 @@ function test(name, fn) {
     catch (e) { console.error(`  FAIL ${name}\n       ${e.message}`); failed++; }
 }
 
-console.log('REG-120: bg-health saveState — atomic write + backoff (#651)');
+console.log('REG-121: bg-health saveState — atomic write + backoff (#651)');
 console.log('-'.repeat(70));
 
 function saveStateBody() {
@@ -116,8 +116,8 @@ test('describeError surfaces the Node error code (e.g. ENOENT/EPERM/UNKNOWN) whe
 
 console.log('-'.repeat(70));
 if (failed === 0) {
-    console.log(`✓ REG-120 passed (${passed} checks).\n`);
+    console.log(`✓ REG-121 passed (${passed} checks).\n`);
     process.exit(0);
 }
-console.error(`✗ REG-120 FAILED (${failed} of ${passed + failed} checks failed).\n`);
+console.error(`✗ REG-121 FAILED (${failed} of ${passed + failed} checks failed).\n`);
 process.exit(1);
