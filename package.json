@@ -801,6 +801,12 @@
         "description": "Open GitHub to file a new issue, pre-filled with the current project name."
       },
       {
+        "command": "cvs.tools.sessionActivity",
+        "title": "Tools: Session Activity Dashboard",
+        "category": "CieloVista",
+        "description": "Live rollup of Current Focus, Current Batch (active work), pushes to the deploy branch, CI status, and uncapped open issues for the current workspace's repo."
+      },
+      {
         "command": "cvs.diskcleanup.openDashboard",
         "title": "DiskCleanUp: Open Dashboard",
         "category": "CieloVista",

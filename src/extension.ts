@@ -42,6 +42,7 @@ import { activate as jsErrorAudit,            deactivate as deactivateJsErrorAud
 import { activate as codeHighlightAudit,      deactivate as deactivateCodeHighlightAudit  } from './features/code-highlight-audit';
 import { activate as bgHealthRunner,          deactivate as deactivateBgHealthRunner      } from './features/background-health-runner';
 import { activate as homePage,                deactivate as deactivateHomePage             } from './features/home-page';
+import { activate as sessionActivity,         deactivate as deactivateSessionActivity      } from './features/session-activity';
 import { initHistory }        from './features/cvs-command-launcher/command-history';
 import { initRecentProjects, touchCurrentProject } from './features/cvs-command-launcher/recent-projects';
 import { activate as claudeProcessMonitor,    deactivate as deactivateClaudeProcessMonitor } from './features/claude-process-monitor';
@@ -163,6 +164,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('linkIntegrityChecker',   'Link Integrity Checker',              linkIntegrityActivate,           context);
     activateIfEnabled('commandValidator',       'Command Validator',                   commandValidatorActivate,         context);
     activateIfEnabled('tagsEnrichment',         'Tags Enrichment',                     tagsEnrichmentActivate,           context);
+    activateIfEnabled('sessionActivity',        'Session Activity Dashboard',          sessionActivity,                  context);
     worktreeCleanerActivate(context);
 
     context.subscriptions.push(
@@ -236,5 +238,6 @@ export function deactivate(): void {
     disposeChannel();
 
     deactivateFileListViewer();
+    deactivateSessionActivity();
     worktreeCleanerDeactivate();
 }
