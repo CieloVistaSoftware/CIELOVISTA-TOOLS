@@ -5,6 +5,8 @@ CieloVista Tools turns your multi‑project workspace into a single, intelligent
 
 If you work across multiple repos inside one folder, this extension makes the whole environment feel like one product.
 
+📋 **[See what's new in the latest release →](CHANGELOG.md)**
+
 ## ✨ Key Features
 **Unified Workspace**
 - Treats your folder of projects as one routed ecosystem
@@ -48,6 +50,7 @@ If you work across multiple repos inside one folder, this extension makes the wh
 - License sync
 - Error log viewer
 - Marketplace compliance checks
+- Session Activity Dashboard — live rollup of current focus, active work, deploy‑branch pushes, CI status, and open issues
 
 ## 🚀 Why It Matters
 CieloVista Tools is more than a collection of commands — it’s a control plane for your entire folder of projects.
