@@ -27,9 +27,11 @@ If you work across multiple repos inside one folder, this extension makes the wh
 - README generator
 - Broken‑reference scanner
 - Doc header and structure audits
+- Doc Consolidator — finds duplicate docs across all your projects (by filename or content similarity) and merges them into one authoritative copy, updating every reference
 - Makes large doc sets discoverable and consistent
 
 **Developer Ergonomics**
+- FileList — a sortable, filterable file browser as an alternative to the Explorer tree, with multi‑select and quick actions
 - Copy terminal output to clipboard or Copilot Chat
 - Jump terminals to folders instantly
 - Python runner
