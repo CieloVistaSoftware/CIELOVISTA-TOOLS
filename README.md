@@ -5,6 +5,8 @@ CieloVista Tools turns your multi‑project workspace into a single, intelligent
 
 If you work across multiple repos inside one folder, this extension makes the whole environment feel like one product.
 
+📋 **[See what's new in the latest release →](CHANGELOG.md)**
+
 ## ✨ Key Features
 **Unified Workspace**
 - Treats your folder of projects as one routed ecosystem
@@ -25,9 +27,11 @@ If you work across multiple repos inside one folder, this extension makes the wh
 - README generator
 - Broken‑reference scanner
 - Doc header and structure audits
+- Doc Consolidator — finds duplicate docs across all your projects (by filename or content similarity) and merges them into one authoritative copy, updating every reference
 - Makes large doc sets discoverable and consistent
 
 **Developer Ergonomics**
+- FileList — a sortable, filterable file browser as an alternative to the Explorer tree, with multi‑select and quick actions
 - Copy terminal output to clipboard or Copilot Chat
 - Jump terminals to folders instantly
 - Python runner
@@ -48,6 +52,7 @@ If you work across multiple repos inside one folder, this extension makes the wh
 - License sync
 - Error log viewer
 - Marketplace compliance checks
+- Session Activity Dashboard — live rollup of current focus, active work, deploy‑branch pushes, CI status, and open issues
 
 ## 🚀 Why It Matters
 CieloVista Tools is more than a collection of commands — it’s a control plane for your entire folder of projects.
