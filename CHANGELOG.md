@@ -8,12 +8,27 @@ All notable changes to this project are documented here.
 
 ### Added
 
+**Session Activity Dashboard**
+- New feature (`cvs.tools.sessionActivity`) — a webview rollup of current focus, active work, pushes to the deploy branch, CI status, and uncapped open issues for the current workspace's repo (#650)
+
 **Daily Audit / Marketplace Compliance**
-- Marketplace Compliance scan/review (`cvs.marketplace.scan`) now surfaces stale CHANGELOG.md files (30+ days untouched), not just missing ones — closes the gap where the daily-audit "Changelog Status" check reported a project yellow/red but the Auto-Fix/Review action showed nothing to act on for that project (#649)
+- Marketplace Compliance scan/review (`cvs.marketplace.scan`) now surfaces stale CHANGELOG.md files (30+ days untouched), not just missing ones — closes the gap where the daily-audit "Changelog Status" check reported a project yellow/red but the Auto-Fix/Review action showed nothing to act on for that project (#649, #648)
 - Shared `src/shared/changelog-freshness.ts` — single source of truth for the changelog staleness threshold, used by both the daily-audit changelog check and the marketplace-compliance checker so the dashboard and the fix flow never disagree
+
+**Marketplace page**
+- "What's inside" now lists every feature group from the command catalog (121 commands, 13 groups) instead of 4 hardcoded cards, auto-regenerated on every `npm run rebuild` via a new `docs:marketplace` script (#644)
+- Added a "What's new" section highlighting each release's changes
+- `scripts/sync-doc-versions.js` keeps the VSIX filename/version label in the demo pages in sync with `package.json` automatically
 
 ### Fixed
 
+- bg-health-runner reported false regression failures (8 REG checks, ×56 occurrences) from a transient race scanning an unsettled git worktree; now retries once before filing a bug (#641, #652)
+- 2 untagged fenced code blocks in project docs tagged correctly (#645, #637)
+- `bg-health.json` save failures hardened: atomic write (temp file + rename), exponential backoff after repeated failures, richer error logging (#651)
+- MCP server silently discarded its own error message on a Windows-pipe exit race, surfacing only a bare "exited with code 1"; now flushes stderr before exit (#653)
+- MCP server startup diagnostics added and native-dependency crash cause (#615, intermittent `STATUS_DLL_INIT_FAILED`) ruled out at the dependency-graph level — partial mitigation, issue remains open pending a reproducible recurrence
+- Preview/Start button now cache-busts its dev-server URL on every click so edits show up without a manual hard-reload (#642)
+- BYOK main model no longer errors on Copilot's internal utility-only models (#643)
 - `home-page` Start button now actually executes its command; added a real button-execution regression test (#654, #655)
 - Background health runner CI noise: SnapIt/DiskCleanUp path checks are now skipped under CI instead of failing (#656)
 - Landing page mobile font sizes increased 75% for readability (#646, #647)
