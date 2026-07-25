@@ -226,7 +226,7 @@ async function runValidation(root: string): Promise<CmdResult[]> {
         if (!seenInReadme.has(id)) {
             results.push({
                 commandId:  id,
-                sourceFile: 'package.json',
+                sourceFile: path.join(root, 'package.json'),
                 status:     'orphan',
                 detail:     'Registered in package.json but not documented in any feature README',
             });

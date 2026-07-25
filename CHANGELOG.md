@@ -22,6 +22,7 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Command Validation report (`cvs.commands.validate`): orphan-command rows showed a garbled Source path (resolved against the extension host's `process.cwd()` instead of the workspace root) because `sourceFile` was stored as a bare `'package.json'` literal instead of an absolute path (#665)
 - bg-health-runner reported false regression failures (8 REG checks, ×56 occurrences) from a transient race scanning an unsettled git worktree; now retries once before filing a bug (#641, #652)
 - 2 untagged fenced code blocks in project docs tagged correctly (#645, #637)
 - `bg-health.json` save failures hardened: atomic write (temp file + rename), exponential backoff after repeated failures, richer error logging (#651)

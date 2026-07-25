@@ -38,6 +38,9 @@ check('runValidation detects missing-pkg status',
 check('runValidation detects orphan commands',
     SRC.includes("'orphan'"));
 
+check('orphan rows use an absolute sourceFile path (path.join(root, ...)), not a bare literal (#665)',
+    SRC.includes("sourceFile: path.join(root, 'package.json')"));
+
 check('syncTagsForFile merges tags without removing existing ones',
     SRC.includes('syncTagsForFile') && SRC.includes('existingTags.push'));
 
