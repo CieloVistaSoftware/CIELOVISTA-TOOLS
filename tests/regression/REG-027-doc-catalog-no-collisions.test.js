@@ -7,10 +7,11 @@
 'use strict';
 
 const fs   = require('fs');
+const os   = require('os');
 const path = require('path');
 const assert = require('assert');
 
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 const SKIP_DIRS  = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
 const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 

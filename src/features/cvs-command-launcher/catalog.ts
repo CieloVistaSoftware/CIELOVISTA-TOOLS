@@ -3,11 +3,13 @@
 
 // component: cmd
 
+import * as os from 'os';
+import * as path from 'path';
 import type { CmdEntry } from './types';
 import { buildRunTooltip } from './tooltip-builder';
 
 // Base path for feature README files
-const F = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\src\\features\\';
+const F = path.join(os.homedir(), 'Downloads', 'VSCode', 'projects', 'cielovista-tools', 'src', 'features') + path.sep;
 export const README = (name: string): string => `${F}${name}.README.md`;
 
 const RAW_CATALOG: CmdEntry[] = [

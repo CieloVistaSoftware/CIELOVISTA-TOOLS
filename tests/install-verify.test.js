@@ -114,7 +114,7 @@ ok('Extension bundle out/extension.js is non-trivial (>500KB)', bundleSize > 500
 // project-registry.json is the developer's own personal project list -- it
 // only ever exists on their machine, never on a CI runner. Skip this whole
 // section under CI rather than failing on every single run.
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 let registry = null;
 if (process.env.CI) {
     console.log('  SKIP: project-registry.json checks (personal file, not present on CI runners)');
@@ -282,7 +282,7 @@ ok('#302 Smart fixer guessLanguage + LANG_HINTS exist in source',
         console.log('  SKIP: #304 Zero docid collisions (personal registry file, not present on CI runners)');
         return;
     }
-    const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+    const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
     const SKIP_DIRS = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
     let reg;
     try { reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { ok('#304 Zero docid collisions (registry loads)', false, 'Could not read registry'); return; }

@@ -3,6 +3,7 @@
 
 import * as vscode from 'vscode';
 import * as fs   from 'fs';
+import * as os   from 'os';
 import * as path from 'path';
 import { log, logError, getChannel } from '../../shared/output-channel';
 import { loadLastReport }      from '../daily-audit/runner';
@@ -27,9 +28,9 @@ const FEATURE             = 'cvs-command-launcher';
 const LAUNCHER_COMMAND_ID = 'cvs.commands.showAll';
 const QUICKRUN_COMMAND_ID = 'cvs.commands.quickRun';
 
-const _DISKCLEANUP_ROOT = 'C:\\Users\\jwpmi\\source\\repos\\DiskCleanUp';
+const _DISKCLEANUP_ROOT = path.join(os.homedir(), 'source', 'repos', 'DiskCleanUp');
 const _DISKCLEANUP_SVC  = path.join(_DISKCLEANUP_ROOT, 'DiskCleanUp.Service');
-const _SNAPIT_ROOT      = 'C:\\Users\\jwpmi\\source\\repos\\SnapIt';
+const _SNAPIT_ROOT      = path.join(os.homedir(), 'source', 'repos', 'SnapIt');
 const _SNAPIT_SVC       = path.join(_SNAPIT_ROOT, 'SnapIt.Service');
 const _SNAPIT_TRAY      = path.join(_SNAPIT_ROOT, 'SnapIt.Tray');
 

@@ -26,6 +26,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { execSync } from 'child_process';
+import * as os from 'os';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
 import { esc }           from '../shared/webview-utils';
@@ -81,7 +82,7 @@ function findDiskCleanUpRoot(): string | undefined {
         );
         if (entry && fs.existsSync(entry.path)) { return entry.path; }
     }
-    const fallback = 'C:\\Users\\jwpmi\\source\\repos\\DiskCleanUp';
+    const fallback = path.join(os.homedir(), 'source', 'repos', 'DiskCleanUp');
     if (fs.existsSync(fallback)) { return fallback; }
     return undefined;
 }

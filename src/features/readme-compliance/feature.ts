@@ -11,7 +11,7 @@
  * real before/after diff in a webview. User must click Approve or Ignore
  * per fix — nothing is ever written without explicit approval.
  *
- * Standard: C:\Users\jwpmi\Downloads\CieloVistaStandards\README-STANDARD.md
+ * Standard: %USERPROFILE%\Downloads\CieloVistaStandards\README-STANDARD.md
  *
  * Three README types are recognized:
  *   PROJECT  — README.md at project root
@@ -32,6 +32,7 @@
  */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as jsdiff from 'diff';
 import { log, logError } from '../../shared/output-channel';
@@ -40,7 +41,7 @@ import { loadRegistry } from '../../shared/registry';
 import { esc } from '../../shared/webview-utils';
 
 const FEATURE     = 'readme-compliance';
-const GLOBAL_DOCS = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
+const GLOBAL_DOCS = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
 const STANDARD_PATH = path.join(GLOBAL_DOCS, 'README-STANDARD.md');
 
 // ─── Types ────────────────────────────────────────────────────────────────────

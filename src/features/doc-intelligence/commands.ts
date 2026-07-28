@@ -32,6 +32,7 @@ export async function executeAcceptedFindings(findings: Finding[]): Promise<numb
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
+import * as os     from 'os';
 import * as path   from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { collectArtifactFolders, collectDocs } from './scanner';
@@ -43,8 +44,9 @@ import type {
 } from './types';
 
 const FEATURE       = 'doc-intelligence';
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-const LOG_PATH      = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\reports\\intelligence-log.md';
+const STANDARDS_DIR = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
+const REGISTRY_PATH = path.join(STANDARDS_DIR, 'project-registry.json');
+const LOG_PATH      = path.join(STANDARDS_DIR, 'reports', 'intelligence-log.md');
 
 let _panel:     vscode.WebviewPanel | undefined;
 let _report:    IntelligenceReport  | undefined;
