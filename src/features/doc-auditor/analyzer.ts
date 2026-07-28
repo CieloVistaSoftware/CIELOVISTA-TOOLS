@@ -22,14 +22,24 @@ const GLOBAL_CANDIDATE_PATTERNS = [
     /^ONBOARDING/i,        /^COPILOT.?RULES/i, /^GLOBAL/i, /^STANDARDS/i,
 ];
 
+// Requires the global-standard language to appear in a normative sentence ABOUT the file
+// itself (e.g. "this document applies to all projects"), not just anywhere in the body —
+// otherwise a doc merely *mentioning* "all projects" in an unrelated sentence (e.g.
+// describing a feature that operates across projects) false-positives. See #667.
+const SELF_REFERENTIAL_GLOBAL_RE =
+    /\b(this (document|standard|guide|file|policy)|these (rules|standards|laws|guidelines))\b[\s\S]{0,80}?\b(applies?|apply) to (all projects|every project)\b|\bglobal standard\b[\s\S]{0,40}\bfor all projects\b/i;
+
 export function isGlobalCandidate(file: DocFile): string | undefined {
     if (file.projectName === 'global') { return undefined; }
-    for (const p of GLOBAL_CANDIDATE_PATTERNS) {
-        if (p.test(file.fileName)) { return `Filename "${file.fileName}" matches a global standards pattern`; }
+    const filenameMatches = GLOBAL_CANDIDATE_PATTERNS.some(p => p.test(file.fileName));
+    const contentConfirms = SELF_REFERENTIAL_GLOBAL_RE.test(file.content);
+    // Filename pattern alone is too weak a signal (e.g. TIER1-LAWS.md that's genuinely
+    // project-specific) — require corroborating self-referential content evidence.
+    if (filenameMatches && contentConfirms) {
+        return `Filename "${file.fileName}" matches a global standards pattern, and content confirms project-wide applicability`;
     }
-    if (file.content.includes('all projects') || file.content.includes('every project') ||
-        file.content.includes('global standard')) {
-        return 'Content uses global-standard language ("all projects", "global standard")';
+    if (contentConfirms) {
+        return 'Content declares itself as a global standard applying to all projects';
     }
     return undefined;
 }
@@ -39,6 +49,16 @@ export const PER_PROJECT_EXEMPT = new Set([
     'claude.md', 'readme.md', 'changelog.md', 'license.md', 'license',
     'contributing.md', 'security.md', 'code_of_conduct.md',
 ]);
+
+// "container" projects (lightweight organizational folders like `samples`, `tooling`,
+// `settings`) deliberately ship near-identical boilerplate CLAUDE.md/README.md placeholders
+// — these are expected, not real duplicates. See #667.
+const CONTAINER_BOILERPLATE_FILES = new Set(['claude.md', 'readme.md']);
+
+/** True if `doc` is an expected-identical boilerplate file from a "container" project. */
+export function isContainerBoilerplate(doc: DocFile): boolean {
+    return doc.projectStatus === 'container' && CONTAINER_BOILERPLATE_FILES.has(doc.fileName.toLowerCase());
+}
 
 /** Filter a byName map into duplicate groups, respecting per-project exemptions. */
 export function filterDuplicates(byName: Map<string, DocFile[]>): Array<{ fileName: string; files: DocFile[] }> {

@@ -5,9 +5,10 @@
  * No vscode dependency — all three functions are pure.
  *
  * Covers:
- *   computeSimilarity()    — Jaccard word-overlap similarity score
- *   isGlobalCandidate()    — filename/content pattern matching
- *   isOrphan()             — cross-reference detection
+ *   computeSimilarity()      — Jaccard word-overlap similarity score
+ *   isGlobalCandidate()      — filename/content pattern matching
+ *   isOrphan()               — cross-reference detection
+ *   isContainerBoilerplate() — container-project boilerplate exemption (#667)
  *
  * Run: node tests/unit/doc-auditor-analyzer.test.js
  */
@@ -23,7 +24,7 @@ if (!fs.existsSync(OUT)) {
     process.exit(0);
 }
 
-const { computeSimilarity, isGlobalCandidate, isOrphan } = require(OUT);
+const { computeSimilarity, isGlobalCandidate, isOrphan, isContainerBoilerplate } = require(OUT);
 
 let passed = 0, failed = 0;
 
@@ -122,62 +123,89 @@ test('returns undefined for global project docs (already global)', () => {
     eq(isGlobalCandidate(doc), undefined, 'Global-project docs must never be flagged');
 });
 
-test('flags CODING-STANDARDS.md by filename pattern', () => {
-    const doc = makeDoc({ projectName: 'myProject', fileName: 'CODING-STANDARDS.md', content: '' });
-    ok(isGlobalCandidate(doc) !== undefined, 'CODING-STANDARDS.md must be flagged');
+// #667 regression: a suspicious filename ALONE (e.g. wb-starter's TIER1-LAWS.md, which is
+// genuinely project-specific despite its generic-sounding name) must not be flagged without
+// corroborating self-referential content.
+test('does NOT flag TIER1-LAWS.md by filename alone when content is project-specific', () => {
+    const doc = makeDoc({
+        projectName: 'myProject', fileName: 'TIER1-LAWS.md',
+        content: 'These are the non-negotiable rules for the WB-Starter project.',
+    });
+    eq(isGlobalCandidate(doc), undefined, 'Filename pattern alone must not trigger without content corroboration');
 });
 
-test('flags JAVASCRIPT-STANDARDS.md by filename pattern', () => {
-    const doc = makeDoc({ projectName: 'myProject', fileName: 'JAVASCRIPT-STANDARDS.md', content: '' });
+test('flags CODING-STANDARDS.md when content also confirms project-wide applicability', () => {
+    const doc = makeDoc({
+        projectName: 'myProject', fileName: 'CODING-STANDARDS.md',
+        content: 'This standard applies to all projects across the organization.',
+    });
+    ok(isGlobalCandidate(doc) !== undefined, 'CODING-STANDARDS.md with corroborating content must be flagged');
+});
+
+test('flags JAVASCRIPT-STANDARDS.md when content also confirms project-wide applicability', () => {
+    const doc = makeDoc({
+        projectName: 'myProject', fileName: 'JAVASCRIPT-STANDARDS.md',
+        content: 'This document applies to all projects.',
+    });
     ok(isGlobalCandidate(doc) !== undefined);
 });
 
-test('flags GIT-WORKFLOW.md by filename pattern', () => {
+test('does NOT flag GIT-WORKFLOW.md when content is empty/unrelated', () => {
     const doc = makeDoc({ projectName: 'myProject', fileName: 'GIT-WORKFLOW.md', content: '' });
-    ok(isGlobalCandidate(doc) !== undefined);
+    eq(isGlobalCandidate(doc), undefined, 'Filename alone is too weak a signal (#667)');
 });
 
-test('flags ARCHITECTURE-PRINCIPLES.md by filename pattern', () => {
+test('does NOT flag ARCHITECTURE-PRINCIPLES.md when content is empty/unrelated', () => {
     const doc = makeDoc({ projectName: 'myProject', fileName: 'ARCHITECTURE-PRINCIPLES.md', content: '' });
-    ok(isGlobalCandidate(doc) !== undefined);
+    eq(isGlobalCandidate(doc), undefined);
 });
 
-test('flags ONBOARDING.md by filename pattern', () => {
+test('does NOT flag ONBOARDING.md when content is empty/unrelated', () => {
     const doc = makeDoc({ projectName: 'myProject', fileName: 'ONBOARDING.md', content: '' });
-    ok(isGlobalCandidate(doc) !== undefined);
+    eq(isGlobalCandidate(doc), undefined);
 });
 
-test('flags doc with "all projects" in content', () => {
+// #667 regression: docs/ViewADoc.md was flagged because "global standards folder" contains
+// "global standard" as a raw substring, and mentioning a feature that works "across all
+// registered projects" is not the same as the file declaring itself a global standard.
+test('does NOT flag a doc merely mentioning "global standards folder" in passing', () => {
+    const doc = makeDoc({
+        projectName: 'myProject', fileName: 'ViewADoc.md',
+        content: 'A searchable catalog of docs across all registered projects and the global standards folder.',
+    });
+    eq(isGlobalCandidate(doc), undefined, 'Passing mention must not trigger — no self-referential claim');
+});
+
+test('flags doc with a self-referential "applies to all projects" sentence', () => {
     const doc = makeDoc({
         projectName: 'myProject', fileName: 'notes.md',
-        content: 'This applies to all projects in the organization.',
+        content: 'This document applies to all projects in the organization.',
     });
-    ok(isGlobalCandidate(doc) !== undefined, 'Content with "all projects" must be flagged');
+    ok(isGlobalCandidate(doc) !== undefined, 'Self-referential "applies to all projects" must be flagged');
 });
 
-test('flags doc with "global standard" in content', () => {
+test('flags doc that declares itself the global standard for all projects', () => {
     const doc = makeDoc({
         projectName: 'myProject', fileName: 'guide.md',
-        content: 'This is a global standard for how we build things.',
+        content: 'This is the global standard for all projects — follow it exactly.',
     });
     ok(isGlobalCandidate(doc) !== undefined);
 });
 
-test('flags doc with "every project" in content (case-sensitive lowercase)', () => {
+test('flags doc with "these rules apply to every project"', () => {
     const doc = makeDoc({
         projectName: 'myProject', fileName: 'rules.md',
-        content: 'every project must follow these naming conventions.',
+        content: 'These rules apply to every project in the organization.',
     });
     ok(isGlobalCandidate(doc) !== undefined);
 });
 
-test('does NOT flag doc with "Every project" (capital E — case-sensitive check)', () => {
+test('does NOT flag a doc that mentions "every project" without self-referential framing', () => {
     const doc = makeDoc({
         projectName: 'myProject', fileName: 'rules.md',
         content: 'Every project must follow these naming conventions.',
     });
-    // Source uses case-sensitive includes — capital E does not match
-    eq(isGlobalCandidate(doc), undefined, 'Capital-E Every project does not trigger flag (known limitation)');
+    eq(isGlobalCandidate(doc), undefined, 'Bare mention without a self-referential claim must not trigger');
 });
 
 test('returns undefined for ordinary project doc', () => {
@@ -188,9 +216,9 @@ test('returns undefined for ordinary project doc', () => {
     eq(isGlobalCandidate(doc), undefined, 'Ordinary project doc must not be flagged');
 });
 
-test('flags STANDARDS.md by filename pattern', () => {
+test('does NOT flag STANDARDS.md when content is unrelated', () => {
     const doc = makeDoc({ projectName: 'myProject', fileName: 'STANDARDS.md', content: 'hello' });
-    ok(isGlobalCandidate(doc) !== undefined);
+    eq(isGlobalCandidate(doc), undefined);
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -244,6 +272,40 @@ test('doc does not flag itself as its own reference', () => {
     const doc = makeDoc({ fileName: 'solo.md', filePath: '/proj/solo.md', content: 'See solo.md itself' });
     const reason = isOrphan(doc, [doc]); // only doc in collection
     ok(reason !== undefined, 'Self-reference must not count; still flagged if no OTHER doc links to it');
+});
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// isContainerBoilerplate()  (#667)
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+console.log('\n-- isContainerBoilerplate() --');
+
+test('flags CLAUDE.md from a container project as boilerplate', () => {
+    const doc = makeDoc({ fileName: 'CLAUDE.md', projectName: 'samples' });
+    doc.projectStatus = 'container';
+    ok(isContainerBoilerplate(doc), 'container-project CLAUDE.md must be treated as boilerplate');
+});
+
+test('flags README.md from a container project as boilerplate (case-insensitive)', () => {
+    const doc = makeDoc({ fileName: 'Readme.md', projectName: 'tooling' });
+    doc.projectStatus = 'container';
+    ok(isContainerBoilerplate(doc));
+});
+
+test('does NOT flag CLAUDE.md from a non-container project', () => {
+    const doc = makeDoc({ fileName: 'CLAUDE.md', projectName: 'realProduct' });
+    doc.projectStatus = 'product';
+    eq(isContainerBoilerplate(doc), false);
+});
+
+test('does NOT flag a non-boilerplate file even from a container project', () => {
+    const doc = makeDoc({ fileName: 'notes.md', projectName: 'samples' });
+    doc.projectStatus = 'container';
+    eq(isContainerBoilerplate(doc), false, 'Only CLAUDE.md/README.md are exempt, not arbitrary docs');
+});
+
+test('does NOT flag when projectStatus is undefined', () => {
+    const doc = makeDoc({ fileName: 'CLAUDE.md', projectName: 'unknown' });
+    eq(isContainerBoilerplate(doc), false);
 });
 
 console.log('\n' + '\u2500'.repeat(50));

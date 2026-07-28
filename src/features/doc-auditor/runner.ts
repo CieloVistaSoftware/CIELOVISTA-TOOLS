@@ -5,15 +5,13 @@
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
-import * as path   from 'path';
 import { log }     from '../../shared/output-channel';
 import { loadRegistry } from '../../shared/registry';
 import { collectDocs }  from './scanner';
-import { computeSimilarity, isGlobalCandidate, isOrphan, filterDuplicates } from './analyzer';
+import { computeSimilarity, isGlobalCandidate, isOrphan, filterDuplicates, isContainerBoilerplate } from './analyzer';
 import type { DocFile, AuditResults, MoveCandidate } from './types';
 
 const FEATURE = 'doc-auditor';
-const STANDARD_CLAUDE_PATH = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\CLAUDE.md';
 
 export interface AuditProgressReporter {
     report(message: string): void;
@@ -23,17 +21,6 @@ export async function runAudit(progressReporter?: AuditProgressReporter): Promis
     const report = (message: string): void => {
         progressReporter?.report(message);
     };
-
-    // Load the standard CLAUDE.md for drift-detection
-    let standardClaude: DocFile | undefined;
-    if (fs.existsSync(STANDARD_CLAUDE_PATH)) {
-        const content = fs.readFileSync(STANDARD_CLAUDE_PATH, 'utf8');
-        standardClaude = {
-            filePath: STANDARD_CLAUDE_PATH, fileName: 'CLAUDE.md', projectName: 'global',
-            sizeBytes: Buffer.byteLength(content, 'utf8'), content,
-            normalized: content.toLowerCase().replace(/\s+/g, ' ').replace(/[#*`_\[\]()]/g, '').trim(),
-        };
-    }
 
     const registry = loadRegistry();
     if (!registry) { return undefined; }
@@ -51,7 +38,7 @@ export async function runAudit(progressReporter?: AuditProgressReporter): Promis
                 report(scanMessage);
                 progress.report({ message: scanMessage });
                 if (fs.existsSync(project.path)) {
-                    const projectDocs = collectDocs(project.path, project.name);
+                    const projectDocs = collectDocs(project.path, project.name, project.status);
                     allDocs.push(...projectDocs);
                     const countedMessage = `Audited ${allDocs.length} docs… (${project.name})`;
                     report(countedMessage);
@@ -60,9 +47,12 @@ export async function runAudit(progressReporter?: AuditProgressReporter): Promis
             }
             log(FEATURE, `Collected ${allDocs.length} docs`);
 
-            // 1 — duplicates (per-project files like CLAUDE.md are exempt from cross-project flagging)
+            // 1 — duplicates (per-project files like CLAUDE.md are exempt from cross-project flagging;
+            // "container" projects' boilerplate CLAUDE.md/README.md are deliberately near-identical
+            // placeholders, not real duplicates — see #667)
             const byName = new Map<string, DocFile[]>();
             for (const doc of allDocs) {
+                if (isContainerBoilerplate(doc)) { continue; }
                 const key = doc.fileName.toLowerCase();
                 if (!byName.has(key)) { byName.set(key, []); }
                 byName.get(key)!.push(doc);
@@ -90,18 +80,16 @@ export async function runAudit(progressReporter?: AuditProgressReporter): Promis
             }
             similar.sort((a, b) => b.similarity - a.similarity);
 
-            // 3 — move candidates + CLAUDE.md drift
+            // 3 — move candidates
+            // NOTE: this used to also flag cross-project "CLAUDE.md drift" against cielovista-tools'
+            // own CLAUDE.md as the "standard" — dropped entirely (#667): CLAUDE.md is inherently
+            // project-specific, and the old check flagged 21/22 real projects as needing to be
+            // overwritten with cielovista-tools' own unrelated instructions.
             report('Checking for misplaced docs…');
             progress.report({ message: 'Checking for misplaced docs…' });
             const moveCandidates: MoveCandidate[] = [];
             const warningCandidates: MoveCandidate[] = [];
             for (const doc of allDocs) {
-                if (doc.fileName.toLowerCase() === 'claude.md' && standardClaude && doc.projectName !== 'global') {
-                    if (computeSimilarity(doc.normalized, standardClaude.normalized) < 0.95) {
-                        warningCandidates.push({ file: doc, reason: '⚠️ This CLAUDE.md differs from the standard. You can overwrite it.' });
-                        continue;
-                    }
-                }
                 const reason = isGlobalCandidate(doc);
                 if (reason) { moveCandidates.push({ file: doc, reason }); }
             }
