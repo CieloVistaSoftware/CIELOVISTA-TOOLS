@@ -4,13 +4,15 @@
 // component: aud
 
 export interface DocFile {
-    filePath:    string;
-    fileName:    string;
-    projectName: string;
-    sizeBytes:   number;
-    modifiedAt?: string;
-    content:     string;
-    normalized:  string;
+    filePath:      string;
+    fileName:      string;
+    projectName:   string;
+    /** Registry lifecycle status of the owning project (e.g. "container" for lightweight organizational folders). Undefined for global docs. */
+    projectStatus?: string;
+    sizeBytes:     number;
+    modifiedAt?:   string;
+    content:       string;
+    normalized:    string;
 }
 
 export interface DuplicateGroup {
