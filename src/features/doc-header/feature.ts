@@ -48,25 +48,13 @@ import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { esc } from '../../shared/webview-utils';
 import { CATEGORIES } from '../../shared/categories';
+import { REGISTRY_PATH, loadRegistry as loadRegistryFromShared, type ProjectRegistry, type ProjectEntry } from '../../shared/registry';
 
 const FEATURE       = 'doc-header';
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-const GLOBAL_DOCS   = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
+const GLOBAL_DOCS   = path.dirname(REGISTRY_PATH);
 const TODAY         = new Date().toISOString().slice(0, 10);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ProjectEntry {
-    name: string;
-    path: string;
-    type: string;
-    description: string;
-}
-
-interface ProjectRegistry {
-    globalDocsPath: string;
-    projects: ProjectEntry[];
-}
 
 interface Frontmatter {
     title?:        string;
@@ -96,11 +84,11 @@ interface DocHeaderReport {
 
 function loadRegistry(): ProjectRegistry | undefined {
     try {
-        if (!fs.existsSync(REGISTRY_PATH)) {
+        const registry = loadRegistryFromShared();
+        if (!registry) {
             vscode.window.showErrorMessage(`Registry not found: ${REGISTRY_PATH}`);
-            return undefined;
         }
-        return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+        return registry;
     } catch (err) {
         logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return undefined;

@@ -116,7 +116,10 @@
       "Bash(curl -s \"https://cielovistasoftware.github.io/one-electron-universe/\")",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{try{JSON.parse\\(d\\).forEach\\(e=>console.log\\(e.type,e.name\\)\\)}catch\\(e\\){console.log\\(d.slice\\(0,500\\)\\)}}\\)\")",
       "Bash(gh run *)",
-      "Bash(gh workflow *)"
+      "Bash(gh workflow *)",
+      "mcp__filesystem__read_text_file",
+      "Bash(grep -r \"C:\\\\\\\\\\\\\\\\Users\\\\\\\\\\\\\\\\jwpmi\" src/ tests/ mcp-server/ --include=\"*.ts\" --include=\"*.js\")",
+      "Bash(grep -v \"\\\\\\\\*\")"
     ]
   }
 }

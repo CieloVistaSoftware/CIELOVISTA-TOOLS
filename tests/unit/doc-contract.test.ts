@@ -23,9 +23,10 @@
 const assert = require('assert');
 const fs     = require('fs');
 const path   = require('path');
+const os     = require('os');
 
 const PROJECT_ROOT = path.join(__dirname, '..', '..');
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 // project-registry.json is the developer's own personal project list -- it
 // only ever exists on their machine, never on a CI runner. This scan is

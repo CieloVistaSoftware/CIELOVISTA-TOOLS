@@ -37,14 +37,13 @@ import { log, logError } from '../../shared/output-channel';
 import { collectArtifactFolders, collectDocs } from './scanner';
 import { analyze }       from './analyzer';
 import { buildDashboardHtml } from './html';
+import { REGISTRY_PATH, loadRegistry as loadRegistryFromShared, type ProjectRegistry } from '../../shared/registry';
 import type {
     ArtifactFolder, Finding, IntelligenceReport,
-    ProjectRegistry,
 } from './types';
 
 const FEATURE       = 'doc-intelligence';
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-const LOG_PATH      = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\reports\\intelligence-log.md';
+const LOG_PATH      = path.join(path.dirname(REGISTRY_PATH), 'reports', 'intelligence-log.md');
 
 let _panel:     vscode.WebviewPanel | undefined;
 let _report:    IntelligenceReport  | undefined;
@@ -53,11 +52,11 @@ let _report:    IntelligenceReport  | undefined;
 
 function loadRegistry(): ProjectRegistry | undefined {
     try {
-        if (!fs.existsSync(REGISTRY_PATH)) {
+        const registry = loadRegistryFromShared();
+        if (!registry) {
             vscode.window.showErrorMessage(`Registry not found: ${REGISTRY_PATH}`);
-            return undefined;
         }
-        return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+        return registry;
     } catch (err) {
         logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return undefined;

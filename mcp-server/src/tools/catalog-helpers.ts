@@ -4,6 +4,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -52,8 +53,12 @@ interface ProjectDewey {
 
 // ─── Registry ───────────────────────────────────────────────────────────────
 
-export const REGISTRY_PATH =
-  "C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json";
+export const REGISTRY_PATH = path.join(
+  os.homedir(),
+  "Downloads",
+  "CieloVistaStandards",
+  "project-registry.json"
+);
 
 export function loadRegistry(): ProjectRegistry {
   if (!fs.existsSync(REGISTRY_PATH)) {

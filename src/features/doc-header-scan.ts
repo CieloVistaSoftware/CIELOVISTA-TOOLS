@@ -11,20 +11,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
+import { REGISTRY_PATH, loadRegistry as loadRegistryFromShared, type ProjectRegistry } from '../shared/registry';
 
 const FEATURE = 'doc-header-scan';
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
 
-interface ProjectEntry {
-    name: string;
-    path: string;
-    type: string;
-    description: string;
-}
-interface ProjectRegistry {
-    globalDocsPath: string;
-    projects: ProjectEntry[];
-}
 interface Frontmatter {
     [key: string]: string | undefined;
 }
@@ -163,11 +153,11 @@ function scanDirectory(rootPath: string, projectName: string, projectRoot: strin
 
 function loadRegistry(): ProjectRegistry | undefined {
     try {
-        if (!fs.existsSync(REGISTRY_PATH)) {
+        const registry = loadRegistryFromShared();
+        if (!registry) {
             vscode.window.showErrorMessage(`Registry not found: ${REGISTRY_PATH}`);
-            return undefined;
         }
-        return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+        return registry;
     } catch (err) {
         logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         return undefined;

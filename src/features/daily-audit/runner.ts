@@ -24,24 +24,15 @@ import { runChangelogCheck      } from './checks/changelog';
 import { runTestCoverageCheck   } from './checks/test-coverage';
 import type { DailyAuditReport, AuditCheck } from '../../shared/audit-schema';
 import { AUDIT_REPORT_PATH } from '../../shared/audit-schema';
+import { REGISTRY_PATH, loadRegistry as loadRegistryFromShared, type ProjectRegistry, type ProjectEntry } from '../../shared/registry';
 
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-
-interface ProjectEntry {
-    name: string;
-    path: string;
-    type: string;
-    description: string;
-    status?: 'product' | 'workbench' | 'generated' | 'archived';
+// Extended ProjectEntry to include audit-specific properties
+interface AuditProjectEntry extends ProjectEntry {
     auditExcluded?: boolean;
 }
-interface ProjectRegistry { globalDocsPath: string; projects: ProjectEntry[]; }
 
-function loadRegistry(): ProjectRegistry {
-    if (!fs.existsSync(REGISTRY_PATH)) {
-        throw new Error(`Registry not found: ${REGISTRY_PATH}`);
-    }
-    return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+interface AuditProjectRegistry extends ProjectRegistry {
+    projects: AuditProjectEntry[];
 }
 
 export interface RunAuditResult {
@@ -53,11 +44,19 @@ export interface RunAuditResult {
 
 export type AuditProgressFn = (message: string, increment: number) => void;
 
+function loadRegistry(): AuditProjectRegistry {
+    const registry = loadRegistryFromShared();
+    if (!registry) {
+        throw new Error(`Registry not found: ${REGISTRY_PATH}`);
+    }
+    return registry as AuditProjectRegistry;
+}
+
 /** Run all checks and write the report to AUDIT_REPORT_PATH. */
 export async function runDailyAudit(onProgress?: AuditProgressFn): Promise<RunAuditResult> {
     const t0 = Date.now();
 
-    let registry: ProjectRegistry;
+    let registry: AuditProjectRegistry;
     try {
         registry = loadRegistry();
     } catch (err) {

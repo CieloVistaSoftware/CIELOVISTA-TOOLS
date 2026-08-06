@@ -1,14 +1,12 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import { logError } from '../../shared/output-channel';
-import type { ProjectRegistry } from './types';
-
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+import { REGISTRY_PATH, loadRegistry as loadRegistryFromShared, type ProjectRegistry } from '../../shared/registry';
 
 export function loadRegistry(): ProjectRegistry | undefined {
     try {
-        if (!fs.existsSync(REGISTRY_PATH)) { vscode.window.showErrorMessage(`Registry not found: ${REGISTRY_PATH}`); return undefined; }
-        return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')) as ProjectRegistry;
+        const registry = loadRegistryFromShared();
+        if (!registry) { vscode.window.showErrorMessage(`Registry not found: ${REGISTRY_PATH}`); return undefined; }
+        return registry;
     } catch (err) { logError('Failed to load registry', err instanceof Error ? err.stack || String(err) : String(err), 'marketplace-compliance'); return undefined; }
 }
