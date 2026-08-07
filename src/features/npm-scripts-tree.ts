@@ -161,9 +161,10 @@ function acquireTerminal(dir: string, script: string): vscode.Terminal {
     const term = vscode.window.createTerminal({
         name: `npm: ${script}`,
         cwd:  dir,
-        location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+        location: vscode.TerminalLocation.Panel,
     });
     _termMap.set(term, { dir, script });
+    term.show(/* preserveFocus= */ true);
     registerLaunchedTerminal(`npm: ${script}`, {
         script, command: `npm run ${script}`, cwd: dir, project: path.basename(dir),
     });
