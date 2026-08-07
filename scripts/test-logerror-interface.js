@@ -160,9 +160,18 @@ var allFiles  = walkTs(SRC);
 var allCalls  = [];
 
 for (var fi = 0; fi < allFiles.length; fi++) {
-  var src   = fs.readFileSync(allFiles[fi], 'utf8');
-  var calls = extractCalls(src, allFiles[fi]);
-  allCalls  = allCalls.concat(calls);
+  try {
+    var src   = fs.readFileSync(allFiles[fi], 'utf8');
+    var calls = extractCalls(src, allFiles[fi]);
+    allCalls  = allCalls.concat(calls);
+  } catch (err) {
+    // Under parallel test load, temp files may disappear between walkTs() and read()
+    // (e.g., REG-015's __reg015_test_feature.ts). Skip gracefully.
+    if (err.code === 'ENOENT') {
+      continue;
+    }
+    throw err;
+  }
 }
 
 console.log('  Scanned ' + allFiles.length + ' .ts files, found ' + allCalls.length + ' logError call(s)');
