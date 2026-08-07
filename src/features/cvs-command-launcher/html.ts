@@ -1156,7 +1156,7 @@ ${locationBarHtml}
     <button id="btn-audit" data-action="run" data-id="cvs.audit.runDaily" title="Run daily health check across all projects">Audit</button>
     <div id="recent-wrap">
       <button id="btn-recent" title="Open a recent project">&#128194; Recent &#9662;</button>
-      <div id="recent-dd"></div>
+      <div id="recent-dd" data-position="right"></div>
     </div>
     <span id="stat">${total} commands</span>
     ${auditAgeStr ? `<span style="font-size:10px;color:var(--vscode-descriptionForeground)">&#x23F1; ${esc(auditAgeStr)}</span>` : ''}
@@ -1169,7 +1169,7 @@ ${locationBarHtml}
 <div id="browse-row">
   <div id="topic-wrap">
     <button id="topic-btn" title="Filter commands by topic tags">Browse by topic <span id="topic-badge"></span><span id="topic-arrow">&#9662;</span></button>
-    <div id="topic-dropdown">
+    <div id="topic-dropdown" data-position="left">
       <div class="dd-header">
         <span>Topics</span>
         <div style="display:flex;gap:8px">
