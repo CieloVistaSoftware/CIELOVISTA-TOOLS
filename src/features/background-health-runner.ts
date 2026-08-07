@@ -1110,6 +1110,24 @@ function runRegressionTests(attempt: number = 1): void {
         return;
     }
 
+    // #641: extensionRoot is resolved from __dirname — i.e. whatever copy of the
+    // compiled extension is RUNNING, not the healthy main checkout. An instance
+    // loaded from a .claude/worktrees/ copy (or any copy without out/extension.js)
+    // can never be the source of truth for regressions: an unbuilt worktree fails
+    // the 8 structural REG checks together, every hour, forever — a missing-build
+    // artifact, not a regression. Skip entirely (no bug filed, no retry, no failure
+    // recorded). The main checkout's own runs and CI cover the real signal.
+    const isWorktreeCopy = extensionRoot.includes(path.join('.claude', 'worktrees'));
+    const outBuilt       = fs.existsSync(path.join(extensionRoot, 'out', 'extension.js'));
+    if (isWorktreeCopy || !outBuilt) {
+        const reason = isWorktreeCopy
+            ? `running from a .claude/worktrees/ copy (${extensionRoot})`
+            : `out/extension.js not built under ${extensionRoot}`;
+        log(FEATURE, `⚠ Hourly regression run skipped: ${reason} — unbuilt/worktree copy, not a regression signal. No bug filed.`);
+        _testRunInProgress = false;
+        return;
+    }
+
     log(FEATURE, attempt === 1
         ? '▶ Hourly regression run starting...'
         : `▶ Retry attempt ${attempt}/${REGRESSION_MAX_ATTEMPTS} — letting the worktree settle before re-checking...`);
