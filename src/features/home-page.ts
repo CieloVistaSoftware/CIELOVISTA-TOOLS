@@ -330,7 +330,6 @@ function showHomePage(context: vscode.ExtensionContext): void {
   };
 
   void render();
-  setTimeout(() => { void render(); }, 1500);
 
   const devServerConfig = getDevServerConfig(wsPath);
 
