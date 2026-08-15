@@ -44,8 +44,8 @@ test('scheduleTestRun(TEST_RUN_INTERVAL_MS) appears inside the proc.on(close) ca
     // Find the close handler block and confirm the re-schedule call is inside it
     const closeIdx = SRC.indexOf("proc.on('close'");
     assert.ok(closeIdx !== -1, "proc.on('close') not found");
-    // Look for scheduleTestRun within the next 2500 chars (the close handler body is long)
-    const closeBlock = SRC.slice(closeIdx, closeIdx + 2500);
+    // Look for scheduleTestRun within the next 4000 chars (the close handler body is long)
+    const closeBlock = SRC.slice(closeIdx, closeIdx + 4000);
     assert.ok(
         closeBlock.includes('scheduleTestRun(TEST_RUN_INTERVAL_MS)'),
         'scheduleTestRun(TEST_RUN_INTERVAL_MS) must be called inside proc.on(close) handler'
@@ -55,7 +55,7 @@ test('scheduleTestRun(TEST_RUN_INTERVAL_MS) appears inside the proc.on(close) ca
 test('_testRunInProgress is reset to false before scheduleTestRun in close handler', () => {
     // Ensures the guard is cleared before the next run is scheduled
     const closeIdx = SRC.indexOf("proc.on('close'");
-    const closeBlock = SRC.slice(closeIdx, closeIdx + 2500);
+    const closeBlock = SRC.slice(closeIdx, closeIdx + 4000);
     const falseIdx    = closeBlock.indexOf('_testRunInProgress = false');
     const scheduleIdx = closeBlock.indexOf('scheduleTestRun(TEST_RUN_INTERVAL_MS)');
     assert.ok(falseIdx !== -1,    '_testRunInProgress = false not found in close handler');
@@ -69,7 +69,7 @@ test('_testRunInProgress is reset to false before scheduleTestRun in close handl
 test('_running guard present before scheduleTestRun call in close handler', () => {
     // The re-schedule should only happen if the runner is still active
     const closeIdx = SRC.indexOf("proc.on('close'");
-    const closeBlock = SRC.slice(closeIdx, closeIdx + 2500);
+    const closeBlock = SRC.slice(closeIdx, closeIdx + 4000);
     assert.ok(
         closeBlock.includes('_running') && closeBlock.includes('scheduleTestRun(TEST_RUN_INTERVAL_MS)'),
         '_running guard must gate the scheduleTestRun call in the close handler'

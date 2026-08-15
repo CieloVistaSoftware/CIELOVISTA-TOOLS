@@ -1171,15 +1171,15 @@ function runRegressionTests(attempt: number = 1): void {
 
             const evidence = _regEvidence(extensionRoot, failLines);
 
+            // #533: forensic evidence for the next recurrence (gone by the time it's looked at).
+            const diag = [`root=${extensionRoot}`, `cwd=${process.cwd()}`, `wt=${isWorktreeCopy}`,
+                `built=${outBuilt}`, `attempt=${attempt}/${REGRESSION_MAX_ATTEMPTS}`, `exit=${code}`];
+
             addBug({
-                id:             'bug-regression-tests',
-                checkId:        'chk-regression-tests',
-                title:          'Regression tests failing',
-                detail:         detail.slice(0, 600),
-                evidence,
-                priority:       'high',
-                category:       'Quality',
-                recommendation: 'Run node scripts/run-regression-tests.js and fix the failing tests.',
+                id: 'bug-regression-tests', checkId: 'chk-regression-tests',
+                title: 'Regression tests failing', detail: detail.slice(0, 600),
+                evidence: [...evidence, ...diag], priority: 'high', category: 'Quality',
+                recommendation: 'Run the suite; if clean, check diagnostics before concluding transient.',
             });
             log(FEATURE, `✗ Regression suite (exit ${code ?? '?'}) failed on attempt ${attempt}/${REGRESSION_MAX_ATTEMPTS} — ${failLines.length} failure line(s):`);
             for (const ev of evidence) { log(FEATURE, `  ${ev}`); }
