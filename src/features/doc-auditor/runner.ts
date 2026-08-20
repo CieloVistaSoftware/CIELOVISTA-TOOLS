@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
+import * as os     from 'os';
 import * as path   from 'path';
 import { log }     from '../../shared/output-channel';
 import { loadRegistry } from '../../shared/registry';
@@ -13,7 +14,7 @@ import { computeSimilarity, isGlobalCandidate, isOrphan, filterDuplicates } from
 import type { DocFile, AuditResults, MoveCandidate } from './types';
 
 const FEATURE = 'doc-auditor';
-const STANDARD_CLAUDE_PATH = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\CLAUDE.md';
+const STANDARD_CLAUDE_PATH = path.join(os.homedir(), 'Downloads', 'VSCode', 'projects', 'cielovista-tools', 'CLAUDE.md');
 
 export interface AuditProgressReporter {
     report(message: string): void;
