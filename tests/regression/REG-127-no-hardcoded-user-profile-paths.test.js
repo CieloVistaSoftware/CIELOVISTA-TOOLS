@@ -1,5 +1,5 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
-// REG-125: shipped source must not hardcode a Windows user-profile path (#685).
+// REG-127: shipped source must not hardcode a Windows user-profile path (#685).
 //
 // Root cause: REGISTRY_PATH and the other CieloVistaStandards / repo-self paths
 // were literal strings beginning with C:\Users\jwpmi\... duplicated across ~20
@@ -49,7 +49,7 @@ function collect(dir, out) {
     return out;
 }
 
-console.log('REG-125: no hardcoded C:\\Users\\<name> paths in shipped source (#685)');
+console.log('REG-127: no hardcoded C:\\Users\\<name> paths in shipped source (#685)');
 console.log('-'.repeat(70));
 
 test('src/ and mcp-server/src/ contain no hardcoded user-profile path', () => {
@@ -82,5 +82,5 @@ test('the canonical registry path is derived from os.homedir()', () => {
 });
 
 console.log('-'.repeat(70));
-console.log(`REG-125: ${passed} passed, ${failed} failed`);
+console.log(`REG-127: ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
