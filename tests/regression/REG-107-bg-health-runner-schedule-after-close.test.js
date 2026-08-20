@@ -24,6 +24,29 @@ function test(name, fn) {
     catch (e) { console.error(`  FAIL ${name}\n       ${e.message}`); failed++; }
 }
 
+// #693: locate the proc.on('close', ...) callback body structurally instead of
+// slicing a fixed number of characters from the source. The old `SRC.slice(idx,
+// idx + 2500)` window had to be widened to 4000 in f86b1ff purely because
+// adding diagnostics pushed scheduleTestRun() past the cutoff -- nothing about
+// the runner was broken, the test just ran out of window, and it would break
+// the same way on the next edit that grows the handler.
+function closeHandlerBody() {
+    const start = SRC.indexOf("proc.on('close'");
+    assert.ok(start !== -1, "proc.on('close') not found");
+    const open = SRC.indexOf('{', start);
+    assert.ok(open !== -1, "no opening brace after proc.on('close')");
+    let depth = 0;
+    for (let i = open; i < SRC.length; i++) {
+        const ch = SRC[i];
+        if (ch === '{') { depth++; }
+        else if (ch === '}') {
+            depth--;
+            if (depth === 0) { return SRC.slice(open + 1, i); }
+        }
+    }
+    throw new Error("proc.on('close') callback is never closed -- unbalanced braces");
+}
+
 console.log('REG-107: bg-health-runner — scheduleTestRun called after close, not before (#505)');
 console.log('-'.repeat(70));
 
@@ -42,10 +65,7 @@ test('scheduleTestRun is NOT called immediately after runRegressionTests() in sc
 
 test('scheduleTestRun(TEST_RUN_INTERVAL_MS) appears inside the proc.on(close) callback', () => {
     // Find the close handler block and confirm the re-schedule call is inside it
-    const closeIdx = SRC.indexOf("proc.on('close'");
-    assert.ok(closeIdx !== -1, "proc.on('close') not found");
-    // Look for scheduleTestRun within the next 4000 chars (the close handler body is long)
-    const closeBlock = SRC.slice(closeIdx, closeIdx + 4000);
+    const closeBlock = closeHandlerBody();
     assert.ok(
         closeBlock.includes('scheduleTestRun(TEST_RUN_INTERVAL_MS)'),
         'scheduleTestRun(TEST_RUN_INTERVAL_MS) must be called inside proc.on(close) handler'
@@ -54,8 +74,7 @@ test('scheduleTestRun(TEST_RUN_INTERVAL_MS) appears inside the proc.on(close) ca
 
 test('_testRunInProgress is reset to false before scheduleTestRun in close handler', () => {
     // Ensures the guard is cleared before the next run is scheduled
-    const closeIdx = SRC.indexOf("proc.on('close'");
-    const closeBlock = SRC.slice(closeIdx, closeIdx + 4000);
+    const closeBlock = closeHandlerBody();
     const falseIdx    = closeBlock.indexOf('_testRunInProgress = false');
     const scheduleIdx = closeBlock.indexOf('scheduleTestRun(TEST_RUN_INTERVAL_MS)');
     assert.ok(falseIdx !== -1,    '_testRunInProgress = false not found in close handler');
@@ -68,8 +87,7 @@ test('_testRunInProgress is reset to false before scheduleTestRun in close handl
 
 test('_running guard present before scheduleTestRun call in close handler', () => {
     // The re-schedule should only happen if the runner is still active
-    const closeIdx = SRC.indexOf("proc.on('close'");
-    const closeBlock = SRC.slice(closeIdx, closeIdx + 4000);
+    const closeBlock = closeHandlerBody();
     assert.ok(
         closeBlock.includes('_running') && closeBlock.includes('scheduleTestRun(TEST_RUN_INTERVAL_MS)'),
         '_running guard must gate the scheduleTestRun call in the close handler'
