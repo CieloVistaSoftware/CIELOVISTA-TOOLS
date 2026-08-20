@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { DocFile } from './types';
 
@@ -17,7 +18,7 @@ export function getReportDir(): string {
     const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const dir = ws
         ? path.join(ws, 'docs')
-        : 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\reports';
+        : path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'reports');
     if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
     return dir;
 }

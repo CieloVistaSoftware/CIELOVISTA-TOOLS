@@ -4,10 +4,12 @@
 // Exports the canonical REGISTRY_PATH and loadRegistry() utility for all features.
 // Ensures single source of truth for project registry location and loading logic.
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
-// Path to the canonical project registry JSON file
-export const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+// Path to the canonical project registry JSON file, portable across Windows accounts
+export const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 export interface ProjectEntry {
     name:        string;
@@ -15,7 +17,7 @@ export interface ProjectEntry {
     type:        string;
     description: string;
     /** Lifecycle status. Missing entries default to "product" for backward compatibility. */
-    status?:     'product' | 'workbench' | 'generated' | 'archived';
+    status?:     'product' | 'workbench' | 'generated' | 'archived' | 'container';
 }
 
 export interface ProjectRegistry {

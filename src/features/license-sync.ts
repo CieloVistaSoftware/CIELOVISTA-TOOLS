@@ -19,13 +19,14 @@
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
+import * as os     from 'os';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectEntry } from '../shared/registry';
 import { esc } from '../shared/webview-utils';
 
 const FEATURE        = 'license-sync';
-const CANONICAL_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\LICENSE';
+const CANONICAL_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'LICENSE');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

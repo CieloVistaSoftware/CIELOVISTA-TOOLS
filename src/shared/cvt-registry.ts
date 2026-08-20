@@ -4,7 +4,7 @@
  * cvt-registry.ts
  *
  * Read/write helpers for the CVT project registry at
- *   C:\Users\jwpmi\Downloads\CieloVistaStandards\project-registry.json
+ *   %USERPROFILE%\Downloads\CieloVistaStandards\project-registry.json
  *
  * This is the same file read by the MCP server's catalog-helpers. The MCP
  * server runs in a separate Node process and re-reads the file on every
@@ -17,6 +17,7 @@
  */
 
 import * as fs   from 'fs';
+import * as os   from 'os';
 import * as path from 'path';
 
 export interface ProjectEntry {
@@ -24,7 +25,7 @@ export interface ProjectEntry {
     path:         string;
     type:         string;
     description:  string;
-    status?:      'product' | 'workbench' | 'generated' | 'archived';
+    status?:      'product' | 'workbench' | 'generated' | 'archived' | 'container';
 }
 
 export interface ProjectRegistry {
@@ -33,7 +34,7 @@ export interface ProjectRegistry {
 }
 
 export const REGISTRY_PATH =
-    'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+    path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 /** Read the registry JSON. Throws if the file is missing or unparseable. */
 export function loadRegistry(): ProjectRegistry {

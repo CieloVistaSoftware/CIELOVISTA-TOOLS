@@ -60,7 +60,7 @@ module.exports = {
 const promoteModule = require(path.join(__dirname, '..', 'out', 'features', 'registry-promote.js'));
 const { promoteFolder } = promoteModule;
 
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 function readRegistry() {
   return JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));

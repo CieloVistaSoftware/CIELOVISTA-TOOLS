@@ -9,11 +9,12 @@
  */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 
 const FEATURE = 'doc-header-scan';
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 interface ProjectEntry {
     name: string;

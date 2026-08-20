@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
+import * as os     from 'os';
 import * as path   from 'path';
 import { log }     from '../../shared/output-channel';
 import type { AuditResults, ParsedAction } from './types';
@@ -13,7 +14,7 @@ const FEATURE = 'doc-auditor';
 
 export function getReportDir(): string {
     const ws  = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const dir = ws ? path.join(ws, 'docs') : 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\reports';
+    const dir = ws ? path.join(ws, 'docs') : path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'reports');
     if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
     return dir;
 }

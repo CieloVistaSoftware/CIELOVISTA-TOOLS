@@ -3,6 +3,7 @@
 // self-contained from the extension's webview-focused catalog code.
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -52,8 +53,12 @@ interface ProjectDewey {
 
 // ─── Registry ───────────────────────────────────────────────────────────────
 
-export const REGISTRY_PATH =
-  "C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json";
+export const REGISTRY_PATH = path.join(
+  os.homedir(),
+  "Downloads",
+  "CieloVistaStandards",
+  "project-registry.json"
+);
 
 export function loadRegistry(): ProjectRegistry {
   if (!fs.existsSync(REGISTRY_PATH)) {
@@ -1372,8 +1377,12 @@ export interface DocLedgerResult {
   index: DocIdentityEntry[];
 }
 
-const ALIAS_PATH =
-  "C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\dewey-aliases.json";
+const ALIAS_PATH = path.join(
+  os.homedir(),
+  "Downloads",
+  "CieloVistaStandards",
+  "dewey-aliases.json"
+);
 
 function loadAliases(): Record<string, string> {
   try {

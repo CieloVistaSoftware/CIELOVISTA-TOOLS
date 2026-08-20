@@ -10,6 +10,9 @@
  * Rule: nothing reads or writes audit data except through these types.
  */
 
+import * as os from 'os';
+import * as path from 'path';
+
 export type AuditStatus = 'green' | 'yellow' | 'red' | 'grey';
 
 /**
@@ -67,4 +70,4 @@ export interface DailyAuditReport {
 
 /** Path where the audit report is always written. Both consumers read from here. */
 export const AUDIT_REPORT_PATH =
-    'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\reports\\daily-audit.json';
+    path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'reports', 'daily-audit.json');

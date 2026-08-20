@@ -13,15 +13,9 @@ const OUT = path.join(__dirname, '../../out/features/readme-generator.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-// Derive REGISTRY_PATH from source so the test stays in sync with src/shared/registry.ts.
-// The TS source uses \\ escape sequences; convert them to single backslashes as they
-// appear at runtime.
-const registrySrc = path.join(__dirname, '../../src/shared/registry.ts');
-const registryTxt = fs.existsSync(registrySrc) ? fs.readFileSync(registrySrc, 'utf8') : '';
-const _regMatch   = registryTxt.match(/REGISTRY_PATH\s*=\s*'([^']+)'/);
-const REGISTRY_PATH = _regMatch
-    ? _regMatch[1].replace(/\\\\/g, '\\')
-    : 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+// Mirrors the os.homedir()-based formula in src/shared/registry.ts so the test
+// stays in sync regardless of which account runs it.
+const REGISTRY_PATH = path.join(require('os').homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 const PROJ_PATH = path.join(require('os').tmpdir(), 'cvt-readme-gen-test-proj');
 
