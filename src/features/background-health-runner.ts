@@ -228,9 +228,12 @@ function addBug(bug: Omit<HealthBug, 'detectedAt' | 'fixed'>): void {
     logError(`[bg-health] ${bug.title}`, '', FEATURE);
 }
 
-function clearBug(id: string): void {
+/** Marks a bug fixed. Returns true only when this call actually changed it. */
+function clearBug(id: string): boolean {
     const b = _state.bugs.find(b => b.id === id);
-    if (b) { b.fixed = true; }
+    if (!b || b.fixed) { return false; }
+    b.fixed = true;
+    return true;
 }
 
 
@@ -1095,28 +1098,64 @@ function _regEvidence(extRoot: string, failLines: string[]): string[] {
     });
 }
 
+/**
+ * #684: the regression suite is a SOURCE-tree analysis — REG-001a/001c/003–008
+ * all read src/, and the per-file checks read tests/regression/. A copy that
+ * ships only build output fails all eight structural checks together, every
+ * hour, forever. An installed .vsix is exactly that: it carries scripts/ and
+ * out/ but neither src/ nor tests/, so `built=true, wt=false, exit=1` on every
+ * attempt — a missing source tree, not a regression.
+ *
+ * Resolve the root by walking up from __dirname looking for the source-checkout
+ * markers rather than assuming a fixed depth: this module has shipped from both
+ * out/*.js and out/features/*.js, so a hardcoded `__dirname/..` lands on the
+ * repo root in one layout and on <root>/out in the other.
+ *
+ * Returns undefined when no ancestor is a source checkout — the caller must then
+ * treat the run as having no signal at all rather than as a failure.
+ */
+function _findSourceCheckoutRoot(startDir: string = __dirname): string | undefined {
+    let dir = startDir;
+    for (let up = 0; up < 4; up++) {
+        if (fs.existsSync(path.join(dir, 'scripts', 'run-regression-tests.js')) &&
+            fs.existsSync(path.join(dir, 'src')) &&
+            fs.existsSync(path.join(dir, 'tests', 'regression'))) {
+            return dir;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) { break; }
+        dir = parent;
+    }
+    return undefined;
+}
+
 function runRegressionTests(attempt: number = 1): void {
     if (attempt === 1) {
         if (_testRunInProgress) { return; }
         _testRunInProgress = true;
     }
 
-    const extensionRoot = path.join(__dirname, '..');
-    const scriptPath    = path.join(extensionRoot, 'scripts', 'run-regression-tests.js');
-
-    if (!fs.existsSync(scriptPath)) {
-        log(FEATURE, '⚠ run-regression-tests.js not found — skipping hourly test run');
+    const extensionRoot = _findSourceCheckoutRoot();
+    if (!extensionRoot) {
+        // Build-output-only copy (#684). It can never pass, so it can never be a
+        // signal: skip, and clear any stale failure an earlier build recorded so
+        // the Fix Bugs panel and error log stop showing a permanent false alarm.
+        log(FEATURE, `⚠ Hourly regression run skipped: no source checkout above ${__dirname} ` +
+            `(src/ and tests/regression/ absent) — build-output-only copy, not a regression signal. No bug filed.`);
+        if (clearBug('bug-regression-tests')) { saveState(); }
         _testRunInProgress = false;
         return;
     }
 
-    // #641: extensionRoot is resolved from __dirname — i.e. whatever copy of the
-    // compiled extension is RUNNING, not the healthy main checkout. An instance
-    // loaded from a .claude/worktrees/ copy (or any copy without out/extension.js)
-    // can never be the source of truth for regressions: an unbuilt worktree fails
-    // the 8 structural REG checks together, every hour, forever — a missing-build
-    // artifact, not a regression. Skip entirely (no bug filed, no retry, no failure
-    // recorded). The main checkout's own runs and CI cover the real signal.
+    const scriptPath = path.join(extensionRoot, 'scripts', 'run-regression-tests.js');
+
+    // #641: extensionRoot is the checkout the RUNNING copy sits in, which is not
+    // necessarily the healthy main checkout. A checkout under .claude/worktrees/
+    // (or any copy without out/extension.js) can never be the source of truth for
+    // regressions: an unbuilt worktree fails the 8 structural REG checks together,
+    // every hour, forever — a missing-build artifact, not a regression. Skip
+    // entirely (no bug filed, no retry, no failure recorded). The main checkout's
+    // own runs and CI cover the real signal.
     const isWorktreeCopy = extensionRoot.includes(path.join('.claude', 'worktrees'));
     const outBuilt       = fs.existsSync(path.join(extensionRoot, 'out', 'extension.js'));
     if (isWorktreeCopy || !outBuilt) {
