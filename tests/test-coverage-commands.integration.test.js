@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
-const WORKSPACE_ROOT = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools';
+const WORKSPACE_ROOT = path.resolve(__dirname, '..');
 const SCRIPT_PATH = path.join(WORKSPACE_ROOT, 'scripts', 'audit-test-coverage.js');
 const SCRIPT_CMD = `node "${SCRIPT_PATH}" --json`;
 

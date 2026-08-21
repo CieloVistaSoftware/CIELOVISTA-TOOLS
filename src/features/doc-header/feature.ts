@@ -44,14 +44,15 @@
  */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { esc } from '../../shared/webview-utils';
 import { CATEGORIES } from '../../shared/categories';
 
 const FEATURE       = 'doc-header';
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-const GLOBAL_DOCS   = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
+const GLOBAL_DOCS   = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
+const REGISTRY_PATH = path.join(GLOBAL_DOCS, 'project-registry.json');
 const TODAY         = new Date().toISOString().slice(0, 10);
 
 // ─── Types ────────────────────────────────────────────────────────────────────

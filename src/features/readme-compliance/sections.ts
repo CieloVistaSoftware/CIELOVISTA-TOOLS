@@ -1,5 +1,7 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 /** Required sections, ordering, line limits, and stub templates for README compliance. */
+import * as os from 'os';
+import * as path from 'path';
 import type { ReadmeType } from './types';
 
 export const REQUIRED_SECTIONS: Record<ReadmeType, string[]> = {
@@ -16,7 +18,7 @@ export const SECTION_ORDER: Record<ReadmeType, string[]> = {
 
 export const LINE_LIMITS: Record<ReadmeType, number> = { PROJECT: 300, FEATURE: 150, STANDARD: 400 };
 
-const GLOBAL_DOCS = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
+const GLOBAL_DOCS = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
 
 export const STUBS: Record<ReadmeType, Record<string, string>> = {
     PROJECT: {

@@ -40,6 +40,7 @@
  */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../../shared/registry';
@@ -57,7 +58,7 @@ const INTENTIONAL_DUPLICATES = new Set([
 ]);
 
 const FEATURE = 'doc-consolidator';
-const GLOBAL_DOCS    = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards';
+const GLOBAL_DOCS    = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
 const CONSOLIDATION_LOG = path.join(GLOBAL_DOCS, 'consolidation-log.md');
 
 // ─── Types ────────────────────────────────────────────────────────────────────

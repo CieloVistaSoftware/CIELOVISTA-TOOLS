@@ -11,7 +11,7 @@
 //   node scripts/run-audit.js --verbose
 //
 // Output:
-//   Writes C:\Users\jwpmi\Downloads\CieloVistaStandards\reports\daily-audit.json
+//   Writes %USERPROFILE%\Downloads\CieloVistaStandards\reports\daily-audit.json
 //   Exits 0 on success, 1 on failure.
 //
 // To install as a Windows Scheduled Task (run once as admin):
@@ -23,10 +23,12 @@
 'use strict';
 
 const fs   = require('fs');
+const os   = require('os');
 const path = require('path');
 
-const REGISTRY_PATH  = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
-const REPORT_PATH    = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\reports\\daily-audit.json';
+const STANDARDS_DIR  = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
+const REGISTRY_PATH  = path.join(STANDARDS_DIR, 'project-registry.json');
+const REPORT_PATH    = path.join(STANDARDS_DIR, 'reports', 'daily-audit.json');
 const VERBOSE        = process.argv.includes('--verbose');
 const STALE_DAYS     = 30;
 const OPEN_SRC_LICS  = ['MIT','ISC','Apache-2.0','GPL-2.0','GPL-3.0','BSD-2-Clause','BSD-3-Clause'];

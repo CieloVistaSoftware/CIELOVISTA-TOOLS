@@ -15,6 +15,7 @@
  */
 
 import * as fs   from 'fs';
+import * as os   from 'os';
 import * as path from 'path';
 import { runMarketplaceCheck    } from './checks/marketplace';
 import { runReadmeQualityCheck  } from './checks/readme-quality';
@@ -25,7 +26,7 @@ import { runTestCoverageCheck   } from './checks/test-coverage';
 import type { DailyAuditReport, AuditCheck } from '../../shared/audit-schema';
 import { AUDIT_REPORT_PATH } from '../../shared/audit-schema';
 
-const REGISTRY_PATH = 'C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\project-registry.json';
+const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
 
 interface ProjectEntry {
     name: string;

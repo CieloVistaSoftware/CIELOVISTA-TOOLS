@@ -22,7 +22,7 @@ const fs     = require('fs');
 const os     = require('os');
 
 // ── Load compiled modules ─────────────────────────────────────────────────────
-const OUT = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools\\out\\features\\daily-audit\\checks';
+const OUT = path.resolve(__dirname, '..', '..', 'out', 'features', 'daily-audit', 'checks');
 
 const modules = {};
 for (const name of ['changelog', 'readme-quality', 'test-coverage', 'registry-health']) {

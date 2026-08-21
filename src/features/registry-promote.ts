@@ -24,11 +24,13 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, saveRegistry, ProjectEntry } from '../shared/registry';
 
 const FEATURE = 'registry-promote';
+const GLOBAL_DOCS_DIR = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
 
 const PROJECT_TYPES: readonly string[] = [
     'vscode-extension',
@@ -127,9 +129,9 @@ function buildClaudeMd(projectName: string, projectPath: string): string {
         '',
         '| Document | Location |',
         '|---|---|',
-        '| Copilot Rules | `C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\copilot-rules.md` |',
-        '| JavaScript Standards | `C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\javascript_standards.md` |',
-        '| Git Workflow | `C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards\\git_workflow.md` |',
+        `| Copilot Rules | \`${path.join(GLOBAL_DOCS_DIR, 'copilot-rules.md')}\` |`,
+        `| JavaScript Standards | \`${path.join(GLOBAL_DOCS_DIR, 'javascript_standards.md')}\` |`,
+        `| Git Workflow | \`${path.join(GLOBAL_DOCS_DIR, 'git_workflow.md')}\` |`,
         `| Project Registry | \`${REGISTRY_PATH}\` |`,
         '',
     ].join('\n');

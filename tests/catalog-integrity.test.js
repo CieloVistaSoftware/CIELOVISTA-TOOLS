@@ -23,6 +23,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { parsePathConst } = require('./utils/parse-path-const.js');
 
 const ROOT        = path.join(__dirname, '..');
 const SRC         = path.join(ROOT, 'src');
@@ -48,10 +49,8 @@ const catalogActions= [...catalogSrc.matchAll(actionRe)].map(m => m[1]);
 const regFixedRe  = /registerFixed\([^,]+,\s*'([^']+)',\s*'[^']+',\s*'([^']+)',\s*\w+\)/g;
 const launcherCmds = [...launcherSrc.matchAll(regFixedRe)].map(m => ({ id: m[1], cmd: m[2] }));
 
-const snapitPathMatch    = launcherSrc.match(/const _SNAPIT_ROOT\s*=\s*'([^']+)'/);
-const diskcleanPathMatch = launcherSrc.match(/const _DISKCLEANUP_ROOT\s*=\s*'([^']+)'/);
-const snapitPath    = snapitPathMatch    ? snapitPathMatch[1]    : '';
-const diskcleanPath = diskcleanPathMatch ? diskcleanPathMatch[1] : '';
+const snapitPath    = parsePathConst(launcherSrc, '_SNAPIT_ROOT');
+const diskcleanPath = parsePathConst(launcherSrc, '_DISKCLEANUP_ROOT');
 
 function getScripts(projPath) {
     const pkgPath = path.join(projPath, 'package.json');

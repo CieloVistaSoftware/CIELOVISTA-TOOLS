@@ -17,6 +17,7 @@
 const fs            = require('fs');
 const path          = require('path');
 const { execSync }  = require('child_process');
+const { parsePathConst } = require('./utils/parse-path-const.js');
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 const ROOT          = path.join(__dirname, '..');
@@ -97,8 +98,8 @@ const launcherCmds = [...launcherSrc.matchAll(
     /registerCommand\(\s*'(cvs\.launch\.[^']+)',\s*\(\)\s*=>\s*_launchInTerminal\(\s*'[^']+',\s*'([^']+)'/g
 )].map(m => ({ id: m[1], cmd: m[2], pathVar: '' }));
 
-const snapitPath    = (launcherSrc.match(/const _SNAPIT_ROOT\s*=\s*'([^']+)'/)      || [])[1] || '';
-const diskcleanPath = (launcherSrc.match(/const _DISKCLEANUP_ROOT\s*=\s*'([^']+)'/) || [])[1] || '';
+const snapitPath    = parsePathConst(launcherSrc, '_SNAPIT_ROOT');
+const diskcleanPath = parsePathConst(launcherSrc, '_DISKCLEANUP_ROOT');
 
 function getScripts(p) {
     const pp = path.join(p, 'package.json');

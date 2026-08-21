@@ -9,10 +9,10 @@
  * documentation across EVERY CieloVista project from any workspace.
  *
  * The master project registry lives at:
- *   C:\Users\jwpmi\Downloads\CieloVistaStandards\project-registry.json
+ *   %USERPROFILE%\Downloads\CieloVistaStandards\project-registry.json
  *
  * Global standards docs live at:
- *   C:\Users\jwpmi\Downloads\CieloVistaStandards\
+ *   %USERPROFILE%\Downloads\CieloVistaStandards\
  *
  * Commands registered:
  *   cvs.docs.openGlobal      — open any global standards doc
@@ -266,7 +266,7 @@ function buildSyncIssues(project: ProjectEntry, globalDocsPath: string): SyncIss
             key:       'no-global-ref',
             label:     'CLAUDE.md does not reference global standards',
             tooltip:   'CLAUDE.md should point Claude to CieloVistaStandards so it reads the global coding rules, git workflow, and web component guide at the start of every session.',
-            howToFix:  'Add a "Global Standards" section to CLAUDE.md referencing C:\\Users\\jwpmi\\Downloads\\CieloVistaStandards.',
+            howToFix:  `Add a "Global Standards" section to CLAUDE.md referencing ${path.dirname(REGISTRY_PATH)}.`,
             fixLabel:  'Add Reference',
             fixAction: 'addGlobalRef',
             fixData:   claudePath,
