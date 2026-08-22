@@ -26,7 +26,7 @@
   "icon": "icon.png",
   "main": "./out/extension.js",
   "scripts": {
-    "compile": "node esbuild.mjs",
+    "compile": "node scripts/sync-mcp-shared.js --check && node esbuild.mjs",
     "typecheck": "tsc --noEmit",
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
@@ -94,7 +94,8 @@
     "clean:artifacts:with-audit-docs": "node scripts/clean-generated-artifacts.js --apply --include-audit-docs",
     "check-architecture": "node scripts/check-architecture.js",
     "pretest": "npm run clean && npm run compile",
-    "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\""
+    "clean": "pwsh -Command \"Remove-Item -Path 'out' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'mcp-server/dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path '*.vsix' -Force -ErrorAction SilentlyContinue\"",
+    "sync:mcp-shared": "node scripts/sync-mcp-shared.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

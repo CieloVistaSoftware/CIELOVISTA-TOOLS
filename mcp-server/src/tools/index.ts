@@ -11,6 +11,7 @@ import {
   CreateDirectoryToolSchema,
   ListProjectsToolSchema,
   FindProjectToolSchema,
+  RegistryPromoteToolSchema,
   GetCatalogToolSchema,
   SearchDocsToolSchema,
   ListDocViolationsToolSchema,
@@ -44,6 +45,7 @@ import {
   listOldDewey,
   migrateDewey,
 } from "./catalog-helpers.js";
+import { promote } from "../shared/registry-promote-core.js";
 import {
   getSymbolIndex,
   filterSymbols,
@@ -360,6 +362,25 @@ export function registerTools(server: McpServer): void {
         const msg: string = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `Error finding project: ${msg}` }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "registry_promote",
+    "Registers a folder as a CieloVista product: appends an entry to project-registry.json with status=product and scaffolds CLAUDE.md and README.md if they are missing. Idempotent -- a second call on the same folder changes nothing and reports alreadyInRegistry. Matching is by name OR path, case-insensitively. This is the write counterpart to list_projects/find_project, which are read-only.",
+    RegistryPromoteToolSchema.shape,
+    async ({ folderPath, name, type, description }) => {
+      try {
+        const result = promote(folderPath, name, type, description);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error: unknown) {
+        const msg: string = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: `Error promoting project: ${msg}` }],
         };
       }
     }

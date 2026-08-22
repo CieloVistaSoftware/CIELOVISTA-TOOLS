@@ -58,6 +58,14 @@ export const FindProjectToolSchema = z.object({
   status: ProjectStatusEnum.optional().describe("Optional: restrict matches to one lifecycle status."),
 });
 
+export const RegistryPromoteToolSchema = z.object({
+  folderPath: z.string().describe("Absolute path of the folder to register as a CieloVista product"),
+  name: z.string().describe("Project name as it should appear in the registry"),
+  type: z.enum(["vscode-extension", "dotnet-service", "component-library", "website", "app", "library", "other"])
+    .describe("Project type"),
+  description: z.string().describe("One-line description of the project"),
+});
+
 export const GetCatalogToolSchema = z.object({
   projectName: z.string().optional().describe("Optional: limit scan to one project by exact name"),
 });
@@ -188,3 +196,4 @@ export type GetDocByIdentityToolInput = z.infer<typeof GetDocByIdentityToolSchem
 export type RefreshDocLedgerToolInput = z.infer<typeof RefreshDocLedgerToolSchema>;
 export type ListOldDeweyToolInput = z.infer<typeof ListOldDeweyToolSchema>;
 export type MigrateDeweyToolInput = z.infer<typeof MigrateDeweyToolSchema>;
+export type RegistryPromoteToolInput = z.infer<typeof RegistryPromoteToolSchema>;

@@ -28,6 +28,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, saveRegistry, ProjectEntry } from '../shared/registry';
+import { promote } from '../shared/registry-promote-core';
+import type { PromoteResult } from '../shared/registry-promote-core';
 
 const FEATURE = 'registry-promote';
 const GLOBAL_DOCS_DIR = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
@@ -100,143 +102,25 @@ async function pickFolder(explicit?: vscode.Uri): Promise<vscode.Uri | undefined
     return picked?.[0];
 }
 
-/** Builds a minimal CLAUDE.md tailored to the new project. */
-function buildClaudeMd(projectName: string, projectPath: string): string {
-    return [
-        `# CLAUDE.md — ${projectName}`,
-        '',
-        '## Session Start',
-        '',
-        '1. Read this file',
-        '2. Read docs/_today/CURRENT-STATUS.md if it exists',
-        '3. Start working — no questions',
-        '',
-        '## Project',
-        '',
-        `**Name:** ${projectName}`,
-        `**Location:** ${projectPath}`,
-        `**Status:** product`,
-        '',
-        '## Build',
-        '',
-        '```powershell',
-        '# TODO: add build command',
-        '```',
-        '',
-        '## Global Standards',
-        '',
-        'These apply to ALL CieloVista projects:',
-        '',
-        '| Document | Location |',
-        '|---|---|',
-        `| Copilot Rules | \`${path.join(GLOBAL_DOCS_DIR, 'copilot-rules.md')}\` |`,
-        `| JavaScript Standards | \`${path.join(GLOBAL_DOCS_DIR, 'javascript_standards.md')}\` |`,
-        `| Git Workflow | \`${path.join(GLOBAL_DOCS_DIR, 'git_workflow.md')}\` |`,
-        `| Project Registry | \`${REGISTRY_PATH}\` |`,
-        '',
-    ].join('\n');
-}
-
-/** Builds a minimal README.md tailored to the new project. */
-function buildReadmeMd(projectName: string, type: string, description: string): string {
-    const desc = description.trim() || '_Short description pending._';
-    return [
-        `# ${projectName}`,
-        '',
-        desc,
-        '',
-        '## Type',
-        '',
-        `\`${type}\``,
-        '',
-        '## Status',
-        '',
-        'Product — registered in the CieloVista project registry.',
-        '',
-        '## Getting Started',
-        '',
-        '_TODO: describe install / build / run._',
-        '',
-        '## License',
-        '',
-        'Copyright (c) 2026 CieloVista Software. All rights reserved.',
-        '',
-    ].join('\n');
-}
-
 /**
- * Core promotion logic. Pure enough to unit-test without vscode —
- * callers pass the folder, name, type, description, and get back a status
- * report describing what was written.
+ * #696 -- buildClaudeMd, buildReadmeMd, PromoteResult and the promotion body
+ * used to live here. They now live in src/shared/registry-promote-core.ts so
+ * the `registry_promote` MCP tool runs the SAME logic instead of a second copy
+ * of it: the two markdown templates and the idempotency rule are exactly the
+ * things that rot when duplicated.
+ *
+ * promoteFolder stays as the exported name because the command handler below
+ * and scripts/verify-registry-promote.js both call it.
  */
-export interface PromoteResult {
-    ok:            boolean;
-    registryEntry: ProjectEntry;
-    claudeWritten: boolean;
-    readmeWritten: boolean;
-    alreadyInRegistry: boolean;
-    message:       string;
-}
+export type { PromoteResult };
 
 export function promoteFolder(
-    folderPath: string,
+    folderPath:  string,
     name:        string,
     type:        string,
     description: string,
 ): PromoteResult {
-    const registry = loadRegistry();
-    if (!registry) {
-        return {
-            ok: false, claudeWritten: false, readmeWritten: false, alreadyInRegistry: false,
-            registryEntry: { name, path: folderPath, type, description, status: 'product' },
-            message: 'Could not load registry.',
-        };
-    }
-
-    const existing = registry.projects.find(
-        p => p.name.toLowerCase() === name.toLowerCase()
-          || p.path.toLowerCase() === folderPath.toLowerCase()
-    );
-    const alreadyInRegistry = !!existing;
-
-    const entry: ProjectEntry = existing ?? {
-        name, path: folderPath, type, description, status: 'product',
-    };
-
-    if (!existing) {
-        registry.projects.push(entry);
-        saveRegistry(registry);
-    } else if (existing.status !== 'product') {
-        /* Promote an existing entry that was workbench/generated/archived. */
-        existing.status = 'product';
-        saveRegistry(registry);
-    }
-
-    const claudePath = path.join(folderPath, 'CLAUDE.md');
-    const readmePath = path.join(folderPath, 'README.md');
-
-    let claudeWritten = false;
-    if (!fs.existsSync(claudePath)) {
-        fs.writeFileSync(claudePath, buildClaudeMd(name, folderPath), 'utf8');
-        claudeWritten = true;
-    }
-
-    let readmeWritten = false;
-    if (!fs.existsSync(readmePath)) {
-        fs.writeFileSync(readmePath, buildReadmeMd(name, type, description), 'utf8');
-        readmeWritten = true;
-    }
-
-    const bits: string[] = [];
-    bits.push(alreadyInRegistry ? `Updated "${name}" to status=product` : `Registered "${name}" as product`);
-    if (claudeWritten) { bits.push('created CLAUDE.md'); }
-    if (readmeWritten) { bits.push('created README.md'); }
-    if (!claudeWritten && !readmeWritten) { bits.push('CLAUDE.md and README.md already present'); }
-
-    return {
-        ok: true, registryEntry: entry, claudeWritten, readmeWritten, alreadyInRegistry,
-        message: bits.join('; ') + '.',
-    };
+    return promote(folderPath, name, type, description);
 }
 
 /** Change a project's status to 'workbench' (demote from product). */

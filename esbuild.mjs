@@ -125,6 +125,20 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone registry-promote — vscode external, consumed by
+  // scripts/verify-registry-promote.js. #696: that script requires
+  // out/features/registry-promote.js, which no entry ever emitted, so it threw
+  // MODULE_NOT_FOUND every time. It is wired into no npm script either, so
+  // nothing caught it -- while data/fixes.json records the feature as
+  // "Verified by scripts/verify-registry-promote.js".
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/registry-promote.ts'],
+    outfile:     'out/features/registry-promote.js',
+    external:    ['vscode'],
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Standalone background-health-runner — vscode external, consumed by unit tests
   await esbuild.build({
     ...nodeBase,
