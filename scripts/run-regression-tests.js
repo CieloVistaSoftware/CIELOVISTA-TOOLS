@@ -13,6 +13,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
+const { walkFiles, readSources, readIfPresent } = require('./source-tree-walk');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC  = path.join(ROOT, 'src');
@@ -23,20 +24,16 @@ function readJson(p) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
-function walkTs(dir, results = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.git') {
-      walkTs(full, results);
-    } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
-      results.push(full);
-    }
-  }
-  return results;
+// Both of these delegate to scripts/source-tree-walk.js, which drops files that
+// vanish between the directory listing and the read. A snapshot of a live
+// working tree goes stale; treating that as an assertion failure is what made
+// REG-001 flake (#697).
+function walkTs(dir) {
+  return walkFiles(dir, { extensions: ['.ts', '.js'] });
 }
 
 function srcContents() {
-  return walkTs(SRC).map(f => ({ file: path.relative(ROOT, f), src: fs.readFileSync(f, 'utf8') }));
+  return readSources(walkTs(SRC), ROOT);
 }
 
 function stripTemplateLiterals(src) {
@@ -53,13 +50,39 @@ function recordPass(id, name) {
   console.log(`  ✓ ${id}: ${name}`);
 }
 
+// Pull the lines that actually explain a failure out of a child process's
+// captured output. Every child test file prints a banner first (e.g.
+// "REG-001: Extension activation"), so the FIRST line of its output is almost
+// never the failure — reporting only that line made a red build
+// indistinguishable from a suite name and left #697 undiagnosable from its own
+// output. Preference order: lines carrying an explicit failure marker, then
+// the TAIL of the output (where a summary lives) — never the banner.
+const FAILURE_MARKER = /(✗|❌|\bFAILED?\b|\bnot ok\b|AssertionError|Error:|ENOENT|EPERM|EBUSY|EACCES|EMFILE|Cannot find module|→)/;
+
+function extractFailureDetail(out, code, signal) {
+  const lines = out.split('\n').map(l => l.replace(/\s+$/, '')).filter(l => l.trim() !== '');
+  const marked = [];
+  for (let i = 0; i < lines.length && marked.length < 20; i++) {
+    if (!FAILURE_MARKER.test(lines[i])) { continue; }
+    marked.push(lines[i]);
+    // Keep the indented continuation lines that belong to this failure.
+    for (let j = i + 1; j < lines.length && /^\s/.test(lines[j]) && !FAILURE_MARKER.test(lines[j]); j++) {
+      marked.push(lines[j]);
+    }
+  }
+  const detail = marked.length > 0 ? marked : lines.slice(-12);
+  const how    = signal ? `killed by signal ${signal}` : `exit code ${code}`;
+  if (detail.length === 0) { return `no output captured (${how})`; }
+  return `${detail.join('\n')}\n[${how}]`;
+}
+
 function recordFail(id, name, message) {
   failed++;
   failures.push({ id, name, message });
   console.error(`  ✗ ${id}: ${name}`);
   const lines = message.split('\n');
   console.error(`    → ${lines[0]}`);
-  lines.slice(1, 8).forEach(l => console.error(`      ${l}`));
+  lines.slice(1, 12).forEach(l => console.error(`      ${l}`));
 }
 
 // ── Test factories ────────────────────────────────────────────────────────────
@@ -80,14 +103,20 @@ function assert(condition, message) {
 function subprocess(id, name, scriptPath, args = []) {
   return new Promise(resolve => {
     let out = '';
+    let settled = false;
+    const settle = fn => { if (settled) { return; } settled = true; fn(); resolve(); };
     const child = spawn(process.execPath, [scriptPath, ...args], { cwd: ROOT });
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { out += d; });
-    child.on('close', code => {
+    // Without this handler a spawn failure emits an unhandled 'error' event and
+    // takes the entire runner down with no attribution to a test. Settling here
+    // as well means a spawn failure can never leave the suite hanging.
+    child.on('error', err => settle(() =>
+      recordFail(id, name, `could not spawn ${path.relative(ROOT, scriptPath)}: ${err.message}`)));
+    child.on('close', (code, signal) => settle(() => {
       if (code === 0) { recordPass(id, name); }
-      else { recordFail(id, name, out.trim().slice(0, 1000)); }
-      resolve();
-    });
+      else { recordFail(id, name, extractFailureDetail(out, code, signal)); }
+    }));
   });
 }
 
@@ -100,14 +129,17 @@ function command(id, name, exe, args = [], cwd = ROOT) {
   const spawnArgs = useShell ? ['/c', cmdExe, ...args] : args;
   return new Promise(resolve => {
     let out = '';
+    let settled = false;
+    const settle = fn => { if (settled) { return; } settled = true; fn(); resolve(); };
     const child = spawn(spawnExe, spawnArgs, { cwd, shell: false });
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { out += d; });
-    child.on('close', code => {
+    child.on('error', err => settle(() =>
+      recordFail(id, name, `could not spawn ${exe}: ${err.message}`)));
+    child.on('close', (code, signal) => settle(() => {
       if (code === 0) { recordPass(id, name); }
-      else { recordFail(id, name, out.trim().slice(0, 800)); }
-      resolve();
-    });
+      else { recordFail(id, name, extractFailureDetail(out, code, signal)); }
+    }));
   });
 }
 
@@ -251,7 +283,8 @@ async function main() {
     const registeredIds = new Set();
     for (const file of walkTs(SRC)) {
       if (file.endsWith('catalog.ts')) { continue; }
-      const src = fs.readFileSync(file, 'utf8');
+      const src = readIfPresent(file);
+      if (src === null) { continue; }
       for (const m of src.matchAll(/registerCommand\s*\(\s*['"]([^'"]+)['"]/g)) {
         registeredIds.add(m[1]);
       }
@@ -349,7 +382,7 @@ async function main() {
     let mcpSrc = '';
     const mcpRoot = path.join(ROOT, 'mcp-server', 'src');
     if (fs.existsSync(mcpRoot)) {
-      mcpSrc = walkTs(mcpRoot).map(f => stripTemplateLiterals(fs.readFileSync(f, 'utf8'))).join('\n');
+      mcpSrc = readSources(walkTs(mcpRoot)).map(({ src }) => stripTemplateLiterals(src)).join('\n');
     }
     const combined = extSrc + '\n' + mcpSrc;
     const unused = deps.filter(dep => !new RegExp(`from\\s+['"]${dep}|require\\(['"]${dep}`).test(combined));
@@ -409,7 +442,10 @@ async function main() {
     console.error(`\n✗ ${failed} regression test(s) FAILED — build aborted.\n`);
     for (const f of failures) {
       console.error(`  ${f.id}: ${f.name}`);
-      console.error(`    ${f.message.split('\n')[0]}`);
+      // Print the extracted detail, not just its first line — a one-line
+      // summary of a child process's output is its banner, never its assertion.
+      f.message.split('\n').slice(0, 12).forEach(l => console.error(`    ${l}`));
+      console.error('');
     }
     console.error('\nFix the above before rebuilding.\n');
     process.exit(1);
