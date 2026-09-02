@@ -12,14 +12,17 @@
  *    package.json. Any future corruption fails the rebuild loudly instead
  *    of shipping silently."
  *
- * This test verifies four things:
+ * This test verifies five things:
  *   1. The current package.json round-trips through JSON.parse cleanly
  *      (positive case — the gate accepts a clean file).
  *   2. A synthetic #67-pattern corruption is correctly detected as invalid
  *      JSON (negative case — the gate would have caught the original bug).
  *   3. Dropping a new untracked .ts file under src/features/ does not, on
  *      its own, mutate package.json. This is the specific scenario from
- *      the issue reproduction.
+ *      the issue reproduction. Since #697 it runs in a temp sandbox rather
+ *      than in the real source tree — see the comment on test 3.
+ *   3b. No script in scripts/ (nor install.js / esbuild.mjs) writes
+ *      package.json at all — the timing-free form of the same invariant.
  *   4. The validator script (scripts/validate-package-json.js) actually
  *      exits 0 against the current package.json, so the gate that was just
  *      wired into rebuild is functional end-to-end.
@@ -30,13 +33,13 @@
 'use strict';
 
 const fs   = require('fs');
+const os   = require('os');
 const path = require('path');
 const cp   = require('child_process');
 
 const REPO_ROOT  = path.resolve(__dirname, '..', '..');
 const PKG_PATH   = path.join(REPO_ROOT, 'package.json');
 const VALIDATOR  = path.join(REPO_ROOT, 'scripts', 'validate-package-json.js');
-const TEST_FEAT  = path.join(REPO_ROOT, 'src', 'features', '__reg015_test_feature.ts');
 
 let failed = 0;
 const fail = (msg) => { console.error('FAIL: ' + msg); failed++; };
@@ -87,30 +90,41 @@ const ok   = (msg) => { console.log('PASS: ' + msg); };
 })();
 
 // ─── Test 3: dropping a feature file does not mutate package.json ─────────
+//
+// This used to write src/features/__reg015_test_feature.ts into the REAL
+// source tree, spin for 250ms, then delete it. The whole regression suite runs
+// concurrently against that one tree, so every sibling test that walks src/
+// could list the fixture and then fail with ENOENT when this test unlinked it
+// mid-scan — reported against the innocent sibling (REG-001), not against
+// REG-015. That is issue #697, and it aborted builds at random.
+//
+// The scenario is now reproduced inside an isolated sandbox: a throwaway tree
+// with its own copy of package.json and its own src/features/. Nothing outside
+// the sandbox is touched, so no sibling test can observe it.
 
 (function testDroppingFeatureFileLeavesPkgJsonAlone() {
-    const before = fs.readFileSync(PKG_PATH, 'utf8');
-
-    if (fs.existsSync(TEST_FEAT)) {
-        fail('test fixture path already exists, refusing to overwrite: ' + TEST_FEAT);
-        return;
-    }
-
-    fs.writeFileSync(TEST_FEAT,
-        '// REG-015 test fixture — safe to delete. If you see this file in git,\n' +
-        '// the regression test crashed before cleanup; remove it manually.\n' +
-        'export function _reg015_noop(): void { /* intentionally empty */ }\n',
-        'utf8'
-    );
+    const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'reg015-'));
+    const sandboxFeatures = path.join(sandbox, 'src', 'features');
+    const sandboxPkg      = path.join(sandbox, 'package.json');
+    const sandboxFixture  = path.join(sandboxFeatures, '__reg015_test_feature.ts');
 
     try {
-        // Brief pause so any naive fs.watch handler that might be listening
-        // has a chance to react. 250ms exposes synchronous-ish watchers
-        // without making the test slow.
-        const waitUntil = Date.now() + 250;
-        while (Date.now() < waitUntil) { /* spin */ }
+        fs.mkdirSync(sandboxFeatures, { recursive: true });
+        fs.copyFileSync(PKG_PATH, sandboxPkg);
 
-        const after = fs.readFileSync(PKG_PATH, 'utf8');
+        const before = fs.readFileSync(sandboxPkg, 'utf8');
+
+        fs.writeFileSync(sandboxFixture,
+            '// REG-015 test fixture — lives in a temp sandbox, never in the repo.\n' +
+            'export function _reg015_noop(): void { /* intentionally empty */ }\n',
+            'utf8'
+        );
+
+        // The original test spun 250ms here to give a naive fs.watch handler a
+        // chance to react. Nothing watches a throwaway temp tree, so the pause
+        // would be dead weight — the timing-free invariant in test 3b below is
+        // what actually has teeth against the #67 auto-injector.
+        const after = fs.readFileSync(sandboxPkg, 'utf8');
 
         if (after !== before) {
             fail('package.json changed merely by dropping an untracked feature file under src/features/');
@@ -126,8 +140,56 @@ const ok   = (msg) => { console.log('PASS: ' + msg); };
 
         ok('dropping a new feature file under src/features/ leaves package.json untouched and valid');
     } finally {
-        try { fs.unlinkSync(TEST_FEAT); } catch { /* best effort */ }
+        try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* best effort */ }
     }
+})();
+
+// ─── Test 3b: no build script writes package.json ────────────────────────
+//
+// The teeth behind test 3. Issue #67 was caused by a script auto-injecting
+// command entries into package.json during rebuild. Test 3 on its own can only
+// observe that nothing mutated package.json while it happened to be watching;
+// this asserts the stronger, timing-free invariant — no script in scripts/ (nor
+// install.js / esbuild.mjs) writes package.json at all, so no rebuild step can
+// corrupt it.
+
+(function testNoScriptWritesPackageJson() {
+    const candidates = [];
+    const scriptsDir = path.join(REPO_ROOT, 'scripts');
+    if (fs.existsSync(scriptsDir)) {
+        for (const f of fs.readdirSync(scriptsDir)) {
+            if (f.endsWith('.js') || f.endsWith('.mjs')) { candidates.push(path.join(scriptsDir, f)); }
+        }
+    }
+    for (const rel of ['install.js', 'esbuild.mjs']) {
+        const full = path.join(REPO_ROOT, rel);
+        if (fs.existsSync(full)) { candidates.push(full); }
+    }
+
+    // A write call whose target names package.json (directly or via a
+    // PKG/PACKAGE_JSON-style identifier).
+    const WRITE_RE = /(?:writeFileSync|writeFile|appendFileSync|createWriteStream)\s*\(\s*([^,)]*)/g;
+    const TARGET_RE = /package\.json|PKG_PATH|PACKAGE_JSON|PKG_FILE/i;
+
+    const offenders = [];
+    for (const full of candidates) {
+        let src;
+        try { src = fs.readFileSync(full, 'utf8'); }
+        catch { continue; } // vanished mid-scan — not part of the tree
+        let m;
+        while ((m = WRITE_RE.exec(src)) !== null) {
+            if (TARGET_RE.test(m[1])) {
+                offenders.push(path.relative(REPO_ROOT, full) + ': ' + m[0].trim());
+            }
+        }
+    }
+
+    if (offenders.length > 0) {
+        fail('script(s) write package.json — the #67 auto-injector pattern is back:\n       ' +
+             offenders.join('\n       '));
+        return;
+    }
+    ok('no build script writes package.json (' + candidates.length + ' scripts scanned)');
 })();
 
 // ─── Test 4: validator script exits 0 against current package.json ────────

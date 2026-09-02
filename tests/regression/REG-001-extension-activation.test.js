@@ -22,6 +22,11 @@ const path    = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 const SRC  = path.join(ROOT, 'src');
 
+// Shared race-safe tree walk — see scripts/source-tree-walk.js. The suite runs
+// every test concurrently against one working tree, so a path from a directory
+// listing may already be gone by the time it is read (#697).
+const { walkFiles, readSources } = require(path.join(ROOT, 'scripts', 'source-tree-walk.js'));
+
 let passed = 0, failed = 0;
 
 function test(name, fn) {
@@ -38,17 +43,7 @@ function assert(cond, msg) { if (!cond) { throw new Error(msg); } }
 
 function readJson(p) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
 
-function walkTs(dir, results = []) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.git') {
-            walkTs(full, results);
-        } else if (entry.isFile() && entry.name.endsWith('.ts')) {
-            results.push(full);
-        }
-    }
-    return results;
-}
+function walkTs(dir) { return walkFiles(dir, { extensions: ['.ts'] }); }
 
 function stripTemplateLiterals(src) {
     return src.replace(/`(?:[^`\\]|\\.)*`/gs, '``');
@@ -86,16 +81,16 @@ test('No src/ file imports a package that is devDependencies-only', () => {
     const devDeps  = new Set(Object.keys(pkg.devDependencies ?? {}));
     const violations = [];
 
-    for (const file of walkTs(SRC)) {
+    for (const { file, src: raw } of readSources(walkTs(SRC), ROOT)) {
         if (file.includes('scripts') || file.includes('tests') || file.includes('mcp-server')) { continue; }
-        const src     = stripTemplateLiterals(fs.readFileSync(file, 'utf8'));
+        const src     = stripTemplateLiterals(raw);
         const importRe = /^import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"./][^'"]*)['"]/gm;
         let m;
         while ((m = importRe.exec(src)) !== null) {
             const mod = m[1].split('/')[0];
             if (mod === 'vscode' || BUILTINS.has(mod) || mod.startsWith('@types/') || deps.has(mod)) { continue; }
             if (devDeps.has(mod)) {
-                violations.push(`  ${path.relative(ROOT, file)}: imports '${m[1]}' (devDependencies-only)`);
+                violations.push(`  ${file}: imports '${m[1]}' (devDependencies-only)`);
             }
         }
     }
