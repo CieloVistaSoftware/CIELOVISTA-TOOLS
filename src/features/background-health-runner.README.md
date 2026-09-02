@@ -14,7 +14,24 @@ Runs continuous background health checks every 8 seconds (round-robin) across th
 
 Separately from the round-robin checks, the runner spawns `scripts/run-regression-tests.js` once an hour (first run 2 minutes after activation). A failure is retried once after 20s before a bug is filed, since a mid-edit worktree can fail transiently.
 
-The suite analyses the **source tree** — `src/` and `tests/regression/` — so it only means anything when the running copy sits inside a source checkout. The runner walks up from its own location looking for `scripts/run-regression-tests.js` + `src/` + `tests/regression/`, and skips the run entirely when:
+The suite analyses the **source tree** — `src/` and `tests/regression/` — so it only means anything when the running copy sits inside a source checkout. The runner walks up from its own location (`_findSourceCheckoutRoot()`) looking for `scripts/run-regression-tests.js` + `src/` + `tests/regression/`.
+
+### When the scheduler arms
+
+`activate()` runs that probe **once**, via `armRegressionScheduler()`, and arms the hourly timer only if it finds a source checkout (#698):
+
+| Running copy | Timer armed? | What is logged at activation |
+|---|---|---|
+| Source checkout (F5 / dev host) | Yes — first run at 2 min, hourly after | `Hourly regression check active — source checkout <root>` |
+| Installed `.vsix` (no `src/`, no `tests/`) | **No timer at all** | One informational line: the check is inactive, which is normal for an installed extension |
+
+Before #698 every install armed a one-hour timer whose only possible outcome was a skip log, so an inert feature wrote an hourly line that read like a fault report. The activation line is emitted **once**, never hourly, and is worded as a statement of fact rather than a warning.
+
+The Fix Bugs panel toolbar shows the real state (`Hourly regression: active` / `inactive (installed build)`) so no surface implies a check is running when none was armed.
+
+### When an individual run is skipped
+
+The in-run gate stays in place as defence in depth — `runRegressionTests()` must be safe whenever it is reached directly (a retry, a future manual trigger), whatever armed it. It skips the run entirely when:
 
 | Situation | Why it is skipped |
 |---|---|

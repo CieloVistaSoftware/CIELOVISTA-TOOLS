@@ -110,6 +110,10 @@ let _running = false;
 let _panel: vscode.WebviewPanel | undefined;
 let _testRunTimer: NodeJS.Timeout | undefined;
 let _testRunInProgress = false;
+// #698: whether the hourly regression scheduler actually armed at activation.
+// False in an installed .vsix — no source tree, so no timer is started at all.
+// Read by the Fix Bugs panel so the UI states the real situation.
+let _regressionSchedulerArmed = false;
 // Dedupe guard for saveState failures — a momentarily locked data dir (e.g. an
 // antivirus/OneDrive lock) used to auto-file an APP_ERROR on every 30s tick (#601).
 let _saveFailedLogged = false;
@@ -1030,6 +1034,12 @@ window.addEventListener('message', function(e) {
         // MCP status indicator (async, so we use a placeholder and update via script)
         const mcpStatusHtml = `<span id="mcp-status-dot" class="mcp-dot red"></span><span id="mcp-status-text">MCP Checking...</span>`;
 
+        // #698: state the real scheduler status rather than implying an hourly
+        // check is running in a copy where none was ever armed.
+        const regressionStatusHtml = _regressionSchedulerArmed
+            ? `<span title="A source checkout was found above the running extension, so the suite can analyse src/ and tests/regression/.">Hourly regression: <strong>active</strong></span>`
+            : `<span title="This copy runs from an installed build with no src/ or tests/regression/ above it, so no hourly timer was armed (#698). Regressions are covered by the source checkout and CI.">Hourly regression: <strong>inactive</strong> (installed build)</span>`;
+
         const tw            = readTestWatch();
         const testSuiteHtml = tw ? buildTestSuiteSection(tw) : '';
 
@@ -1039,6 +1049,7 @@ window.addEventListener('message', function(e) {
     <div class="controls">
         <span class="stat"><strong>${activeBugs.length}</strong> bugs &nbsp;|&nbsp; <strong>${state.totalChecks}</strong> checks run</span>
         <span class="stat" id="mcp-status">${mcpStatusHtml}</span>
+        <span class="stat" id="regression-status">${regressionStatusHtml}</span>
         <button class="issue-btn" data-action="regression-log">Regression Log</button>
         <button class="stop-btn" data-action="stop-runner">Stop Runner</button>
     </div>
@@ -1250,6 +1261,37 @@ function scheduleTestRun(delayMs: number): void {
     }, delayMs);
 }
 
+/**
+ * #698: arm the hourly regression scheduler ONLY from a source checkout.
+ *
+ * The in-run gate added by #684 stops an installed .vsix from filing a false
+ * "Regression tests failing" bug, but it left every install arming a one-hour
+ * timer whose only possible outcome was a skip log — a check that exists in the
+ * shipped product while being unable to do anything there. Probing once at
+ * activation, with the same `_findSourceCheckoutRoot()` resolver the run itself
+ * uses, means an installed build starts no timer at all and says so once,
+ * instead of writing an hourly line that reads like a fault report.
+ *
+ * The in-run gate stays as defence in depth: runRegressionTests() must remain
+ * safe when called directly (retries, a future manual trigger), regardless of
+ * how it was reached.
+ *
+ * Returns true when the scheduler armed.
+ */
+function armRegressionScheduler(): boolean {
+    const sourceRoot = _findSourceCheckoutRoot();
+    if (!sourceRoot) {
+        log(FEATURE, 'Hourly regression check inactive for this copy: the suite analyses src/ and ' +
+            `tests/regression/, and none sits above ${__dirname} — normal for an installed extension. ` +
+            'No timer armed, nothing to fix. Regressions are covered by the source checkout and CI. (#698)');
+        return false;
+    }
+    log(FEATURE, `Hourly regression check active — source checkout ${sourceRoot} ` +
+        `(first run in ${TEST_FIRST_DELAY_MS / 1000}s, hourly thereafter).`);
+    scheduleTestRun(TEST_FIRST_DELAY_MS);
+    return true;
+}
+
 function stopRunner(): void {
     if (_running) {
         _running = false;
@@ -1419,8 +1461,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Start the first check after a short delay so activation isn't blocked
     _timer = setTimeout(runNextCheck, 5000);
-    // Schedule the first regression run 2 min after startup, then every hour
-    scheduleTestRun(TEST_FIRST_DELAY_MS);
+    // Schedule the first regression run 2 min after startup, then every hour —
+    // but only from a source checkout (#698). An installed build arms no timer.
+    _regressionSchedulerArmed = armRegressionScheduler();
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
     );
