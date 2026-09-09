@@ -12,7 +12,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { spawn, execSync } = require('child_process');
+const { spawn, spawnSync, execSync } = require('child_process');
 const { walkFiles, readSources, readIfPresent } = require('./source-tree-walk');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -434,9 +434,61 @@ async function main() {
 
   await Promise.all(all);
 
+  // ── Packaging phase — SEQUENTIAL, after the concurrent tests ─────────────────
+  //
+  // #711: this runner is the gate CLAUDE.md requires before every commit, and it
+  // did not check packaging. Deleting src/features/CommandHelp/ (shipped VSIX
+  // content that has no sibling .ts by design) passed 149/149 here and only
+  // failed in CI on `out/features/CommandHelp/ has >= 2 files`. A gate that
+  // reads as comprehensive while missing a whole class of breakage is worse
+  // than one that admits its scope.
+  //
+  // These run AFTER Promise.all rather than as REG-* tests on purpose: they
+  // need a staged out/, and staging it means writing to the shared tree that
+  // ~140 concurrent test processes are reading (REG-130 invariant 1). Sequenced
+  // here, nothing else is running.
+
+  if (failed === 0) {
+    const PACKAGING = [
+      ['copy:commandhelp',   path.join(ROOT, 'scripts', 'copy-commandhelp.js'), true],
+      ['pick list',          path.join(ROOT, 'tests', 'unit', 'pick-list.test.js')],
+      // runtime-assets.test.js is deliberately NOT here: it inspects a built
+      // .vsix ("No .vsix found -- run npm run package first"), which only the
+      // full `npm run rebuild` chain produces. A pre-commit gate that demands a
+      // packaged extension is a gate nobody runs.
+      ['mcp packaging',      path.join(ROOT, 'tests', 'unit', 'mcp-packaging.test.js')],
+    ];
+
+    console.log('\n── Packaging checks ' + '─'.repeat(31));
+
+    for (const [label, script, isStagingStep] of PACKAGING) {
+      if (!fs.existsSync(script)) {
+        console.log(`  ⚠ ${label}: ${path.relative(ROOT, script)} not found — skipped`);
+        continue;
+      }
+      const run = spawnSync(process.execPath, [script], { cwd: ROOT, encoding: 'utf8' });
+      if (run.status === 0) {
+        console.log(`  ✓ ${label}`);
+      } else {
+        failed++;
+        const detail = `${run.stdout || ''}${run.stderr || ''}`
+          .split('\n').filter(l => /FAIL|✗|missing|Error|error/i.test(l)).slice(0, 8).join('\n');
+        failures.push({
+          id: 'PACKAGING',
+          name: label,
+          message: detail || `${label} exited with code ${run.status}`,
+        });
+        console.log(`  ✗ ${label}`);
+        // A staging step failing means the later checks are measuring a tree
+        // that was never staged; their output would be noise.
+        if (isStagingStep) { break; }
+      }
+    }
+  }
+
   console.log('\n' + '─'.repeat(50));
   if (failed === 0) {
-    console.log(`✓ All ${passed} regression tests passed — proceeding with build.\n`);
+    console.log(`✓ All ${passed} regression tests + packaging checks passed — proceeding with build.\n`);
     process.exit(0);
   } else {
     console.error(`\n✗ ${failed} regression test(s) FAILED — build aborted.\n`);
