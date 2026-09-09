@@ -1,3 +1,9 @@
+---
+id: issue-viewer
+title: Issue Viewer
+description: Browse, filter and act on GitHub issues without leaving the editor.
+---
+
 # Issue Viewer Integration Overview
 
 ## How It Works

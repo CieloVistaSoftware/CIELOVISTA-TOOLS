@@ -16,7 +16,7 @@
  *
  * Outputs:
  *   data/frontmatter-audit-by-filename.json
- *   docs/_today/frontmatter-audit-YYYY-MM-DD.md
+ *   reports/frontmatter-audit-YYYY-MM-DD.md
  */
 
 const fs = require('fs');
@@ -25,7 +25,7 @@ const crypto = require('crypto');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
-const TODAY_DIR = path.join(ROOT, 'docs', '_today');
+const TODAY_DIR = path.join(ROOT, 'reports');
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.vscode', '.vscode-test', '.claude',

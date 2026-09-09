@@ -161,7 +161,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "project_status",
-    "Reads the project status from docs/_today/CURRENT-STATUS.md if it exists.",
+    "Reads the project status from docs/status/current-status.md if it exists.",
     ProjectStatusToolSchema.shape,
     async ({ projectPath }) => {
       try {

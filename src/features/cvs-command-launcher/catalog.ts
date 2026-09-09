@@ -148,7 +148,7 @@ const RAW_CATALOG: CmdEntry[] = [
         'What happens when you run this:',
         '- Opens the Regression Log Viewer webview panel.',
         '- Reads data/regressions.json and renders each entry with severity and status badges.',
-        '- Per entry: File as Issue (creates a GitHub issue), Mark Fixed (prompts for release version), Open Markdown (opens docs/REGRESSION-LOG.md).',
+        '- Per entry: File as Issue (creates a GitHub issue), Mark Fixed (prompts for release version), Open Markdown (opens docs/working/regression-log.md).',
         '',
         'Output behavior:',
         '- Webview panel opens; no background job runner output.',

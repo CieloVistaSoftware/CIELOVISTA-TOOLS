@@ -1,3 +1,9 @@
+---
+id: view-a-doc
+title: Doc Catalog
+description: Searchable catalogue of documentation across every registered project.
+---
+
 # View a Doc — Current Design
 
 ## Overview
@@ -42,18 +48,3 @@ The "View a Doc" feature provides a searchable, interactive catalog of documenta
 ---
 _Last updated: 2026-04-01_
 
----
-docid: 150.9.viewadoc
-id: view-a-doc-current-design
-title: View a Doc — Current Design
-project: cielovista-tools
-description: The "View a Doc" feature provides a searchable, interactive catalog of documentation files (primarily Markdown) across all registered projects and …
-status: active
-tags: [viewadoc, view, current]
-category: 150.9 — Meta
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: ViewADoc.md
----

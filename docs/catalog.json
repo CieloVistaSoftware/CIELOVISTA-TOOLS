@@ -1,0 +1,171 @@
+{
+  "generatedBy": "scripts/docs-sync.js",
+  "sections": [
+    "status",
+    "using",
+    "working"
+  ],
+  "docs": [
+    {
+      "id": "docs-home",
+      "title": "cielovista-tools Documentation",
+      "description": "Start here. Three doors: using the extension, working on it, and what is happening right now.",
+      "path": "docs/README.md",
+      "section": "",
+      "placement": "top",
+      "updated": "",
+      "refs": [
+        "opening-issues",
+        "regression-log"
+      ],
+      "backlinks": []
+    },
+    {
+      "id": "status",
+      "title": "Right now",
+      "description": "The live parking lot — what the last session did and what the next one picks up.",
+      "path": "docs/status/README.md",
+      "section": "status",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "current-status",
+      "title": "Current status",
+      "description": "The live parking lot: what the last session did and what to do next.",
+      "path": "docs/status/current-status.md",
+      "section": "status",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "using",
+      "title": "Using cielovista-tools",
+      "description": "What each tool does, and how to quiet the ones you do not want.",
+      "path": "docs/using/README.md",
+      "section": "using",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "disable-bg-health",
+      "title": "Turning off the background health runner",
+      "description": "How to stop the hourly health checks and auto-filed issues.",
+      "path": "docs/using/disable-background-health-runner.md",
+      "section": "using",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "features",
+      "title": "Feature catalogue",
+      "description": "Every feature in the extension and the commands it registers.",
+      "path": "docs/using/features.md",
+      "section": "using",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "issue-viewer",
+      "title": "Issue Viewer",
+      "description": "Browse, filter and act on GitHub issues without leaving the editor.",
+      "path": "docs/using/issueviewer.md",
+      "section": "using",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "view-a-doc",
+      "title": "Doc Catalog",
+      "description": "Searchable catalogue of documentation across every registered project.",
+      "path": "docs/using/view-a-doc.md",
+      "section": "using",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "working",
+      "title": "Working on cielovista-tools",
+      "description": "Issues, the closure gate, the regression suite, and cutting a release.",
+      "path": "docs/working/README.md",
+      "section": "working",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "issue-closure-gate",
+      "title": "The issue closure gate",
+      "description": "What must be true before an issue is allowed to close.",
+      "path": "docs/working/issue-closure-gate.md",
+      "section": "working",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "opening-issues",
+      "title": "Opening an issue",
+      "description": "The required first step for every fix, and what a good issue contains.",
+      "path": "docs/working/opening-issues.md",
+      "section": "working",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": [
+        "docs-home"
+      ]
+    },
+    {
+      "id": "priority-sync",
+      "title": "Priority sync",
+      "description": "How issue priority is mirrored between GitHub and the extension.",
+      "path": "docs/working/priority-sync.md",
+      "section": "working",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    },
+    {
+      "id": "regression-log",
+      "title": "Regression log",
+      "description": "What each REG-NNN test guards, and the bug that caused it to exist.",
+      "path": "docs/working/regression-log.md",
+      "section": "working",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": [
+        "docs-home"
+      ]
+    },
+    {
+      "id": "release-guide",
+      "title": "Cutting a release",
+      "description": "Version bump, changelog, packaging and install verification.",
+      "path": "docs/working/release-guide.md",
+      "section": "working",
+      "placement": "top",
+      "updated": "",
+      "refs": [],
+      "backlinks": []
+    }
+  ]
+}

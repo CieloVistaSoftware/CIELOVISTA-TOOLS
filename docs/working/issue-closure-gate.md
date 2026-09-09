@@ -1,3 +1,9 @@
+---
+id: issue-closure-gate
+title: The issue closure gate
+description: What must be true before an issue is allowed to close.
+---
+
 # Issue Closure Gate
 
 Use scripts/close-issue-with-evidence.ps1 to close issues with enforced checklist and test-evidence gates.

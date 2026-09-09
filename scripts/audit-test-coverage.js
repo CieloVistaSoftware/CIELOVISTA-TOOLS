@@ -18,7 +18,7 @@
  *
  * Outputs:
  *  - Console report with coverage summary
- *  - Datestamped markdown report: docs/_today/test-coverage-audit-YYYY-MM-DD.md
+ *  - Datestamped markdown report: reports/test-coverage-audit-YYYY-MM-DD.md
  *
  * Usage:
  *   node scripts/audit-test-coverage.js [--detailed] [--json]
@@ -36,7 +36,7 @@ const config = {
   srcDir: path.join(__dirname, '..', 'src'),
   testsDir: path.join(__dirname, '..', 'tests'),
   bugsFile: path.join(__dirname, '..', 'bug-registry.json'),
-  reportsDir: path.join(__dirname, '..', 'docs', '_today'),
+  reportsDir: path.join(__dirname, '..', 'reports'),
 };
 
 const TIER_PATTERNS = {

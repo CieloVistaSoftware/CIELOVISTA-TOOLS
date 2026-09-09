@@ -4,7 +4,7 @@
  * regression-log-viewer.ts
  *
  * Webview panel showing data/regressions.json — the structured companion to
- * docs/REGRESSION-LOG.md.  Each entry shows severity, status, the linked
+ * docs/working/regression-log.md.  Each entry shows severity, status, the linked
  * GitHub issue (if any), and buttons to file an issue or mark as fixed.
  *
  * Command: cvs.tools.regressionLog
@@ -143,7 +143,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   <button class="btn-toolbar" data-action="open-markdown" title="Open REGRESSION-LOG.md">📄 Open Markdown</button>
 </div>
 <div class="content">${rows}</div>
-<div class="meta">Source: <code>data/regressions.json</code> · Narrative: <code>docs/REGRESSION-LOG.md</code></div>
+<div class="meta">Source: <code>data/regressions.json</code> · Narrative: <code>docs/working/regression-log.md</code></div>
 <script>
 (function(){
   const vscode = acquireVsCodeApi();

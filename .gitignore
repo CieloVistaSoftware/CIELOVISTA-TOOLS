@@ -26,3 +26,6 @@ _*.csv
 _*.tmp
 .scripts/
 .claude/worktrees/
+
+# Generated audit output. Never in docs/ -- see #708.
+/reports/

@@ -1,3 +1,9 @@
+---
+id: disable-bg-health
+title: Turning off the background health runner
+description: How to stop the hourly health checks and auto-filed issues.
+---
+
 # Disabling the Background Health Runner
 
 The Background Health Runner is a feature in CieloVista Tools that runs health checks automatically in the background when the extension starts. If you want to disable it, follow these steps:

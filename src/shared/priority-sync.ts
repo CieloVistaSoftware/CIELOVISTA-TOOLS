@@ -5,7 +5,7 @@
 
 export async function syncPriorityToProject(issueNumber: number, priority: number, githubToken: string) {
   // TODO: Implement GraphQL mutation to update project field
-  // See docs/priority-sync-integration.md for details
+  // See docs/working/priority-sync.md for details
   console.log(`Syncing priority for issue #${issueNumber} to ${priority}`);
   // Example GraphQL mutation (to be implemented):
   // const query = `mutation { ... }`;
