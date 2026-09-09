@@ -10,7 +10,7 @@ import type { DocFile } from './types';
 const SKIP_DIRS = ['node_modules', '.git', 'out', 'dist', '.vscode', '.claude'];
 
 /** Returns all markdown docs under a directory tree (max 3 levels deep). */
-export function collectDocs(rootPath: string, projectName: string, maxDepth = 3): DocFile[] {
+export function collectDocs(rootPath: string, projectName: string, projectStatus?: string, maxDepth = 3): DocFile[] {
     const results: DocFile[] = [];
 
     function walk(dir: string, depth: number): void {
@@ -29,7 +29,7 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
                     const content    = fs.readFileSync(fullPath, 'utf8');
                     const stat       = fs.statSync(fullPath);
                     const normalized = content.toLowerCase().replace(/\s+/g, ' ').replace(/[#*`_\[\]()]/g, '').trim();
-                    results.push({ filePath: fullPath, fileName: entry.name, projectName,
+                    results.push({ filePath: fullPath, fileName: entry.name, projectName, projectStatus,
                                    sizeBytes: Buffer.byteLength(content, 'utf8'),
                                    modifiedAt: stat.mtime.toISOString(),
                                    content, normalized });
