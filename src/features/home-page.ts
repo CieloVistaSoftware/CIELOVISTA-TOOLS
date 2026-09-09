@@ -18,6 +18,7 @@
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
+import { getContributedCommands } from '../shared/extension-package';
 import * as os     from 'os';
 import * as net    from 'net';
 import { getHistory }        from './cvs-command-launcher/command-history';
@@ -175,12 +176,9 @@ window.addEventListener('message', function(e) {
 }
 
 export function buildGroupedCommands(registered: Set<string>): Record<string, Array<{title:string;command:string;description?:string}>> {
-  const pkgPath = path.join(__dirname, '../package.json');
-  let commands: Array<{title:string; command:string; description?:string}> = [];
-  try {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    commands = pkg.contributes?.commands ?? [];
-  } catch { commands = []; }
+  // Depth-independent: home-page.ts is emitted both inside out/extension.js and
+  // standalone as out/features/home-page.js, so a fixed '..' cannot suit both (#677).
+  const commands = getContributedCommands() as Array<{title:string; command:string; description?:string}>;
 
   // The Home page should only show commands that are currently registered.
   const visible = commands.filter(cmd => registered.has(cmd.command));

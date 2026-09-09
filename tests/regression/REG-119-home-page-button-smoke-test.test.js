@@ -85,6 +85,21 @@ function loadHomePageModule() {
     }
     if (request === '../shared/doc-preview') { return { openDocPreview() {} }; }
     if (request === '../shared/github-issues-view') { return { showGithubIssues() {} }; }
+    if (request === '../shared/extension-package') {
+      // Mirrors src/shared/extension-package.ts against this checkout's real
+      // package.json, so the smoke test still exercises the actual command list.
+      const root = path.join(__dirname, '../..');
+      const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+      const commands = (pkg.contributes && pkg.contributes.commands) || [];
+      return {
+        resolveExtensionRoot() { return root; },
+        readExtensionPackageJson() { return pkg; },
+        getContributedCommands() { return commands; },
+        getContributedCommandIds() {
+          return new Set(commands.map(c => c && c.command).filter(Boolean));
+        },
+      };
+    }
     if (request === '../shared/cvt-registry') {
       return { loadRegistry() { return []; }, registryPathSet() { return new Set(); }, addToRegistry() {}, removeFromRegistry() { return 0; } };
     }
