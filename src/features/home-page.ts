@@ -42,7 +42,7 @@ import {
     removeFromRegistry
 } from '../shared/cvt-registry';
 import { esc } from '../shared/webview-utils';
-import { getDevServerConfig, buildPreviewUrl } from '../shared/dev-server-config';
+import { getDevServerConfig, buildPreviewUrl, waitForPort } from '../shared/dev-server-config';
 import { isPortOpen } from '../shared/port-check';
 
 let homePanel: vscode.WebviewPanel | undefined;
@@ -367,10 +367,36 @@ function showHomePage(context: vscode.ExtensionContext): void {
         // #642: always cache-bust so a repeat click forces a hard reload
         // instead of the browser reusing a stale disk-cached response.
         await vscode.env.openExternal(vscode.Uri.parse(buildPreviewUrl(devServerConfig)));
+        return;
+      }
+
+      // #680: start it, then WAIT for the port and open the browser. The old
+      // code returned right after sendText, so the click looked like a no-op
+      // and every repeat click spawned another terminal.
+      const termName = `npm start — ${wsName}`;
+      const existing = vscode.window.terminals.find(t => t.name === termName);
+      const terminal = existing ?? vscode.window.createTerminal({ name: termName, cwd: wsPath });
+      terminal.show();
+      if (!existing) { terminal.sendText('npm start'); }
+
+      if (await waitForPort(devServerConfig.port, isPortOpen)) {
+        await vscode.env.openExternal(vscode.Uri.parse(buildPreviewUrl(devServerConfig)));
+        return;
+      }
+
+      // Never came up on the port we were told to expect. When that port was a
+      // guess rather than a real read, say so — that is the actual #680 bug.
+      if (devServerConfig.source === 'default') {
+        void vscode.window.showWarningMessage(
+          `${wsName} has no .claude/launch.json, so cvt guessed port ${devServerConfig.port} — ` +
+          `nothing is listening there. Add .claude/launch.json with the port this project's ` +
+          `dev server actually uses.`,
+        );
       } else {
-        const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
-        terminal.show();
-        terminal.sendText('npm start');
+        void vscode.window.showWarningMessage(
+          `${wsName}'s dev server did not come up on port ${devServerConfig.port} ` +
+          `(from .claude/launch.json). Check the "${termName}" terminal for errors.`,
+        );
       }
       return;
     }
