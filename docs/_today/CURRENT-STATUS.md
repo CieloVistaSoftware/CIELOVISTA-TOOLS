@@ -2,19 +2,18 @@
 
 ## 🅿️ PARKING LOT
 
-**Task:** Fixed issue #684 — bg-health-runner filing a false "Regression tests failing" bug every hour (×50).
+**Task:** Fixed issue #700 — REG-066 mutated the shared repo tree during the concurrent suite (same class as #697).
 **Files touched:**
-- `src/features/background-health-runner.ts` (new `_findSourceCheckoutRoot()` walks up from `__dirname` for the source-checkout markers; `runRegressionTests()` gates on it ahead of `spawn()`; `clearBug()` now returns whether it changed anything)
-- `tests/regression/REG-128-bg-health-source-tree-gate.test.js` (new — exercises the real resolver against fixture trees)
-- `src/features/background-health-runner.README.md` (new "Hourly regression run" section documenting the three skip conditions)
-**Last action:** PR #695 opened and CI green (build pass, 42s). All 143 regression tests pass locally. Findings + validating test logged on issue #684.
-**Root cause (for the record):** the hourly run was executing from the INSTALLED extension directory, which ships `out/` and `scripts/` but no `src/` and no `tests/`. REG-001a/001c and REG-003–008 all read `src/`, so all eight structural checks failed together on every attempt, forever. The #641 gate missed it because an installed `.vsix` has `wt=false, built=true`. The #533 forensic diagnostics are what pinned it down. Also repaired a latent off-by-one: the module now compiles to `out/features/`, so `path.join(__dirname, '..')` meant `<root>/out` — the hourly run had become a silent no-op in dev checkouts too.
+- `tests/regression/REG-066-frontmatter-scan-scope-excludes-foreign-artifacts.test.js` (rewritten — builds its fixture tree in `fs.mkdtempSync(os.tmpdir())` and runs a copy of the production audit script from `<sandbox>/scripts/` so its `ROOT` resolves to the sandbox; four new assertions prove the repo tree came out unchanged)
+- `tests/regression/REG-130-suite-shared-source-tree-isolation.test.js` (invariant 1 widened from `src/` to the whole repo-relative tree; origin-resolving classifier replaces the name-based regex, and the mutator table now records which argument each call writes)
+**Last action:** PR #702 opened, issue #700 commented with root cause + validating tests. Full suite 145/145 green locally.
+**Root cause (for the record):** `scripts/audit-frontmatter-by-filename.js` hardcodes `ROOT = path.resolve(__dirname, '..')`, so the only way to point it elsewhere without touching production code is to move the script. Copying it into the sandbox does exactly that. No production file changed.
 **Next step:**
-1. Merge PR #695, then `npm run rebuild` + reload the window — the fix does nothing until the installed 1.0.3 copy is replaced.
-2. Fast-forward local `main` — it sat 7 duplicated / 13 behind `origin/main` (the 7 local commits had already landed upstream as squashed PR commits).
-3. Stale PR backlog: #553, #560, #604, #606, #616 have been open 2-3 months and are likely stale against current main.
+1. Merge PR #702 once CI is green.
+2. Remaining open issues: #696 (no `registry_promote` MCP tool), #680 (Home Start button no-ops without .claude/launch.json), #677 (package.json JSON_PARSE_ERROR), #669/#668 (daily-audit), #667 (doc-auditor false positives — PR #676 already open), #615 (MCP server 0xC0000142 — PR #622 already open).
+3. Stale PR backlog is down to three: #683, #676, #622. All predate current main by 1-3 months.
 4. 55 git worktrees under `.claude/worktrees/`, many at already-merged commits — candidates for pruning.
-**Open questions:** After #695 lands, the existing aggregated error-log row for `[bg-health] Regression tests failing` stays until dismissed (it stops incrementing). Worth deciding whether a cleared bug should also mark its mirrored error-log entry solved — `addBug()` mirrors to the error log on every re-detection, but `clearBug()` has no matching un-mirror.
+**Open questions:** Carried over from #684 and still unaddressed — `addBug()` mirrors to the error log on every re-detection but `clearBug()` has no matching un-mirror, so a cleared bug leaves its aggregated error-log row standing until dismissed by hand.
 
 ---
 
