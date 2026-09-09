@@ -347,10 +347,27 @@ if (featuresDoc) {
 
 // A README whose feature is gone is worse than no README: it describes code that
 // does not exist, and nothing about reading it reveals that.
+//
+// But "no sibling .ts" does not always mean orphaned. CommandHelp/ and
+// image-reader-assets/ hold SHIPPED CONTENT: CommandHelp's .README.md files are
+// copied into the VSIX by `copy:commandhelp` and read at runtime, so they have
+// no module beside them BY DESIGN. An earlier version of this check called them
+// orphans, they were deleted, and packaging broke on
+// `out/features/CommandHelp/ has >= 2 files`.
+//
+// Every other scanner in this repo already skips exactly these two names —
+// doc-catalog/scanner.ts, doc-header-scan.ts, doc-intelligence/scanner.ts,
+// docs-broken-refs.ts and readme-compliance (feature + scanner). A new check
+// that contradicts five existing ones is the new check being wrong.
+const NOT_MODULE_DOCS = new Set(['CommandHelp', 'image-reader-assets']);
+
 (function checkOrphanReadmes(dir) {
     for (const entry of listDir(dir)) {
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) { checkOrphanReadmes(full); continue; }
+        if (entry.isDirectory()) {
+            if (!NOT_MODULE_DOCS.has(entry.name)) { checkOrphanReadmes(full); }
+            continue;
+        }
         if (!entry.name.endsWith('.README.md')) { continue; }
         const base = full.slice(0, -'.README.md'.length);
         if (!fs.existsSync(`${base}.ts`) && !fs.existsSync(base)) {
