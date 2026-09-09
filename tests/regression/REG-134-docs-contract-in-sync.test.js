@@ -93,6 +93,32 @@ test('the three-field contract is enforced, not merely documented', () => {
     }
 });
 
+test('shipped-content READMEs are not treated as orphans', () => {
+    // CommandHelp/*.README.md are copied into the VSIX by `copy:commandhelp` and
+    // read at runtime, so they have no sibling .ts BY DESIGN. The orphan check
+    // called them dead docs, they were deleted, and packaging broke on
+    // `out/features/CommandHelp/ has >= 2 files` -- a failure the regression
+    // suite does not catch, because test:pick is not part of it.
+    const shipped = path.join(ROOT, 'src', 'features', 'CommandHelp');
+    const files = fs.existsSync(shipped)
+        ? fs.readdirSync(shipped).filter(f => f.endsWith('.README.md'))
+        : [];
+    assert(files.length >= 2,
+        'src/features/CommandHelp/ must keep its shipped .README.md files — '
+        + 'packaging requires at least two');
+
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    assert(/NOT_MODULE_DOCS/.test(src) && /CommandHelp/.test(src),
+        'docs-sync.js no longer excludes shipped-content directories from the orphan '
+        + 'check — it will delete CommandHelp again');
+
+    const run = cp.spawnSync(process.execPath, [SCRIPT, '--check'], { cwd: ROOT, encoding: 'utf8' });
+    const output = `${run.stdout || ''}${run.stderr || ''}`;
+    assert(!/CommandHelp/.test(output),
+        `docs-sync flags CommandHelp as an orphan:
+${output}`);
+});
+
 console.log('─'.repeat(60));
 if (failed === 0) {
     console.log(`✓ All ${passed} REG-134 tests passed\n`);
