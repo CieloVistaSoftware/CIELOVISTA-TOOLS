@@ -3,7 +3,7 @@
 ## Session Start (DO THIS FIRST)
 
 1. Call `list_allowed_directories` to confirm MCP access
-2. Read `docs/_today/CURRENT-STATUS.md` — current project state and parking lot
+2. Read `docs/status/current-status.md` — current project state and parking lot
 3. Use `recent_chats` — continue from last session, never start blind
 4. Start working — no questions, no fumbling
 
@@ -14,7 +14,7 @@
 
 ## End of Session
 
-Update the **🅿️ PARKING LOT** at the top of `docs/_today/CURRENT-STATUS.md`:
+Update the **🅿️ PARKING LOT** at the top of `docs/status/current-status.md`:
 - **Task:** what we were doing
 - **Files touched:** exact full paths
 - **Last action:** the last thing changed

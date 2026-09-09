@@ -1,3 +1,9 @@
+---
+id: priority-sync
+title: Priority sync
+description: How issue priority is mirrored between GitHub and the extension.
+---
+
 # Priority Field Two-Way Sync
 
 This workflow keeps the GitHub Project board priority field and issue labels in sync.

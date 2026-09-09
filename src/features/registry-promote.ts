@@ -108,7 +108,7 @@ function buildClaudeMd(projectName: string, projectPath: string): string {
         '## Session Start',
         '',
         '1. Read this file',
-        '2. Read docs/_today/CURRENT-STATUS.md if it exists',
+        '2. Read docs/status/current-status.md if it exists',
         '3. Start working — no questions',
         '',
         '## Project',

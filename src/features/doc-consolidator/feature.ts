@@ -27,7 +27,7 @@
  *     - Delete all other copies
  *     - Update every project's CLAUDE.md that referenced the old paths
  *       to point at the new single location
- *     - Write a consolidation log entry to docs/consolidation-log.md
+ *     - Write a consolidation log entry to CieloVistaStandards/consolidation-log.md
  *
  * Every destructive step requires explicit confirmation.
  * The consolidation log is append-only — nothing is ever lost silently.

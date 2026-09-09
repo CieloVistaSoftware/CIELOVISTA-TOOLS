@@ -1305,7 +1305,10 @@ async function exportReportAsMarkdown(): Promise<void> {
     execSync(cmd, { cwd: workspaceRoot.uri.fsPath });
 
     // Find the generated report
-    const reportsDir = path.join(workspaceRoot.uri.fsPath, 'docs', '_today');
+    // #708: generated audits no longer live in docs/. Writing them there is what
+    // grew 5,778 lines of artifacts into the docs folder. scripts/audit-test-coverage.js
+    // now writes to reports/, so this reader has to look there too.
+    const reportsDir = path.join(workspaceRoot.uri.fsPath, 'reports');
     const files = fs.readdirSync(reportsDir).filter((f) => f.startsWith('test-coverage-audit-') && f.endsWith('.md'));
 
     if (files.length > 0) {

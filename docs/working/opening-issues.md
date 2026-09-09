@@ -1,3 +1,9 @@
+---
+id: opening-issues
+title: Opening an issue
+description: The required first step for every fix, and what a good issue contains.
+---
+
 # How to Open an Issue
 
 Creating well-defined issues is critical for tracking bugs, feature requests, and other tasks. This guide outlines the standard process for opening a new issue in the `CieloVistaSoftware/cielovista-tools` repository.

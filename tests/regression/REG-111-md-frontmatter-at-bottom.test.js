@@ -32,6 +32,19 @@ const ROOT    = path.resolve(__dirname, '../..');
 const EXCLUDE = new Set(['node_modules', '.vscode-test', '.claude', 'out', 'dist', 'mcp-server', 'REG-066-frontmatter-scope-control.md']);
 const SAMPLE  = 100;
 
+// #708: docs/ moved to a three-field frontmatter block at the TOP of the file.
+// That reverses #527, which put it at the bottom because the Doc Catalog preview
+// rendered a top block as visible text -- md-renderer.ts:50 now parses a top
+// block and renders it as a card, and has no bottom handling at all, so the old
+// workaround had started causing the very problem it was written to prevent.
+// docs/ is governed by REG-134 (`node scripts/docs-sync.js --check`) instead.
+// src/**/*.README.md still carries the old trailer and stays under this rule
+// until it is migrated.
+const NEW_CONTRACT_ROOTS = [path.join(ROOT, 'docs')];
+function underNewContract(file) {
+    return NEW_CONTRACT_ROOTS.some(root => file.startsWith(root + path.sep) || file.startsWith(root + '/'));
+}
+
 // ── Collect all .md files ────────────────────────────────────────────────────
 // All regression tests run as concurrent subprocesses (see
 // run-regression-tests.js) sharing this same repo checkout -- another test
@@ -53,7 +66,7 @@ function walk(dir, results = []) {
     return results;
 }
 
-const all = walk(ROOT);
+const all = walk(ROOT).filter(f => !underNewContract(f));
 
 // ── Deterministic daily shuffle (rotate sample each day) ─────────────────────
 const seed = Math.floor(Date.now() / 86400000); // changes daily

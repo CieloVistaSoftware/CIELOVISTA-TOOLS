@@ -104,7 +104,7 @@ test('Nested README.md inside a project subfolder with different content is not 
 // ── Test 4: CLAUDE.md in different projects, different content → NOT duplicate ─
 test('CLAUDE.md in different projects with different content is not a duplicate', () => {
     const docs = [
-        makeDoc('C:/projects/project-a/CLAUDE.md', 'project-a', '# CLAUDE.md — project-a\n\nBuild: npm run build\nSession start: read docs/_today/CURRENT-STATUS.md'),
+        makeDoc('C:/projects/project-a/CLAUDE.md', 'project-a', '# CLAUDE.md — project-a\n\nBuild: npm run build\nSession start: read docs/status/current-status.md'),
         makeDoc('C:/projects/project-b/CLAUDE.md', 'project-b', '# CLAUDE.md — project-b\n\nBuild: dotnet build\nSession start: read CURRENT-STATUS.md'),
     ];
 

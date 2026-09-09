@@ -504,7 +504,7 @@ async function syncCheck(): Promise<void> {
                     }
                     const projectName = proj || path.basename(path.dirname(payload));
                     const buildBlock = '```powershell\n# TODO: add build command\n```';
-                    const content = `# CLAUDE.md — ${projectName}\n\n## Session Start\n\n1. Read this file\n2. Read docs/_today/CURRENT-STATUS.md if it exists\n3. Start working — no questions\n\n## Project\n\n**Name:** ${projectName}\n**Location:** ${path.dirname(payload)}\n\n## Build\n\n${buildBlock}\n${GLOBAL_STANDARDS_REF}`;
+                    const content = `# CLAUDE.md — ${projectName}\n\n## Session Start\n\n1. Read this file\n2. Read docs/status/current-status.md if it exists\n3. Start working — no questions\n\n## Project\n\n**Name:** ${projectName}\n**Location:** ${path.dirname(payload)}\n\n## Build\n\n${buildBlock}\n${GLOBAL_STANDARDS_REF}`;
                     fs.writeFileSync(payload, content, 'utf8');
                     log(FEATURE, `Created CLAUDE.md: ${payload}`);
                     const doc = await vscode.workspace.openTextDocument(payload);

@@ -51,7 +51,7 @@ Entries written by this feature match the current `ProjectEntry` contract:
 }
 ```
 
-The `status` field supports four values — `product`, `workbench`, `generated`, `archived` — but this command only ever writes `product`. The three-tier lifecycle model is documented in `docs/_today/CURRENT-STATUS.md`.
+The `status` field supports four values — `product`, `workbench`, `generated`, `archived` — but this command only ever writes `product`. The three-tier lifecycle model is documented in `docs/status/current-status.md`.
 
 ## Test steps
 

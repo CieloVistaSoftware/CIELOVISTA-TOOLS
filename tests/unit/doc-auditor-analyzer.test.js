@@ -165,7 +165,7 @@ test('does NOT flag ONBOARDING.md when content is empty/unrelated', () => {
     eq(isGlobalCandidate(doc), undefined);
 });
 
-// #667 regression: docs/ViewADoc.md was flagged because "global standards folder" contains
+// #667 regression: docs/using/view-a-doc.md was flagged because "global standards folder" contains
 // "global standard" as a raw substring, and mentioning a feature that works "across all
 // registered projects" is not the same as the file declaring itself a global standard.
 test('does NOT flag a doc merely mentioning "global standards folder" in passing', () => {
