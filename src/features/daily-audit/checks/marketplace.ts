@@ -7,9 +7,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveChangelog, canGenerateChangelog } from '../../../shared/changelog-freshness';
 import type { AuditCheck } from '../../../shared/audit-schema';
 
-interface ProjectEntry { name: string; path: string; type: string; }
+interface ProjectEntry { name: string; path: string; type: string; changelog?: string; }
 
 const OPEN_SOURCE_LICENSES = ['MIT', 'ISC', 'Apache-2.0', 'GPL-2.0', 'GPL-3.0', 'BSD-2-Clause', 'BSD-3-Clause'];
 
@@ -28,7 +29,12 @@ function checkOne(project: ProjectEntry): ProjectResult {
     if (!fs.existsSync(path.join(project.path, 'LICENSE')) &&
         !fs.existsSync(path.join(project.path, 'LICENSE.txt'))) { missing.push('LICENSE'); }
 
-    if (!fs.existsSync(path.join(project.path, 'CHANGELOG.md'))) { missing.push('CHANGELOG.md'); }
+    // #714: only report a MISSING changelog when the project has not declared one
+    // elsewhere. wb-starter's changelog is pages/whats-new.html; offering to
+    // generate CHANGELOG.md beside it creates a second, empty, competing
+    // changelog -- the same destructive shape as #667.
+    const changelog = resolveChangelog(project.path, project.changelog);
+    if (!changelog.exists && canGenerateChangelog(changelog)) { missing.push('CHANGELOG.md'); }
     if (isExtension && !fs.existsSync(path.join(project.path, 'icon.png'))) { missing.push('icon.png'); }
 
     if (isExtension) {

@@ -8,9 +8,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { AuditCheck } from '../../../shared/audit-schema';
-import { CHANGELOG_STALE_DAYS, isChangelogStale } from '../../../shared/changelog-freshness';
+import { CHANGELOG_STALE_DAYS, isChangelogStale, resolveChangelog } from '../../../shared/changelog-freshness';
 
-interface ProjectEntry { name: string; path: string; }
+interface ProjectEntry { name: string; path: string; changelog?: string; }
 
 const STALE_DAYS = CHANGELOG_STALE_DAYS;
 
@@ -23,12 +23,14 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
 
     for (const p of projects) {
         if (!fs.existsSync(p.path)) { continue; }
-        const clPath = path.join(p.path, 'CHANGELOG.md');
-        if (!fs.existsSync(clPath)) {
+        // #714: a project may declare its changelog surface; CHANGELOG.md is
+        // only the default. wb-starter's is pages/whats-new.html.
+        const cl = resolveChangelog(p.path, p.changelog);
+        if (!cl.exists) {
             missing.push(p);
             continue;
         }
-        const mtime = fs.statSync(clPath).mtimeMs;
+        const mtime = fs.statSync(cl.filePath).mtimeMs;
         if (isChangelogStale(mtime)) { stale.push(p); }
         else                          { fresh.push(p); }
     }
@@ -40,7 +42,7 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
     if (missing.length > 0) {
         status  = 'red';
         summary = `No CHANGELOG in: ${missing.map(p => p.name).join(', ')}`;
-        detail  = `${missing.length} project(s) have no CHANGELOG.md: ${missing.map(p => p.name).join(', ')}\n` +
+        detail  = `${missing.length} project(s) have no changelog: ${missing.map(p => p.name).join(', ')}\n` +
                   (stale.length > 0 ? `${stale.length} project(s) have changelogs not updated in ${STALE_DAYS}+ days: ${stale.map(p => p.name).join(', ')}` : '');
     } else if (stale.length > 0) {
         status  = 'yellow';
@@ -49,7 +51,7 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
     } else {
         status  = 'green';
         summary = `All ${fresh.length} changelogs up to date`;
-        detail  = `All project CHANGELOG.md files have been updated within the last ${STALE_DAYS} days.`;
+        detail  = `Every project's changelog has been updated within the last ${STALE_DAYS} days.`;
     }
 
     return {
@@ -60,7 +62,7 @@ export function runChangelogCheck(projects: ProjectEntry[]): AuditCheck {
         summary,
         detail,
         affectedProjects: [...missing, ...stale].map(p => p.name),
-        affectedFiles:    [...missing, ...stale].map(p => path.join(p.path, 'CHANGELOG.md')),
+        affectedFiles:    [...missing, ...stale].map(p => resolveChangelog(p.path, p.changelog).filePath),
         action:           'cvs.marketplace.scan',
         actionLabel:      missing.length > 0 ? 'Auto-Fix' : 'Review',
         ranAt:            new Date().toISOString(),
