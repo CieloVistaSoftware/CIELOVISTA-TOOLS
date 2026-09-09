@@ -14,9 +14,11 @@
  *
  * Two invariants keep that class of bug from coming back:
  *
- *   1. No test in the suite mutates the shared src/ tree. Fixtures belong in a
- *      temp sandbox, never in the tree 140 concurrent processes are scanning.
- *      (This assertion FAILS on the pre-fix REG-015.)
+ *   1. No test in the suite mutates the shared repository tree. Fixtures belong
+ *      in a temp sandbox, never in the tree 140 concurrent processes are
+ *      scanning. Originally scoped to src/; widened to the whole repo-relative
+ *      tree for issue #700, where REG-066 had the same hazard under docs/ and
+ *      data/. (This assertion FAILS on the pre-fix REG-015 and REG-066.)
  *
  *   2. Source scans tolerate a file vanishing between the directory listing and
  *      the read. A readdir snapshot of a live working tree goes stale — editor
@@ -72,40 +74,135 @@ function rmTreeSync(dir) {
 
 console.log('\nREG-130: Regression suite shared-source-tree isolation\n' + '\u2500'.repeat(60));
 
-// ── 1. No suite test writes into the shared src/ tree ────────────────────────
+// ── 1. No suite test mutates the shared repository tree ──────────────────────
+//
+// Originally scoped to src/ (#697). Widened to the whole repo-relative tree for
+// #700, where REG-066 had the identical hazard under docs/ and data/: it built
+// fixtures at repo-relative paths and unlinked them again while REG-023/027/033
+// /111 and the doc-catalog tests walked docs/ concurrently.
+//
+// The scope could not simply be widened textually — most fixture paths in this
+// suite reach a sandbox through intermediate locals (`tmp`, `root`, `dir`,
+// `targetDir`), so a name-based rule flags a dozen innocent tests. Instead each
+// mutation's target expression is resolved back through the file's assignments
+// to its origin: os.tmpdir()/mkdtemp (fine) or ROOT/__dirname/cwd (the defect).
 
-test('No regression test writes, deletes or creates a path under src/', () => {
-    // Any fs mutation whose target expression mentions src/ or a src-rooted
-    // identifier. Deliberately broad: writing into the tree that every other
-    // concurrent test is scanning is the defect, whatever the call.
-    const MUTATORS = /(writeFileSync|writeFile|appendFileSync|unlinkSync|rmSync|rmdirSync|mkdirSync|renameSync|copyFileSync|createWriteStream)\s*\(\s*([^,)]*)/g;
-    // Identifiers/paths that resolve inside the repo's own src/ tree.
-    const SRC_TARGET = /\bSRC\b|SRC_DIR|SRC_ROOT|FEAT_DIR|TEST_FEAT|['"`][^'"`]*\bsrc[\\/]/;
-    // A sandbox path is fine — those never touch the shared tree.
-    const SANDBOX    = /tmpdir|mkdtemp|TMP\b|SANDBOX|sandbox|os\.tmpdir/;
+/** Fs calls that mutate, and which of their arguments is the thing mutated. */
+const MUTATORS = {
+    writeFileSync: [0], writeFile: [0], appendFileSync: [0], appendFile: [0],
+    unlinkSync: [0], unlink: [0], rmSync: [0], rm: [0], rmdirSync: [0],
+    mkdirSync: [0], truncateSync: [0], createWriteStream: [0],
+    renameSync: [0, 1],  // the source path disappears too
+    copyFileSync: [1],   // only the destination is written
+};
 
+const SANDBOX_ORIGIN = /os\.tmpdir\s*\(|mkdtempSync|mkdtemp\s*\(/;
+const REPO_ORIGIN    = /\bROOT\b|\bREPO_ROOT\b|\bSRC\b|__dirname|process\.cwd\s*\(/;
+/** A bare repo-relative literal: cwd is the repo root while the suite runs. */
+const REPO_LITERAL   = /['"`](?:src|docs|data|tests|scripts|mcp-server)[\\/]/;
+
+/** Top-level argument expressions of the call whose '(' sits at `open`. */
+function callArgs(src, open) {
+    const args = [];
+    let depth = 0, start = open + 1, quote = null;
+    for (let i = open; i < src.length; i++) {
+        const c = src[i];
+        if (quote) {
+            if (c === '\\') { i++; }
+            else if (c === quote) { quote = null; }
+            continue;
+        }
+        if (c === '\'' || c === '"' || c === '`') { quote = c; continue; }
+        if (c === '(' || c === '[' || c === '{') { depth++; continue; }
+        if (c === ')' || c === ']' || c === '}') {
+            depth--;
+            if (depth === 0) { args.push(src.slice(start, i)); return args; }
+            continue;
+        }
+        if (c === ',' && depth === 1) { args.push(src.slice(start, i)); start = i + 1; }
+    }
+    return args;
+}
+
+/**
+ * Map every `const/let/var NAME = expr` in a file to 'sandbox', 'repo' or
+ * nothing, following references between them until the classification settles.
+ * Sandbox wins: a path built from a temp root is safe however it was composed.
+ */
+function classifyLocals(src) {
+    const exprs = new Map();
+    const assign = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([^;\n]+)/g;
+    let a;
+    while ((a = assign.exec(src)) !== null) {
+        if (!exprs.has(a[1])) { exprs.set(a[1], a[2]); }
+    }
+
+    const kind = new Map();
+    for (let pass = 0; pass < 8; pass++) {
+        let changed = false;
+        for (const [name, expr] of exprs) {
+            const ids = expr.match(/[A-Za-z_$][\w$]*/g) || [];
+            let k = null;
+            if (SANDBOX_ORIGIN.test(expr) || ids.some(id => kind.get(id) === 'sandbox')) {
+                k = 'sandbox';
+            } else if (REPO_ORIGIN.test(expr) || REPO_LITERAL.test(expr)
+                    || ids.some(id => kind.get(id) === 'repo')) {
+                k = 'repo';
+            }
+            if (k && kind.get(name) !== k) { kind.set(name, k); changed = true; }
+        }
+        if (!changed) { break; }
+    }
+    return kind;
+}
+
+test('No regression test mutates the shared repository tree', () => {
     const offenders = [];
+
     for (const file of fs.readdirSync(REG_DIR)) {
         if (!/^REG-\d+.*\.test\.js$/.test(file)) { continue; }
-        const full = path.join(REG_DIR, file);
-        const src  = walk.readIfPresent(full);
+        const src = walk.readIfPresent(path.join(REG_DIR, file));
         if (src === null) { continue; }
+
+        const kind = classifyLocals(src);
+        const calls = new RegExp(`\\b(${Object.keys(MUTATORS).join('|')})\\s*\\(`, 'g');
         let m;
-        MUTATORS.lastIndex = 0;
-        while ((m = MUTATORS.exec(src)) !== null) {
-            const target = m[2];
-            if (!SRC_TARGET.test(target) || SANDBOX.test(target)) { continue; }
-            const line = src.slice(0, m.index).split('\n').length;
-            offenders.push(`  ${file}:${line}  ${m[0].trim()}`);
+        while ((m = calls.exec(src)) !== null) {
+            // Several tests assert on production source by matching these same
+            // call names inside a regex literal — not a mutation of anything.
+            const before = src[m.index - 1];
+            if (before === '/' || before === '\\') { continue; }
+
+            const lineStart = src.lastIndexOf('\n', m.index) + 1;
+            const lineText  = src.slice(lineStart, src.indexOf('\n', m.index));
+            if (/^\s*(\/\/|\*|\/\*)/.test(lineText)) { continue; }
+
+            const args = callArgs(src, m.index + m[0].length - 1);
+            for (const idx of MUTATORS[m[1]]) {
+                const arg = args[idx];
+                if (arg === undefined) { continue; }
+                const ids = arg.match(/[A-Za-z_$][\w$]*/g) || [];
+                if (ids.some(id => kind.get(id) === 'sandbox') || SANDBOX_ORIGIN.test(arg)) {
+                    continue;
+                }
+                if (!ids.some(id => kind.get(id) === 'repo')
+                    && !REPO_ORIGIN.test(arg) && !REPO_LITERAL.test(arg)) {
+                    continue;  // origin unknown — not evidence of a repo write
+                }
+                const line = src.slice(0, m.index).split('\n').length;
+                offenders.push(`  ${file}:${line}  ${m[1]}(${arg.trim()})`);
+            }
         }
     }
 
     assert(offenders.length === 0,
-        `Regression test(s) mutate the shared src/ tree while the suite runs concurrently:\n` +
-        `${offenders.join('\n')}\n` +
-        `This is issue #697: a sibling test lists src/, the fixture is unlinked, and the\n` +
-        `sibling fails with ENOENT against a file it never owned.\n` +
-        `FIX: create fixtures under fs.mkdtempSync(os.tmpdir()), never under src/.`);
+        `Regression test(s) mutate the shared repository tree while the suite runs\n` +
+        `concurrently:\n${offenders.join('\n')}\n` +
+        `This is issues #697 (src/) and #700 (docs/, data/): a sibling test lists the\n` +
+        `directory, the fixture is unlinked, and the sibling fails with ENOENT against a\n` +
+        `file it never owned.\n` +
+        `FIX: build fixtures under fs.mkdtempSync(os.tmpdir()) and point the code under\n` +
+        `test at that sandbox, never at the tree 140 concurrent processes are reading.`);
 });
 
 // ── 2. The shared walker survives a vanished path ────────────────────────────
