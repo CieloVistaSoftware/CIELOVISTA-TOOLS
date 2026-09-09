@@ -21,6 +21,7 @@ import * as https  from 'https';
 import * as http   from 'http';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { getContributedCommandIds } from '../shared/extension-package';
 
 const FEATURE     = 'link-integrity-checker';
 const COMMAND     = 'cvs.links.check';
@@ -330,16 +331,11 @@ async function checkLinks(): Promise<void> {
         return;
     }
 
-    // Load command IDs from package.json
-    const pkgPath = path.join(__dirname, '../../package.json');
-    let commandIds = new Set<string>();
-    try {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-        for (const c of (pkg.contributes?.commands ?? [])) {
-            commandIds.add(c.command);
-        }
-    } catch (err) {
-        logError('Failed to load package.json for command ID validation', err instanceof Error ? (err.stack ?? String(err)) : String(err), FEATURE);
+    // Load command IDs from package.json (depth-independent — see shared/extension-package)
+    const commandIds = getContributedCommandIds();
+    if (commandIds.size === 0) {
+        logError('Failed to load package.json for command ID validation',
+            `Could not locate the extension package.json above ${__dirname}`, FEATURE);
     }
 
     log(FEATURE, `Starting link integrity scan — ${roots.length} root(s), ${commandIds.size} known commands`);
