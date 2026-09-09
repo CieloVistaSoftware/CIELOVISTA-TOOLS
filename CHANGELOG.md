@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 
 ---
 
+## [Unreleased]
+
+Not yet released — `package.json` is still 1.0.3. Version stays put until this
+inventory is reviewed.
+
+### Added
+
+**Documentation, rebuilt (#708)**
+- `docs/index.html` — a browsable docs page: three doors, client-side search, and the archive behind its own panel. Opens showing four rows, not fourteen documents
+- Doc contract is three hand-written frontmatter fields — `id`, `title`, `description` — at the top of the file. A fourth field fails the check; everything derivable is generated into `docs/catalog.json`
+- `npm run docs:sync` regenerates the site, hub listings, feature catalogue and catalog, then validates. `docs:check` validates without writing and runs in the regression suite (REG-134)
+- Cross-references are written `[[id]]` and a dangling one fails the build — the old scheme declared 82 docids and only 2 were ever referenced (#707)
+- The feature catalogue is generated from `src/features/`, closing an 11-feature gap in the hand-maintained list
+
+### Changed
+
+- `docs/` reorganised into `using/`, `working/`, `status/`, with 18 retired items moved to `docs/archive/` (kept, not deleted). Generated audit reports now write to `reports/` instead of `docs/` — that was 5,778 lines, 81% of the folder
+
+### Fixed
+
+- Link Integrity checker validated nothing: it resolved `package.json` at a fixed `__dirname` depth that is wrong in the esbuild bundle, so every run threw ENOENT and skipped every `command:` link (#677)
+- Home page Start button failed silently for projects with no `.claude/launch.json` — it probed a guessed port once, then spawned a terminal without ever opening a browser (#680)
+- A cleared background-health bug stayed in the Error Log as unsolved with a climbing occurrence count, because `clearBug()` had no un-mirror (#705)
+- doc-auditor no longer flags 21 of 22 projects' `CLAUDE.md` as drift against cielovista-tools' own, nor container-project boilerplate as duplicates (#667)
+- Regression suite isolation: tests no longer mutate the shared source tree mid-run (#697, #700), the hourly scheduler only arms from a source checkout (#698), and bg-health skips the run from build-output-only copies (#684)
+- 4 `.README.md` files documenting deleted features removed
+
+---
+
 ## [1.0.3] — 2026-07-23
 
 ### Added

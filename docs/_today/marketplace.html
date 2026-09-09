@@ -237,11 +237,17 @@ Download VSIX
 <!-- What's New -->
 <section class="mb-xl">
 <div class="flex items-center justify-between mb-md">
-<h2 class="font-headline-lg text-headline-lg text-on-surface">What's new in 1.0.3</h2>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">What's new since 1.0.3</h2>
 <a href="../../CHANGELOG.md" class="font-label-md text-label-md text-primary hover:underline">Full changelog</a>
 </div>
 <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-lg">
 <ul class="grid grid-cols-1 md:grid-cols-2 gap-sm">
+<li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">📚</span>Documentation rebuilt — a browsable <a class="text-primary hover:underline" href="../index.html">docs index</a> with three doors, search, and the archive tucked behind its own panel instead of every file at once</li>
+<li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🛠️</span>Docs now carry three frontmatter fields instead of thirteen, and a broken cross-reference fails the build</li>
+<li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🐛</span>Link Integrity checker was validating nothing — it could not find package.json from the bundle, so every <code>command:</code> link silently skipped its check</li>
+<li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🐛</span>Home page Start button no longer fails silently for projects without <code>.claude/launch.json</code>; it waits for the port, opens the browser, and says so when the server never comes up</li>
+<li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🐛</span>A fixed background-health bug is now cleared from the Error Log instead of lingering unsolved with a climbing count</li>
+<li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🐛</span>doc-auditor no longer suggests overwriting 21 of 22 projects’ CLAUDE.md files</li>
 <li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">✨</span>New Session Activity Dashboard — live rollup of current focus, active work, deploy pushes, CI status, and open issues</li>
 <li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🛠️</span>Marketplace "What's inside" now generated from the command catalog (121 commands, 13 groups) instead of 4 hardcoded cards</li>
 <li class="flex items-start gap-sm text-on-surface-variant font-body-md"><span class="text-primary" aria-hidden="true">🛠️</span>Preview/Start button now cache-busts every launch so edits show up without a manual hard-reload</li>

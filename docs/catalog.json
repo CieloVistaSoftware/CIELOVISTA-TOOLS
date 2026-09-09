@@ -13,7 +13,7 @@
       "path": "docs/README.md",
       "section": "",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [
         "opening-issues",
         "regression-log"
@@ -27,7 +27,7 @@
       "path": "docs/status/README.md",
       "section": "status",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -38,7 +38,7 @@
       "path": "docs/status/current-status.md",
       "section": "status",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -49,7 +49,7 @@
       "path": "docs/using/README.md",
       "section": "using",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -60,7 +60,7 @@
       "path": "docs/using/disable-background-health-runner.md",
       "section": "using",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -71,7 +71,7 @@
       "path": "docs/using/features.md",
       "section": "using",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -82,7 +82,7 @@
       "path": "docs/using/issueviewer.md",
       "section": "using",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -93,7 +93,7 @@
       "path": "docs/using/view-a-doc.md",
       "section": "using",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -104,7 +104,7 @@
       "path": "docs/working/README.md",
       "section": "working",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -115,7 +115,7 @@
       "path": "docs/working/issue-closure-gate.md",
       "section": "working",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -126,7 +126,7 @@
       "path": "docs/working/opening-issues.md",
       "section": "working",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": [
         "docs-home"
@@ -139,7 +139,7 @@
       "path": "docs/working/priority-sync.md",
       "section": "working",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     },
@@ -150,7 +150,7 @@
       "path": "docs/working/regression-log.md",
       "section": "working",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": [
         "docs-home"
@@ -163,7 +163,7 @@
       "path": "docs/working/release-guide.md",
       "section": "working",
       "placement": "top",
-      "updated": "",
+      "updated": "2026-09-09",
       "refs": [],
       "backlinks": []
     }
