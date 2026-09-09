@@ -74,8 +74,16 @@ if (registry) {
     check('scan-commands.js produces a components array',
         Array.isArray(registry.components) && registry.components.length > 0);
 
-    check('components array has 57 entries',
-        registry.components.length === 57);
+    // Derived, not hardcoded. This asserted `=== 57` and broke the moment four
+    // .README.md files documenting DELETED features were removed (#708) -- a
+    // correct cleanup failing a test that had frozen a headcount. A magic number
+    // here fails on every legitimate add or removal, which trains people to
+    // bump it rather than ask why it moved. The real invariant is that every
+    // top-level feature README yields exactly one component.
+    const featureReadmes = fs.readdirSync(path.join(ROOT, 'src', 'features'))
+        .filter(f => f.endsWith('.README.md'));
+    check(`components array has one entry per src/features/*.README.md (${featureReadmes.length})`,
+        registry.components.length === featureReadmes.length);
 
     check('Each component has required fields',
         registry.components.every(c =>

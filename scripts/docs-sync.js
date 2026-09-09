@@ -317,6 +317,49 @@ if (trailerCount) {
         + `GitHub, VS Code and Obsidian render it as visible text (#708).`);
 }
 
+// ─── docs and code stay in step ───────────────────────────────────────────────
+//
+// "Updates must be simple and done often to keep them in sync with code and
+// standards" -- the sync is only real if something checks it. Two directions,
+// both of which had already drifted when this was written:
+//
+//   features.md linked 52 of 53 feature modules, missing 11 outright.
+//   Four .README.md files documented features whose code had been deleted.
+
+const FEATURES_DIR = path.join(ROOT, 'src', 'features');
+const featureIds = listDir(FEATURES_DIR)
+    .filter(e => e.isFile() && e.name.endsWith('.ts') && !e.name.endsWith('.d.ts'))
+    .map(e => path.basename(e.name, '.ts'));
+
+const featuresDoc = docs.find(d => d.id === 'features');
+if (featuresDoc) {
+    const text = fs.readFileSync(path.join(ROOT, featuresDoc.path), 'utf8');
+    // When the catalogue is generated, completeness is guaranteed by construction
+    // and this check would fire on the pre-write content -- crying wolf on a run
+    // that is about to fix it. It stays as a guard for the case where someone
+    // removes the markers and goes back to hand-maintaining the list.
+    const missing = text.includes(BEGIN_MARKER) ? [] : featureIds.filter(id => !text.includes(id));
+    if (missing.length) {
+        problems.push(`${featuresDoc.path}: ${missing.length} feature(s) in src/features/ are not `
+            + `documented here — ${missing.join(', ')}`);
+    }
+}
+
+// A README whose feature is gone is worse than no README: it describes code that
+// does not exist, and nothing about reading it reveals that.
+(function checkOrphanReadmes(dir) {
+    for (const entry of listDir(dir)) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { checkOrphanReadmes(full); continue; }
+        if (!entry.name.endsWith('.README.md')) { continue; }
+        const base = full.slice(0, -'.README.md'.length);
+        if (!fs.existsSync(`${base}.ts`) && !fs.existsSync(base)) {
+            problems.push(`${path.relative(ROOT, full).split(path.sep).join('/')}: documents a feature whose `
+                + `code no longer exists — delete it or restore the feature`);
+        }
+    }
+})(path.join(ROOT, 'src'));
+
 // ─── docs/_today holds the website, not documents ─────────────────────────────
 //
 // This is the invariant that actually matters, and it does not care how a path
@@ -351,7 +394,58 @@ function renderHubBlock(section) {
     return lines.join('\n');
 }
 
-const writes = [];
+const featureWrites = [];
+
+/**
+ * The feature catalogue is GENERATED from src/features/, not hand-maintained.
+ *
+ * It had drifted to 52 of 53 modules with 11 features missing outright, and
+ * still linked two READMEs whose code had been deleted. A hand-written list of
+ * 53 entries cannot stay correct; the only version that does is one nobody
+ * types. Titles come from each README's first heading so the wording stays
+ * owned by the feature, not by this script.
+ */
+function featureTitle(id) {
+    for (const candidate of [
+        path.join(FEATURES_DIR, `${id}.README.md`),
+        path.join(FEATURES_DIR, id, 'README.md'),
+    ]) {
+        try {
+            const heading = fs.readFileSync(candidate, 'utf8').match(/^#\s+(.+)$/m);
+            if (heading) { return heading[1].replace(/^Feature:\s*/i, '').trim(); }
+        } catch { /* no README — fall through */ }
+    }
+    return id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function renderFeatureBlock() {
+    const lines = [BEGIN_MARKER, ''];
+    for (const id of [...featureIds].sort()) {
+        const readme = fs.existsSync(path.join(FEATURES_DIR, `${id}.README.md`))
+            ? `../../src/features/${id}.README.md`
+            : fs.existsSync(path.join(FEATURES_DIR, id, 'README.md'))
+                ? `../../src/features/${id}/README.md`
+                : null;
+        const label = featureTitle(id);
+        lines.push(readme ? `- [${label}](${readme})` : `- ${label} — \`src/features/${id}.ts\` (no README yet)`);
+    }
+    lines.push('', END_MARKER);
+    return lines.join('\n');
+}
+
+if (featuresDoc) {
+    const file    = path.join(ROOT, featuresDoc.path);
+    const current = fs.readFileSync(file, 'utf8');
+    if (current.includes(BEGIN_MARKER)) {
+        const next = current.replace(
+            new RegExp(`${BEGIN_MARKER}[\\s\\S]*?${END_MARKER}`),
+            () => renderFeatureBlock(),
+        );
+        if (next !== current) { featureWrites.push([file, next, featuresDoc.path]); }
+    }
+}
+
+const writes = [...featureWrites];
 
 for (const section of sections) {
     const hub = docs.find(d => d.section === section && d.isHub);
