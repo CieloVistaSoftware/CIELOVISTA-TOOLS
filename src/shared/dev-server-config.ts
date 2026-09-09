@@ -11,6 +11,13 @@ const DEFAULT_LANDING_PAGE = 'index.html';
 export interface DevServerConfig {
     port: number;
     landingPage: string;
+    /**
+     * Where `port` came from. #680: the fallback used to be indistinguishable
+     * from a real read, so a project with no .claude/launch.json got port 4000
+     * forever and the Start button failed silently against the wrong port.
+     * Callers need to know the port is a guess so they can say so.
+     */
+    source: 'launch.json' | 'default';
 }
 
 /**
@@ -29,12 +36,14 @@ export function getDevServerConfig(wsPath: string): DevServerConfig {
         const raw = fs.readFileSync(launchJsonPath, 'utf8');
         const parsed = JSON.parse(raw);
         const port = parsed?.configurations?.[0]?.port;
+        const valid = isValidPort(port);
         return {
-            port: isValidPort(port) ? port : DEFAULT_PORT,
+            port: valid ? port : DEFAULT_PORT,
             landingPage: DEFAULT_LANDING_PAGE,
+            source: valid ? 'launch.json' : 'default',
         };
     } catch {
-        return { port: DEFAULT_PORT, landingPage: DEFAULT_LANDING_PAGE };
+        return { port: DEFAULT_PORT, landingPage: DEFAULT_LANDING_PAGE, source: 'default' };
     }
 }
 
@@ -55,6 +64,33 @@ export function getDevServerConfig(wsPath: string): DevServerConfig {
  * `now` is injectable (defaults to Date.now()) so callers/tests get a
  * deterministic, pure function.
  */
+/**
+ * Waits for a freshly-launched dev server to start accepting connections.
+ *
+ * #680: the Start button checked the port ONCE, immediately. A server that had
+ * not booted yet always read as "down", so the handler spawned a terminal and
+ * returned without ever opening a browser — the click looked like a no-op, and
+ * every repeat click spawned another `npm start` against a port that was by
+ * then in use.
+ *
+ * `probe` and `delay` are injectable so tests stay deterministic and instant.
+ */
+export async function waitForPort(
+    port: number,
+    probe: (port: number) => Promise<boolean>,
+    opts: { attempts?: number; intervalMs?: number; delay?: (ms: number) => Promise<void> } = {},
+): Promise<boolean> {
+    const attempts   = opts.attempts   ?? 20;
+    const intervalMs = opts.intervalMs ?? 500;
+    const delay      = opts.delay      ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)));
+
+    for (let i = 0; i < attempts; i++) {
+        if (await probe(port)) { return true; }
+        if (i < attempts - 1) { await delay(intervalMs); }
+    }
+    return false;
+}
+
 export function buildPreviewUrl(config: DevServerConfig, now: number = Date.now()): string {
     const landing = config.landingPage || DEFAULT_LANDING_PAGE;
     const sep = landing.includes('?') ? '&' : '?';
