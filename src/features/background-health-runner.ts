@@ -24,6 +24,7 @@ import * as net    from 'net';
 import * as path   from 'path';
 import { spawn }   from 'child_process';
 import { log, logError } from '../shared/output-channel';
+import { markErrorSolvedExact } from '../shared/error-log-utils';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { enqueueIssue } from '../shared/claude-notifier';
 import { loadRegistry }  from '../shared/registry';
@@ -89,6 +90,14 @@ export interface HealthBug {
     fixLabel?:   string;
     detectedAt:  string;
     fixed:       boolean;
+    /**
+     * The exact error-log message this bug was mirrored under. #705: clearBug()
+     * has to un-mirror the entry addBug() actually wrote, and a title can change
+     * between detection and clear (e.g. "2 untagged fenced code block(s)" →
+     * "3 …"), so the key cannot be recomputed from the current title. Optional
+     * for health state written before this field existed.
+     */
+    logKey?:     string;
     githubIssueNumber?: number;
     githubIssueUrl?:    string;
 }
@@ -220,15 +229,37 @@ function saveState(): void {
     }
 }
 
+/**
+ * The exact error-log message a bug is mirrored under.
+ *
+ * The `[bg-health] ` prefix is repeated as a literal in addBug's logError call
+ * below, because REG-002 requires logError's first argument to be a literal
+ * message rather than an identifier. REG-133 asserts the two stay in step — if
+ * they drift, clearBug un-mirrors a key that was never written.
+ */
+function bugLogKey(title: string): string {
+    return `[bg-health] ${title}`;
+}
+
 function addBug(bug: Omit<HealthBug, 'detectedAt' | 'fixed'>): void {
+    const logKey = bugLogKey(bug.title);
+
     // Don't duplicate — update existing if same id
     const existing = _state.bugs.findIndex(b => b.id === bug.id);
     if (existing !== -1) {
-        _state.bugs[existing] = { ..._state.bugs[existing], ...bug, fixed: false };
+        // #705: a re-detection can carry a different title (counts embedded in
+        // the text change), which lands in the log under a NEW id. Retire the
+        // entry we previously wrote so it doesn't linger unsolved forever.
+        const previous = _state.bugs[existing].logKey;
+        if (previous && previous !== logKey) {
+            markErrorSolvedExact(previous, 'Superseded — bg-health re-detected this bug with updated detail.');
+        }
+        _state.bugs[existing] = { ..._state.bugs[existing], ...bug, fixed: false, logKey };
     } else {
-        _state.bugs.push({ ...bug, detectedAt: new Date().toISOString(), fixed: false });
+        _state.bugs.push({ ...bug, detectedAt: new Date().toISOString(), fixed: false, logKey });
     }
-    // Mirror to error log so the Error Log panel shows it without a separate viewer
+    // Mirror to error log so the Error Log panel shows it without a separate viewer.
+    // Must render identically to bugLogKey(bug.title) — see the note there.
     logError(`[bg-health] ${bug.title}`, '', FEATURE);
 }
 
@@ -237,6 +268,11 @@ function clearBug(id: string): boolean {
     const b = _state.bugs.find(b => b.id === id);
     if (!b || b.fixed) { return false; }
     b.fixed = true;
+    // #705: addBug() mirrored this into the error log on every detection. Without
+    // the matching un-mirror the entry stayed unsolved, with a climbing count,
+    // long after the bug was fixed. Un-mirror the exact key we logged under —
+    // falling back to the current title for state written before logKey existed.
+    markErrorSolvedExact(b.logKey ?? bugLogKey(b.title), 'Fixed — bg-health no longer detects this.');
     return true;
 }
 

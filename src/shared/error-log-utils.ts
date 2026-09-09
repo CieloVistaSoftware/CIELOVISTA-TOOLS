@@ -125,6 +125,40 @@ export function logError(message: string, stacktrace: string, context: string): 
 }
 
 /**
+ * Marks the error whose message is EXACTLY `message` as solved.
+ *
+ * #705: callers that mirror a known record into the log (bg-health does this
+ * for every bug it detects) need to un-mirror precisely the entry they wrote.
+ * markErrorSolved() matches on substring, so a short or generic title would
+ * also mark unrelated entries solved. This is the exact-match counterpart.
+ *
+ * @param message   The full error message, exactly as it was logged
+ * @param solution  Brief description of how it was resolved
+ * @returns         true if an entry was updated
+ */
+export function markErrorSolvedExact(message: string, solution: string): boolean {
+    const logFile = getLogFilePath();
+    if (!logFile) { return false; }
+
+    const entries = readLog(logFile);
+    let updated = false;
+
+    for (const entry of entries) {
+        if (entry.message === message && !entry.solved) {
+            entry.solved   = true;
+            entry.solution = solution;
+            updated = true;
+        }
+    }
+
+    if (updated) {
+        writeLog(logFile, entries);
+        log(FEATURE, `Marked error "${message}" as solved`);
+    }
+    return updated;
+}
+
+/**
  * Marks all errors whose message contains the given substring as solved
  * and records the provided solution.
  *
