@@ -304,7 +304,8 @@ function showHomePage(context: vscode.ExtensionContext): void {
   // running, not just what's in the source tree.
   const version  = context.extension.packageJSON.version ?? '';
 
-  startMcpServer();
+  // The MCP server is NOT started here (#716): opening the home page used to
+  // spawn one every time, and nothing used it. The Start button still does.
 
   const render = async (): Promise<void> => {
     const history    = getHistory();

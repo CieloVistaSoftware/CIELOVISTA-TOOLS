@@ -2,10 +2,13 @@
 
 ## Session Start (DO THIS FIRST)
 
-1. Call `list_allowed_directories` to confirm MCP access
-2. Read `docs/status/current-status.md` — current project state and parking lot
-3. Use `recent_chats` — continue from last session, never start blind
-4. Start working — no questions, no fumbling
+1. Read `docs/status/current-status.md` — current project state and parking lot
+2. Use `recent_chats` — continue from last session, never start blind
+3. Start working — no questions, no fumbling
+
+File access comes from the built-in file tools (Read, Write, Edit, Glob, Grep). There is
+no filesystem MCP server to check first: it was removed on 2026-09-14, because only Claude
+runs MCP servers and a server that duplicates a built-in tool is not configured (#717).
 
 > **Git worktree note:** If working in a worktree (`.claude/worktrees/…`), `out/` and
 > `node_modules/` are not shared. The regression runner auto-builds `out/` on first run.
@@ -118,7 +121,7 @@ If the feature needs a shared utility → add it to `src/shared/`, never inline 
 
 ## What NOT To Do
 
-- Never ask John to upload files — MCP filesystem access is always available
+- Never ask John to upload files — the built-in file tools can always reach the project
 - Never put comments in `package.json` — strict JSON only
 - Never use `npx tsc` — use `.\node_modules\.bin\tsc`
 - Never duplicate logic between feature files — shared/ exists for a reason
@@ -130,7 +133,7 @@ docid: 150.5.claude
 id: claudemd-cielovista-tools
 title: CLAUDE.md — cielovista-tools
 project: cielovista-tools
-description: 1. Call listalloweddirectories to confirm MCP access 2. Read docs/today/CURRENT-STATUS.md — current project state and parking lot 3. Use recentchat…
+description: 1. Read docs/status/current-status.md — current project state and parking lot 2. Use recent_chats — continue from last session 3. Start working…
 status: active
 tags: [claude, claudemd, cielovistatools, AI]
 category: 150.5 — AI Coordination
