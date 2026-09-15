@@ -40,7 +40,6 @@
 
 const fs   = require('fs');
 const path = require('path');
-const cp   = require('child_process');
 
 const ROOT       = path.resolve(__dirname, '..');
 const DOCS_DIR   = path.join(ROOT, 'docs');
@@ -51,7 +50,7 @@ const FRONT_DOOR   = 'README.md';   // hand-written, never generated
 const HUB          = 'README.md';   // one per section folder
 /**
  * The entire hand-written contract. Three fields, at the top.
- * Everything else -- path, section, updated -- is derived and generated into
+ * Everything else -- path, section, refs, backlinks -- is derived and generated into
  * catalog.json, so there is nothing in a document that can drift out of date.
  */
 const ALLOWED_FIELDS = new Set(['id', 'title', 'description']);
@@ -124,13 +123,6 @@ function slugFor(file) {
         .toLowerCase();
 }
 
-function lastUpdated(relPath) {
-    try {
-        return cp.execSync(`git log -1 --format=%ad --date=short -- "${relPath}"`,
-            { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    } catch { return ''; }
-}
-
 // ─── Build the model ──────────────────────────────────────────────────────────
 
 const docs = [];
@@ -194,7 +186,11 @@ for (const file of walk(DOCS_DIR).sort()) {
         isFront,
         placement,
         refs:        [...body.matchAll(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g)].map(m => m[1].trim()),
-        updated:     lastUpdated(rel),
+        // No `updated` field (#720). It came from `git log`, so the catalog
+        // depended on how much history was checked out: CI's depth-1 clone
+        // dated every file to the one fetched commit and --check failed on
+        // every PR. A generated, checked file may only hold what the tree
+        // itself determines. A doc's history is `git log -- <path>`.
     });
 }
 

@@ -24,6 +24,7 @@
  *   - every [[cross-reference]] resolves to a real document
  *   - every document lives in a section folder, and every section has a hub
  *   - the generated door listings and catalog.json are up to date
+ *   - that result does not depend on git history (CI clones depth 1, #720)
  *
  * Run: node tests/regression/REG-134-docs-contract-in-sync.test.js
  */
@@ -31,6 +32,7 @@
 
 const cp   = require('child_process');
 const fs   = require('fs');
+const os   = require('os');
 const path = require('path');
 
 const ROOT   = path.resolve(__dirname, '..', '..');
@@ -117,6 +119,41 @@ test('shipped-content READMEs are not treated as orphans', () => {
     assert(!/CommandHelp/.test(output),
         `docs-sync flags CommandHelp as an orphan:
 ${output}`);
+});
+
+test('the catalog does not depend on git history (#720)', () => {
+    // CI checks out one commit. docs-sync used to date every doc with `git log`,
+    // so CI regenerated different dates and this suite's --check failed on every
+    // PR while passing locally. Reproduce the worst case -- no .git at all -- by
+    // running the check against a copy of the tracked tree in a temp directory
+    // (a temp directory, never the shared repo tree: REG-130 invariant 1).
+    const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'reg134-nogit-'));
+    try {
+        const tracked = cp.execSync('git ls-files -z', { cwd: ROOT, encoding: 'utf8' })
+            .split(String.fromCharCode(0)).filter(Boolean);
+        for (const rel of tracked) {
+            const from = path.join(ROOT, rel);
+            if (!fs.existsSync(from)) { continue; }                 // deleted in the working tree
+            const to = path.join(sandbox, rel);
+            fs.mkdirSync(path.dirname(to), { recursive: true });
+            fs.copyFileSync(from, to);
+        }
+
+        const run = cp.spawnSync(process.execPath, [path.join(sandbox, 'scripts', 'docs-sync.js'), '--check'], {
+            cwd: sandbox, encoding: 'utf8',
+        });
+        const output = `${run.stdout || ''}${run.stderr || ''}`.trim();
+        assert(run.status === 0,
+            'docs-sync --check passes in the repo but fails without git history, so the '
+            + 'generated files depend on the checkout, not the tree. Output: ' + output);
+
+        const catalog = JSON.parse(fs.readFileSync(path.join(sandbox, 'docs', 'catalog.json'), 'utf8'));
+        const withDates = catalog.docs.filter(d => 'updated' in d).map(d => d.path);
+        assert(withDates.length === 0,
+            'catalog.json carries git-derived `updated` dates again: ' + withDates.join(', '));
+    } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true });
+    }
 });
 
 console.log('─'.repeat(60));
