@@ -63,7 +63,7 @@ import { activate as linkIntegrityActivate,        deactivate as linkIntegrityDe
 import { activate as commandValidatorActivate,     deactivate as commandValidatorDeactivate       } from './features/command-validator';
 import { activate as commandRegistryActivate,      deactivate as commandRegistryDeactivate        } from './features/command-registry-viewer';
 import { activate as tagsEnrichmentActivate,      deactivate as tagsEnrichmentDeactivate         } from './features/tags-enrichment';
-import { initMcpServerPath, startMcpServer }                                                   from './features/mcp-server-status';
+import { initMcpServerPath }                                                                   from './features/mcp-server-status';
 
 import { runLicenseSync     } from './features/license-sync';
 import { runCodebaseAudit   } from './features/codebase-auditor';
@@ -103,9 +103,10 @@ function runStartupStep(label: string, fn: () => void): void {
 
 export function activate(context: vscode.ExtensionContext): void {
     runStartupStep('Feature Toggle', () => featureToggle(context));
-    // Resolve MCP server path from extension root and start immediately in every workspace.
+    // Resolve the MCP server path so the home page's Start button can launch it on
+    // demand. Not started automatically: only Claude runs MCP servers, and Claude
+    // Desktop starts its own copy (#716).
     runStartupStep('MCP Server Path Init', () => initMcpServerPath(context.extensionPath));
-    runStartupStep('MCP Server Start', () => startMcpServer());
     runStartupStep('Notify Server', () => notifyServerActivate(context));
     runStartupStep('Command Registry', () => commandRegistryActivate(context));
     // Initialize history and recents BEFORE home page renders so it gets real data
