@@ -1,5 +1,5 @@
 /**
- * REG-135-changelog-surface-not-just-changelog-md.test.js
+ * REG-136-changelog-surface-not-just-changelog-md.test.js
  *
  * Regression test for issue #714 — "daily-audit + marketplace-compliance only
  * recognise CHANGELOG.md, so a page-based changelog reads as missing".
@@ -30,7 +30,7 @@
  * Fixtures live in os.tmpdir(); the shared repo tree is never written to
  * (REG-130 invariant 1).
  *
- * Run: node tests/regression/REG-135-changelog-surface-not-just-changelog-md.test.js
+ * Run: node tests/regression/REG-136-changelog-surface-not-just-changelog-md.test.js
  */
 'use strict';
 
@@ -93,7 +93,7 @@ const bare      = project('bare',      {});
 const pageBased = project('page-based', { 'pages/whats-new.html': '<h1>What&rsquo;s New</h1>' });
 const declaredMissing = project('declared-missing', {});
 
-console.log('\nREG-135: a changelog is not always a file called CHANGELOG.md (#714)\n');
+console.log('\nREG-136: a changelog is not always a file called CHANGELOG.md (#714)\n');
 
 // ─── Invariant 1 — the default is unchanged ───────────────────────────────────
 
@@ -179,9 +179,9 @@ fs.rmSync(sandbox, { recursive: true, force: true });
 
 console.log('─'.repeat(60));
 if (failed === 0) {
-    console.log(`✓ All ${passed} REG-135 tests passed\n`);
+    console.log(`✓ All ${passed} REG-136 tests passed\n`);
     process.exit(0);
 } else {
-    console.error(`\n✗ ${failed} REG-135 test(s) FAILED\n`);
+    console.error(`\n✗ ${failed} REG-136 test(s) FAILED\n`);
     process.exit(1);
 }
