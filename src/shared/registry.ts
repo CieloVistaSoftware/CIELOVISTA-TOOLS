@@ -18,6 +18,13 @@ export interface ProjectEntry {
     description: string;
     /** Lifecycle status. Missing entries default to "product" for backward compatibility. */
     status?:     'product' | 'workbench' | 'generated' | 'archived' | 'container';
+    /**
+     * Where this project's changelog lives, relative to its root. Defaults to
+     * CHANGELOG.md. #714: wb-starter's changelog is a page
+     * (pages/whats-new.html), so a hardcoded filename reported it as missing
+     * and offered to create a competing empty one.
+     */
+    changelog?:  string;
 }
 
 export interface ProjectRegistry {
