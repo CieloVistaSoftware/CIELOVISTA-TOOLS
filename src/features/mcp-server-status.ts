@@ -266,6 +266,37 @@ function buildMcpLaunchConfig(attemptNumber: number): { args: string[]; env: Nod
     return { args, env, traceMode };
 }
 
+/**
+ * Resolves the Node binary used to launch the MCP server (issue #615).
+ *
+ * Previously the server was launched with spawn('node', …), which delegates
+ * binary resolution to whatever `node.exe` happens to be first on the system
+ * PATH. On Windows that binary can be the wrong ABI, an antivirus-wrapped
+ * shim, or a launcher whose DLL import table fails to initialize — surfacing
+ * as STATUS_DLL_INIT_FAILED (0xC0000142) with empty stdout/stderr, before any
+ * application code runs. It is intermittent because the loader failure is a
+ * race in the OS/AV layer, not in our code.
+ *
+ * VS Code always ships its own Node runtime as the Electron host binary
+ * (process.execPath). Re-invoking that binary with ELECTRON_RUN_AS_NODE=1
+ * makes it behave as a plain Node interpreter with an ABI guaranteed to match
+ * the host. This removes the PATH dependency entirely — no external node.exe
+ * to mis-resolve or fail to load.
+ *
+ * If process.execPath is somehow unavailable we fall back to 'node' so the
+ * server can still start in non-Electron / test contexts.
+ */
+function resolveNodeLauncher(env: NodeJS.ProcessEnv): { command: string; env: NodeJS.ProcessEnv } {
+    const electronHost = process.execPath;
+    if (electronHost) {
+        return {
+            command: electronHost,
+            env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
+        };
+    }
+    return { command: 'node', env };
+}
+
 function writeMcpCrashDiagnostics(params: {
     attemptNumber: number;
     reason: string;
@@ -273,6 +304,7 @@ function writeMcpCrashDiagnostics(params: {
     args: string[];
     stdoutTail: string;
     stderrTail: string;
+    nodePath?: string;
 }): string | null {
     try {
         fs.mkdirSync(MCP_DIAG_DIR, { recursive: true });
@@ -286,6 +318,7 @@ function writeMcpCrashDiagnostics(params: {
             `reason=${params.reason}`,
             `attempt=${params.attemptNumber}`,
             `traceMode=${params.traceMode}`,
+            `nodePath=${params.nodePath ?? '(default)'}`,
             `nodeArgs=${JSON.stringify(params.args)}`,
             '',
             '--- stderr tail ---',
@@ -343,9 +376,16 @@ function runMcpProcess(): void {
     }
     log(FEATURE, `Starting MCP process attempt ${attemptNumber}`);
 
-    const child = spawn('node', launch.args, {
-        env: launch.env,
+    // #615 — launch via VS Code's bundled Node (process.execPath) rather than a
+    // PATH-resolved node.exe that can fail DLL-init (0xC0000142) on Windows.
+    const { command, env: launchEnv } = resolveNodeLauncher(launch.env);
+
+    const child = spawn(command, launch.args, {
+        env: launchEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
+        // Avoid allocating a console/desktop-heap window per spawn; rapid
+        // restarts of console subsystem processes are a known 0xC0000142 trigger.
+        windowsHide: true,
     });
     mcpProcess = child;
 
@@ -392,6 +432,7 @@ function runMcpProcess(): void {
             args: launch.args,
             stdoutTail,
             stderrTail,
+            nodePath: command,
         });
         if (diagPath) {
             terminalWriteLine(`[CVT MCP] Crash diagnostics written: ${diagPath}`);
@@ -435,6 +476,7 @@ function runMcpProcess(): void {
             args: launch.args,
             stdoutTail,
             stderrTail,
+            nodePath: command,
         });
         if (diagPath) {
             terminalWriteLine(`[CVT MCP] Crash diagnostics written: ${diagPath}`);
@@ -485,6 +527,7 @@ export const _test = {
     onMcpServerStatusChange,
     notifyListeners,
     buildMcpLaunchConfig,
+    resolveNodeLauncher,
     writeMcpCrashDiagnostics,
     trimTail,
     appendTail,

@@ -81,6 +81,36 @@ test('launch config: trace flags and NODE_DEBUG at escalation attempt', () => {
     assert.ok(String(cfg.env.NODE_DEBUG || '').includes('module,http,net,tls'));
 });
 
+test('resolveNodeLauncher: uses VS Code host binary with ELECTRON_RUN_AS_NODE (#615)', () => {
+    const baseEnv = { PATH: 'whatever' };
+    const launcher = testApi.resolveNodeLauncher(baseEnv);
+
+    // When process.execPath is available (always true under node), the launcher
+    // must use it and flip ELECTRON_RUN_AS_NODE so it runs as a plain Node.
+    assert.strictEqual(launcher.command, process.execPath);
+    assert.strictEqual(launcher.env.ELECTRON_RUN_AS_NODE, '1');
+    // Existing env must be preserved, not clobbered.
+    assert.strictEqual(launcher.env.PATH, 'whatever');
+    // Must not mutate the caller's env object.
+    assert.strictEqual(baseEnv.ELECTRON_RUN_AS_NODE, undefined);
+});
+
+test('writeMcpCrashDiagnostics records the resolved node path (#615)', () => {
+    const filePath = testApi.writeMcpCrashDiagnostics({
+        attemptNumber: 2,
+        reason: 'process exited with code 3221225794',
+        traceMode: false,
+        args: ['index.js'],
+        stdoutTail: '',
+        stderrTail: '',
+        nodePath: 'C:/path/to/Code.exe',
+    });
+    assert.ok(filePath, 'expected a diagnostics file path');
+    const body = fs.readFileSync(filePath, 'utf8');
+    assert.ok(body.includes('nodePath=C:/path/to/Code.exe'), 'expected nodePath line in diagnostics');
+    fs.unlinkSync(filePath);
+});
+
 test('trimTail keeps only the latest max chars', () => {
     const max = testApi.DIAG_TAIL_MAX_CHARS;
     const source = 'a'.repeat(max + 100);
