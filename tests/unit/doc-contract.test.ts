@@ -5,7 +5,7 @@
 /**
  * tests/unit/doc-contract.test.ts
  *
- * Validates every .md doc in all registry projects conforms to the doc contract:
+ * Validates every .md doc in THIS repository conforms to the doc contract:
  *   - docid    present (the canonical identifier — IS the Dewey number)
  *   - dewey    ABSENT  (duplicate alias removed per issue #321)
  *   - category present, equals "{docid} — {label}"
@@ -64,14 +64,31 @@ const TAXONOMY = {
     '9': 'Meta',
 };
 
-const EXCLUDE = ['node_modules', '.git', 'worktrees', '\\bin\\', '.vscode-test'];
+const EXCLUDE = ['node_modules', '.git', 'worktrees', 'bin', '.vscode-test', 'out'];
+
+/**
+ * Directory names to skip, matched as whole path SEGMENTS (#725).
+ *
+ * This used to test `full.includes(name)` against the absolute path. Inside a
+ * git worktree the absolute path is
+ * `…/cielovista-tools/.claude/worktrees/<name>/…`, so every directory below the
+ * root contained the substring "worktrees" and was skipped. The scan found 3
+ * files instead of 81 and reported itself green — and every Claude session runs
+ * from a worktree, so that was the normal case, not the edge case.
+ *
+ * Matching segments also fixes the narrower `\bin\` hack, which only ever
+ * worked on Windows separators.
+ */
+function isExcluded(name) {
+    return EXCLUDE.includes(name);
+}
 
 function collectMdFiles(dir) {
     const results = [];
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-            if (EXCLUDE.some(e => full.includes(e))) { continue; }
+            if (isExcluded(entry.name)) { continue; }
             results.push(...collectMdFiles(full));
         } else if (entry.isFile() && entry.name.endsWith('.md')) {
             results.push(full);
@@ -106,18 +123,24 @@ function test(name, fn) {
     catch (e) { failed++; results.push({ ok: false, name, err: e.message }); }
 }
 
-// Collect docs from all registry projects
-const allFiles = [];
-for (const project of REGISTRY.projects) {
-    if (!fs.existsSync(project.path)) { continue; }
-    allFiles.push(...collectMdFiles(project.path));
-}
+// Collect docs from THIS repository only (#725).
+//
+// This used to walk every project in project-registry.json and hold all of
+// them to the Dewey contract. That made `npm run rebuild` — the only path by
+// which a fix reaches VS Code — fail on markdown belonging to other repos.
+// wb-starter's docs/_today/CURRENT-STATUS.md carries category "100.1 — Today",
+// which is correct for wb-starter and wrong for this taxonomy, so this
+// extension could not be installed until an unrelated repository was edited.
+//
+// The registry is still read, for one thing only: to look up THIS project's
+// own hundreds so the category assertion has something to compare against.
+const allFiles = collectMdFiles(PROJECT_ROOT);
 
 const docsWithFrontmatter = allFiles
     .map(f => ({ file: f, fm: parseFrontmatter(fs.readFileSync(f, 'utf8')) }))
     .filter(d => d.fm !== null);
 
-test('At least 5 docs with frontmatter found across all projects', () => {
+test('At least 5 docs with frontmatter found in this repository', () => {
     // Threshold grows as doc adoption increases — 200 is the long-term target,
     // but most projects are plain markdown today. Guard against complete regression.
     assert.ok(docsWithFrontmatter.length >= 5,
