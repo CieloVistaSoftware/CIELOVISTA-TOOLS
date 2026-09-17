@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PROJECT_TYPES } from "../shared/registry-promote-core.js";
 
 export const EchoToolSchema = z.object({
   message: z.string().describe("The message to echo back"),
@@ -162,6 +163,26 @@ export const AuditDuplicationToolSchema = z.object({
   registryPath: z.string().optional().describe("Optional override path to project-registry.json."),
 });
 
+// -- Registry write tools (#696) ---------------------------------------
+
+// Everything registry-facing was read-only: an agent could see the registry
+// through five tools and add to it through none. Promotion existed solely as
+// an interactive VS Code command, so registering a project needed a human in
+// the extension host -- backwards for the job most likely to be delegated.
+
+export const RegistryPromoteToolSchema = z.object({
+  folderPath: z.string().describe("Absolute path to the project root to register."),
+  name: z.string().describe("Project name as it will appear in the registry, e.g. 'wb-starter'."),
+  type: z.enum(PROJECT_TYPES).describe("Project type."),
+  description: z.string().describe("Short description, used in README.md and the registry entry."),
+  dryRun: z.boolean().optional().describe("If true, reports what would change and writes nothing. Use this first when registering an unfamiliar folder."),
+});
+
+export const RegistrySetStatusToolSchema = z.object({
+  name: z.string().describe("Exact registry name of the project."),
+  status: z.enum(["workbench", "archived"]).describe("New lifecycle status. Use registry_promote to move a project back to 'product'."),
+});
+
 export type EchoToolInput = z.infer<typeof EchoToolSchema>;
 export type ListFilesToolInput = z.infer<typeof ListFilesToolSchema>;
 export type ReadFileToolInput = z.infer<typeof ReadFileToolSchema>;
@@ -188,3 +209,5 @@ export type GetDocByIdentityToolInput = z.infer<typeof GetDocByIdentityToolSchem
 export type RefreshDocLedgerToolInput = z.infer<typeof RefreshDocLedgerToolSchema>;
 export type ListOldDeweyToolInput = z.infer<typeof ListOldDeweyToolSchema>;
 export type MigrateDeweyToolInput = z.infer<typeof MigrateDeweyToolSchema>;
+export type RegistryPromoteToolInput = z.infer<typeof RegistryPromoteToolSchema>;
+export type RegistrySetStatusToolInput = z.infer<typeof RegistrySetStatusToolSchema>;

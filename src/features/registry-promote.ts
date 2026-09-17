@@ -27,7 +27,16 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
-import { REGISTRY_PATH, loadRegistry, saveRegistry, ProjectEntry } from '../shared/registry';
+import { REGISTRY_PATH, loadRegistry, type ProjectEntry } from '../shared/registry';
+// #696 -- one implementation of promotion, shared with the MCP tool. It lives
+// under mcp-server/src/ because mcp-server's tsconfig rootDir is ./src and
+// widening it would relocate dist/index.js, which several things name by path.
+import {
+    promoteFolder as promoteFolderCore,
+    demoteFolder as demoteFolderCore,
+    archiveFolder as archiveFolderCore,
+    type PromoteResult,
+} from '../../mcp-server/src/shared/registry-promote-core';
 
 const FEATURE = 'registry-promote';
 const GLOBAL_DOCS_DIR = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
@@ -165,18 +174,16 @@ function buildReadmeMd(projectName: string, type: string, description: string): 
 }
 
 /**
- * Core promotion logic. Pure enough to unit-test without vscode —
- * callers pass the folder, name, type, description, and get back a status
- * report describing what was written.
+ * Promotion, demotion and archiving now live in
+ * mcp-server/src/shared/registry-promote-core.ts, so the MCP tool and this
+ * command cannot drift apart (#696). Before that, an agent could read the
+ * registry through five MCP tools and write to it through none, and
+ * registering a project meant hand-editing project-registry.json and then
+ * re-deriving CLAUDE.md and README.md from code that already knew how.
+ *
+ * Re-exported here so existing importers and the unit tests keep working.
  */
-export interface PromoteResult {
-    ok:            boolean;
-    registryEntry: ProjectEntry;
-    claudeWritten: boolean;
-    readmeWritten: boolean;
-    alreadyInRegistry: boolean;
-    message:       string;
-}
+export type { PromoteResult };
 
 export function promoteFolder(
     folderPath: string,
@@ -184,101 +191,17 @@ export function promoteFolder(
     type:        string,
     description: string,
 ): PromoteResult {
-    const registry = loadRegistry();
-    if (!registry) {
-        return {
-            ok: false, claudeWritten: false, readmeWritten: false, alreadyInRegistry: false,
-            registryEntry: { name, path: folderPath, type, description, status: 'product' },
-            message: 'Could not load registry.',
-        };
-    }
-
-    const existing = registry.projects.find(
-        p => p.name.toLowerCase() === name.toLowerCase()
-          || p.path.toLowerCase() === folderPath.toLowerCase()
-    );
-    const alreadyInRegistry = !!existing;
-
-    const entry: ProjectEntry = existing ?? {
-        name, path: folderPath, type, description, status: 'product',
-    };
-
-    if (!existing) {
-        registry.projects.push(entry);
-        saveRegistry(registry);
-    } else if (existing.status !== 'product') {
-        /* Promote an existing entry that was workbench/generated/archived. */
-        existing.status = 'product';
-        saveRegistry(registry);
-    }
-
-    const claudePath = path.join(folderPath, 'CLAUDE.md');
-    const readmePath = path.join(folderPath, 'README.md');
-
-    let claudeWritten = false;
-    if (!fs.existsSync(claudePath)) {
-        fs.writeFileSync(claudePath, buildClaudeMd(name, folderPath), 'utf8');
-        claudeWritten = true;
-    }
-
-    let readmeWritten = false;
-    if (!fs.existsSync(readmePath)) {
-        fs.writeFileSync(readmePath, buildReadmeMd(name, type, description), 'utf8');
-        readmeWritten = true;
-    }
-
-    const bits: string[] = [];
-    bits.push(alreadyInRegistry ? `Updated "${name}" to status=product` : `Registered "${name}" as product`);
-    if (claudeWritten) { bits.push('created CLAUDE.md'); }
-    if (readmeWritten) { bits.push('created README.md'); }
-    if (!claudeWritten && !readmeWritten) { bits.push('CLAUDE.md and README.md already present'); }
-
-    return {
-        ok: true, registryEntry: entry, claudeWritten, readmeWritten, alreadyInRegistry,
-        message: bits.join('; ') + '.',
-    };
+    return promoteFolderCore(folderPath, name, type, description);
 }
 
 /** Change a project's status to 'workbench' (demote from product). */
 export function demoteFolder(name: string): { ok: boolean; message: string } {
-    const registry = loadRegistry();
-    if (!registry) {
-        return { ok: false, message: 'Could not load registry.' };
-    }
-
-    const entry = registry.projects.find(p => p.name.toLowerCase() === name.toLowerCase());
-    if (!entry) {
-        return { ok: false, message: `Project "${name}" not found in registry.` };
-    }
-
-    if (entry.status === 'workbench') {
-        return { ok: true, message: `"${name}" is already status=workbench.` };
-    }
-
-    entry.status = 'workbench';
-    saveRegistry(registry);
-    return { ok: true, message: `Demoted "${name}" to status=workbench.` };
+    return demoteFolderCore(name);
 }
 
 /** Change a project's status to 'archived' (archive). */
 export function archiveFolder(name: string): { ok: boolean; message: string } {
-    const registry = loadRegistry();
-    if (!registry) {
-        return { ok: false, message: 'Could not load registry.' };
-    }
-
-    const entry = registry.projects.find(p => p.name.toLowerCase() === name.toLowerCase());
-    if (!entry) {
-        return { ok: false, message: `Project "${name}" not found in registry.` };
-    }
-
-    if (entry.status === 'archived') {
-        return { ok: true, message: `"${name}" is already status=archived.` };
-    }
-
-    entry.status = 'archived';
-    saveRegistry(registry);
-    return { ok: true, message: `Archived "${name}" — set status=archived.` };
+    return archiveFolderCore(name);
 }
 
 /** Explorer-context-menu / command-palette handler. */

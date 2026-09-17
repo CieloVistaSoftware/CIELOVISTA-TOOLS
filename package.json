@@ -27,7 +27,7 @@
   "main": "./out/extension.js",
   "scripts": {
     "compile": "node esbuild.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "watch": "tsc -watch -p ./",
     "build": "npm run compile",
     "package": "vsce package",
