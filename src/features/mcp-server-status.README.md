@@ -34,10 +34,12 @@ activate(context)
 - `trimTail()`
 - `appendTail()`
 - `buildMcpLaunchConfig()`
-- `resolveNodeLauncher()` — picks the Node binary. Uses VS Code's own host binary
-  (`process.execPath` + `ELECTRON_RUN_AS_NODE=1`) instead of a PATH-resolved
-  `node.exe`, which on Windows could be the wrong ABI or an AV-wrapped shim and
-  fail DLL init with `0xC0000142` before any code ran (#615).
+- `resolveNodeLauncher()` — imported from `src/shared/node-launcher.ts`, not defined
+  here. Picks the Node binary: VS Code's own host binary (`process.execPath` +
+  `ELECTRON_RUN_AS_NODE=1`) instead of a PATH-resolved `node.exe`, which on Windows
+  could be the wrong ABI or an AV-wrapped shim and fail DLL init with `0xC0000142`
+  before any code ran (#615). It moved to `shared/` once four other call sites
+  turned out to have the same bug (#723).
 - `writeMcpCrashDiagnostics()`
 - `runMcpProcess()`
 - `scheduleRetry()`

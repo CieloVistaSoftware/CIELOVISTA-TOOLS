@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
+import { resolveNodeLauncher } from '../../shared/node-launcher';
 import { loadRegistry } from './registry';
 import { loadArchiveEntries, restoreDoc } from './archive';
 import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
@@ -339,10 +340,17 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 if (!serverUp) {
                     const cp = require('child_process') as typeof import('child_process');
                     const wbCorePath = 'C:\\dev\\wb-core';
-                    cp.spawn('node', ['demo-server.js'], {
+                    // #723 / #615 -- resolve the interpreter explicitly. A PATH-resolved
+                    // node.exe can die at DLL init (0xC0000142) with no output, and
+                    // this child is detached with stdio:'ignore', so that failure
+                    // would otherwise be completely silent.
+                    const launcher = resolveNodeLauncher(process.env);
+                    cp.spawn(launcher.command, ['demo-server.js'], {
                         cwd: wbCorePath,
                         detached: true,
                         stdio: 'ignore',
+                        env: launcher.env,
+                        windowsHide: true,
                     }).unref();
                     log(FEATURE, `Demo server not running — starting from ${wbCorePath}`);
                     // Poll up to 5 seconds (10 × 500 ms) for the server to come up

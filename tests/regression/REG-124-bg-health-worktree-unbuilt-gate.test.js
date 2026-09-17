@@ -78,9 +78,10 @@ test('worktree-copy OR unbuilt → skip: gate fires on either condition', () => 
 test('the gate runs BEFORE the suite is spawned', () => {
     const body = runRegressionTestsBody();
     const gateIdx  = body.indexOf('isWorktreeCopy || !outBuilt');
-    const spawnIdx = body.search(/spawn\(\s*'node'/);
+    const spawnIdx = body.search(/spawn\(\s*(?:launcher\.)?command\s*,/);
     assert.ok(gateIdx !== -1, 'gate condition not found');
-    assert.ok(spawnIdx !== -1, "spawn('node', ...) call not found");
+    assert.ok(spawnIdx !== -1, "spawn of the resolved launcher command not found "
+        + "(the interpreter is resolved via resolveNodeLauncher since #723, not named literally)");
     assert.ok(gateIdx < spawnIdx,
         'the gate must be evaluated before spawn() — a disqualified copy must never even run the suite');
 });

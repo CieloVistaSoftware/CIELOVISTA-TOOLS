@@ -133,9 +133,10 @@ test('runRegressionTests resolves the root through the source-checkout gate', ()
 test('the no-source-root gate runs BEFORE the suite is spawned', () => {
     const body     = runRegressionTestsBody();
     const gateIdx  = body.search(/if\s*\(\s*!extensionRoot\s*\)/);
-    const spawnIdx = body.search(/spawn\(\s*'node'/);
+    const spawnIdx = body.search(/spawn\(\s*(?:launcher\.)?command\s*,/);
     assert.ok(gateIdx !== -1, 'no `if (!extensionRoot)` gate found');
-    assert.ok(spawnIdx !== -1, "spawn('node', ...) call not found");
+    assert.ok(spawnIdx !== -1, "spawn of the resolved launcher command not found "
+        + "(the interpreter is resolved via resolveNodeLauncher since #723, not named literally)");
     assert.ok(gateIdx < spawnIdx,
         'a copy with no source tree must never even run the suite');
 });
