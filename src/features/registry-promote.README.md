@@ -62,10 +62,36 @@ The `status` field supports four values — `product`, `workbench`, `generated`,
 5. Open the folder and verify `CLAUDE.md` and `README.md` were created.
 6. Run the command a second time on the same folder — verify it does NOT duplicate the registry entry, does NOT overwrite the scaffolded docs, and reports "already in registry".
 
+## Also available to agents, without VS Code
+
+Promotion used to exist only as this interactive command, so registering a project
+needed a human in the extension host — backwards, for the job most likely to be
+delegated. Since #696 the same logic is reachable over MCP:
+
+| MCP tool | Does |
+|---|---|
+| `registry_promote` | Registers a folder as `status=product` and scaffolds `CLAUDE.md` / `README.md`. Pass `dryRun: true` to see the plan without writing. |
+| `registry_set_status` | Moves an entry to `workbench` or `archived`. Touches no files. |
+
 ## Files
 
-- `src/features/registry-promote.ts` — feature implementation and exported `promoteFolder` helper.
-- `src/shared/registry.ts` — shared `loadRegistry`/`saveRegistry` and the `ProjectEntry` / `status` types.
+- `mcp-server/src/shared/registry-promote-core.ts` — **the implementation.**
+  `promoteFolder` / `demoteFolder` / `archiveFolder`, plus the `CLAUDE.md` and
+  `README.md` builders. No `vscode` import, which is the point: it has to be
+  callable from the MCP server. It lives under `mcp-server/src/` because that
+  server's `tsconfig` sets `rootDir: ./src`, and widening it would relocate
+  `dist/index.js` — a path named in `package.json`, in `mcp-server-status.ts`
+  and in the packaging tests.
+- `src/features/registry-promote.ts` — the VS Code command: prompts, Explorer
+  context menu, and thin wrappers that delegate to the core. It holds no
+  promotion logic of its own, and `REG-140` fails if it grows any.
+- `mcp-server/src/tools/index.ts` — `registry_promote` / `registry_set_status`
+  handlers.
+- `src/shared/registry.ts` — `loadRegistry` and the `ProjectEntry` / `status`
+  types for the extension side.
+- `tsconfig.typecheck.json` — typecheck-only config whose scope reaches the
+  shared core. `tsc` never emits for the extension (esbuild builds it), so
+  widening the scope here costs nothing and keeps `tsconfig.json` unchanged.
 - `package.json` — command contribution and Explorer context menu entry.
 
 ---

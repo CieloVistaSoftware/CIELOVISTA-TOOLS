@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": null
+  },
+  "include": [
+    "src/**/*",
+    "extension.ts",
+    "mcp-server/src/shared/registry-promote-core.ts",
+    "mcp-server/src/tools/catalog-helpers.ts"
+  ]
+}

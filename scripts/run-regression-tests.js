@@ -268,7 +268,11 @@ async function main() {
   ];
   const tsc = tscCandidates.find(p => fs.existsSync(p));
   if (tsc) {
-    all.push(command('REG-003', 'TypeScript compiles with zero errors', tsc, ['--noEmit'], ROOT));
+    all.push(command('REG-003', 'TypeScript compiles with zero errors', tsc,
+      // tsconfig.typecheck.json, not tsconfig.json: the extension is built by
+      // esbuild, so tsc here only typechecks, and the typecheck scope has to
+      // reach the shared core under mcp-server/src that both sides import (#696).
+      ['--noEmit', '-p', 'tsconfig.typecheck.json'], ROOT));
   } else {
     all.push(check('REG-003', 'TypeScript compiles with zero errors', () => {
       assert(false, 'tsc not found — run npm install in the project root');

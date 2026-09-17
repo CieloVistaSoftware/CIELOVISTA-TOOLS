@@ -27,6 +27,8 @@ import {
   RefreshDocLedgerToolSchema,
   ListOldDeweyToolSchema,
   MigrateDeweyToolSchema,
+  RegistryPromoteToolSchema,
+  RegistrySetStatusToolSchema,
 } from "./definitions.js";
 import {
   loadRegistry,
@@ -50,6 +52,11 @@ import {
   findSymbolByName,
   loadCvtCommands,
 } from "../symbol-index.js";
+import {
+  promoteFolder,
+  demoteFolder,
+  archiveFolder,
+} from "../shared/registry-promote-core.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -788,6 +795,38 @@ export function registerTools(server: McpServer): void {
       try {
         const registry = loadRegistry();
         const result = migrateDewey(registry, filePath, proposedDocId, proposedId);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
+      }
+    }
+  );
+
+  // -- Registry write tools (#696) -------------------------------------
+
+  server.tool(
+    "registry_promote",
+    "Registers a folder in the CieloVista project registry as status=product, creating CLAUDE.md and README.md if they are absent. Existing files are never overwritten, and a project already present is updated rather than duplicated (matched on name OR path, case-insensitively). Pass dryRun:true first to see what would change. This is the write counterpart to list_projects / find_project / project_status, which are read-only.",
+    RegistryPromoteToolSchema.shape,
+    async ({ folderPath, name, type, description, dryRun }) => {
+      try {
+        const result = promoteFolder(folderPath, name, type, description, dryRun === true);
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    "registry_set_status",
+    "Moves an existing registry project to status=workbench (demote) or status=archived. Nothing is deleted and no files are touched \u2014 only the registry entry's status changes. Use registry_promote to move a project back to status=product.",
+    RegistrySetStatusToolSchema.shape,
+    async ({ name, status }) => {
+      try {
+        const result = status === "archived" ? archiveFolder(name) : demoteFolder(name);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
