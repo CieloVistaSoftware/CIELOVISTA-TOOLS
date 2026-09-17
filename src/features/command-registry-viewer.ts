@@ -20,6 +20,7 @@ import * as path   from 'path';
 import * as fs     from 'fs';
 import { execFile } from 'child_process';
 import { getChannel } from '../shared/output-channel';
+import { resolveNodeLauncher } from '../shared/node-launcher';
 
 const FEATURE   = 'command-registry-viewer';
 const REGISTRY  = 'data/commands-registry.json';
@@ -169,7 +170,9 @@ async function rebuildAndRefresh(
     }
 
     await new Promise<void>((resolve) => {
-        execFile('node', [scriptPath], { cwd: root }, (err, stdout, stderr) => {
+        // #723 / #615 -- never let PATH choose the interpreter.
+        const launcher = resolveNodeLauncher(process.env);
+        execFile(launcher.command, [scriptPath], { cwd: root, env: launcher.env, windowsHide: true }, (err, stdout, stderr) => {
             if (stdout) { ch.appendLine(stdout.trimEnd()); }
             if (stderr) { ch.appendLine(stderr.trimEnd()); }
             ch.appendLine(err ? '✗ Rebuild failed' : '✓ Registry rebuilt');

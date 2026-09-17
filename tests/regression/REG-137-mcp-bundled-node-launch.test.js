@@ -38,7 +38,9 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT   = path.resolve(__dirname, '..', '..');
-const MCP_TS = path.join(ROOT, 'src', 'features', 'mcp-server-status.ts');
+const MCP_TS    = path.join(ROOT, 'src', 'features', 'mcp-server-status.ts');
+// The launcher moved to src/shared/ when a second and third feature needed it (#723).
+const LAUNCH_TS = path.join(ROOT, 'src', 'shared', 'node-launcher.ts');
 
 let failed = 0;
 let passed = 0;
@@ -52,19 +54,20 @@ if (!fs.existsSync(MCP_TS)) {
     process.exit(1);
 }
 
-const src = fs.readFileSync(MCP_TS, 'utf8');
+const src    = fs.readFileSync(MCP_TS, 'utf8');
+const launch = fs.existsSync(LAUNCH_TS) ? fs.readFileSync(LAUNCH_TS, 'utf8') : '';
 
 // ─── 1: resolveNodeLauncher exists ───────────────────────────────────────────
 
-if (!/function\s+resolveNodeLauncher\s*\(/.test(src)) {
-    fail('resolveNodeLauncher() not found — node binary resolution is not centralized');
+if (!/function\s+resolveNodeLauncher\s*\(/.test(launch)) {
+    fail('resolveNodeLauncher() not found in src/shared/node-launcher.ts — node binary resolution is not centralized (#723)');
 } else {
-    ok('resolveNodeLauncher() is defined');
+    ok('resolveNodeLauncher() is defined in src/shared/node-launcher.ts');
 }
 
 // ─── 2: prefers process.execPath ─────────────────────────────────────────────
 
-if (!/process\.execPath/.test(src)) {
+if (!/process\.execPath/.test(launch)) {
     fail('launcher does not reference process.execPath — still depends on a PATH-resolved node.exe (#615)');
 } else {
     ok('launcher prefers process.execPath (VS Code bundled Node)');
@@ -72,7 +75,7 @@ if (!/process\.execPath/.test(src)) {
 
 // ─── 3: ELECTRON_RUN_AS_NODE is set ──────────────────────────────────────────
 
-if (!/ELECTRON_RUN_AS_NODE\s*:\s*['"]1['"]/.test(src)) {
+if (!/ELECTRON_RUN_AS_NODE\s*:\s*['"]1['"]/.test(launch)) {
     fail('ELECTRON_RUN_AS_NODE=1 is not set — the Electron host binary will not run as a plain Node interpreter');
 } else {
     ok('ELECTRON_RUN_AS_NODE=1 is set on the launch env');
@@ -98,10 +101,12 @@ if (!/windowsHide\s*:\s*true/.test(src)) {
 
 // ─── 6: resolveNodeLauncher exported on _test ────────────────────────────────
 
-if (!/_test\s*=\s*\{[^}]*\bresolveNodeLauncher\b/s.test(src)) {
+if (!/import\s*\{[^}]*resolveNodeLauncher[^}]*\}\s*from\s*['"]\.\.\/shared\/node-launcher['"]/.test(src)) {
+    fail('mcp-server-status.ts does not import the shared launcher — a second copy has been reintroduced (#723)');
+} else if (!/_test\s*=\s*\{[^}]*\bresolveNodeLauncher\b/s.test(src)) {
     fail('resolveNodeLauncher is not exported on _test — unit tests cannot verify launcher behavior');
 } else {
-    ok('resolveNodeLauncher is exported on _test for testability');
+    ok('the feature imports the shared launcher and re-exports it on _test');
 }
 
 // ─── 7: the crash log names the binary that was used ─────────────────────────

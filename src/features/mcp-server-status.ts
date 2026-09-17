@@ -43,6 +43,7 @@ import * as fs   from 'fs';
 import * as os   from 'os';
 import { spawn, type ChildProcess } from 'child_process';
 import { log, logError } from '../shared/output-channel';
+import { resolveNodeLauncher } from '../shared/node-launcher';
 
 let mcpDistPath     = '';
 let mcpStatus: 'up' | 'down' = 'down';
@@ -264,37 +265,6 @@ function buildMcpLaunchConfig(attemptNumber: number): { args: string[]; env: Nod
     }
 
     return { args, env, traceMode };
-}
-
-/**
- * Resolves the Node binary used to launch the MCP server (issue #615).
- *
- * Previously the server was launched with spawn('node', …), which delegates
- * binary resolution to whatever `node.exe` happens to be first on the system
- * PATH. On Windows that binary can be the wrong ABI, an antivirus-wrapped
- * shim, or a launcher whose DLL import table fails to initialize — surfacing
- * as STATUS_DLL_INIT_FAILED (0xC0000142) with empty stdout/stderr, before any
- * application code runs. It is intermittent because the loader failure is a
- * race in the OS/AV layer, not in our code.
- *
- * VS Code always ships its own Node runtime as the Electron host binary
- * (process.execPath). Re-invoking that binary with ELECTRON_RUN_AS_NODE=1
- * makes it behave as a plain Node interpreter with an ABI guaranteed to match
- * the host. This removes the PATH dependency entirely — no external node.exe
- * to mis-resolve or fail to load.
- *
- * If process.execPath is somehow unavailable we fall back to 'node' so the
- * server can still start in non-Electron / test contexts.
- */
-function resolveNodeLauncher(env: NodeJS.ProcessEnv): { command: string; env: NodeJS.ProcessEnv } {
-    const electronHost = process.execPath;
-    if (electronHost) {
-        return {
-            command: electronHost,
-            env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
-        };
-    }
-    return { command: 'node', env };
 }
 
 function writeMcpCrashDiagnostics(params: {

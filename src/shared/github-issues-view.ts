@@ -24,6 +24,7 @@ import { execFile, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getChannel } from './output-channel';
+import { resolveNodeLauncher } from './node-launcher';
 import { getRecentProjects } from '../features/cvs-command-launcher/recent-projects';
 import { loadRegistry } from './registry';
 
@@ -401,7 +402,9 @@ async function runLinkedTest(testRef: string): Promise<void> {
 
     ch.show(true);
     ch.appendLine(`\n▶ Running ${path.basename(testFile)}…`);
-    execFile('node', [testFile], { cwd: workspaceRoot, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    // #723 / #615 -- never let PATH choose the interpreter.
+    const launcher = resolveNodeLauncher(process.env);
+    execFile(launcher.command, [testFile], { cwd: workspaceRoot, maxBuffer: 1024 * 1024, env: launcher.env, windowsHide: true }, (err, stdout, stderr) => {
         if (stdout) { ch.appendLine(stdout.trimEnd()); }
         if (stderr) { ch.appendLine(stderr.trimEnd()); }
         ch.appendLine(err ? `\n❌ Test failed (exit ${err.code ?? 1})` : `\n✅ Test passed`);

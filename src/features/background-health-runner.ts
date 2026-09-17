@@ -24,6 +24,7 @@ import * as net    from 'net';
 import * as path   from 'path';
 import { spawn }   from 'child_process';
 import { log, logError } from '../shared/output-channel';
+import { resolveNodeLauncher } from '../shared/node-launcher';
 import { markErrorSolvedExact } from '../shared/error-log-utils';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { enqueueIssue } from '../shared/claude-notifier';
@@ -1219,7 +1220,15 @@ function runRegressionTests(attempt: number = 1): void {
         : `▶ Retry attempt ${attempt}/${REGRESSION_MAX_ATTEMPTS} — letting the worktree settle before re-checking...`);
     const lines: string[] = [];
 
-    const proc = spawn('node', [scriptPath], { cwd: extensionRoot, stdio: 'pipe' });
+    // #723 / #615 -- never let PATH pick the interpreter; a mis-resolved
+    // node.exe dies at DLL init (0xC0000142) with no output to explain it.
+    const launcher = resolveNodeLauncher(process.env);
+    const proc = spawn(launcher.command, [scriptPath], {
+        cwd: extensionRoot,
+        stdio: 'pipe',
+        env: launcher.env,
+        windowsHide: true,
+    });
 
     const collect = (chunk: Buffer) => {
         for (const line of chunk.toString().split('\n')) {
