@@ -29,6 +29,7 @@
  *   cvs.readme.fixAll      — auto-fix all non-compliant READMEs (with confirmation)
  *   cvs.readme.viewStandard — open the README standard doc
  *   cvs.readme.new         — create a new compliant README from template
+ *   cvs.readme.fillTodos   — AI-fill every _TODO: stub, reviewed per file (#776)
  */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
@@ -408,6 +409,40 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 </html>`;
 }
 
+/** The marker every section stub this feature writes starts with. */
+const TODO_STUB = '_TODO:';
+
+/** The source file a README documents: same base name, .ts or .js, same folder. */
+function findCompanionSource(readmePath: string): string | null {
+    const srcDir  = path.dirname(readmePath);
+    const srcBase = path.basename(readmePath).replace(/\.README\.md$/i, '').replace(/\.md$/i, '');
+    const srcTs   = path.join(srcDir, srcBase + '.ts');
+    const srcJs   = path.join(srcDir, srcBase + '.js');
+    return fs.existsSync(srcTs) ? srcTs : fs.existsSync(srcJs) ? srcJs : null;
+}
+
+/**
+ * The prompt that asks the AI to replace every _TODO: stub in `readme` with
+ * real content, using the README's companion source file as context. Shared by
+ * the per-file fix (showFixDiff) and cvs.readme.fillTodos (#776).
+ */
+function buildTodoFillPrompt(report: ReadmeReport, readme: string): string {
+    const srcPath    = findCompanionSource(report.filePath);
+    const srcContent = srcPath
+        ? (() => { try { return fs.readFileSync(srcPath, 'utf8').slice(0, 4000); } catch { return ''; } })()
+        : '';
+    const issueList  = report.issues.map(i => `- ${i.message}`).join('\n');
+    return `You are filling in a ${report.readmeType} README.md for a CieloVista Software project.
+The structural skeleton has already been applied. Replace every _TODO: placeholder with real, specific content.
+${srcContent ? `Source file (${path.basename(srcPath!)}): use this as primary context for accurate section content.\n---\n${srcContent}\n---\n` : ''}Compliance issues:\n${issueList}
+Fixed README with stubs:\n---\n${readme.slice(0, 5000)}\n---
+Rules:
+- Replace every _TODO: stub with concise, accurate content derived from the source file
+- Keep all existing valid content — do not remove sections or headings
+- Keep the file under ${LINE_LIMITS[report.readmeType]} lines
+- Output ONLY the final markdown, no preamble, no commentary`;
+}
+
 async function showFixDiff(report: ReadmeReport): Promise<void> {
     const before = fs.readFileSync(report.filePath, 'utf8');
     let   after  = applyFix(report);
@@ -419,27 +454,9 @@ async function showFixDiff(report: ReadmeReport): Promise<void> {
 
     // If the fix introduced _TODO: stubs, replace them with AI-generated content
     // from the companion source file (same base name, .ts or .js extension).
-    if (after.includes('_TODO:') || after.includes('# TODO')) {
+    if (after.includes(TODO_STUB) || after.includes('# TODO')) {
         _panel?.webview.postMessage({ type: 'progress', text: `Generating content for ${report.fileName}… 10–20s` });
-        const srcDir     = path.dirname(report.filePath);
-        const srcBase    = path.basename(report.filePath).replace(/\.README\.md$/i, '').replace(/\.md$/i, '');
-        const srcTs      = path.join(srcDir, srcBase + '.ts');
-        const srcJs      = path.join(srcDir, srcBase + '.js');
-        const srcPath    = fs.existsSync(srcTs) ? srcTs : fs.existsSync(srcJs) ? srcJs : null;
-        const srcContent = srcPath
-            ? (() => { try { return fs.readFileSync(srcPath, 'utf8').slice(0, 4000); } catch { return ''; } })()
-            : '';
-        const issueList  = report.issues.map(i => `- ${i.message}`).join('\n');
-        const prompt =
-`You are filling in a ${report.readmeType} README.md for a CieloVista Software project.
-The structural skeleton has already been applied. Replace every _TODO: placeholder with real, specific content.
-${srcContent ? `Source file (${path.basename(srcPath!)}): use this as primary context for accurate section content.\n---\n${srcContent}\n---\n` : ''}Compliance issues:\n${issueList}
-Fixed README with stubs:\n---\n${after.slice(0, 5000)}\n---
-Rules:
-- Replace every _TODO: stub with concise, accurate content derived from the source file
-- Keep all existing valid content — do not remove sections or headings
-- Keep the file under ${LINE_LIMITS[report.readmeType]} lines
-- Output ONLY the final markdown, no preamble, no commentary`;
+        const prompt = buildTodoFillPrompt(report, after);
         try {
             const aiContent = await callClaude(prompt, 2000);
             if (aiContent && aiContent.trim().length > 50) { after = aiContent; }
@@ -1007,6 +1024,14 @@ Rules:
         return;
     }
 
+    showBatchReview(items);
+}
+
+/**
+ * Opens the batch review panel: one diff per item, each approved or skipped by
+ * the user. Only the files the user approves are written (applyBatch).
+ */
+function showBatchReview(items: BatchItem[]): void {
     const batchHtml = buildBatchReviewHtml(items);
     if (_batchPanel) {
         _batchPanel.title        = '📝 AI Batch Fix Review';
@@ -1038,6 +1063,60 @@ Rules:
     });
 
     _panel?.webview.postMessage({ type: 'done', text: `Review ${items.length} AI fix${items.length !== 1 ? 'es' : ''} in the side panel` });
+}
+
+/**
+ * cvs.readme.fillTodos — find every README that still holds _TODO: stubs, ask
+ * the AI to fill them (the same prompt as the per-file fix), and show the
+ * results in the batch review panel. Nothing is written until the user
+ * approves a file's diff there (#776).
+ */
+async function fillTodoStubs(): Promise<void> {
+    const reports = await scanAllReadmes();
+    const targets: Array<{ report: ReadmeReport; content: string }> = [];
+    for (const report of reports) {
+        let content = '';
+        try { content = fs.readFileSync(report.filePath, 'utf8'); } catch { continue; }
+        if (content.includes(TODO_STUB)) { targets.push({ report, content }); }
+    }
+    if (!targets.length) {
+        vscode.window.showInformationMessage(`No README has ${TODO_STUB} stubs to fill (${reports.length} scanned).`);
+        return;
+    }
+
+    const plural = targets.length !== 1 ? 's' : '';
+    const go = await vscode.window.showWarningMessage(
+        `Fill the ${TODO_STUB} stubs in ${targets.length} README${plural} with AI? You'll review each diff before anything is written.`,
+        { modal: true }, 'Fill TODO Stubs'
+    );
+    if (go !== 'Fill TODO Stubs') { return; }
+
+    const items: BatchItem[] = [];
+    await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Filling README TODO stubs…', cancellable: false },
+        async (progress) => {
+            for (const [i, { report, content }] of targets.entries()) {
+                progress.report({ message: `${report.fileName} (${i + 1}/${targets.length})` });
+                try {
+                    const aiContent = await callClaude(buildTodoFillPrompt(report, content), 3000);
+                    if (!aiContent || aiContent.trim().length <= 50 || aiContent === content) {
+                        log(FEATURE, `AI stub fill returned nothing usable for ${report.filePath}`);
+                        continue;
+                    }
+                    const unifiedDiff = jsdiff.createPatch(report.fileName, content, aiContent, 'before (stubs)', 'after (AI)', { context: 4 });
+                    items.push({ fileName: report.fileName, filePath: report.filePath, score: report.score, issues: report.issues, aiContent, unifiedDiff });
+                } catch (err) {
+                    logError(`AI stub fill failed for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+                }
+            }
+        }
+    );
+
+    if (!items.length) {
+        vscode.window.showWarningMessage('AI returned no usable content for any README — check the CieloVista Tools output channel.');
+        return;
+    }
+    showBatchReview(items);
 }
 
 async function aiFixReadme(filePath: string, readmeType: ReadmeType): Promise<void> {
@@ -1163,7 +1242,7 @@ export function activate(context: vscode.ExtensionContext): void {
             else { vscode.window.showErrorMessage(`Standard not found: ${STANDARD_PATH}`); }
         }),
         vscode.commands.registerCommand('cvs.readme.new',           createNewReadme),
-        vscode.commands.registerCommand('cvs.readme.fillTodos',     () => { vscode.window.showInformationMessage('Fill README TODO Stubs: not yet implemented.'); }),
+        vscode.commands.registerCommand('cvs.readme.fillTodos',     fillTodoStubs),
     );
 }
 

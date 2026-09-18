@@ -9,6 +9,10 @@
 // #308 — Fill README TODO Stubs command:
 //   1. cvs.readme.fillTodos command is registered in the extension
 //   2. cvs.readme.fillTodos entry exists in the command catalog
+//
+// These checks only prove the command is wired. Until #776 its handler was a
+// "not yet implemented" message and this test passed anyway; REG-166 runs the
+// handler and checks that it fills the stubs and writes only after approval.
 
 'use strict';
 
