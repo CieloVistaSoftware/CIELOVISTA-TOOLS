@@ -26,7 +26,6 @@ description: The docs-manager is the central orchestrator for all documentation 
 | `cvs.readme.generate.scan` | README: Scan for Missing READMEs | — |
 | `cvs.readme.generate.run` | README: Generate All Missing READMEs (AI) | — |
 | `cvs.readme.generate.single` | README: Generate Single README (AI) | — |
-| `cvs.license.sync` | License: Sync All Projects | — |
 
 ## Overview
 The docs-manager is the central orchestrator for all documentation operations across CieloVista projects. It provides a unified, discoverable interface for:

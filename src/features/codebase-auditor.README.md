@@ -1,7 +1,7 @@
 ---
 id: feature-codebase-auditor
 title: "Feature: Codebase Auditor"
-description: "Codebase Auditor — 0 command(s). Auto-generated stub: fill in What it does and Manual test."
+description: "Codebase Auditor — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
 ---
 
 # Feature: Codebase Auditor
@@ -24,8 +24,8 @@ Scans `src/` for nine categories of structural health issues: oversized files (3
 
 ```text
 activate(context)
-  └── registers 0 command(s)
-
+  └── registers 1 command(s)
+  └── Audit: Codebase Health → cvs.audit.codebase
 ```
 
 **Key internal functions:**

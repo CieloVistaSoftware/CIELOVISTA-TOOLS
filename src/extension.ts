@@ -65,14 +65,12 @@ import { activate as commandRegistryActivate,      deactivate as commandRegistry
 import { activate as tagsEnrichmentActivate,      deactivate as tagsEnrichmentDeactivate         } from './features/tags-enrichment';
 import { initMcpServerPath }                                                                   from './features/mcp-server-status';
 
-import { runLicenseSync     } from './features/license-sync';
-import { runCodebaseAudit   } from './features/codebase-auditor';
-import { openErrorLogViewer }      from './features/error-log-viewer';
+import { activate as licenseSyncActivate,     deactivate as licenseSyncDeactivate     } from './features/license-sync';
+import { activate as codebaseAuditorActivate, deactivate as codebaseAuditorDeactivate } from './features/codebase-auditor';
+import { activate as errorLogViewerActivate,  deactivate as errorLogViewerDeactivate  } from './features/error-log-viewer';
 import { activate as regressionLogViewerActivate, deactivate as regressionLogViewerDeactivate } from './features/regression-log-viewer';
+import { activate as githubIssuesActivate,    deactivate as githubIssuesDeactivate    } from './features/github-issues';
 import { activate as activateFileListViewer, deactivate as deactivateFileListViewer } from './features/file-list-viewer';
-import { showGithubIssues, newIssueForProject } from './shared/github-issues-view';
-import { loadRegistry } from './features/doc-catalog/registry';
-import { getCurrentWorkspaceProjectName } from './features/doc-catalog/commands';
 // Force inclusion of 'diff' in VSIX bundle
 import * as _forceDiffBundle from 'diff';
 
@@ -168,26 +166,20 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('sessionActivity',        'Session Activity Dashboard',          sessionActivity,                  context);
     worktreeCleanerActivate(context);
     regressionLogViewerActivate(context);
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
-        vscode.commands.registerCommand('cvs.audit.codebase', runCodebaseAudit),
-        vscode.commands.registerCommand('cvs.tools.errorLog', openErrorLogViewer),
-        vscode.commands.registerCommand('cvs.tools.results',  () => { /* placeholder */ }),
-        vscode.commands.registerCommand('cvs.issues.openViewer', () => showGithubIssues()),
-        vscode.commands.registerCommand('cvs.issues.newIssue', () => {
-            const registry = loadRegistry();
-            const projName = getCurrentWorkspaceProjectName(registry?.projects ?? []);
-            newIssueForProject(projName || undefined);
-        }),
-    );
-
+    licenseSyncActivate(context);
+    codebaseAuditorActivate(context);
+    errorLogViewerActivate(context);
+    githubIssuesActivate(context);
 }
 
 export function deactivate(): void {
     deactivateHomePage();
     deactivateJsErrorAudit();
     regressionLogViewerDeactivate();
+    licenseSyncDeactivate();
+    codebaseAuditorDeactivate();
+    errorLogViewerDeactivate();
+    githubIssuesDeactivate();
 
     deactivateBgHealthRunner();
     deactivateCodeHighlightAudit();

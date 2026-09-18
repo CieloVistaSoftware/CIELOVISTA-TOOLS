@@ -61,13 +61,12 @@ test('direct-execute branch calls executeCommand without creating cvsJobResult p
     }
 });
 
+// The registration moved from extension.ts into the feature's own activate()
+// in #738 (extension.ts is wiring only); REG-145 checks that behaviourally.
 test('cvs.tools.errorLog command opens its own panel (openErrorLogViewer is registered)', () => {
-    const extSrc = fs.readFileSync(path.join(ROOT, 'src', 'extension.ts'), 'utf8');
-    if (!extSrc.includes("'cvs.tools.errorLog'") && !extSrc.includes('"cvs.tools.errorLog"')) {
-        throw new Error('cvs.tools.errorLog must be registered in extension.ts');
-    }
-    if (!extSrc.includes('openErrorLogViewer')) {
-        throw new Error('openErrorLogViewer must be the handler for cvs.tools.errorLog');
+    const featSrc = fs.readFileSync(path.join(ROOT, 'src', 'features', 'error-log-viewer.ts'), 'utf8');
+    if (!/registerCommand\(\s*['"]cvs\.tools\.errorLog['"]\s*,\s*openErrorLogViewer\s*\)/.test(featSrc)) {
+        throw new Error('error-log-viewer.ts activate() must register cvs.tools.errorLog with openErrorLogViewer as the handler');
     }
 });
 

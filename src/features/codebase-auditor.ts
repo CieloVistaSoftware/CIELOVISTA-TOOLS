@@ -761,3 +761,12 @@ export async function runCodebaseAudit(): Promise<void> {
         }
     });
 }
+
+/** Registers cvs.audit.codebase. It was registered in extension.ts until #738. */
+export function activate(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.audit.codebase', runCodebaseAudit),
+    );
+}
+
+export function deactivate(): void { /* nothing to dispose: the panel is per-invocation */ }
