@@ -1,7 +1,7 @@
 ---
 id: feature-license-sync
 title: "Feature: License Sync"
-description: "License Sync — 0 command(s). Auto-generated stub: fill in What it does and Manual test."
+description: "License Sync — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
 ---
 
 # Feature: License Sync
@@ -17,7 +17,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-_No commands registered — utility/shared module._
+| [`cvs.license.sync`](command:cvs.license.sync) | License: Sync All Projects |
 
 ---
 
@@ -25,8 +25,8 @@ _No commands registered — utility/shared module._
 
 ```text
 activate(context)
-  └── registers 0 command(s)
-
+  └── registers 1 command(s)
+  └── License: Sync All Projects → cvs.license.sync
 ```
 
 **Key internal functions:**

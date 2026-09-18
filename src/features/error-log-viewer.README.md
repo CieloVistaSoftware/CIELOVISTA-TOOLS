@@ -1,7 +1,7 @@
 ---
 id: feature-error-log-viewer
 title: "Feature: Error Log Viewer"
-description: "Error Log Viewer — 0 command(s). Auto-generated stub: fill in What it does and Manual test."
+description: "Error Log Viewer — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
 ---
 
 # Feature: Error Log Viewer
@@ -25,8 +25,8 @@ Shows the persistent CieloVista Tools error log in a webview panel, displaying e
 
 ```text
 activate(context)
-  └── registers 0 command(s)
-
+  └── registers 1 command(s)
+  └── Tools: Error Log → cvs.tools.errorLog
 ```
 
 **Key internal functions:**

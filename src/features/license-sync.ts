@@ -469,5 +469,14 @@ export async function runLicenseSync(): Promise<void> {
     log(FEATURE, `License sync opened — ${projects.length} projects scanned`);
 }
 
+/** Registers cvs.license.sync. It was registered in extension.ts until #738. */
+export function activate(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.license.sync', runLicenseSync),
+    );
+}
+
+export function deactivate(): void { /* nothing to dispose: the panel is per-invocation */ }
+
 /** @internal — exported for unit testing only */
 export const _test = { scanProject, esc, loadCanonical };

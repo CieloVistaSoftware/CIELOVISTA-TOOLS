@@ -251,3 +251,14 @@ export function refreshErrorLogViewer(): void {
     if (!_panel) { return; }
     _panel.webview.html = buildHtml(getErrors());
 }
+
+/** Registers cvs.tools.errorLog. It was registered in extension.ts until #738. */
+export function activate(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.tools.errorLog', openErrorLogViewer),
+    );
+}
+
+export function deactivate(): void {
+    _panel?.dispose();
+}
