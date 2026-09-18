@@ -5,6 +5,10 @@
  *
  *   node scripts/run-unit-tests.js            all of tests/unit/
  *   node scripts/run-unit-tests.js doc-header only files whose name contains "doc-header"
+ *   node scripts/run-unit-tests.js tests/unit/x.test.js
+ *                                             exactly that file, even one a rebuild
+ *                                             step owns — this is how those steps
+ *                                             run their test (#748)
  *
  * Two rules this runner exists to enforce:
  *
@@ -30,6 +34,20 @@ const path = require('path');
 const ROOT     = path.resolve(__dirname, '..');
 const UNIT_DIR = path.join(ROOT, 'tests', 'unit');
 const FILTER   = process.argv[2] || '';
+/**
+ * A test file path (tests/.../x.test.js) instead of a name filter: run exactly
+ * that file. Every `npm run rebuild` step that runs a test goes through here
+ * (#748). Those steps used to run `node tests/unit/x.test.js` directly, before
+ * anything had built out-test/, so on a clean checkout the test printed
+ * "SKIP: ... not found", exited 0, and the step passed without testing
+ * anything. Through the runner the step builds its input first and a
+ * missing-artifact skip fails it. REG-155 holds every rebuild step to this.
+ */
+const EXPLICIT = /^tests[\\/].+\.test\.(js|ts)$/.test(FILTER) ? path.resolve(ROOT, FILTER) : null;
+if (EXPLICIT && !fs.existsSync(EXPLICIT)) {
+    console.error(`✗ ${FILTER} does not exist — a step that names no test must not pass`);
+    process.exit(1);
+}
 const TIMEOUT  = 180000;
 const WORKERS  = Math.max(2, Math.min(8, os.cpus().length - 1));
 
@@ -53,6 +71,11 @@ process.stdout.write(build.stdout);
  * clean CI runner they failed. Their own step is where they belong, and it
  * already gates the build. Derived from package.json, so there is no list here
  * to keep in sync.
+ *
+ * That step runs its file through this runner (`node scripts/run-unit-tests.js
+ * tests/unit/x.test.js`, the EXPLICIT mode above), so the path still appears in
+ * the step and is still found here: the full run skips it, its step runs it,
+ * and every unit test runs exactly once in a rebuild (#748).
  */
 function testsOwnedByRebuildSteps() {
     const scripts = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts || {};
@@ -72,18 +95,20 @@ function testsOwnedByRebuildSteps() {
 
 const OWNED = testsOwnedByRebuildSteps();
 
-const files = fs.readdirSync(UNIT_DIR)
+const files = EXPLICIT ? [] : fs.readdirSync(UNIT_DIR)
     .filter(n => /\.test\.(js|ts)$/.test(n) && n.includes(FILTER))
     .sort();
 for (const name of files.filter(n => OWNED.has(n))) {
     console.log(`  - ${name} — runs at its own rebuild step (npm run ${OWNED.get(name)})`);
 }
-const toRun = files.filter(n => !OWNED.has(n));
+/** Absolute paths of the test files to run. */
+const toRun = EXPLICIT ? [EXPLICIT] : files.filter(n => !OWNED.has(n)).map(n => path.join(UNIT_DIR, n));
 
-function runOne(name) {
+function runOne(file) {
+    const name = path.relative(ROOT, file).split(path.sep).join('/').replace(/^tests\/unit\//, '');
     return new Promise(resolve => {
         const started = Date.now();
-        const child = cp.spawn(process.execPath, [path.join(UNIT_DIR, name)], { cwd: ROOT });
+        const child = cp.spawn(process.execPath, [file], { cwd: ROOT });
         let out = '';
         child.stdout.on('data', d => { out += d; });
         child.stderr.on('data', d => { out += d; });
@@ -128,6 +153,8 @@ function trackedChanges() {
     results.sort((a, b) => a.name.localeCompare(b.name));
 
     for (const r of results) {
+        // A rebuild step runs one file; its log shows that test's own output.
+        if (EXPLICIT) { process.stdout.write(r.out.endsWith('\n') ? r.out : `${r.out}\n`); }
         if (r.ok) { console.log(`  ✓ ${r.name}`); continue; }
         const why = r.skipped ? 'SKIPPED for a missing build artifact — counts as a failure (#734)'
                               : `exit ${r.code}`;

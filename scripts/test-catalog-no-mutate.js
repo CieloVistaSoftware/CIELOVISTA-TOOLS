@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
+const { skippedForMissingArtifact } = require('./lib/missing-artifact');
 
 const ROOT = path.resolve(__dirname, '..');
 const PKG_PATH = path.join(ROOT, 'package.json');
@@ -27,15 +28,22 @@ if (!fs.existsSync(VALIDATOR)) {
 const beforeRaw = fs.readFileSync(PKG_PATH, 'utf8');
 
 // Run the existing catalog integrity test exactly as before.
+// Output is captured so the shared missing-artifact rule can read it (#748):
+// a skip for a missing build input fails this step, as it does in the runners.
 const catalog = cp.spawnSync(process.execPath, [CATALOG_TEST], {
   cwd: ROOT,
-  stdio: 'inherit',
+  encoding: 'utf8',
 });
 if (catalog.error) {
   fail('could not run catalog-integrity.test.js: ' + catalog.error.message);
 }
+process.stdout.write(catalog.stdout || '');
+process.stderr.write(catalog.stderr || '');
 if (catalog.status !== 0) {
   process.exit(catalog.status || 1);
+}
+if (skippedForMissingArtifact((catalog.stdout || '') + (catalog.stderr || ''))) {
+  fail('catalog-integrity.test.js SKIPPED for a missing build artifact — counts as a failure (#734, #748)');
 }
 
 const afterRaw = fs.readFileSync(PKG_PATH, 'utf8');
