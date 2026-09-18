@@ -3,4 +3,4 @@
 
 // component: cat
 
-export { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../../shared/registry';
+export { REGISTRY_PATH, loadRegistry, registeredRoots, ProjectRegistry, ProjectEntry } from '../../shared/registry';

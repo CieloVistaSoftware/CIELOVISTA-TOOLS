@@ -22,7 +22,7 @@ assert.ok(
 );
 
 assert.ok(
-  src.includes("url.searchParams.get('back')") && src.includes('buildMarkdownPreviewHtml(filePath, md, backUrl)'),
+  src.includes("url.searchParams.get('back')") && src.includes('buildMarkdownPreviewHtml(filePath, md, token, backUrl)'),
   'md-preview route must read back query param and pass it to preview renderer.'
 );
 

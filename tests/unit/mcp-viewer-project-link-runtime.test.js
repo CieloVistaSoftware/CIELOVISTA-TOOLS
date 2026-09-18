@@ -9,6 +9,8 @@ const vm = require('vm');
 const { JSDOM } = require('jsdom');
 const ts = require('typescript');
 
+// #780: the server refuses any request without its token, so the page must send it.
+const TOKEN = 'abababababababababababababababababababababababababababababababab';
 const SRC = path.join(__dirname, '../../src/features/mcp-viewer/html.ts');
 assert.ok(fs.existsSync(SRC), 'Source file not found: src/features/mcp-viewer/html.ts');
 
@@ -22,7 +24,7 @@ function buildHtml() {
   vm.runInNewContext(transpiled, ctx, { filename: 'mcp-viewer-html.transpiled.js' });
   const buildViewerHtml = ctx.module.exports.buildViewerHtml || ctx.exports.buildViewerHtml;
   assert.strictEqual(typeof buildViewerHtml, 'function', 'buildViewerHtml export not found');
-  return buildViewerHtml(4321, 19);
+  return buildViewerHtml(4321, 19, TOKEN);
 }
 
 function flush() {
@@ -105,7 +107,7 @@ function flush() {
   assert.ok(activeTab, 'there should be an active tab after clicking a project name');
   assert.strictEqual(activeTab.getAttribute('data-endpoint'), 'get_catalog', 'clicking a project name should switch to get_catalog tab');
 
-  const matching = requests.find((r) => r.url.endsWith('/mcp') && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp');
+  const matching = requests.find((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp');
   assert.ok(matching, 'clicking a project name must fetch get_catalog filtered to that project');
 
   console.log('PASS: project links in list_projects open filtered get_catalog view at runtime.');

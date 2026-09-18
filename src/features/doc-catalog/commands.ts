@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
-import { loadRegistry } from './registry';
+import { loadRegistry, registeredRoots } from './registry';
 import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
 import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
 import { scanForCards, resetCardCounter } from './scanner';
@@ -851,14 +851,10 @@ const ACTION_ROUTES = new Set(['/openfolder', '/open-in-vscode', '/set-cwd', '/r
 
 /**
  * Folders the View-a-Doc server may act on or serve from: every registered
- * project root plus the registry's global docs folder. The server decides
- * them from the registry; a request never does.
+ * project root plus the registry's global docs folder (shared/registry.ts,
+ * also used by the MCP Endpoint Viewer server, #780).
  */
-function viewServerRoots(): string[] {
-    const registry = loadRegistry();
-    if (!registry) { return []; }
-    return [registry.globalDocsPath, ...registry.projects.map(p => p.path)].filter(Boolean);
-}
+const viewServerRoots = registeredRoots;
 
 /**
  * The one gate for /doc and every action route (#752, #758). The request

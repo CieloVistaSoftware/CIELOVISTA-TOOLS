@@ -26,7 +26,7 @@ vm.runInNewContext(transpiled, moduleCtx, { filename: 'mcp-viewer-html.transpile
 const buildViewerHtml = moduleCtx.module.exports.buildViewerHtml || moduleCtx.exports.buildViewerHtml;
 assert.strictEqual(typeof buildViewerHtml, 'function', 'buildViewerHtml export not found after transpile');
 
-const generatedHtml = buildViewerHtml(4321, 19);
+const generatedHtml = buildViewerHtml(4321, 19, 'abababababababababababababababababababababababababababababababab');
 const match = generatedHtml.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(match, 'Could not extract <script> block from generated viewer HTML');
 

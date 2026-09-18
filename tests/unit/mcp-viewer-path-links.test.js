@@ -34,8 +34,8 @@ test('linkification regex targets Windows absolute paths', () => {
     ok(src.includes('[A-Za-z]:\\\\'), 'Must match Windows drive-letter paths');
 });
 
-test('.md paths are linked to /md-preview endpoint', () => {
-    ok(src.includes('/md-preview?path='), 'Must link .md paths to /md-preview');
+test('.md paths are linked to /md-preview endpoint, token included (#780)', () => {
+    ok(src.includes("'/md-preview?t=' + TOKEN + '&path='"), 'Must link .md paths to /md-preview with the server token');
 });
 
 test('non-.md paths are NOT wrapped in anchor tags (use span instead)', () => {

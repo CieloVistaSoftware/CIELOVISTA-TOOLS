@@ -9,6 +9,8 @@ const vm = require('vm');
 const { JSDOM } = require('jsdom');
 const ts = require('typescript');
 
+// #780: the server refuses any request without its token, so the page must send it.
+const TOKEN = 'abababababababababababababababababababababababababababababababab';
 const SRC = path.join(__dirname, '../../src/features/mcp-viewer/html.ts');
 assert.ok(fs.existsSync(SRC), 'Source file not found: src/features/mcp-viewer/html.ts');
 
@@ -22,7 +24,7 @@ function buildHtml() {
   vm.runInNewContext(transpiled, ctx, { filename: 'mcp-viewer-html.transpiled.js' });
   const buildViewerHtml = ctx.module.exports.buildViewerHtml || ctx.exports.buildViewerHtml;
   assert.strictEqual(typeof buildViewerHtml, 'function', 'buildViewerHtml export not found');
-  return buildViewerHtml(4321, 19);
+  return buildViewerHtml(4321, 19, TOKEN);
 }
 
 function flush() {
@@ -103,7 +105,7 @@ function flush() {
   await flush();
   await flush();
 
-  const matching = requests.find((r) => r.url.endsWith('/mcp') && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp');
+  const matching = requests.find((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp');
   assert.ok(matching, 'Changing get_catalog project dropdown must trigger JSON-RPC POST /mcp with method=get_catalog and projectName=DiskCleanUp');
 
   console.log('PASS: get_catalog project dropdown change triggers filtered fetch at runtime.');
