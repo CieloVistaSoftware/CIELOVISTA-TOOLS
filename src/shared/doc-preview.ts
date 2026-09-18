@@ -7,6 +7,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { mdToHtml } from './md-renderer';
 import { getNonce } from './webview-utils';
+import { markdownImgSrc, rewriteLocalImageSrcs } from './webview-images';
 
 let _previewPanel: vscode.WebviewPanel | undefined;
 
@@ -43,7 +44,7 @@ function buildFolderPathHtml(filePath: string): string {
 }
 
 // ── Preview HTML ──────────────────────────────────────────────────────────────
-function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[], hasSource: boolean): string {
+function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[], hasSource: boolean, cspSource: string): string {
     const nonce = getNonce();
     const jsPath = filePath.replace(/\\/g, '\\\\');
     const jsDir  = path.dirname(filePath).replace(/\\/g, '\\\\');
@@ -99,7 +100,7 @@ img{max-width:100%;height:auto}
 `;
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${markdownImgSrc(cspSource)}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <style>${CSS}</style></head><body>
 <div id="topbar">
   <div id="topbar-row1">
@@ -255,27 +256,41 @@ export function openDocPreview(
     _currentTitle       = title;
     _currentSourceCmdId = sourceCmdId ?? _currentSourceCmdId;
 
+    const isNewPanel = !_previewPanel;
+    if (!_previewPanel) {
+        _previewPanel = vscode.window.createWebviewPanel(
+            'docPreview', `📄 ${title}`,
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+            { enableScripts: true, retainContextWhenHidden: true }
+        );
+    }
+    const panel   = _previewPanel;
+    const webview = panel.webview;
 
-    if (_previewPanel) {
-        _previewPanel.title            = `\u{1F4C4} ${title}`;
-        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
+    // Relative images load only as webview URIs from an allowed root (#737).
+    // The roots follow the document, so they are reset on every navigation.
+    const images = rewriteLocalImageSrcs(rendered, path.dirname(filePath),
+        p => webview.asWebviewUri(vscode.Uri.file(p)).toString());
+    webview.options = {
+        enableScripts:      true,
+        localResourceRoots: images.resourceRoots.map(r => vscode.Uri.file(r)),
+    };
+
+    panel.title  = `\u{1F4C4} ${title}`;
+    webview.html = buildPreviewHtml(title, filePath, images.html, _history, Boolean(_currentSourceCmdId), webview.cspSource);
+
+    if (!isNewPanel) {
         // preserveFocus=true keeps the catalog panel active so it doesn't scroll
-        _previewPanel.reveal(vscode.ViewColumn.Beside, true);
+        panel.reveal(vscode.ViewColumn.Beside, true);
         return;
     }
 
-    _previewPanel = vscode.window.createWebviewPanel(
-        'docPreview', `📄 ${title}`,
-        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-        { enableScripts: true, retainContextWhenHidden: true }
-    );
-    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
-    _previewPanel.onDidDispose(() => {
+    panel.onDidDispose(() => {
         _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
         _history = [];
     });
 
-    _previewPanel.webview.onDidReceiveMessage(async msg => {
+    webview.onDidReceiveMessage(async msg => {
         switch (msg.command) {
             case 'open': {
                 if (!msg.path) { break; }

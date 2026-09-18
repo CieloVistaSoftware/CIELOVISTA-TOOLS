@@ -21,7 +21,9 @@ assert.ok(
 );
 
 assert.ok(
-  previewSrc.includes('buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId))'),
+  // The rendered-HTML argument and a trailing cspSource argument vary (#737);
+  // what matters here is that hasSource is fed from _currentSourceCmdId.
+  /buildPreviewHtml\(title, filePath, [\w.]+, _history, Boolean\(_currentSourceCmdId\)[,)]/.test(previewSrc),
   'Doc preview must pass hasSource state into buildPreviewHtml.'
 );
 
