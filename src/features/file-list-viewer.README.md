@@ -1,3 +1,9 @@
+---
+id: filelist-sortable-alternative-file-browser
+title: FileList — Sortable Alternative File Browser
+description: Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68). A details-view file browser surfaced as a Quick Launch button on the…
+---
+
 # feature: FileList — Sortable Alternative File Browser
 
 Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68).
@@ -57,22 +63,24 @@ Disable via setting `cielovistaTools.features.fileListViewer = false` and reload
 Multi-root workspace support, filter / search input, custom column visibility, persist last directory + sort across sessions.
 
 ---
+
+## What it does
+
 _TODO: one paragraph describing the single responsibility of this file._
-└── TODO: describe call flow
+
+---
+
+## Internal architecture
+
+```text
+activate()
+  └── TODO: describe call flow
+```
+
+---
+
+## Manual test
+
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
-docid: 150.1.file-list-viewer-readme
-id: filelist-sortable-alternative-file-browser
-title: FileList — Sortable Alternative File Browser
-project: cielovista-tools
-description: Issue [#68](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/68). A details-view file browser surfaced as a Quick Launch button on the…
-status: active
-tags: [cvs.tools.fileList, cvs.tools.home, file, list, viewer]
-category: 150.1 — Components / Features
-created: 2026-04-27
-updated: 2026-05-13
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/file-list-viewer.README.md
----

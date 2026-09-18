@@ -1,3 +1,9 @@
+---
+id: feature-session-activity
+title: "Feature: Session Activity Dashboard"
+description: Session Activity Dashboard — live rollup of Current Focus, Current Batch, deploy-branch pushes, CI, and uncapped open issues for the current workspace's repo.
+---
+
 # Feature: Session Activity Dashboard
 
 ## Commands
@@ -141,19 +147,3 @@ Expected shape — all fields optional, unknown/extra fields ignored:
    channel — no explicit log line is emitted per auto-tick by design, but the
    webview HTML will update; use the manual Reload button instead for a
    verifiable single refresh).
-
----
-docid: 150.1.session-activity
-id: feature-session-activity
-title: Feature: Session Activity Dashboard
-project: cielovista-tools
-description: Session Activity Dashboard — live rollup of Current Focus, Current Batch, deploy-branch pushes, CI, and uncapped open issues for the current workspace's repo.
-status: active
-tags: [cvs.tools.sessionActivity, session-activity, ci, issues, dashboard]
-category: 150.1 — Components / Features
-created: 2026-07-23
-updated: 2026-07-23
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/session-activity.README.md
----

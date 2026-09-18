@@ -55,8 +55,6 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .btn-view:hover{background:var(--vscode-button-hoverBackground)}
 .btn-open{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
 .btn-open:hover{background:var(--vscode-button-secondaryHoverBackground)}
-.btn-demo{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(99,102,241,0.18);color:#818cf8;border:1px solid rgba(99,102,241,0.35)}
-.btn-demo:hover{background:rgba(99,102,241,0.35);color:#fff}
 .btn-archive{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;background:rgba(220,80,80,0.1);color:var(--vscode-errorForeground,#f85149);border:1px solid rgba(220,80,80,0.25)}
 .btn-archive:hover{background:rgba(220,80,80,0.22)}
 .btn-finish{border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;background:rgba(63,185,80,0.1);color:var(--vscode-testing-iconPassed,#3fb950);border:1px solid rgba(63,185,80,0.25)}
@@ -544,7 +542,6 @@ document.addEventListener('click', function(e) {
     else if (a === 'open-npm-scripts')    { vscode.postMessage({ command: 'open-npm-scripts' }); }
     else if (a === 'open-folder')         { vscode.postMessage({ command: 'openFolder',         data: btn.dataset.path || btn.dataset.projPath }); }
     else if (a === 'open-src-file')       { vscode.postMessage({ command: 'openSrcFile',         data: btn.dataset.path }); }
-    else if (a === 'wb-demo')             { vscode.postMessage({ command: 'wb-demo',             data: btn.dataset.path, name: btn.dataset.name }); }
     else if (a === 'open-project-folder') { vscode.postMessage({ command: 'openProjectFolder',  data: btn.dataset.projPath }); }
     else if (a === 'open-project-vscode') { vscode.postMessage({ command: 'open-project-vscode', data: btn.dataset.projPath }); }
     else if (a === 'open-claude')         { vscode.postMessage({ command: 'openClaude',          data: btn.dataset.projPath }); }

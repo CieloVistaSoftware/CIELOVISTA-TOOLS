@@ -1,3 +1,9 @@
+---
+id: feature-corequisite-checker
+title: "Feature: Corequisite Checker"
+description: "Corequisite Checker — 2 command(s). Auto-generated stub: fill in What it does and Manual test."
+---
+
 # Feature: Corequisite Checker
 
 ## What it does
@@ -47,19 +53,3 @@ activate(context)
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 2. Open the Command Palette and run **Corequisites: Install** (`cvs.corequisites.install`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
-
----
-docid: 150.1.corequisite-checker
-id: feature-corequisite-checker
-title: "Feature: Corequisite Checker"
-project: cielovista-tools
-description: "Corequisite Checker — 2 command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [corequisite, checker]
-category: 150.1 — Components / Features
-created: 2026-05-15
-updated: 2026-06-14
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/corequisite-checker.README.md
----

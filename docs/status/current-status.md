@@ -8,50 +8,47 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
-**Task:** Cleared the cvt board, then moved to wb-starter.
+**Task:** #728 (delete the wb-core demo server) and #707 stage 1 (src/ onto the
+three-field doc contract). Stage 1 turned up #731, real data loss, fixed first.
 
-**The one that mattered:** `npm run rebuild` could not finish. It aborted at
-`test:doc-contract` and never reached `node install.js`, so **every fix on main had
-been committed but never installed** — including #615. The blocker was a cvt test
-judging **wb-starter's** markdown by cvt's Dewey taxonomy, plus an exclude list that
-matched `'worktrees'` as a substring of the absolute path, which silently skipped
-every directory inside any git worktree. That check inspected 3 files instead of 81
-and reported itself green. It now runs 406 assertions. Filed and fixed as #725.
+**The one that mattered — #731:** commit `bf72645` (2026-06-24, "land great-hopper")
+deleted **2,246 lines of prose from 42 feature READMEs**. It treated every body line
+containing `": "` as a frontmatter field, dropped the sections around them and moved
+311 fragments into the trailer. Nothing checked what a trailer held, so it went
+unseen for three months. Restored with a three-way reverse-apply (`git merge-file`,
+base `bf72645`, theirs `bf72645^`) so later edits survived; zero conflicts.
 
-**Closed this session:**
+**This session, on branch `fix/728-731-707-src-doc-contract`:**
 | # | What |
 |---|---|
-| #615 | MCP server 0xC0000142 — launches via VS Code's own Node now. PR #724, superseded the 3-month-old #622 |
-| #708 | Docs rebuild — verified against all six migration steps; five done, step 6 handed to #707 |
-| #725 | The rebuild blocker above |
-| #723 | The same PATH-resolved-node bug in **four** more call sites; two of them were found by the regression test, not by grep |
-| #696 | `registry_promote` / `registry_set_status` MCP tools — an agent can write the registry, not just read it |
+| #728 | Demo button, `wb-demo` handler and `C:\dev\wb-core` spawn deleted. REG-046 (tested the deleted handler) replaced by REG-141 |
+| #731 | The 42 READMEs restored, as above |
+| #707 stage 1 | All 74 `src/**/*.md` on id/title/description at the top. `docs-sync.js` enforces it on src/ (150 violations on the old tree, 0 now); the rebuild-time generator writes the new block; REG-111 and REG-138 updated |
 
-**Deployed:** `npm run rebuild` completed after #725 landed, and
-`process.execPath` + `ELECTRON_RUN_AS_NODE` were confirmed present in the installed
-`out/extension.js`. Committed is not deployed — check the installed bundle.
+**Filed, open:**
+- **#730** — `cvs.headers.moveToBottom` / `fixAll` / `fixFile` and `cvs.tags.enrichAuto`
+  still write the 13-field trailer. Running one undoes the migration (REG-134 would
+  now fail on it). Fold into #707 stage 3 or rewrite to the new contract.
+- **#732** — `docs:check` is red on every Windows checkout: `docs-site.js --check`
+  compares its LF output with the CRLF checkout of `docs/index.html`. No content diff.
 
-**Still open:**
-- **#707** — Dewey retirement. The decision is settled (Option A, retire) and recorded
-  on the issue with evidence; it is now a three-stage tracker. Stage 1 migrate 81
-  `src/**/*.README.md` to the 3-field contract; stage 2 regroup the Doc Card Catalog
-  by folder, which is a redesign of a shipped view (`scanner.ts:80` derives
-  `categoryNum` from the docid, and REG-031 guards clickable Dewey badges); stage 3
-  delete the 8 MCP tools and dead tests. **Stage 3 must be last** — deleting the tools
-  first leaves the catalog reading a field nothing maintains.
-- **#728** — `doc-catalog/commands.ts` spawns a demo server from a hardcoded
-  `C:\dev\wb-core`, an abandoned repo, detached with `stdio:'ignore'` so failure is
-  silent. Needs a product call: delete it, or point it at wb-starter via the registry.
+**Still open on #707:** stage 2 regroup the Doc Card Catalog by folder
+(`scanner.ts` derives `categoryNum` from a docid; REG-031 guards the Dewey badges),
+then stage 3 delete the 8 Dewey MCP tools, `tests/unit/doc-contract.test.ts`, and
+REG-138. **Stage 3 last.** The catalog never read src/ trailer docids (it only parses a
+top block), so stage 1 changed nothing it shows.
 
-**Next step:** work is in wb-starter. Return here for #707 stage 1, which is safe to
-land on its own.
+**Next step:** confirm the PR merged and `npm run rebuild` ran, then #707 stage 2. 69
+of the 74 src/ descriptions are still "Auto-generated stub" or truncated text carried
+over from the old trailers. That is refurbishment work, not part of the migration.
 
 **Watch out for:**
 - A Python patch script must use `newline=''` on **both** read and write, or it
-  rewrites every line ending in the file. That broke REG-120, REG-124 and REG-128 in
-  this session for a change that touched one `spawn()` call.
+  rewrites every line ending in the file.
 - A test that compiles `mcp-server/` replaces the shipped esbuild bundle with
   unbundled tsc output and fails the `dist/index.js > 100 KB` packaging check for the
   rest of the run. Compile into a sandbox instead. Same family as #697 / #700.
 - `npm run rebuild | tail -20` reports **tail's** exit code, not npm's. Redirect to a
   file and check `$?` directly, or a failed build reads as a successful one.
+- `tsc -p .` reports TS6059 rootDir errors for `mcp-server/src/shared`; that is the
+  wrong config, not a defect. The real typecheck is `tsc --noEmit -p tsconfig.typecheck.json`.

@@ -129,6 +129,33 @@ const docs = [];
 const byId = new Map();
 let trailerCount = 0;
 
+/** The frontmatter half of the contract, shared by docs/ and src/. */
+function checkContract(rel, fields, placement) {
+    if (placement === 'none') {
+        problems.push(`${rel}: no frontmatter — needs id, title, description at the top`);
+        return;
+    }
+    if (placement === 'bottom') {
+        trailerCount++;
+        problems.push(`${rel}: frontmatter is at the bottom, where only this script can read it — `
+            + `move it to the top (at three fields it costs five lines)`);
+    }
+    if (!fields.title)       { problems.push(`${rel}: missing \`title\``); }
+    if (!fields.description) { problems.push(`${rel}: missing \`description\``); }
+
+    // THE CONTRACT IS THREE FIELDS. This check is the whole reason the block
+    // can live at the top without being in the way: it is what stops the
+    // creep back to 13 fields that pushed it to the bottom in the first
+    // place (#708). Anything derivable belongs in catalog.json, generated —
+    // never typed into a document.
+    const extra = Object.keys(fields).filter(k => !ALLOWED_FIELDS.has(k));
+    if (extra.length) {
+        problems.push(`${rel}: frontmatter has ${extra.length} field(s) beyond the contract `
+            + `(${extra.join(', ')}) — only id, title and description are hand-written; `
+            + `anything derivable is generated into docs/catalog.json`);
+    }
+}
+
 for (const file of walk(DOCS_DIR).sort()) {
     const rel      = path.relative(ROOT, file).replace(/\\/g, '/');
     const relDocs  = path.relative(DOCS_DIR, file).replace(/\\/g, '/');
@@ -141,29 +168,7 @@ for (const file of walk(DOCS_DIR).sort()) {
     const { fields, placement, body } = readFrontmatter(text);
     const id = fields.id || slugFor(file);
 
-    if (placement === 'none') {
-        problems.push(`${rel}: no frontmatter — needs id, title, description at the top`);
-    } else {
-        if (placement === 'bottom') {
-            trailerCount++;
-            problems.push(`${rel}: frontmatter is at the bottom, where only this script can read it — `
-                + `move it to the top (at three fields it costs five lines)`);
-        }
-        if (!fields.title)       { problems.push(`${rel}: missing \`title\``); }
-        if (!fields.description) { problems.push(`${rel}: missing \`description\``); }
-
-        // THE CONTRACT IS THREE FIELDS. This check is the whole reason the block
-        // can live at the top without being in the way: it is what stops the
-        // creep back to 13 fields that pushed it to the bottom in the first
-        // place (#708). Anything derivable belongs in catalog.json, generated —
-        // never typed into a document.
-        const extra = Object.keys(fields).filter(k => !ALLOWED_FIELDS.has(k));
-        if (extra.length) {
-            problems.push(`${rel}: frontmatter has ${extra.length} field(s) beyond the contract `
-                + `(${extra.join(', ')}) — only id, title and description are hand-written; `
-                + `anything derivable is generated into docs/catalog.json`);
-        }
-    }
+    checkContract(rel, fields, placement);
 
     if (byId.has(id)) {
         problems.push(`duplicate id "${id}": ${byId.get(id)} and ${rel}`);
@@ -192,6 +197,45 @@ for (const file of walk(DOCS_DIR).sort()) {
         // every PR. A generated, checked file may only hold what the tree
         // itself determines. A doc's history is `git log -- <path>`.
     });
+}
+
+// ─── src/ is under the same contract (#707) ───────────────────────────────────
+//
+// Feature READMEs live beside their code, not in a docs/ section, so the
+// folder rules (hub, section, front door) do not apply to them and they are not
+// listed in catalog.json. The frontmatter rules do: three fields at the top,
+// nothing else, and an id no other document in the repo uses.
+//
+// Until #707 these carried the 13-field trailer, which is how 42 of them could
+// hold 311 lines of displaced prose in their "metadata" for three months
+// without anything noticing (#731). A block that may only hold three named
+// fields cannot hide that.
+
+function walkMarkdown(dir, out = []) {
+    for (const entry of listDir(dir)) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) { continue; }
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { walkMarkdown(full, out); }
+        else if (entry.name.endsWith('.md')) { out.push(full); }
+    }
+    return out;
+}
+
+let srcDocCount = 0;
+for (const file of walkMarkdown(path.join(ROOT, 'src')).sort()) {
+    const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+    let text;
+    try { text = fs.readFileSync(file, 'utf8'); }
+    catch (err) { if (err && err.code === 'ENOENT') { continue; } throw err; }
+    const { fields, placement } = readFrontmatter(text);
+    checkContract(rel, fields, placement);
+    const id = fields.id || slugFor(file);
+    if (byId.has(id)) {
+        problems.push(`duplicate id "${id}": ${byId.get(id)} and ${rel}`);
+    } else {
+        byId.set(id, rel);
+    }
+    srcDocCount++;
 }
 
 // A reference nothing checks is why the old ids went unused (#707).
@@ -521,6 +565,7 @@ if (CHECK_ONLY) {
 // ─── Report ───────────────────────────────────────────────────────────────────
 
 console.log(`docs-sync: ${docs.length} document(s) across ${sections.length} section(s)`);
+console.log(`docs-sync: ${srcDocCount} src/ document(s) under the same contract`);
 if (!CHECK_ONLY) {
     console.log(writes.length
         ? `  regenerated: ${writes.map(w => w[2]).join(', ')}`

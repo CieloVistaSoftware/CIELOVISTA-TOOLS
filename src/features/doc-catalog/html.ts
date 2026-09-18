@@ -79,11 +79,6 @@ export function buildCatalogInitPayload(
                 `Dewey: ${deweyNum}  |  ${card.fileName}`,
             ].join('\n');
 
-            const isWbCore = card.projectPath.toLowerCase().includes('wb-core');
-            const demoBtn = isWbCore
-                ? `<button class="btn-demo" data-action="wb-demo" data-path="${esc(card.filePath)}" data-name="${esc(card.title)}" title="Open live component demo in browser">&#9654; Demo</button>`
-                : '';
-
             // Resolve command: prefer frontmatter `command:` field, then match CATALOG by helpDoc
             // (CATALOG.location points to .ts source files, not .md docs, so we match via helpDoc)
             let commandId = card.command ?? '';
@@ -133,7 +128,6 @@ export function buildCatalogInitPayload(
             <button class="btn-view" data-action="open-preview" data-path="${esc(card.filePath)}">&#128196; Preview</button>
       <button class="btn-open" data-action="open"         data-path="${esc(card.filePath)}">&#9998; Edit</button>
       <button class="btn-open" data-action="open-folder"  data-path="${esc(card.projectPath)}">&#128194; Folder</button>
-      ${demoBtn}
       ${runBtn}
       ${finishBtn}
     </div>
