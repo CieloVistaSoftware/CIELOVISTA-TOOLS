@@ -12,7 +12,7 @@
  * Links rendered in yellow (#FFD700) per project link-visibility rule.
  */
 
-export function buildViewerHtml(port: number, totalProjects: number): string {
+export function buildViewerHtml(port: number, totalProjects: number, token: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -146,6 +146,9 @@ pre.json{background:#1a1a1a;border:1px solid #2d2d2d;border-radius:4px;padding:1
 <script>
 (function(){
 var BASE = 'http://127.0.0.1:${port}';
+// Every request to this server carries its token (#780): it refuses any request without it.
+var TOKEN = '${token}';
+var MCP_URL = BASE + '/mcp?t=' + TOKEN;
 
 var tabsEl     = document.getElementById('tabs');
 var controlsEl = document.getElementById('controls');
@@ -244,7 +247,7 @@ var CONTROLS = {
 };
 
 function _reportViewerError(message, endpoint) {
-  fetch(BASE + '/mcp', {
+  fetch(MCP_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -267,7 +270,7 @@ function esc(s){
 }
 
 function buildMdPreviewLink(filePath){
-  return BASE + '/md-preview?path=' + encodeURIComponent(filePath || '') + '&back=' + encodeURIComponent(window.location.href);
+  return BASE + '/md-preview?t=' + TOKEN + '&path=' + encodeURIComponent(filePath || '') + '&back=' + encodeURIComponent(window.location.href);
 }
 
 function setMeta(url, status, ms, extra){
@@ -688,7 +691,7 @@ function loadActiveMarkdownPath(filePathEl){
     method: 'active_markdown',
     params: {}
   };
-  fetch(BASE + '/mcp', {
+  fetch(MCP_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody)
@@ -714,7 +717,7 @@ function loadWorkspaceMarkdownOptions(selectEl){
     method: 'list_markdown_paths',
     params: { limit: 300 }
   };
-  fetch(BASE + '/mcp', {
+  fetch(MCP_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody)
@@ -742,7 +745,7 @@ function loadWorkspaceMarkdownOptions(selectEl){
 
 /* Fetch and render the current endpoint using JSON-RPC POST. */
 function runEndpoint(params){
-  var url = BASE + '/mcp';
+  var url = MCP_URL;
   var requestBody = {
     jsonrpc: '2.0',
     id: Math.floor(Math.random() * 1000000),
@@ -944,7 +947,7 @@ function loadProjectOptions(selectEl){
     return;
   }
 
-  fetch(BASE + '/mcp', {
+  fetch(MCP_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000), method: 'list_projects', params: {} })
@@ -1079,7 +1082,7 @@ function selectTab(endpoint){
   if (btn) { btn.addEventListener('click', runFromControls); }
   if (activeFileBtn && filePathEl) {
     activeFileBtn.addEventListener('click', function(){
-      fetch(BASE + '/mcp', {
+      fetch(MCP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1000000), method: 'active_markdown', params: {} })

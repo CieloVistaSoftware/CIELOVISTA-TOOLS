@@ -2,7 +2,7 @@
 // Proves the fix by parsing, not by claim.
 
 const path = require('path');
-const html = require(path.join(__dirname, '..', 'out', 'features', 'mcp-viewer', 'html.js')).buildViewerHtml(1234, 18);
+const html = require(path.join(__dirname, '..', 'out', 'features', 'mcp-viewer', 'html.js')).buildViewerHtml(1234, 18, 'ab'.repeat(32));
 const match = html.match(/<script>([\s\S]*?)<\/script>/);
 if (!match) {
   console.error('FAIL: no <script> in emitted HTML');

@@ -14,6 +14,12 @@
  * `buildCatalog()` scan — so no logic is duplicated.
  *
  * Command: `cvs.mcp.viewer.open`
+ *
+ * Security (#780): the server answers only its own page. Every route goes
+ * through authorizeMcpViewerRequest() (per-server token + own Host header),
+ * no response carries a CORS header, and every path-taking route accepts only
+ * paths inside a registered project or the global docs folder
+ * (resolveViewerPath()).
  */
 
 import * as vscode       from 'vscode';
@@ -23,9 +29,12 @@ import * as path         from 'path';
 import { execFile }      from 'child_process';
 import { log } from '../../shared/output-channel';
 import { mdToHtml } from '../../shared/md-renderer';
-import { loadRegistry } from '../../shared/registry';
+import { loadRegistry, registeredRoots } from '../../shared/registry';
 import { readRequestBody } from '../../shared/http-utils';
+import { resolveAllowedPath } from '../../shared/local-image-route';
+import { createServerToken, requestHasToken, isOwnHost, SERVER_TOKEN_PARAM } from '../../shared/server-token';
 import { buildCatalog } from '../doc-catalog/commands';
+import { buildViewerHtml } from './html';
 import type { CatalogCard } from '../doc-catalog/types';
 import {
     getSymbolIndex,
@@ -38,15 +47,18 @@ import {
 
 const FEATURE = 'mcp-viewer';
 
-let _server:     http.Server | undefined;
-let _serverPort: number      | undefined;
+let _server:      http.Server | undefined;
+let _serverPort:  number      | undefined;
+/** This server's token (#780): only pages it renders carry it. Lives as long as the server. */
+let _serverToken: string      | undefined;
 
 /** Dispose the HTTP server — called from extension deactivate. */
 export function disposeMcpViewerServer(): void {
     if (_server) {
         try { _server.close(); } catch { /* noop */ }
-        _server     = undefined;
-        _serverPort = undefined;
+        _server      = undefined;
+        _serverPort  = undefined;
+        _serverToken = undefined;
     }
 }
 
@@ -795,12 +807,16 @@ async function handleListMarkdownPaths(params: URLSearchParams): Promise<{
 
 /* ── HTTP server wiring ───────────────────────────────────────────────────── */
 
+/**
+ * JSON reply. No Access-Control-Allow-Origin header (#780): the viewer page is
+ * served by this same server, so its requests are same-origin, and a page on
+ * any other origin must not be able to read a response.
+ */
 function jsonResponse(res: http.ServerResponse, status: number, body: unknown): void {
     const text = JSON.stringify(body);
     res.writeHead(status, {
-        'Content-Type':                'application/json; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
-        'Content-Length':              Buffer.byteLength(text),
+        'Content-Type':   'application/json; charset=utf-8',
+        'Content-Length': Buffer.byteLength(text),
     });
     res.end(text);
 }
@@ -818,10 +834,30 @@ function escHtml(s: string): string {
         .replace(/"/g, '&quot;');
 }
 
-function buildMarkdownPreviewHtml(filePath: string, markdown: string, backUrl?: string): string {
+/** JSON for a value placed inside an inline script: no "<", so no "</script>" breakout. */
+function jsonForScript(value: unknown): string {
+    return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+/**
+ * The md-preview Back target, only when it is a page of this server (#780).
+ * Anything else (another origin, a javascript: URL) becomes '' and Back
+ * falls back to history. The parsed href never contains "<" or a quote.
+ */
+function sameServerBackUrl(raw: string, port: number): string {
+    if (!raw) { return ''; }
+    try {
+        const u = new URL(raw);
+        return u.origin === `http://127.0.0.1:${port}` || u.origin === `http://localhost:${port}` ? u.href : '';
+    } catch {
+        return '';
+    }
+}
+
+function buildMarkdownPreviewHtml(filePath: string, markdown: string, token: string, backUrl?: string): string {
     const safePath    = escHtml(filePath);
     const safeFileName = escHtml(filePath.split(/[\\/]/).pop() ?? filePath);
-    const safeBack    = escHtml(backUrl || '');
+    const safeBack    = backUrl || '';
     const renderedHtml = mdToHtml(markdown);
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>${safeFileName}</title>
@@ -852,8 +888,10 @@ th,td{border:1px solid #2d2d2d;padding:6px 8px}
 <header><button id="btn-back" class="btn-back" title="Back to MCP Endpoint Viewer">&larr; Back</button><button id="btn-reveal" class="btn-reveal" title="Reveal in Explorer">&#128194;</button><span id="path-label" class="path-label" title="Click to reveal in Explorer">${safePath}</span></header>
 <main>${renderedHtml}</main>
 <script>
-var backUrl = ${JSON.stringify(safeBack)};
-var currentFilePath = ${JSON.stringify(filePath)};
+var backUrl = ${jsonForScript(safeBack)};
+var currentFilePath = ${jsonForScript(filePath)};
+// Every request to this server carries its token (#780).
+var TOKEN = ${jsonForScript(token)};
 document.getElementById('btn-back').addEventListener('click', function(){
     if (backUrl) { window.location.href = backUrl; return; }
     if (window.history.length > 1) { window.history.back(); return; }
@@ -861,7 +899,7 @@ document.getElementById('btn-back').addEventListener('click', function(){
 });
 function revealFile() {
     if (!currentFilePath) { return; }
-    fetch('/api/reveal?path=' + encodeURIComponent(currentFilePath)).catch(function(){});
+    fetch('/api/reveal?t=' + TOKEN + '&path=' + encodeURIComponent(currentFilePath)).catch(function(){});
 }
 document.getElementById('btn-reveal').addEventListener('click', revealFile);
 document.getElementById('path-label').addEventListener('click', revealFile);
@@ -884,7 +922,7 @@ document.getElementById('path-label').addEventListener('click', revealFile);
                 var fp = m[0];
                 if (/\.md$/i.test(fp)) {
                     var a = document.createElement('a');
-                    a.href = '/md-preview?path=' + encodeURIComponent(fp) + '&back=' + encodeURIComponent(window.location.href);
+                    a.href = '/md-preview?t=' + TOKEN + '&path=' + encodeURIComponent(fp) + '&back=' + encodeURIComponent(window.location.href);
                     a.textContent = fp;
                     frag.appendChild(a);
                 } else {
@@ -907,17 +945,58 @@ document.getElementById('path-label').addEventListener('click', revealFile);
 </body></html>`;
 }
 
-async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse, port: number): Promise<void> {
+/**
+ * The one gate for every route of this server (#780), run before any route.
+ * The server listens on 127.0.0.1, which every web page the user has open
+ * can reach. A request is answered only when:
+ *
+ *   - its Host header names this server's own loopback address, so a
+ *     DNS-rebinding page (evil.example resolving to 127.0.0.1) is refused;
+ *   - it carries this server's token (?t=), which only pages this server
+ *     rendered contain. No response carries a CORS header, so a page on
+ *     another origin cannot read a page to learn the token.
+ *
+ * Same helpers as the View-a-Doc server (#752, #758): shared/server-token.ts.
+ */
+function authorizeMcpViewerRequest(req: http.IncomingMessage, url: URL, port: number, token: string): boolean {
+    return isOwnHost(req.headers.host, port) && requestHasToken(url, token);
+}
+
+/**
+ * The file a path-taking route may use, or why not (#780). Only paths inside
+ * a registered project root or the registry's global docs folder, after
+ * following symlinks (shared/local-image-route.ts resolveAllowedPath). The
+ * ?path= value is decoded once, by URL parsing, and never again.
+ *
+ *   /api/reveal   an existing file or folder
+ *   /md-preview   an existing .md file
+ */
+function resolveViewerPath(url: URL): ReturnType<typeof resolveAllowedPath> {
+    const requested = url.searchParams.get('path');
+    const result = resolveAllowedPath(requested, registeredRoots(),
+        url.pathname === '/md-preview' ? { kind: 'file', extensions: ['.md'] } : { kind: 'any' });
+    if (!result.ok) {
+        log(FEATURE, `Viewer server refused ${url.pathname} (${result.reason}): ${requested ?? ''}`);
+    }
+    return result;
+}
+
+async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse, port: number, token: string): Promise<void> {
     const url = new URL(req.url || '/', 'http://localhost');
     const p   = url.pathname;
+
+    if (!authorizeMcpViewerRequest(req, url, port, token)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Forbidden');
+        return;
+    }
 
     if (p === '/favicon.ico') { res.writeHead(204); res.end(); return; }
 
     /* Main HTML page — counts loaded here so topbar renders with real numbers. */
     if (p === '/' || p === '/index.html') {
-        const { buildViewerHtml } = await import('./html');
         const summary = handleListProjects();
-        htmlResponse(res, 200, buildViewerHtml(port, summary.projectCount));
+        htmlResponse(res, 200, buildViewerHtml(port, summary.projectCount, token));
         return;
     }
 
@@ -993,30 +1072,31 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
 
     if (p === '/api/reveal') {
-        const targetPath = url.searchParams.get('path') || '';
-        if (targetPath && fs.existsSync(targetPath)) {
-            try {
-                await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(targetPath));
-                jsonResponse(res, 200, { ok: true });
-            } catch {
-                jsonResponse(res, 500, { ok: false, error: 'Could not reveal file' });
-            }
-        } else {
-            jsonResponse(res, 404, { ok: false, error: 'Path not found' });
+        const allowed = resolveViewerPath(url);
+        if (!allowed.ok) {
+            jsonResponse(res, allowed.status, { ok: false, error: allowed.status === 404 ? 'Path not found' : 'Refused' });
+            return;
+        }
+        try {
+            await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(allowed.path));
+            jsonResponse(res, 200, { ok: true });
+        } catch {
+            jsonResponse(res, 500, { ok: false, error: 'Could not reveal file' });
         }
         return;
     }
 
     if (p === '/md-preview') {
-        const filePath = url.searchParams.get('path') || '';
-        const backUrl = url.searchParams.get('back') || '';
-        if (!filePath || !filePath.toLowerCase().endsWith('.md') || !fs.existsSync(filePath)) {
-            htmlResponse(res, 404, '<h1>Markdown file not found</h1>');
+        const allowed = resolveViewerPath(url);
+        if (!allowed.ok) {
+            htmlResponse(res, allowed.status, allowed.status === 404 ? '<h1>Markdown file not found</h1>' : '<h1>Refused</h1>');
             return;
         }
+        const filePath = allowed.path;
+        const backUrl = sameServerBackUrl(url.searchParams.get('back') || '', port);
         try {
             const md = fs.readFileSync(filePath, 'utf8');
-            htmlResponse(res, 200, buildMarkdownPreviewHtml(filePath, md, backUrl));
+            htmlResponse(res, 200, buildMarkdownPreviewHtml(filePath, md, token, backUrl));
             return;
         } catch {
             htmlResponse(res, 500, '<h1>Unable to read markdown file</h1>');
@@ -1164,15 +1244,19 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 
 /** Ensure the HTTP server is running, then open the browser. */
 async function openViewer(): Promise<void> {
-    if (_server && _serverPort) {
-        await vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${_serverPort}/`));
+    if (_server && _serverPort && _serverToken) {
+        await vscode.env.openExternal(vscode.Uri.parse(viewerUrl(_serverPort, _serverToken)));
         log(FEATURE, `Reopened existing viewer on port ${_serverPort}`);
         return;
     }
 
+    // A fresh token for a fresh server (#780): only the URL opened here, and
+    // the pages the server renders, carry it.
+    const token = createServerToken();
+    _serverToken = token;
     _server = http.createServer((req, res) => {
         const port = _serverPort || 0;
-        void handleRequest(req, res, port).catch(err => {
+        void handleRequest(req, res, port, token).catch(err => {
             log(FEATURE, `Request error: ${(err as Error).message}`);
             if (!res.headersSent) {
                 res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -1183,8 +1267,9 @@ async function openViewer(): Promise<void> {
 
     _server.on('error', err => {
         log(FEATURE, `Server error: ${err.message}`);
-        _server     = undefined;
-        _serverPort = undefined;
+        _server      = undefined;
+        _serverPort  = undefined;
+        _serverToken = undefined;
     });
 
     await new Promise<void>((resolve) => {
@@ -1196,8 +1281,13 @@ async function openViewer(): Promise<void> {
         });
     });
 
-    await vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${_serverPort}/`));
+    await vscode.env.openExternal(vscode.Uri.parse(viewerUrl(_serverPort!, token)));
     log(FEATURE, `Viewer opened at http://127.0.0.1:${_serverPort}/`);
+}
+
+/** The viewer page's address, token included (#780). */
+function viewerUrl(port: number, token: string): string {
+    return `http://127.0.0.1:${port}/?${SERVER_TOKEN_PARAM}=${token}`;
 }
 
 /* ── Feature activation ───────────────────────────────────────────────────── */

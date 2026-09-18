@@ -72,8 +72,12 @@ console.log('\n[1] Module shape');
 test('buildViewerHtml is exported', () => {
     assert.ok(src.includes('export function buildViewerHtml('), 'buildViewerHtml must be exported');
 });
-test('buildViewerHtml accepts port and totalProjects params', () => {
-    assert.ok(src.includes('buildViewerHtml(port: number, totalProjects: number)'));
+test('buildViewerHtml accepts port, totalProjects and the server token (#780)', () => {
+    assert.ok(src.includes('buildViewerHtml(port: number, totalProjects: number, token: string)'));
+});
+test('every request from the page carries the server token (#780)', () => {
+    assert.ok(src.includes("var MCP_URL = BASE + '/mcp?t=' + TOKEN;"), 'JSON-RPC URL must carry the token');
+    assert.ok(!src.includes("fetch(BASE + '/mcp'"), 'no fetch may bypass MCP_URL (it would be sent without the token)');
 });
 
 // ── 2. Tab buttons ────────────────────────────────────────────────────────────
@@ -256,8 +260,8 @@ test('renderLookupDewey renders both docs and commands sections', () => {
     assert.ok(slice.includes('Documents'), 'renderLookupDewey must render Documents section');
     assert.ok(slice.includes('CVT Commands'), 'renderLookupDewey must render CVT Commands section');
 });
-test('docs table links use /md-preview?path= for file preview', () => {
-    assert.ok(src.includes('/md-preview?path='), 'Doc table rows must link to /md-preview for file preview');
+test('docs table links use /md-preview with the token and ?path= for file preview (#780)', () => {
+    assert.ok(src.includes("/md-preview?t=' + TOKEN + '&path='"), 'Doc table rows must link to /md-preview, token included, for file preview');
 });
 test('docs table links include back= return URL parameter', () => {
     assert.ok(src.includes('&back='), 'md-preview links must include back return URL parameter');
@@ -296,8 +300,8 @@ if (bundle.length === 0) {
     test('bundle contains esc() XSS helper', () => {
         assert.ok(bundle.includes('&amp;') && bundle.includes('&lt;'), 'esc() HTML entities must be in bundle');
     });
-    test('bundle contains /md-preview?path= link pattern', () => {
-        assert.ok(bundle.includes('/md-preview?path='), '/md-preview link pattern must be in bundle');
+    test('bundle contains the /md-preview link pattern, token included (#780)', () => {
+        assert.ok(bundle.includes("/md-preview?t=' + TOKEN + '&path="), '/md-preview link pattern (with the server token) must be in bundle');
     });
 }
 

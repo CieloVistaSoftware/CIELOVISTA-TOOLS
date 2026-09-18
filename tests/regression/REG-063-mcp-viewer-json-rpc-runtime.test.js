@@ -13,6 +13,8 @@ const vm = require('vm');
 const { JSDOM } = require('jsdom');
 const ts = require('typescript');
 
+// #780: the server refuses any request without its token, so the page must send it.
+const TOKEN = 'abababababababababababababababababababababababababababababababab';
 const SRC = path.join(__dirname, '../../src/features/mcp-viewer/html.ts');
 assert.ok(fs.existsSync(SRC), 'Source file not found: src/features/mcp-viewer/html.ts');
 
@@ -26,7 +28,7 @@ function buildHtml() {
   vm.runInNewContext(transpiled, ctx, { filename: 'mcp-viewer-html.transpiled.js' });
   const buildViewerHtml = ctx.module.exports.buildViewerHtml || ctx.exports.buildViewerHtml;
   assert.strictEqual(typeof buildViewerHtml, 'function', 'buildViewerHtml export not found');
-  return buildViewerHtml(4321, 19);
+  return buildViewerHtml(4321, 19, TOKEN);
 }
 
 function flush() {
@@ -105,7 +107,7 @@ function flush() {
 
   const badApiCallsAfterLoad = requests.filter((r) => r.url.includes('/api/'));
   assert.strictEqual(badApiCallsAfterLoad.length, 0, 'initial MCP viewer load must not call legacy /api endpoints');
-  assert.ok(requests.some((r) => r.url.endsWith('/mcp') && r.method === 'list_projects'), 'initial load must request list_projects via POST /mcp');
+  assert.ok(requests.some((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'list_projects'), 'initial load must request list_projects via POST /mcp');
 
   const getCatalogTab = doc.querySelector('.tab[data-endpoint="get_catalog"]');
   assert.ok(getCatalogTab, 'get_catalog tab button not found');
@@ -123,7 +125,7 @@ function flush() {
   await flush();
   await flush();
 
-  assert.ok(requests.some((r) => r.url.endsWith('/mcp') && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp'), 'get_catalog project selection must use JSON-RPC POST /mcp');
+  assert.ok(requests.some((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp'), 'get_catalog project selection must use JSON-RPC POST /mcp');
 
   const validateTab = doc.querySelector('.tab[data-endpoint="validate_doc"]');
   assert.ok(validateTab, 'validate_doc tab button not found');
@@ -143,7 +145,7 @@ function flush() {
   await flush();
 
   assert.strictEqual(filePathInput.value, 'C:/docs/README.md', 'active markdown helper should populate the file path from JSON-RPC result');
-  assert.ok(requests.some((r) => r.url.endsWith('/mcp') && r.method === 'active_markdown'), 'active markdown helper must use JSON-RPC POST /mcp');
+  assert.ok(requests.some((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'active_markdown'), 'active markdown helper must use JSON-RPC POST /mcp');
 
   const badApiCalls = requests.filter((r) => r.url.includes('/api/'));
   assert.strictEqual(badApiCalls.length, 0, 'no tested MCP viewer flow should call legacy /api endpoints');

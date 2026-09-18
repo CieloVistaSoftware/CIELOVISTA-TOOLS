@@ -55,6 +55,18 @@ export function loadRegistry(): ProjectRegistry | undefined {
 }
 
 /**
+ * Folders a local server may read or act on: every registered project root
+ * plus the registry's global docs folder (#752, #758, #780). The server
+ * decides them from the registry; a request never does. Pass the result to
+ * resolveAllowedPath() in shared/local-image-route.ts.
+ */
+export function registeredRoots(): string[] {
+    const registry = loadRegistry();
+    if (!registry) { return []; }
+    return [registry.globalDocsPath, ...registry.projects.map(p => p.path)].filter(Boolean);
+}
+
+/**
  * Saves the project registry back to REGISTRY_PATH.
  * Pretty-printed with 2-space indent to match the hand-maintained style.
  * Throws on write failure — callers should wrap in try/catch if they want UI feedback.
