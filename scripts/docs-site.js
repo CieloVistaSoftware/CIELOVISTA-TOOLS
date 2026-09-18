@@ -28,6 +28,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { sameGenerated } = require('./lib/same-generated');
+const { walkDocTree }   = require('./lib/doc-walk');
 
 const ROOT     = path.resolve(__dirname, '..');
 const DOCS_DIR = path.join(ROOT, 'docs');
@@ -57,21 +58,13 @@ function titleFromFile(file) {
 }
 
 /** The archive is deliberately outside the contract, so read it from disk. */
-function collectArchive(dir = path.join(DOCS_DIR, 'archive'), out = []) {
-    let entries = [];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-    catch { return out; }
-
-    for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) { collectArchive(full, out); continue; }
-        if (!/\.(md|html)$/.test(entry.name)) { continue; }
-        out.push({
+function collectArchive(dir = path.join(DOCS_DIR, 'archive')) {
+    // The one doc walk and skip list (#812); the archive also keeps .html pages.
+    return walkDocTree(dir, { maxDepth: Infinity, match: (name) => /\.(md|html)$/.test(name) })
+        .map((full) => ({
             title: titleFromFile(full),
             path:  path.relative(ROOT, full).split(path.sep).join('/'),
-        });
-    }
-    return out;
+        }));
 }
 
 const catalog = JSON.parse(fs.readFileSync(CATALOG, 'utf8'));

@@ -5,6 +5,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { walkDocTree } from "../shared/doc-walk.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,17 +68,10 @@ export function loadRegistry(): ProjectRegistry {
 
 // ─── Markdown scan ──────────────────────────────────────────────────────────
 
-const SKIP_DIRS = new Set([
-  "node_modules",
-  ".git",
-  "out",
-  "dist",
-  ".vscode",
-  ".vscode-test",
-  "reports",
-  "playwright-report",
-  "test-results",
-]);
+// The walk and its skip list are the extension's (mcp-server/src/shared/doc-walk.ts,
+// #812), so get_catalog and search_docs see the docs the Doc Catalog, Doc Auditor
+// and Doc Intelligence panels see. The list this file had did not skip .claude/,
+// so every git worktree under .claude/worktrees/ added a full copy of every doc.
 
 export function scanProjectDocs(
   rootPath: string,
@@ -87,53 +81,29 @@ export function scanProjectDocs(
   maxDepth = 3
 ): DocEntry[] {
   const docs: DocEntry[] = [];
-  if (!fs.existsSync(rootPath)) {
-    return docs;
-  }
-
-  function walk(dir: string, depth: number): void {
-    if (depth > maxDepth) {
-      return;
-    }
-    let entries: fs.Dirent[];
+  for (const full of walkDocTree(rootPath, { maxDepth })) {
+    const fileName = path.basename(full);
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      const content = fs.readFileSync(full, "utf8");
+      const stat = fs.statSync(full);
+      docs.push({
+        projectName,
+        fileName,
+        filePath: full,
+        title: extractTitle(content, fileName),
+        description: extractDescription(content),
+        id: extractFrontmatterId(content),
+        projectPath,
+        projectStatus,
+        tags: extractTags(content, fileName),
+        sizeBytes: Buffer.byteLength(content, "utf8"),
+        lastModified: stat.mtime.toISOString().slice(0, 10),
+        helpMarkdown: extractHelpMarkdown(content),
+      });
     } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full, depth + 1);
-      } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-        try {
-          const content = fs.readFileSync(full, "utf8");
-          const stat = fs.statSync(full);
-          docs.push({
-            projectName,
-            fileName: entry.name,
-            filePath: full,
-            title: extractTitle(content, entry.name),
-            description: extractDescription(content),
-            id: extractFrontmatterId(content),
-            projectPath,
-            projectStatus,
-            tags: extractTags(content, entry.name),
-            sizeBytes: Buffer.byteLength(content, "utf8"),
-            lastModified: stat.mtime.toISOString().slice(0, 10),
-            helpMarkdown: extractHelpMarkdown(content),
-          });
-        } catch {
-          /* skip unreadable files */
-        }
-      }
+      /* skip unreadable files */
     }
   }
-
-  walk(rootPath, 0);
   return docs;
 }
 
@@ -409,35 +379,12 @@ function parseMarkdownRefs(content: string): ParsedRef[] {
   return refs;
 }
 
+/**
+ * Every file a broken reference could be pointing at: the doc walk with any
+ * file name, so a candidate is never a worktree's copy or a build output.
+ */
 function walkFiles(rootPath: string, maxDepth = 8): string[] {
-  const files: string[] = [];
-  if (!fs.existsSync(rootPath)) {
-    return files;
-  }
-  function walk(dir: string, depth: number): void {
-    if (depth > maxDepth) {
-      return;
-    }
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full, depth + 1);
-      } else if (entry.isFile()) {
-        files.push(full);
-      }
-    }
-  }
-  walk(rootPath, 0);
-  return files;
+  return walkDocTree(rootPath, { maxDepth, match: () => true });
 }
 
 function buildFileNameIndex(files: string[]): Map<string, string[]> {

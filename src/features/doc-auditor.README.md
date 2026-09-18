@@ -32,7 +32,7 @@ The doc-auditor is a comprehensive, interactive tool for auditing documentation 
 ---
 
 ## Architecture & Data Flow
-- **Collection:** Recursively scans all projects and the global folder for `.md` files (up to 3 levels deep) through the shared collector, src/shared/doc-collector.ts, so it sees exactly the docs Doc Intelligence sees. The one skip list, DOC_SKIP_DIRS, leaves out build output, installed packages, tool state, test artifacts and generated reports (#802).
+- **Collection:** Recursively scans all projects and the global folder for `.md` files (up to 3 levels deep) through the shared collector, src/shared/doc-collector.ts, so it sees exactly the docs Doc Intelligence sees. The one skip list, DOC_SKIP_DIRS, leaves out build output, installed packages, tool state (including every git worktree under .claude/), test artifacts and generated reports (#802). It is defined once, in mcp-server/src/shared/doc-walk.ts, so the MCP server's get_catalog and search_docs and the doc scripts see the same docs (#812).
 - **Analysis:**
 	- Duplicates: Groups by exact filename
 	- Similar: Pairs with >65% content overlap (Jaccard index)

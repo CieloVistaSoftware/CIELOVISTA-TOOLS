@@ -14,23 +14,10 @@
  * directory is a doc location for every feature or for none; both now see
  * the same 1,441.
  *
- * THE SKIP LIST is the union of the lists the walkers had, minus one entry.
- * A directory is skipped when what is inside it is not a hand-written doc of
- * the project: generated output, installed or vendored packages, tool state,
- * test artifacts, or shipped runtime payloads. The entries that hold markdown
- * in the registry projects today:
- *   .vscode-test/  the VS Code build extension tests download (61 files)
- *   bin/           .NET build output: DiskCleanUp's bin/ holds five copies
- *                  of wwwroot/settings-help.md, one per build configuration
- *   .venv/, venv/  installed Python packages' own READMEs
- *   reports/       the audit and coverage reports these features write
- *   test-results/  Playwright failure dumps (error-context.md)
- *   output/        generated build and RAG prompts (pico-dataset)
- *   CommandHelp/   help payloads copied into the VSIX and read at runtime
- *                  (#712), not project documentation
- * DROPPED: legacy/. Only the background health check skipped it, and the only
- * legacy/ holding markdown (vscode-claude/patches/legacy/README.md) is a
- * hand-written doc, which is exactly what a doc audit should see.
+ * THE SKIP LIST and the walk itself live in mcp-server/src/shared/doc-walk.ts
+ * (#812), so the MCP server and the Node scripts walk with the same list;
+ * this module re-exports them and adds the reading. See doc-walk.ts for why
+ * each directory is skipped and why the file sits under mcp-server/src/.
  *
  * Pure functions: no vscode, no state. They read the file system and return.
  */
@@ -39,68 +26,19 @@ import * as crypto from 'crypto';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { readFrontmatter } from './doc-frontmatter';
+// #812 -- the one walk and the one skip list, shared with the MCP server and
+// scripts/. It lives under mcp-server/src/ for the reason registry-promote-core
+// does (#696): mcp-server's tsconfig rootDir is ./src.
+import { walkDocTree, DEFAULT_DOC_DEPTH } from '../../mcp-server/src/shared/doc-walk';
 
-/** Directories no doc walk descends into. See the header for why each is here. */
-export const DOC_SKIP_DIRS: ReadonlySet<string> = new Set([
-    // version control, editor and agent state
-    '.git', '.vscode', '.claude',
-    // installed or vendored packages
-    'node_modules', 'vendor', '.venv', 'venv', '__pycache__',
-    // build output
-    'out', 'dist', 'build', 'output', 'bin', 'obj', 'coverage',
-    '.next', '.nuxt', '.cache', 'tmp', 'temp',
-    // test artifacts
-    '.vscode-test', 'test-results', 'playwright-report', '.playwright-artifacts',
-    // reports these doc features write, and runtime payloads shipped in the VSIX
-    'reports', 'CommandHelp', 'image-reader-assets',
-]);
-
-/** File names that are never docs even where docs live: Playwright's per-failure dump. */
-export const DOC_SKIP_FILE_SUFFIXES: readonly string[] = ['error-context.md'];
-
-/** How deep the doc features look below a project root (root = depth 0). */
-export const DEFAULT_DOC_DEPTH = 3;
-
-const MARKDOWN = /\.md$/i;
-
-export function isMarkdownDoc(fileName: string): boolean {
-    if (!MARKDOWN.test(fileName)) { return false; }
-    const lower = fileName.toLowerCase();
-    return !DOC_SKIP_FILE_SUFFIXES.some((suffix) => lower.endsWith(suffix));
-}
-
-export interface DocTreeOptions {
-    /** Deepest directory level entered; the root is 0. Default DEFAULT_DOC_DEPTH. Infinity for no limit. */
-    maxDepth?: number;
-    /** Which files to return, by name. Default isMarkdownDoc. */
-    match?: (fileName: string) => boolean;
-}
-
-/**
- * Every file under rootPath whose name passes `match`, never entering a
- * DOC_SKIP_DIRS directory. Unreadable directories are skipped; a missing
- * root returns [].
- */
-export function walkDocTree(rootPath: string, options: DocTreeOptions = {}): string[] {
-    const maxDepth = options.maxDepth ?? DEFAULT_DOC_DEPTH;
-    const match    = options.match ?? isMarkdownDoc;
-    const files: string[] = [];
-
-    function walk(dir: string, depth: number): void {
-        if (depth > maxDepth) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const entry of entries) {
-            if (DOC_SKIP_DIRS.has(entry.name)) { continue; }
-            const full = path.join(dir, entry.name);
-            if (entry.isDirectory()) { walk(full, depth + 1); }
-            else if (entry.isFile() && match(entry.name)) { files.push(full); }
-        }
-    }
-
-    walk(rootPath, 0);
-    return files;
-}
+export {
+    DOC_SKIP_DIRS,
+    DOC_SKIP_FILE_SUFFIXES,
+    DEFAULT_DOC_DEPTH,
+    isMarkdownDoc,
+    walkDocTree,
+    type DocTreeOptions,
+} from '../../mcp-server/src/shared/doc-walk';
 
 /** One markdown doc, read. Each feature maps this onto its own record. */
 export interface CollectedDoc {
