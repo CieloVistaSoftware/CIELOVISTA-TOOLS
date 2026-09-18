@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { log, logError } from '../shared/output-channel';
-import { sendToCopilotChat } from './terminal-copy-output';
+import { sendToCopilotChat } from '../shared/copilot-chat';
 
 const FEATURE = 'json-copy-to-chat';
 const MAX_JSON_CHARS = 20000;

@@ -22,7 +22,7 @@
  */
 
 import * as vscode from 'vscode';
-import { sendToCopilotChat } from '../features/terminal-copy-output';
+import { sendToCopilotChat } from './copilot-chat';
 
 export interface InteractiveResultOptions {
   title: string;           // Title for the webview panel

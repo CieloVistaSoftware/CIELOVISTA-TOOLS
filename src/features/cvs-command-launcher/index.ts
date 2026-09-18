@@ -14,7 +14,7 @@ import { startMcpServer, stopMcpServer, getMcpServerStatus, onMcpServerStatusCha
 import { fileHealthBugAsIssue } from '../../shared/github-issue-filer';
 import { initHistory, recordRun, getHistory } from './command-history';
 import { initRecentProjects, touchCurrentProject, getRecentProjects } from './recent-projects';
-import { sendToCopilotChat } from '../terminal-copy-output';
+import { sendToCopilotChat } from '../../shared/copilot-chat';
 import { loadRegistry } from '../../shared/registry';
 import { getErrors } from '../../shared/error-log-adapter';
 import { setLauncherTargetColumn } from '../../shared/panel-context';

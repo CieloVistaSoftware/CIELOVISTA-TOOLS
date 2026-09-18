@@ -34,11 +34,13 @@
  *
  * Dependencies:
  *   - ../shared/output-channel (log, logError) — extension output channel
+ *   - ../shared/copilot-chat (sendToCopilotChat) — Copilot Chat input
  *   - VS Code shell integration (enabled by default since VS Code 1.85)
  * ──────────────────────────────────────────────────────────────────────────────
  */
 import * as vscode from 'vscode';
 import { log, logError } from '../shared/output-channel';
+import { sendToCopilotChat } from '../shared/copilot-chat';
 
 /** Feature identifier used in log messages and error reports. */
 const FEATURE: string = 'terminal-copy-output';
@@ -59,61 +61,6 @@ interface CopyOptions {
     formatAsMarkdown?: boolean;
     pasteToChat?: boolean;
     commandOnly?: boolean;
-}
-
-// ─── Copilot Chat integration ────────────────────────────────────────────────
-
-/**
- * Attempts to send captured terminal content into the Copilot Chat input.
- *
- * Multiple strategies are attempted because the Chat API has changed across
- * VS Code and Copilot Chat releases:
- *
- *   Strategy 1 (preferred): `workbench.action.chat.open` with a structured
- *   payload `{ query, mode }`. This pre-fills the chat input without sending.
- *   Available in recent VS Code Insiders builds.
- *
- *   Strategy 2 (compat): Same command with a raw string argument. Works in
- *   older Copilot Chat releases that accept a plain string instead of an
- *   object payload.
- *
- *   Strategy 3 (fallback): Focus the chat panel via `github.copilot.chat.focus`,
- *   write content to the clipboard, and return false so the caller can show a
- *   "press Ctrl+V" message. We cannot programmatically paste into the chat
- *   input widget because `editor.action.clipboardPasteAction` only works in
- *   TextEditor instances, not in the chat widget's custom input control.
- *
- * @param content - The sanitised terminal output (may include Markdown fencing).
- * @returns true if content was successfully placed in the chat input,
- *          false if only the clipboard fallback was used.
- */
-export async function sendToCopilotChat(content: string): Promise<boolean> {
-    // Strategy 1 — query-only payload (no mode — mode:'ask' causes attachment errors)
-    try {
-        await vscode.commands.executeCommand('workbench.action.chat.open', {
-            query: content,
-        });
-        return true;
-    } catch {
-        // Not supported in this version — try next strategy.
-    }
-
-    // Strategy 2 — raw string payload (older Copilot builds)
-    try {
-        await vscode.commands.executeCommand('workbench.action.chat.open', content);
-        return true;
-    } catch {
-        // Not supported in this version — try next strategy.
-    }
-
-    // Strategy 3 — focus chat + write to clipboard so user can Ctrl+V
-    await vscode.env.clipboard.writeText(content);
-    try {
-        await vscode.commands.executeCommand('github.copilot.chat.focus');
-    } catch {
-        // Chat panel not available — clipboard still has the content.
-    }
-    return false;
 }
 
 // ─── Core copy logic ─────────────────────────────────────────────────────────

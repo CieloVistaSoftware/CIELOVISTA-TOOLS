@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { loadRegistry } from '../shared/registry';
 import { log } from '../shared/output-channel';
-import { sendToCopilotChat } from './terminal-copy-output';
+import { sendToCopilotChat } from '../shared/copilot-chat';
 import { esc } from '../shared/webview-utils';
 
 const SKIP_DIRS = new Set([

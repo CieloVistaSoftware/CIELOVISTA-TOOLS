@@ -51,12 +51,11 @@ const ISSUES   = path.join(FEATURES, 'github-issues');
  * (forward slashes, relative to the repo root). Value: the import specifier
  * that is excused and the issue that removes it. Check 3 fails if an entry is
  * no longer an offender, so fixing the issue forces deleting its entry here.
+ *
+ * Empty since #751 moved sendToCopilotChat to src/shared/copilot-chat.ts. Keep
+ * it empty: a new entry needs an open issue, and a fix belongs in the move.
  */
-const ALLOW_LIST = {
-    // #751: sendToCopilotChat is a shared helper that lives in a feature; six
-    // features import it from there too. Moving it to shared/ is its own change.
-    'src/shared/show-interactive-result-webview.ts': { spec: '../features/terminal-copy-output', issue: '#751' },
-};
+const ALLOW_LIST = {};
 
 let passed = 0, failed = 0;
 function test(name, fn) {
