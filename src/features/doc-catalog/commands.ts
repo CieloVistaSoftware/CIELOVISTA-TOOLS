@@ -8,7 +8,6 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
-import { resolveNodeLauncher } from '../../shared/node-launcher';
 import { loadRegistry } from './registry';
 import { loadArchiveEntries, restoreDoc } from './archive';
 import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
@@ -19,7 +18,6 @@ import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
-import { isPortOpen } from '../../shared/port-check';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
@@ -319,66 +317,6 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
                 _cachedCards = undefined;
                 vscode.window.showInformationMessage(`Created CLAUDE.md for ${projName} \u2014 catalog will refresh on next open.`);
-                break;
-            }
-            case 'wb-demo': {
-                // Ensure the wb-core demo server is running, then open the harness in the browser.
-                const demoPort   = 3000;
-                const mdPath     = msg.data as string;
-                const compName   = (msg.name as string) || path.basename(mdPath, '.md');
-                const harnessUrl = `http://localhost:${demoPort}/wb-harness.html?md=${encodeURIComponent(mdPath)}&name=${encodeURIComponent(compName)}`;
-
-                const pollUntilUp = async (port: number, attempts: number, intervalMs: number): Promise<boolean> => {
-                    for (let i = 0; i < attempts; i++) {
-                        if (await isPortOpen(port, 500)) { return true; }
-                        await new Promise(r => setTimeout(r, intervalMs));
-                    }
-                    return false;
-                };
-
-                let serverUp = await isPortOpen(demoPort, 500);
-                if (!serverUp) {
-                    const cp = require('child_process') as typeof import('child_process');
-                    const wbCorePath = 'C:\\dev\\wb-core';
-                    // #723 / #615 -- resolve the interpreter explicitly. A PATH-resolved
-                    // node.exe can die at DLL init (0xC0000142) with no output, and
-                    // this child is detached with stdio:'ignore', so that failure
-                    // would otherwise be completely silent.
-                    const launcher = resolveNodeLauncher(process.env);
-                    cp.spawn(launcher.command, ['demo-server.js'], {
-                        cwd: wbCorePath,
-                        detached: true,
-                        stdio: 'ignore',
-                        env: launcher.env,
-                        windowsHide: true,
-                    }).unref();
-                    log(FEATURE, `Demo server not running — starting from ${wbCorePath}`);
-                    // Poll up to 5 seconds (10 × 500 ms) for the server to come up
-                    serverUp = await pollUntilUp(demoPort, 10, 500);
-                }
-
-                if (!serverUp) {
-                    const retry = await vscode.window.showErrorMessage(
-                        `Demo server did not start on port ${demoPort}. ` +
-                        `Make sure wb-core is at C:\\dev\\wb-core and run \`node demo-server.js\` manually.`,
-                        'Retry', 'Cancel'
-                    );
-                    if (retry === 'Retry') {
-                        // Re-poll once more (user may have manually started it)
-                        serverUp = await pollUntilUp(demoPort, 6, 500);
-                        if (!serverUp) {
-                            vscode.window.showErrorMessage(`Demo server still not reachable on port ${demoPort}.`);
-                            log(FEATURE, `Demo aborted — server unreachable on port ${demoPort}`);
-                            break;
-                        }
-                    } else {
-                        log(FEATURE, `Demo cancelled — server not running on port ${demoPort}`);
-                        break;
-                    }
-                }
-
-                await vscode.env.openExternal(vscode.Uri.parse(harnessUrl));
-                log(FEATURE, `Demo opened: ${harnessUrl}`);
                 break;
             }
             case 'run-command': {
