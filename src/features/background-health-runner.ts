@@ -29,6 +29,7 @@ import { markErrorSolvedExact } from '../shared/error-log-utils';
 import { fileHealthBugAsIssue, fetchAutoFiledIssueMap } from '../shared/github-issue-filer';
 import { enqueueIssue } from '../shared/claude-notifier';
 import { loadRegistry }  from '../shared/registry';
+import { walkDocTree }   from '../shared/doc-collector';
 import { getLaunchedTerminal, clearLaunchedTerminal } from '../shared/terminal-utils';
 import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
@@ -665,24 +666,15 @@ const CHECKS: Check[] = [
             if (!registry) { return; }
             let untagged = 0;
             const offenders: string[] = [];
-            const scan = (dir: string, depth = 0) => {
-                if (depth > 3) { return; }
-                try {
-                    const SKIP_DIRS = new Set(['node_modules', '.git', '.claude', 'out', 'output', 'dist', 'build', 'coverage', '__pycache__', 'legacy', 'vendor', '.venv', 'test-results', '.playwright-artifacts']);
-                    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-                        if (SKIP_DIRS.has(entry.name)) { continue; }
-                        const full = path.join(dir, entry.name);
-                        if (entry.isDirectory()) { scan(full, depth + 1); }
-                        else if (entry.name.endsWith('.md')) {
-                            const matches = scanFile(full, 'health-runner');
-                            untagged += matches.length;
-                            for (const m of matches) {
-                                if (offenders.length >= 50) { break; }
-                                offenders.push(`${full}:${m.lineNumber}`);
-                            }
-                        }
+            const scan = (root: string) => {
+                for (const full of walkDocTree(root)) {
+                    const matches = scanFile(full, 'health-runner');
+                    untagged += matches.length;
+                    for (const m of matches) {
+                        if (offenders.length >= 50) { break; }
+                        offenders.push(`${full}:${m.lineNumber}`);
                     }
-                } catch { /* skip */ }
+                }
             };
             // Scope this background check to cielovista-tools' own docs. Auditing
             // every registered project (incl. external/personal repos) as a

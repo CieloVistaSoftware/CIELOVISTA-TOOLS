@@ -8,11 +8,7 @@ import { loadRegistry } from '../shared/registry';
 import { log } from '../shared/output-channel';
 import { sendToCopilotChat } from '../shared/copilot-chat';
 import { esc } from '../shared/webview-utils';
-
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', '.vscode', '.vscode-test', 'dist', 'out',
-  'test-results', 'playwright-report', 'reports', '.claude', 'CommandHelp', 'image-reader-assets'
-]);
+import { walkDocTree } from '../shared/doc-collector';
 
 interface Finding {
   projectName: string;
@@ -39,65 +35,12 @@ let isScanRunning = false;
 let latestReportText = '';
 
 function walkMdFiles(rootPath: string, maxDepth = 8): string[] {
-  const files: string[] = [];
-  if (!fs.existsSync(rootPath)) {
-    return files;
-  }
-  function walk(dir: string, depth: number): void {
-    if (depth > maxDepth) {
-      return;
-    }
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full, depth + 1);
-      } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-        files.push(full);
-      }
-    }
-  }
-  walk(rootPath, 0);
-  return files;
+  return walkDocTree(rootPath, { maxDepth });
 }
 
+/** Every file (any type) in the doc locations: the targets a doc reference can point at. */
 function walkAllFiles(rootPath: string, maxDepth = 8): string[] {
-  const files: string[] = [];
-  if (!fs.existsSync(rootPath)) {
-    return files;
-  }
-  function walk(dir: string, depth: number): void {
-    if (depth > maxDepth) {
-      return;
-    }
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full, depth + 1);
-      } else if (entry.isFile()) {
-        files.push(full);
-      }
-    }
-  }
-  walk(rootPath, 0);
-  return files;
+  return walkDocTree(rootPath, { maxDepth, match: () => true });
 }
 
 function lineFromOffset(content: string, offset: number): number {

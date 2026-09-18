@@ -46,6 +46,7 @@ import { log, logError } from '../../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../../shared/registry';
 import { showConsolidationPlanWebview } from './plan-webview';
 import { getLauncherTargetColumn } from '../../shared/panel-context';
+import { collectDocs } from '../../shared/doc-collector';
 
 // Files that are intentionally duplicated across every project root (#508, #509).
 // CLAUDE.md, copilot-rules.md, and README.md are per-project files — merging
@@ -101,41 +102,17 @@ export interface ConsolidationAction {
 
 // ─── Doc scanner ──────────────────────────────────────────────────────────────
 
-function scanDir(rootPath: string, projectName: string, projectRootPath: string, maxDepth = 3): ScannedDoc[] {
-    const results: ScannedDoc[] = [];
-    const SKIP = new Set(['node_modules', '.git', 'out', 'dist', '.vscode', 'reports']);
-
-    function walk(dir: string, depth: number): void {
-        if (depth > maxDepth || !fs.existsSync(dir)) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-        catch { return; }
-
-        for (const entry of entries) {
-            if (SKIP.has(entry.name)) { continue; }
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                walk(fullPath, depth + 1);
-            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-                try {
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    const normalized = content.toLowerCase().replace(/\s+/g, ' ').replace(/[#*`_\[\]()]/g, '').trim();
-                    results.push({
-                        filePath: fullPath,
-                        fileName: entry.name,
-                        projectName,
-                        projectPath: projectRootPath,
-                        sizeBytes: Buffer.byteLength(content, 'utf8'),
-                        content,
-                        normalized,
-                    });
-                } catch { /* skip */ }
-            }
-        }
-    }
-
-    walk(rootPath, 0);
-    return results;
+/** The docs to consolidate: shared/doc-collector's set, the one every doc feature sees (#802). */
+function scanDir(rootPath: string, projectName: string, projectRootPath: string): ScannedDoc[] {
+    return collectDocs(rootPath, projectName).map((doc) => ({
+        filePath:    doc.filePath,
+        fileName:    doc.fileName,
+        projectName: doc.projectName,
+        projectPath: projectRootPath,
+        sizeBytes:   doc.sizeBytes,
+        content:     doc.content,
+        normalized:  doc.normalized,
+    }));
 }
 
 function computeSimilarity(a: string, b: string): number {

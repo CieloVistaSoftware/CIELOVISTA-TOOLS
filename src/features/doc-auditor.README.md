@@ -32,7 +32,7 @@ The doc-auditor is a comprehensive, interactive tool for auditing documentation 
 ---
 
 ## Architecture & Data Flow
-- **Collection:** Recursively scans all projects and the global folder for `.md` files (up to 3 levels deep), skipping build and system folders.
+- **Collection:** Recursively scans all projects and the global folder for `.md` files (up to 3 levels deep) through the shared collector, src/shared/doc-collector.ts, so it sees exactly the docs Doc Intelligence sees. The one skip list, DOC_SKIP_DIRS, leaves out build output, installed packages, tool state, test artifacts and generated reports (#802).
 - **Analysis:**
 	- Duplicates: Groups by exact filename
 	- Similar: Pairs with >65% content overlap (Jaccard index)
@@ -112,7 +112,7 @@ activate()
       actOnReport, walkthrough
 
 runAudit()  [core — called by all scan commands]
-  └── withProgress → collectDocs(global) + collectDocs(each project)
+  └── withProgress → auditDocs(global) + auditDocs(each project)   (shared/doc-collector.ts)
   └── Analysis pass (single loop):
        duplicates      → group by fileName.toLowerCase()
        similar         → Jaccard index on normalized word sets (>65%)

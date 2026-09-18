@@ -21,6 +21,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { walkDocTree }   from '../shared/doc-collector';
 import { esc }           from '../shared/webview-utils';
 import { scanFences, withFenceInfo } from '../shared/md-fence';
 
@@ -272,7 +273,7 @@ async function runAudit(): Promise<{ blocks: UntaggedBlock[]; scannedFiles: numb
     // Scan all registered projects recursively
     for (const project of registry.projects) {
         if (!fs.existsSync(project.path)) { continue; }
-        const mdFiles = findMarkdownFiles(project.path);
+        const mdFiles = walkDocTree(project.path, { maxDepth: 4 });
         for (const fp of mdFiles) {
             blocks.push(...scanFile(fp, project.name));
             scannedFiles++;
@@ -280,24 +281,6 @@ async function runAudit(): Promise<{ blocks: UntaggedBlock[]; scannedFiles: numb
     }
 
     return { blocks, scannedFiles };
-}
-
-function findMarkdownFiles(dir: string, depth = 0): string[] {
-    if (depth > 4) { return []; }
-    const results: string[] = [];
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return results; }
-
-    for (const entry of entries) {
-        if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.claude' || entry.name === 'out') { continue; }
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            results.push(...findMarkdownFiles(full, depth + 1));
-        } else if (entry.isFile() && entry.name.endsWith('.md')) {
-            results.push(full);
-        }
-    }
-    return results;
 }
 
 let _panel: vscode.WebviewPanel | undefined;

@@ -26,6 +26,7 @@ import { fileFrontmatterViolationAsIssue } from '../shared/github-issue-filer';
 import { log, logError } from '../shared/output-channel';
 import { esc as escStr } from '../shared/webview-utils';
 import { getLauncherTargetColumn } from '../shared/panel-context';
+import { DOC_SKIP_DIRS, walkDocTree } from '../shared/doc-collector';
 
 const FEATURE = 'frontmatter-viewer';
 const FILED_ISSUES_KEY = 'frontmatter-viewer.filedIssues';
@@ -92,11 +93,6 @@ function saveFiledIssues(): void {
     void _context.globalState.update(FILED_ISSUES_KEY, obj);
 }
 
-const SKIP_DIRS = new Set([
-    'node_modules', '.git', '.vscode', '.vscode-test', '.claude',
-    'out', 'dist', 'reports', 'playwright-report', 'test-results',
-]);
-
 const ALLOWED_MARKDOWN_ROOT_DIRS = new Set([
     'data',
     'docs',
@@ -158,18 +154,8 @@ interface Report {
     files: FmFile[];
 }
 
-function walkMd(dir: string, root: string, acc: string[] = []): string[] {
-    let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return acc; }
-    for (const e of entries) {
-        if (SKIP_DIRS.has(e.name)) { continue; }
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) { walkMd(full, root, acc); }
-        else if (e.isFile() && /\.md$/i.test(e.name) && shouldIncludeMarkdown(root, full)) {
-            acc.push(full);
-        }
-    }
-    return acc;
+function walkMd(root: string): string[] {
+    return walkDocTree(root, { maxDepth: Infinity }).filter((file) => shouldIncludeMarkdown(root, file));
 }
 
 function parseFm(content: string): { hasFrontmatter: boolean; atBottom: boolean; fields: Record<string, string>; error: string | null } {
@@ -187,7 +173,7 @@ function parseFm(content: string): { hasFrontmatter: boolean; atBottom: boolean;
 }
 
 function scanProject(root: string): Report {
-    const files = walkMd(root, root);
+    const files = walkMd(root);
     const rows: FmFile[] = files.map(fp => {
         const content = fs.readFileSync(fp, 'utf8');
         const { hasFrontmatter, atBottom, fields, error } = parseFm(content);
@@ -283,7 +269,9 @@ function buildFailureTestContent(relativePath: string, filename: string, violati
     checks.push("for (const k of ['id', 'title', 'description']) { assert.match(fmMatch[1], new RegExp('^' + k + ':\\\\s*\\\\S', 'mi'), 'Header field ' + k + ' must not be empty'); }");
     if (violationList.includes('duplicate filename')) {
         checks.push("const repoRoot = path.resolve(__dirname, '..', '..');");
-        checks.push("const allMd = [];\n(function walk(dir){\n  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {\n    if (['node_modules','.git','.vscode','out','dist'].includes(e.name)) { continue; }\n    const p = path.join(dir, e.name);\n    if (e.isDirectory()) { walk(p); } else if (e.isFile() && /\\.md$/i.test(e.name)) { allMd.push(p); }\n  }\n})(repoRoot);");
+        // The generated test skips exactly the directories the viewer skips (#802).
+        checks.push("const SKIP = new Set(" + JSON.stringify([...DOC_SKIP_DIRS]) + ");");
+        checks.push("const allMd = [];\n(function walk(dir){\n  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {\n    if (SKIP.has(e.name)) { continue; }\n    const p = path.join(dir, e.name);\n    if (e.isDirectory()) { walk(p); } else if (e.isFile() && /\\.md$/i.test(e.name)) { allMd.push(p); }\n  }\n})(repoRoot);");
         checks.push("const sameName = allMd.filter((p) => path.basename(p).toLowerCase() === targetBase.toLowerCase());");
         checks.push("assert.strictEqual(sameName.length, 1, 'Expected filename to be unique across repo markdown files');");
     }

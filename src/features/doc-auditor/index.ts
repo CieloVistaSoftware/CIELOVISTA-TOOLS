@@ -13,7 +13,7 @@ import { buildAuditHtml, buildAuditLoadingHtml } from './html';
 import { mergeFiles, moveToGlobal, deleteDoc, diffFiles } from './actions';
 import { saveAuditReport, parseReportActions, getReportDir, reportFileName } from './report';
 import { walkThroughFindings } from './walkthrough';
-import { collectDocs } from './scanner';
+import { auditDocs } from './scanner';
 import { sendToCopilotChat } from '../../shared/copilot-chat';
 import type { DocFile } from './types';
 
@@ -278,8 +278,8 @@ async function quickFindOrphans(): Promise<void> {
 async function interactiveMerge(): Promise<void> {
     const registry = loadRegistry();
     if (!registry) { return; }
-    const all: DocFile[] = collectDocs(registry.globalDocsPath, 'global');
-    for (const p of registry.projects) { if (fs.existsSync(p.path)) { all.push(...collectDocs(p.path, p.name)); } }
+    const all: DocFile[] = auditDocs(registry.globalDocsPath, 'global');
+    for (const p of registry.projects) { if (fs.existsSync(p.path)) { all.push(...auditDocs(p.path, p.name)); } }
     const selected = await vscode.window.showQuickPick(
         all.map(f => ({ label:`$(markdown) ${f.fileName}`, description:f.projectName, detail:f.filePath, picked:false, data:f })),
         { canPickMany:true, placeHolder:'Select 2 or more docs to merge', matchOnDescription:true }
@@ -292,7 +292,7 @@ async function interactiveMoveToGlobal(): Promise<void> {
     const registry = loadRegistry();
     if (!registry) { return; }
     const all: DocFile[] = [];
-    for (const p of registry.projects) { if (fs.existsSync(p.path)) { all.push(...collectDocs(p.path, p.name)); } }
+    for (const p of registry.projects) { if (fs.existsSync(p.path)) { all.push(...auditDocs(p.path, p.name)); } }
     const picked = await vscode.window.showQuickPick(
         all.map(f => ({ label:`$(markdown) ${f.fileName}`, description:f.projectName, detail:f.filePath, data:f })),
         { placeHolder:'Select a project doc to move to CieloVistaStandards', matchOnDescription:true }

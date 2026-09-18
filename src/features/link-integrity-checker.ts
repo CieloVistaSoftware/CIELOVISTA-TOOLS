@@ -21,6 +21,7 @@ import * as https  from 'https';
 import * as http   from 'http';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
+import { walkDocTree }   from '../shared/doc-collector';
 import { getContributedCommandIds } from '../shared/extension-package';
 
 const FEATURE     = 'link-integrity-checker';
@@ -132,25 +133,7 @@ function headCheck(url: string): Promise<{ ok: boolean; status: number }> {
 // ─── Scanner ──────────────────────────────────────────────────────────────────
 
 function collectMdFiles(roots: string[]): string[] {
-    const files: string[] = [];
-    const excluded = new Set(['node_modules', '.git', '.claude', 'out', 'dist', 'playwright-report', 'test-results']);
-
-    function walk(dir: string) {
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-        catch { return; }
-        for (const e of entries) {
-            if (excluded.has(e.name)) { continue; }
-            const full = path.join(dir, e.name);
-            if (e.isDirectory()) { walk(full); }
-            else if (e.isFile() && e.name.toLowerCase().endsWith('.md')) { files.push(full); }
-        }
-    }
-
-    for (const r of roots) {
-        if (fs.existsSync(r)) { walk(r); }
-    }
-    return files;
+    return roots.flatMap((root) => walkDocTree(root, { maxDepth: Infinity }));
 }
 
 async function scanLinks(

@@ -43,6 +43,7 @@ import { loadRegistry } from '../../shared/registry';
 import { esc } from '../../shared/webview-utils';
 import { showFileReview, disposeFileReview, ReviewItem } from '../../shared/file-review';
 import { scanFences, withFenceInfo } from '../../shared/md-fence';
+import { walkDocTree } from '../../shared/doc-collector';
 
 const FEATURE     = 'readme-compliance';
 const GLOBAL_DOCS = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
@@ -138,27 +139,9 @@ function detectType(filePath: string, projectRootPath: string, projectName: stri
 
 // ─── Scanner ──────────────────────────────────────────────────────────────────
 
-const SKIP = new Set([
-    'node_modules', '.git', 'out', 'dist', 'reports',
-    '.vscode', '.vscode-test', '.claude', 'CommandHelp', 'image-reader-assets',
-    'test-results', 'playwright-report',
-]);
-
 function collectReadmes(rootPath: string, projectName: string, projectRoot: string, maxDepth = 4): Array<{ filePath: string; projectName: string; projectRoot: string }> {
-    const results: Array<{ filePath: string; projectName: string; projectRoot: string }> = [];
-    function walk(dir: string, depth: number): void {
-        if (depth > maxDepth || !fs.existsSync(dir)) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const entry of entries) {
-            if (SKIP.has(entry.name)) { continue; }
-            const full = path.join(dir, entry.name);
-            if (entry.isDirectory()) { walk(full, depth + 1); }
-            else if (entry.isFile() && isReadme(entry.name)) { results.push({ filePath: full, projectName, projectRoot }); }
-        }
-    }
-    walk(rootPath, 0);
-    return results;
+    return walkDocTree(rootPath, { maxDepth, match: isReadme })
+        .map((filePath) => ({ filePath, projectName, projectRoot }));
 }
 
 // ─── Compliance checker ───────────────────────────────────────────────────────
