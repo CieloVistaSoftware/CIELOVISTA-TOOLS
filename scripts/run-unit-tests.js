@@ -44,9 +44,41 @@ if (build.status !== 0) {
 }
 process.stdout.write(build.stdout);
 
+/**
+ * Unit tests that `npm run rebuild` already runs as their own step, mapped to
+ * that step. Some of them check what a LATER step produces — the packaged
+ * .vsix (test:mcp-vsix), the installed copy (test:post-install) — so running
+ * them here, before packaging, tests a stale artifact or none. They were green
+ * locally only because a .vsix from an earlier rebuild was lying around; on a
+ * clean CI runner they failed. Their own step is where they belong, and it
+ * already gates the build. Derived from package.json, so there is no list here
+ * to keep in sync.
+ */
+function testsOwnedByRebuildSteps() {
+    const scripts = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts || {};
+    const owned = new Map();
+    const seen = new Set();
+    (function visit(name) {
+        if (seen.has(name) || !scripts[name]) { return; }
+        seen.add(name);
+        const body = scripts[name];
+        for (const m of body.matchAll(/tests\/unit\/([\w.-]+\.test\.(?:js|ts))/g)) {
+            if (!owned.has(m[1])) { owned.set(m[1], name); }
+        }
+        for (const m of body.matchAll(/npm run ([\w:.-]+)/g)) { visit(m[1]); }
+    })('rebuild');
+    return owned;
+}
+
+const OWNED = testsOwnedByRebuildSteps();
+
 const files = fs.readdirSync(UNIT_DIR)
     .filter(n => /\.test\.(js|ts)$/.test(n) && n.includes(FILTER))
     .sort();
+for (const name of files.filter(n => OWNED.has(n))) {
+    console.log(`  - ${name} — runs at its own rebuild step (npm run ${OWNED.get(name)})`);
+}
+const toRun = files.filter(n => !OWNED.has(n));
 
 function runOne(name) {
     return new Promise(resolve => {
@@ -65,9 +97,31 @@ function runOne(name) {
     });
 }
 
+/**
+ * Tracked files whose working-tree content differs from HEAD, with a hash of
+ * each. Two tests had been rewriting tracked files as a side effect — one
+ * deleted committed fixtures, one overwrote package.json with corrupted JSON
+ * and restored it afterwards — so the suite checks it leaves the tree as it
+ * found it. Null when git is unavailable (no check rather than a false alarm).
+ */
+function trackedChanges() {
+    const r = cp.spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8' });
+    if (r.status !== 0) { return null; }
+    const out = new Map();
+    for (const line of r.stdout.split(/\r?\n/).filter(Boolean)) {
+        const file = line.slice(3).trim();
+        let digest = 'deleted';
+        try { digest = require('crypto').createHash('sha1').update(fs.readFileSync(path.join(ROOT, file))).digest('hex'); }
+        catch { /* deleted */ }
+        out.set(file, digest);
+    }
+    return out;
+}
+
 (async () => {
+    const before = trackedChanges();
     const results = [];
-    const queue = [...files];
+    const queue = [...toRun];
     await Promise.all(Array.from({ length: WORKERS }, async () => {
         while (queue.length) { results.push(await runOne(queue.shift())); }
     }));
@@ -83,5 +137,14 @@ function runOne(name) {
     }
     const failed = results.filter(r => !r.ok);
     console.log(`\n${results.length} unit test file(s): ${results.length - failed.length} passed, ${failed.length} failed`);
-    process.exit(failed.length ? 1 : 0);
+
+    const after = trackedChanges();
+    const touched = before && after
+        ? [...new Set([...before.keys(), ...after.keys()])].filter(f => before.get(f) !== after.get(f))
+        : [];
+    if (touched.length) {
+        console.log(`\n✗ the unit suite changed ${touched.length} tracked file(s) — a test must not write into the repo:`);
+        for (const f of touched) { console.log(`    ${f}`); }
+    }
+    process.exit(failed.length || touched.length ? 1 : 0);
 })();

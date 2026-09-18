@@ -119,9 +119,11 @@ test('non-python selection shows error', () => {
 
 test('falls back to active editor uri when no explorer uri is passed', () => {
     reset();
-    info.activeUri = { fsPath: 'C:\\repo\\main.py' };
+    // Native path for the host OS: the terminal label comes from path.basename().
+    const mainPy = path.join(path.sep === '\\' ? 'C:\\repo' : '/repo', 'main.py');
+    info.activeUri = { fsPath: mainPy };
     registered.get('cvs.python.runFile')();
-    assert.strictEqual(sentTexts[0], 'python "C:\\repo\\main.py"');
+    assert.strictEqual(sentTexts[0], `python "${mainPy}"`);
     assert.strictEqual(terminal.label, 'Run: main.py');
 });
 

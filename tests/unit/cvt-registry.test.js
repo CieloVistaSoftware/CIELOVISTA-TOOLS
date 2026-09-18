@@ -186,7 +186,7 @@ test('addToRegistry is a no-op when path already present', () => {
 
 test('addToRegistry uses basename as name when no name supplied', () => {
     resetFixture();
-    const newPath = 'C:\\Projects\\delta';
+    const newPath = path.join(path.sep === '\\' ? 'C:\\Projects' : '/projects', 'delta');
     const r = readReg();
     r.projects.push({ name: path.basename(newPath), path: newPath, type: 'app', description: '', status: 'product' });
     writeReg(r);
