@@ -56,3 +56,6 @@ copilot-rules.md
 
 # Per-module test build (#734)
 out-test/**
+
+# Test-run lock (#818) -- held while npm run rebuild packages.
+.test-run.lock*

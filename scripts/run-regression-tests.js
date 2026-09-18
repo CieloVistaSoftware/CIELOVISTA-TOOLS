@@ -13,6 +13,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { skippedForMissingArtifact } = require('./lib/missing-artifact');
+const { acquireTestRunLock, TestRunLockTimeout } = require('./lib/test-run-lock');
 const { spawn, spawnSync, execSync } = require('child_process');
 const { walkFiles, readSources, readIfPresent } = require('./source-tree-walk');
 
@@ -199,7 +200,25 @@ function ensureOutBuilt() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  ensureOutBuilt();
+  // One run per checkout, from the build to the packaging checks (#818). A
+  // second run's build-test-modules.mjs deletes out-test/ while this run's
+  // tests load it. A runner started inside the run that holds the lock (npm
+  // run rebuild) goes straight through; see scripts/lib/test-run-lock.js.
+  let lock;
+  try { lock = await acquireTestRunLock(ROOT); }
+  catch (e) {
+    if (!(e instanceof TestRunLockTimeout)) { throw e; }
+    console.error(`✗ ${e.message}`);
+    process.exit(1);
+  }
+  if (lock.nested && lock.built) {
+    console.log(`  out/ and out-test/ were built by the run that holds this checkout (pid ${lock.holder.pid}): left as built`);
+  } else {
+    ensureOutBuilt();
+    // A test that starts a runner on this checkout must not rebuild
+    // out-test/ under the ~180 tests reading it concurrently.
+    lock.markBuilt();
+  }
   console.log('\nCieloVista Tools — Regression Test Suite');
   console.log('─'.repeat(50));
   console.log('  Launching all tests concurrently...\n');
