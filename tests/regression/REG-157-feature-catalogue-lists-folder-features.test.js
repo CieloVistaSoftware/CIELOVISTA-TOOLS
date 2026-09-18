@@ -196,7 +196,8 @@ test('7. docs-sync --check passes: the committed catalogue is what the generator
 test('8. docs-sync --check fails, naming it, when a folder feature is missing from the catalogue', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reg157-'));
     try {
-        for (const dir of ['src', 'docs', 'scripts']) {
+        // mcp-server/src/shared holds the one doc walk docs-sync.js loads (#812).
+        for (const dir of ['src', 'docs', 'scripts', 'mcp-server/src/shared']) {
             fs.cpSync(path.join(ROOT, dir), path.join(tmp, dir), { recursive: true });
         }
         const copy = path.join(tmp, 'docs', 'using', 'features.md');
@@ -205,7 +206,8 @@ test('8. docs-sync --check fails, naming it, when a folder feature is missing fr
         assert(cut !== text, 'fixture: the catalogue has no doc-header/README.md line to remove');
         fs.writeFileSync(copy, cut);
         const r   = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'docs-sync.js'), '--check'],
-            { cwd: tmp, encoding: 'utf8' });
+            // esbuild, which scripts/lib/doc-walk.js loads, is in the repo's node_modules, not the copy's.
+            { cwd: tmp, encoding: 'utf8', env: { ...process.env, NODE_PATH: path.join(ROOT, 'node_modules') } });
         const out = (r.stdout || '') + (r.stderr || '');
         assert(r.status !== 0, 'docs-sync --check passed with doc-header removed from the catalogue');
         assert(/not in the catalogue[^\n]*(?:— |, )doc-header(?:,|\s*$)/m.test(out),

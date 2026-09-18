@@ -30,6 +30,7 @@ const crypto = require('crypto');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const REAL_SCRIPT = path.join(ROOT, 'scripts', 'audit-frontmatter-by-filename.js');
+const SCRIPT_DEPENDENCIES = ['scripts/lib/doc-walk.js', 'mcp-server/src/shared/doc-walk.ts'];
 const REAL_REPORT = path.join(ROOT, 'data', 'frontmatter-audit-by-filename.json');
 const REAL_TODAY_DIR = path.join(ROOT, 'docs', '_today');
 
@@ -98,6 +99,12 @@ try {
         const sandboxScript = path.join(sandbox, 'scripts', 'audit-frontmatter-by-filename.js');
         fs.mkdirSync(path.dirname(sandboxScript), { recursive: true });
         fs.copyFileSync(REAL_SCRIPT, sandboxScript);
+        // The script walks with the one doc walk (#812): scripts/lib/doc-walk.js
+        // loads mcp-server/src/shared/doc-walk.ts. Both come along, unmodified.
+        for (const dep of SCRIPT_DEPENDENCIES) {
+            fs.mkdirSync(path.dirname(path.join(sandbox, dep)), { recursive: true });
+            fs.copyFileSync(path.join(ROOT, dep), path.join(sandbox, dep));
+        }
         pass('Production audit script copied into the sandbox unmodified');
 
         for (const rp of ISSUE_PATHS) {
@@ -110,6 +117,8 @@ try {
         cp.execFileSync(process.execPath, [sandboxScript], {
             cwd: sandbox,
             stdio: 'pipe',
+            // The loader bundles doc-walk.ts with esbuild, which the sandbox has no node_modules for.
+            env: { ...process.env, NODE_PATH: path.join(ROOT, 'node_modules') },
         });
         pass('Frontmatter audit script completed');
 

@@ -1,15 +1,9 @@
 const fs = require('fs');
-const path = require('path');
+// The one doc walk and skip list (#812): never a worktree copy under .claude/ or a build output.
+const { walkDocTree } = require('./lib/doc-walk');
 
 function walk(dir) {
-    const results = [];
-    for (const f of fs.readdirSync(dir, {withFileTypes: true})) {
-        if (f.name === 'node_modules' || f.name === 'out' || f.name === '.git') continue;
-        const full = path.join(dir, f.name);
-        if (f.isDirectory()) results.push(...walk(full));
-        else if (/\.(ts|html|js|json|md)$/.test(f.name)) results.push(full);
-    }
-    return results;
+    return walkDocTree(dir, { maxDepth: Infinity, match: (name) => /\.(ts|html|js|json|md)$/.test(name) });
 }
 
 const root = 'C:\\Users\\jwpmi\\Downloads\\VSCode\\projects\\cielovista-tools';

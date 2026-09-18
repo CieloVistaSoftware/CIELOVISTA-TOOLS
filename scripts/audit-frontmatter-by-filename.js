@@ -22,15 +22,12 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+// The one markdown walk and skip list, shared with the extension and the MCP server (#812).
+const { walkDocTree } = require('./lib/doc-walk');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
 const TODAY_DIR = path.join(ROOT, 'reports');
-
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', '.vscode', '.vscode-test', '.claude',
-  'out', 'dist', 'reports', 'playwright-report', 'test-results',
-]);
 
 const ALLOWED_MARKDOWN_ROOT_DIRS = new Set([
   'data',
@@ -74,27 +71,9 @@ function shouldIncludeMarkdown(filePath) {
   return true;
 }
 
-function walkMarkdownFiles(dir, acc = []) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return acc;
-  }
-
-  for (const entry of entries) {
-    if (SKIP_DIRS.has(entry.name)) {
-      continue;
-    }
-
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walkMarkdownFiles(full, acc);
-    } else if (entry.isFile() && /\.md$/i.test(entry.name) && shouldIncludeMarkdown(full)) {
-      acc.push(full);
-    }
-  }
-  return acc;
+/** The markdown the doc features see (the one walk, #812), narrowed to this audit's scope. */
+function walkMarkdownFiles(dir) {
+  return walkDocTree(dir, { maxDepth: Infinity }).filter(shouldIncludeMarkdown);
 }
 
 function parseFrontmatter(content) {

@@ -9,6 +9,7 @@
     "src/**/*",
     "extension.ts",
     "mcp-server/src/shared/registry-promote-core.ts",
-    "mcp-server/src/tools/catalog-helpers.ts"
+    "mcp-server/src/tools/catalog-helpers.ts",
+    "mcp-server/src/shared/doc-walk.ts"
   ]
 }

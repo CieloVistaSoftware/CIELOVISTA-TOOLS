@@ -141,6 +141,9 @@ test('the catalog does not depend on git history (#720)', () => {
 
         const run = cp.spawnSync(process.execPath, [path.join(sandbox, 'scripts', 'docs-sync.js'), '--check'], {
             cwd: sandbox, encoding: 'utf8',
+            // scripts/lib/doc-walk.js bundles the one doc walk with esbuild (#812);
+            // node_modules is not tracked, so point the copy at the repo's.
+            env: { ...process.env, NODE_PATH: path.join(ROOT, 'node_modules') },
         });
         const output = `${run.stdout || ''}${run.stderr || ''}`.trim();
         assert(run.status === 0,

@@ -41,6 +41,8 @@
 const fs   = require('fs');
 const path = require('path');
 const { sameGenerated } = require('./lib/same-generated');
+// The one markdown walk and skip list, shared with the extension and the MCP server (#812).
+const { walkDocTree }   = require('./lib/doc-walk');
 
 const ROOT       = path.resolve(__dirname, '..');
 const DOCS_DIR   = path.join(ROOT, 'docs');
@@ -74,21 +76,24 @@ function listDir(dir) {
     }
 }
 
-function walk(dir, out = []) {
-    for (const entry of listDir(dir)) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            // archive/ holds retired documents on their way out. They are kept (never
-            // deleted) but exempt from the contract -- forcing a doc you are retiring to
-            // satisfy a new contract is pure waste.
-            if (entry.name === 'assets' || entry.name === 'archive'
-                || entry.name.startsWith('.') || entry.name.startsWith('_')) { continue; }
-            walk(full, out);
-        } else if (entry.name.endsWith('.md')) {
-            out.push(full);
-        }
-    }
-    return out;
+/** True when any directory between root and file is named by `outOfScope`. */
+function underDirNamed(root, file, outOfScope) {
+    const dirs = path.relative(root, path.dirname(file)).split(path.sep).filter(Boolean);
+    return dirs.some(outOfScope);
+}
+
+/**
+ * The markdown under dir that the contract covers. The walk and what it never
+ * enters are the one doc walk every doc feature uses (#812); what is dropped
+ * here is this contract's scope, not "is it a doc".
+ */
+function walk(dir) {
+    // archive/ holds retired documents on their way out. They are kept (never
+    // deleted) but exempt from the contract -- forcing a doc you are retiring to
+    // satisfy a new contract is pure waste.
+    const outOfScope = (name) => name === 'assets' || name === 'archive'
+        || name.startsWith('.') || name.startsWith('_');
+    return walkDocTree(dir, { maxDepth: Infinity }).filter((file) => !underDirNamed(dir, file, outOfScope));
 }
 
 // ─── Frontmatter (top preferred, trailer tolerated) ───────────────────────────
@@ -212,14 +217,11 @@ for (const file of walk(DOCS_DIR).sort()) {
 // without anything noticing (#731). A block that may only hold three named
 // fields cannot hide that.
 
-function walkMarkdown(dir, out = []) {
-    for (const entry of listDir(dir)) {
-        if (entry.name === 'node_modules' || entry.name.startsWith('.')) { continue; }
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) { walkMarkdown(full, out); }
-        else if (entry.name.endsWith('.md')) { out.push(full); }
-    }
-    return out;
+/** The markdown under src/: the one doc walk (#812), without dot-files and dot-folders. */
+function walkMarkdown(dir) {
+    const dotted = (name) => name.startsWith('.');
+    return walkDocTree(dir, { maxDepth: Infinity })
+        .filter((file) => !dotted(path.basename(file)) && !underDirNamed(dir, file, dotted));
 }
 
 let srcDocCount = 0;
@@ -479,18 +481,16 @@ if (featuresDoc) {
 // `out/features/CommandHelp/ has >= 2 files`.
 //
 // Every doc feature skips both names: they are in DOC_SKIP_DIRS in
-// src/shared/doc-collector.ts, the one walk every doc feature uses (#802). A
-// new check that contradicts it is the new check being wrong.
+// mcp-server/src/shared/doc-walk.ts, the one walk every doc feature, the MCP
+// server and this script use (#802, #812). A new check that contradicts it is
+// the new check being wrong. The walk already never enters them; NOT_MODULE_DOCS
+// says so again here so this check cannot lose them if the list ever changes.
 // (NOT_MODULE_DOCS itself is declared above the feature list, which uses it too.)
 
 (function checkOrphanReadmes(dir) {
-    for (const entry of listDir(dir)) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            if (!NOT_MODULE_DOCS.has(entry.name)) { checkOrphanReadmes(full); }
-            continue;
-        }
-        if (!entry.name.endsWith('.README.md')) { continue; }
+    const readmes = walkDocTree(dir, { maxDepth: Infinity, match: (name) => name.endsWith('.README.md') })
+        .filter((file) => !underDirNamed(dir, file, (name) => NOT_MODULE_DOCS.has(name)));
+    for (const full of readmes) {
         const base = full.slice(0, -'.README.md'.length);
         if (!fs.existsSync(`${base}.ts`) && !fs.existsSync(base)) {
             problems.push(`${path.relative(ROOT, full).split(path.sep).join('/')}: documents a feature whose `
