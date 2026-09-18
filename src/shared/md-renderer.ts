@@ -89,6 +89,13 @@ function parseFrontmatter(lines: string[]): { block: string; startAt: number } {
     return { block, startAt: end + 1 };
 }
 
+// Block patterns, shared by mdToHtml()'s block rules and startsBlock() so the
+// two can never disagree about where a paragraph ends (#756, #773).
+const HEADING      = /^(#{1,6}) (.+)$/;
+const BLOCKQUOTE   = /^>[ \t]?(.*)$/;
+const BULLET_ITEM  = /^[*+\-] .+$/;
+const ORDERED_ITEM = /^(\d{1,9})\. .+$/;
+
 export function mdToHtml(input: string): string {
     const lines  = input.split('\n').map(l => l.replace(/\r$/, ''));
     const { block: fmBlock, startAt } = parseFrontmatter(lines);
@@ -151,32 +158,12 @@ export function mdToHtml(input: string): string {
             continue;
         }
 
-        // ── ATX Headings ──────────────────────────────────────────────────────
-        const h4 = line.match(/^#### (.+)$/);
-        if (h4) {
-            const id = getUniqueHeadingId(h4[1], headingIds);
-            out.push(`<h4 id="${id}">${inlineMarkdown(esc(h4[1]))}</h4>`);
-            i++;
-            continue;
-        }
-        const h3 = line.match(/^### (.+)$/);
-        if (h3) {
-            const id = getUniqueHeadingId(h3[1], headingIds);
-            out.push(`<h3 id="${id}">${inlineMarkdown(esc(h3[1]))}</h3>`);
-            i++;
-            continue;
-        }
-        const h2 = line.match(/^## (.+)$/);
-        if (h2) {
-            const id = getUniqueHeadingId(h2[1], headingIds);
-            out.push(`<h2 id="${id}">${inlineMarkdown(esc(h2[1]))}</h2>`);
-            i++;
-            continue;
-        }
-        const h1 = line.match(/^# (.+)$/);
-        if (h1) {
-            const id = getUniqueHeadingId(h1[1], headingIds);
-            out.push(`<h1 id="${id}">${inlineMarkdown(esc(h1[1]))}</h1>`);
+        // ── ATX Headings (h1 to h6) ───────────────────────────────────────────
+        const heading = line.match(HEADING);
+        if (heading) {
+            const level = heading[1].length;
+            const id = getUniqueHeadingId(heading[2], headingIds);
+            out.push(`<h${level} id="${id}">${inlineMarkdown(esc(heading[2]))}</h${level}>`);
             i++;
             continue;
         }
@@ -185,22 +172,42 @@ export function mdToHtml(input: string): string {
         if (/^---+$/.test(line.trim())) { out.push('<hr>'); i++; continue; }
 
         // ── Blockquote ────────────────────────────────────────────────────────
-        const bq = line.match(/^>\s(.+)$/);
-        if (bq) { out.push(`<blockquote>${inlineMarkdown(esc(bq[1]))}</blockquote>`); i++; continue; }
+        // CommonMark: each line is ">" optionally followed by one space. The
+        // consecutive lines form one quote; a line that is only ">" is a blank
+        // line inside it and separates its paragraphs (#773).
+        if (BLOCKQUOTE.test(line)) {
+            const paras: string[][] = [[]];
+            while (i < lines.length && BLOCKQUOTE.test(lines[i])) {
+                const content = lines[i].replace(BLOCKQUOTE, '$1');
+                if (content.trim() === '') { paras.push([]); }
+                else { paras[paras.length - 1].push(inlineMarkdown(esc(content))); }
+                i++;
+            }
+            const filled = paras.filter(p => p.length > 0).map(p => p.join('<br>'));
+            // One paragraph keeps the renderer's original <blockquote>text</blockquote> form.
+            const body = filled.length === 1 ? filled[0] : filled.map(p => `<p>${p}</p>`).join('');
+            out.push(`<blockquote>${body}</blockquote>`);
+            continue;
+        }
 
         // ── Lists ─────────────────────────────────────────────────────────────
-        if (/^[*\-] .+$/.test(line) || /^\d+\. .+$/.test(line)) {
+        if (BULLET_ITEM.test(line) || ORDERED_ITEM.test(line)) {
             const listLines: string[] = [];
-            while (i < lines.length && (/^[*\-] .+$/.test(lines[i]) || /^\d+\. .+$/.test(lines[i]))) {
+            while (i < lines.length && (BULLET_ITEM.test(lines[i]) || ORDERED_ITEM.test(lines[i]))) {
                 listLines.push(lines[i]);
                 i++;
             }
-            const tag = /^\d+\./.test(listLines[0]) ? 'ol' : 'ul';
+            const first = ORDERED_ITEM.exec(listLines[0]);
+            const tag = first ? 'ol' : 'ul';
+            // CommonMark: an ordered list starts at its first item's number (#773).
+            const startNum = first ? parseInt(first[1], 10) : 1;
+            const start = startNum !== 1 ? ` start="${startNum}"` : '';
             const items = listLines.map(l => {
-                const content = l.replace(/^[*\-] /, '').replace(/^\d+\. /, '');
+                // Strip exactly one marker, so "- 1. text" keeps its "1." (#784).
+                const content = l.replace(/^(?:[*+\-]|\d{1,9}\.) /, '');
                 return `<li>${inlineMarkdown(esc(content))}</li>`;
             }).join('');
-            out.push(`<${tag}>${items}</${tag}>`);
+            out.push(`<${tag}${start}>${items}</${tag}>`);
             continue;
         }
 
@@ -235,11 +242,11 @@ function startsBlock(line: string): boolean {
     return /^\s*<!--[\s\S]*?-->\s*$/.test(line)
         || /^(`{3,}|~{3,})/.test(line)
         || /^\|.+\|$/.test(t)
-        || /^#{1,4} .+$/.test(line)
+        || HEADING.test(line)
         || /^---+$/.test(t)
-        || /^>\s(.+)$/.test(line)
-        || /^[*\-] .+$/.test(line)
-        || /^\d+\. .+$/.test(line);
+        || BLOCKQUOTE.test(line)
+        || BULLET_ITEM.test(line)
+        || ORDERED_ITEM.test(line);
 }
 
 function getUniqueHeadingId(rawHeading: string, seen: Map<string, number>): string {
@@ -289,11 +296,31 @@ function expand(s: string, held: Held[], form: keyof Held): string {
     return s.replace(PH_TOKEN, (_, n: string) => expand(held[Number(n)][form], held, form));
 }
 
+// Underscore emphasis (#773) follows CommonMark's intraword rule: an opening
+// _ or __ may not follow a letter or digit, and a closing one may not be
+// followed by one. So snake_case_names and file_name.md stay literal, while
+// _word_ and __word__ between spaces or punctuation are emphasis. The
+// delimiter must also touch its content (no space inside) and may not be
+// backslash-escaped. A placeholder (a held code span, link or image) counts
+// as punctuation, as its first source character does in CommonMark.
+// WORD_CHAR is anything that is not whitespace, punctuation, a symbol or a
+// placeholder delimiter. A delimiter is matched as a whole run (an extra _ on
+// either side means it is part of a longer run), so the flanking test sees
+// the characters around the run, as CommonMark's does: in foo__bar the __ is
+// intraword and stays literal.
+const WORD_CHAR = String.raw`[^\s\p{P}\p{S}]`;
+const UNDERSCORE_BOTH   = new RegExp(String.raw`(?<!${WORD_CHAR}|[\\_])___(?![\s_])(.+?)(?<![\s\\_])___(?!${WORD_CHAR}|_)`, 'gu');
+const UNDERSCORE_STRONG = new RegExp(String.raw`(?<!${WORD_CHAR}|[\\_])__(?![\s_])(.+?)(?<![\s\\_])__(?!${WORD_CHAR}|_)`, 'gu');
+const UNDERSCORE_EM     = new RegExp(String.raw`(?<!${WORD_CHAR}|[\\_])_(?![\s_])(.+?)(?<![\s\\_])_(?!${WORD_CHAR}|_)`, 'gu');
+
 function emphasis(s: string): string {
     return s
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g,     '<em>$1</em>')
-        .replace(/~~(.+?)~~/g,     '<del>$1</del>');
+        .replace(/\*\*(.+?)\*\*/g,  '<strong>$1</strong>')
+        .replace(UNDERSCORE_BOTH,   '<em><strong>$1</strong></em>')
+        .replace(UNDERSCORE_STRONG, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g,      '<em>$1</em>')
+        .replace(UNDERSCORE_EM,     '<em>$1</em>')
+        .replace(/~~(.+?)~~/g,      '<del>$1</del>');
 }
 
 function stripTags(s: string): string {
