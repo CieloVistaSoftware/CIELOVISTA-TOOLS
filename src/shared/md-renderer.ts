@@ -249,11 +249,134 @@ function esc(s: string): string {
 }
 
 function inlineMarkdown(s: string): string {
-    return s
+    const styled = s
         .replace(/\*\*(.+?)\*\*/g,        '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g,            '<em>$1</em>')
         .replace(/`([^`]+)`/g,            '<code>$1</code>')
-        .replace(/~~(.+?)~~/g,            '<del>$1</del>')
-        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g,  '<a href="$2">$1</a>');
+        .replace(/~~(.+?)~~/g,            '<del>$1</del>');
+    // Images first, so a badge [![alt](img.svg)](url) becomes a linked image.
+    return replaceLinks(replaceLinks(styled, true), false);
+}
+
+// ── Inline links and images ───────────────────────────────────────────────────
+// CommonMark: [text](destination "title"). The destination may be wrapped in
+// <angle brackets> (which permits spaces) or be bare (balanced parentheses
+// allowed); the optional title is "double", 'single' or (parenthesized), and
+// must be separated from the destination by whitespace. The input here has
+// already been through esc(), so < > & arrive as &lt; &gt; &amp;.
+
+interface LinkTarget { dest: string; title: string | undefined; end: number; }
+
+const ASCII_PUNCT = /[!-/:-@[-`{-~]/;
+
+/** Undo esc() so a captured value can be escaped once, for an attribute. */
+function unEsc(s: string): string {
+    return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+
+/** Escape for a double-quoted HTML attribute value. */
+function escAttr(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * A destination whose scheme would run script when followed becomes "#".
+ * Balanced parentheses (#740) turned [x](javascript:alert(1)) from a broken
+ * href into a working one, so script schemes are refused outright. data: is
+ * refused for links only; an image may legitimately be a data: URL.
+ */
+function safeDest(dest: string, images: boolean): string {
+    const scheme = Array.from(dest).filter(ch => ch.charCodeAt(0) > 32 && ch.charCodeAt(0) !== 127).join('').toLowerCase();
+    if (/^(javascript|vbscript):/.test(scheme)) { return '#'; }
+    if (!images && scheme.startsWith('data:')) { return '#'; }
+    return dest;
+}
+
+function isSpace(c: string | undefined): boolean {
+    return c === ' ' || c === '\t' || c === '\n';
+}
+
+/**
+ * Parse the part of a link after its opening "(" (s[start] is the first
+ * character inside). Returns the destination, optional title and the index
+ * just past the closing ")", or undefined if it is not a CommonMark target.
+ */
+function parseLinkTarget(s: string, start: number): LinkTarget | undefined {
+    let i = start;
+    while (isSpace(s[i])) { i++; }
+
+    let dest = '';
+    if (s.startsWith('&lt;', i)) {
+        const close = s.indexOf('&gt;', i + 4);
+        if (close < 0) { return undefined; }
+        dest = s.slice(i + 4, close);
+        if (dest.includes('&lt;') || dest.includes('\n')) { return undefined; }
+        i = close + 4;
+    } else {
+        let depth = 0;
+        const from = i;
+        while (i < s.length) {
+            const c = s[i];
+            if (c === '\\' && (s[i + 1] === '(' || s[i + 1] === ')')) { dest += s[i + 1]; i += 2; continue; }
+            if (isSpace(c)) { break; }
+            if (c === '(') { depth++; }
+            if (c === ')') { if (depth === 0) { break; } depth--; }
+            dest += c;
+            i++;
+        }
+        if (i === from || depth !== 0) { return undefined; }
+    }
+
+    const beforeGap = i;
+    while (isSpace(s[i])) { i++; }
+    let title: string | undefined;
+    const opener = s[i];
+    if (i > beforeGap && (opener === '"' || opener === "'" || opener === '(')) {
+        const closer = opener === '(' ? ')' : opener;
+        let j = i + 1;
+        let t = '';
+        while (j < s.length && s[j] !== closer) {
+            if (s[j] === '\\' && s[j + 1] !== undefined && ASCII_PUNCT.test(s[j + 1])) { t += s[j + 1]; j += 2; continue; }
+            if (opener === '(' && s[j] === '(') { return undefined; }
+            t += s[j];
+            j++;
+        }
+        if (j >= s.length) { return undefined; }
+        title = t;
+        i = j + 1;
+        while (isSpace(s[i])) { i++; }
+    }
+    if (s[i] !== ')') { return undefined; }
+    return { dest, title, end: i + 1 };
+}
+
+/**
+ * Replace every ![alt](target) (images === true) or [text](target) with HTML.
+ * A target that is not valid CommonMark falls back to the pre-#740 rule:
+ * everything up to the first ")" is the destination.
+ */
+function replaceLinks(s: string, images: boolean): string {
+    const opener = images ? /!\[([^\]]*)\]\(/g : /\[([^\]]+)\]\(/g;
+    let out = '';
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = opener.exec(s)) !== null) {
+        const inner = m.index + m[0].length;
+        let target = parseLinkTarget(s, inner);
+        if (!target) {
+            const close = s.indexOf(')', inner);
+            if (close <= inner) { continue; }
+            target = { dest: s.slice(inner, close), title: undefined, end: close + 1 };
+        }
+        const href  = escAttr(safeDest(unEsc(target.dest), images));
+        const title = target.title === undefined ? '' : ` title="${escAttr(unEsc(target.title))}"`;
+        out += s.slice(last, m.index);
+        out += images
+            ? `<img alt="${m[1].replace(/"/g, '&quot;')}" src="${href}"${title}>`
+            : `<a href="${href}"${title}>${m[1]}</a>`;
+        last = target.end;
+        opener.lastIndex = target.end;
+    }
+    return out + s.slice(last);
 }
