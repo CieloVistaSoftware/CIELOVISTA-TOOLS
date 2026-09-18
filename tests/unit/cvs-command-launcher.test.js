@@ -9,7 +9,7 @@ const fs     = require('fs');
 const path   = require('path');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/cvs-command-launcher.js');
+const OUT = path.join(__dirname, '../../out-test/features/cvs-command-launcher/index.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const registered = new Map();
@@ -37,7 +37,7 @@ Module._load = function(req, parent, isMain) {
     }
     return origLoad.apply(this, arguments);
 };
-const sharedOC = path.join(__dirname, '../../out/shared/output-channel.js');
+const sharedOC = path.join(__dirname, '../../out-test/shared/output-channel.js');
 if (fs.existsSync(sharedOC)) { try { require(sharedOC); } catch {} }
 const mod = require(OUT);
 Module._load = origLoad;
@@ -57,7 +57,7 @@ test('source directory exists', () => {
     assert.ok(fs.existsSync(src), 'cvs-command-launcher directory missing');
 });
 test('catalog.js compiled file exists', () => {
-    const catOut = path.join(__dirname, '../../out/features/cvs-command-launcher/catalog.js');
+    const catOut = path.join(__dirname, '../../out-test/features/cvs-command-launcher/catalog.js');
     assert.ok(fs.existsSync(catOut), 'catalog.js not compiled');
 });
 

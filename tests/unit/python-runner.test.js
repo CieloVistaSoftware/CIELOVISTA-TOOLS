@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/python-runner.js');
+const OUT = path.join(__dirname, '../../out-test/features/python-runner.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found - run npm run compile`);
     process.exit(0);

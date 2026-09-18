@@ -29,3 +29,6 @@ _*.tmp
 
 # Generated audit output. Never in docs/ -- see #708.
 /reports/
+
+# Per-module test build (#734). Never packaged, never committed.
+out-test/

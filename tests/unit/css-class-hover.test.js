@@ -32,7 +32,7 @@ function ok(v, msg)  { assert.ok(v, msg); }
 function eq(a, b, m) { assert.strictEqual(a, b, m); }
 
 const SRC = path.resolve(__dirname, '../../src/features/css-class-hover.ts');
-const OUT = path.resolve(__dirname, '../../out/features/css-class-hover.js');
+const OUT = path.resolve(__dirname, '../../out-test/features/css-class-hover.js');
 
 console.log('\ncss-class-hover tests');
 console.log('\u2500'.repeat(50));

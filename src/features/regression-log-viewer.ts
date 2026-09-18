@@ -306,6 +306,17 @@ export async function openRegressionLogViewer(): Promise<void> {
     log(FEATURE, `Regression log viewer opened — ${entries.length} entries`);
 }
 
+/**
+ * Registers cvs.tools.regressionLog. The command lived in extension.ts after
+ * 10fb16c, which put a feature's registration in the wiring file and left this
+ * module without the activate() every feature exports (#734).
+ */
+export function activate(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cvs.tools.regressionLog', openRegressionLogViewer),
+    );
+}
+
 export function deactivate(): void {
     _panel?.dispose();
 }

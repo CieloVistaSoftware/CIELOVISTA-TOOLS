@@ -49,9 +49,9 @@ require.cache['__vs_ls__'] = {
 };
 
 // ── Load modules ──────────────────────────────────────────────────────────────
-const OUT_CHANNEL  = path.join(__dirname, '../../out/shared/output-channel.js');
-const OUT_REGISTRY = path.join(__dirname, '../../out/shared/registry.js');
-const OUT          = path.join(__dirname, '../../out/features/license-sync.js');
+const OUT_CHANNEL  = path.join(__dirname, '../../out-test/shared/output-channel.js');
+const OUT_REGISTRY = path.join(__dirname, '../../out-test/shared/registry.js');
+const OUT          = path.join(__dirname, '../../out-test/features/license-sync.js');
 
 for (const p of [OUT_CHANNEL, OUT_REGISTRY, OUT]) {
     if (!fs.existsSync(p)) {

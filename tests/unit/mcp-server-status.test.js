@@ -37,7 +37,7 @@ require.cache['__vs_mcp_test__'] = {
     paths: [],
 };
 
-const outPath = path.join(__dirname, '../../out/features/mcp-server-status.js');
+const outPath = path.join(__dirname, '../../out-test/features/mcp-server-status.js');
 if (!fs.existsSync(outPath)) {
     console.error(`SKIP: ${outPath} not found - run npm run compile`);
     process.exit(0);

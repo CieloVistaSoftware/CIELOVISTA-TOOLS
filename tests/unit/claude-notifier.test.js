@@ -15,7 +15,7 @@ const os     = require('os');
 const assert = require('assert');
 
 // ── Load compiled module ──────────────────────────────────────────────────────
-const OUT = path.join(__dirname, '../../out/shared/claude-notifier.js');
+const OUT = path.join(__dirname, '../../out-test/shared/claude-notifier.js');
 
 if (!fs.existsSync(OUT)) {
     console.error(`\n  SKIP: Compiled output not found at:\n  ${OUT}`);

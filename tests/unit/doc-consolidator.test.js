@@ -40,15 +40,15 @@ Module._resolveFilename = (req, ...args) => req === 'vscode' ? '__vs_dc__' : _or
 require.cache['__vs_dc__'] = { id: '__vs_dc__', filename: '__vs_dc__', loaded: true, exports: vscodeMock, parent: null, children: [], path: '', paths: [] };
 
 for (const dep of ['output-channel', 'registry']) {
-    const p = path.join(__dirname, `../../out/shared/${dep}.js`);
+    const p = path.join(__dirname, `../../out-test/shared/${dep}.js`);
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
 // Stub consolidation-plan-webview if it exists
-const cpwPath = path.join(__dirname, '../../out/shared/consolidation-plan-webview.js');
+const cpwPath = path.join(__dirname, '../../out-test/shared/consolidation-plan-webview.js');
 if (fs.existsSync(cpwPath)) { try { require(cpwPath); } catch { /* optional */ } }
 
-const OUT = path.join(__dirname, '../../out/features/doc-consolidator.js');
+const OUT = path.join(__dirname, '../../out-test/features/doc-consolidator/index.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const dc = require(OUT);
@@ -210,8 +210,8 @@ test('no duplicates → no groups', () => {
 
 test('same filename in 2 projects → same-name group', () => {
     const docs = [
-        makeDoc('README.md', 'projA', '# Project A README'),
-        makeDoc('README.md', 'projB', '# Project B README — completely different'),
+        makeDoc('SETUP.md', 'projA', '# Project A setup'),
+        makeDoc('SETUP.md', 'projB', '# Project B setup — completely different'),
     ];
     const groups = t.discoverGroups(docs);
     ok(groups.length >= 1, 'Must find at least one group');
@@ -223,14 +223,26 @@ test('same filename in 2 projects → same-name group', () => {
 
 test('same filename in 3 projects → all in one group', () => {
     const docs = [
-        makeDoc('CLAUDE.md', 'projA', '# Claude A'),
-        makeDoc('CLAUDE.md', 'projB', '# Claude B'),
-        makeDoc('CLAUDE.md', 'projC', '# Claude C'),
+        makeDoc('ARCHITECTURE.md', 'projA', '# Architecture A'),
+        makeDoc('ARCHITECTURE.md', 'projB', '# Architecture B'),
+        makeDoc('ARCHITECTURE.md', 'projC', '# Architecture C'),
     ];
     const groups = t.discoverGroups(docs);
-    const g = groups.find(g => g.reason === 'same-name' && g.label.toLowerCase() === 'claude.md');
-    ok(g, 'Must group all CLAUDE.md files');
+    const g = groups.find(g => g.reason === 'same-name' && g.label.toLowerCase() === 'architecture.md');
+    ok(g, 'Must group all ARCHITECTURE.md files');
     eq(g.files.length, 3);
+});
+
+// #508: every project is SUPPOSED to have its own README.md, CLAUDE.md and
+// copilot-rules.md. Offering to merge them is wrong, so they never group by name.
+test('README.md / CLAUDE.md / copilot-rules.md are never same-name groups (#508)', () => {
+    const docs = [
+        makeDoc('README.md', 'projA', '# A'),         makeDoc('README.md', 'projB', '# B'),
+        makeDoc('CLAUDE.md', 'projA', '# Claude A'),  makeDoc('CLAUDE.md', 'projB', '# Claude B'),
+        makeDoc('copilot-rules.md', 'projA', '# R'),  makeDoc('copilot-rules.md', 'projB', '# R2'),
+    ];
+    const groups = t.discoverGroups(docs);
+    eq(groups.filter(g => g.reason === 'same-name').length, 0);
 });
 
 test('similar content (>70%) → similar-content group', () => {
@@ -270,8 +282,8 @@ test('docs under 150 bytes excluded from similarity check', () => {
 
 test('ConsolidationGroup has required shape fields', () => {
     const docs = [
-        makeDoc('README.md', 'projA', '# A'),
-        makeDoc('README.md', 'projB', '# B'),
+        makeDoc('SETUP.md', 'projA', '# A'),
+        makeDoc('SETUP.md', 'projB', '# B'),
     ];
     const [group] = t.discoverGroups(docs);
     ok('reason'     in group);

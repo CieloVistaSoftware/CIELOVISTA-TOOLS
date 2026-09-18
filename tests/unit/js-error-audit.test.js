@@ -51,11 +51,11 @@ require.cache['__vs_jea__'] = { id: '__vs_jea__', filename: '__vs_jea__', loaded
 
 // ── Load dependencies ─────────────────────────────────────────────────────────
 for (const dep of ['output-channel', 'registry', 'anthropic-client']) {
-    const p = path.join(__dirname, `../../out/shared/${dep}.js`);
+    const p = path.join(__dirname, `../../out-test/shared/${dep}.js`);
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
-const OUT = path.join(__dirname, '../../out/features/js-error-audit.js');
+const OUT = path.join(__dirname, '../../out-test/features/js-error-audit.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const jea = require(OUT);

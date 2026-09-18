@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const OUT = path.join(__dirname, '../../out/features/daily-audit/runner.js');
+const OUT = path.join(__dirname, '../../out-test/features/daily-audit/runner.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found — run npm run compile`);
     process.exit(0);
@@ -32,13 +32,13 @@ test('exports getDailyAuditProjects', () => {
     assert.strictEqual(typeof mod.getDailyAuditProjects, 'function');
 });
 
-test('getDailyAuditProjects excludes generated, archived, and dailyAuditExcluded projects', () => {
+test('getDailyAuditProjects excludes generated, archived, and auditExcluded projects', () => {
     const projects = [
         { name: 'product-ok', path: 'C:/tmp/product-ok', type: 'node', description: '', status: 'product' },
         { name: 'workbench-ok', path: 'C:/tmp/workbench-ok', type: 'node', description: '', status: 'workbench' },
         { name: 'generated-skip', path: 'C:/tmp/generated-skip', type: 'node', description: '', status: 'generated' },
         { name: 'archived-skip', path: 'C:/tmp/archived-skip', type: 'node', description: '', status: 'archived' },
-        { name: 'excluded-skip', path: 'C:/tmp/excluded-skip', type: 'node', description: '', status: 'product', dailyAuditExcluded: true },
+        { name: 'excluded-skip', path: 'C:/tmp/excluded-skip', type: 'node', description: '', status: 'product', auditExcluded: true },
     ];
 
     const result = mod.getDailyAuditProjects(projects);

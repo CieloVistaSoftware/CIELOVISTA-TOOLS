@@ -120,7 +120,8 @@ test('Source openProjectFolderSmart calls vscode.openFolder with forceNewWindow:
     assert.ok(src.includes("'vscode.openFolder'"), 'vscode.openFolder missing');
     const idx = src.indexOf("'vscode.openFolder'");
   const region = src.slice(idx, idx + 200);
-  assert.ok(region.includes('forceNewWindow: false'), 'openFolder must reuse the current window');
+  // #411: the folder button opens the project in a NEW window (REG-029 guards the same).
+  assert.ok(region.includes('forceNewWindow: true'), 'openFolder must open a new window (#411)');
 });
 test('Source webview JS sends fetch /openfolder on folder button click', () => {
     assert.ok(scriptContent && scriptContent.includes('openfolder'), 'folder button does not fetch /openfolder');

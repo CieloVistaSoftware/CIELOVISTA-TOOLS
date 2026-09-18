@@ -45,11 +45,11 @@ Module._resolveFilename = (req, ...args) => req === 'vscode' ? '__vs_ca__' : _or
 require.cache['__vs_ca__'] = { id: '__vs_ca__', filename: '__vs_ca__', loaded: true, exports: vscodeMock, parent: null, children: [], path: '', paths: [] };
 
 for (const dep of ['output-channel']) {
-    const p = path.join(__dirname, `../../out/shared/${dep}.js`);
+    const p = path.join(__dirname, `../../out-test/shared/${dep}.js`);
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
-const OUT = path.join(__dirname, '../../out/features/codebase-auditor.js');
+const OUT = path.join(__dirname, '../../out-test/features/codebase-auditor.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const ca = require(OUT);

@@ -42,7 +42,7 @@ function test(name, fn) {
 
 const CATALOG_HTML = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'catalog.html');
 const COMMANDS_TS  = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts');
-const ARCHIVE_JS   = path.join(__dirname, '..', 'out', 'features', 'doc-catalog', 'archive.js');
+const ARCHIVE_JS   = path.join(__dirname, '..', 'out-test', 'features', 'doc-catalog', 'archive.js');
 
 for (const p of [CATALOG_HTML, COMMANDS_TS]) {
     if (!fs.existsSync(p)) { console.error('FATAL: missing', p); process.exit(1); }

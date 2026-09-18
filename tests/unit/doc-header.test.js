@@ -50,11 +50,11 @@ require.cache['__vs_dh__'] = {
 };
 
 // ── Load module ───────────────────────────────────────────────────────────────
-const OUT_CHANNEL = path.join(__dirname, '../../out/shared/output-channel.js');
-const OUT         = path.join(__dirname, '../../out/features/doc-header.js');
+const OUT_CHANNEL = path.join(__dirname, '../../out-test/shared/output-channel.js');
+const OUT         = path.join(__dirname, '../../out-test/features/doc-header/index.js');
 
 // Pre-load show-result-webview stub to avoid missing module errors
-const showResultPath = path.join(__dirname, '../../out/shared/show-result-webview.js');
+const showResultPath = path.join(__dirname, '../../out-test/shared/show-result-webview.js');
 if (fs.existsSync(showResultPath)) { require(showResultPath); }
 
 for (const p of [OUT_CHANNEL, OUT]) {

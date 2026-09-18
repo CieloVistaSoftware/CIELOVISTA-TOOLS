@@ -46,8 +46,8 @@ require.cache['__vs_mock__'] = {
 };
 
 // ── Load module ───────────────────────────────────────────────────────────────
-const OUT_CHANNEL = path.join(__dirname, '../../out/shared/output-channel.js');
-const OUT         = path.join(__dirname, '../../out/shared/error-log.js');
+const OUT_CHANNEL = path.join(__dirname, '../../out-test/shared/output-channel.js');
+const OUT         = path.join(__dirname, '../../out-test/shared/error-log.js');
 
 for (const p of [OUT_CHANNEL, OUT]) {
     if (!fs.existsSync(p)) {

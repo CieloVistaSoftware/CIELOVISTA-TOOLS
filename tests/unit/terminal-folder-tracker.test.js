@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/terminal-folder-tracker.js');
+const OUT = path.join(__dirname, '../../out-test/features/terminal-folder-tracker.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found - run npm run compile`);
     process.exit(0);

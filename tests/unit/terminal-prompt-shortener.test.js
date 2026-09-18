@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/terminal-prompt-shortener.js');
+const OUT = path.join(__dirname, '../../out-test/features/terminal-prompt-shortener.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found - run npm run compile`);
     process.exit(0);

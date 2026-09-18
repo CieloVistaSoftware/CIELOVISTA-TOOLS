@@ -49,11 +49,11 @@ require.cache['__vs_rc__'] = { id: '__vs_rc__', filename: '__vs_rc__', loaded: t
 // ── Load dependencies ─────────────────────────────────────────────────────────
 const DEPS = ['output-channel', 'result-viewer', 'registry', 'anthropic-client'];
 for (const d of DEPS) {
-    const p = path.join(__dirname, `../../out/shared/${d}.js`);
+    const p = path.join(__dirname, `../../out-test/shared/${d}.js`);
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
-const OUT = path.join(__dirname, '../../out/features/readme-compliance.js');
+const OUT = path.join(__dirname, '../../out-test/features/readme-compliance.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const rc = require(OUT);

@@ -29,7 +29,7 @@ fs.mkdirSync(TMP_DIR, { recursive: true });
 const TMP_REG  = path.join(TMP_DIR, 'project-registry.json');
 
 // Patch the compiled module's REGISTRY_PATH by intercepting after load
-const registryModPath = path.resolve(__dirname, '../../out/shared/cvt-registry.js');
+const registryModPath = path.resolve(__dirname, '../../out-test/shared/cvt-registry.js');
 if (!fs.existsSync(registryModPath)) {
     console.error(`SKIP: ${registryModPath} not found — run npm run compile`);
     process.exit(0);

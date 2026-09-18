@@ -12,7 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/claude-process-monitor.js');
+const OUT = path.join(__dirname, '../../out-test/features/claude-process-monitor.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found - run npm run compile`);
     process.exit(0);

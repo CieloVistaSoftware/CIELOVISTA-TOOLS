@@ -37,9 +37,17 @@ test('runner.ts ProjectEntry has auditExcluded?: boolean', () => {
     'auditExcluded?: boolean not found in ProjectEntry interface');
 });
 
-test('runner.ts strictProjects filter excludes auditExcluded', () => {
-  assert(/strictProjects[\s\S]*?projects\.filter[\s\S]*?!p\.auditExcluded/.test(runnerSrc),
-    'strictProjects filter does not exclude auditExcluded entries');
+// Behavioural since #734: the filter is getDailyAuditProjects(), and this runs
+// it from the test build rather than pattern-matching its source.
+test('runner.ts: the audited project list leaves out auditExcluded projects', () => {
+  assert(/strictProjects\s*=\s*getDailyAuditProjects\(/.test(runnerSrc),
+    'runDailyAudit() must take its project list from getDailyAuditProjects()');
+  const { getDailyAuditProjects } = require(path.join(ROOT, 'out-test', 'features', 'daily-audit', 'runner.js'));
+  const picked = getDailyAuditProjects([
+    { name: 'kept',      status: 'product' },
+    { name: 'container', status: 'product', auditExcluded: true },
+  ]).map(p => p.name);
+  assert.deepStrictEqual(picked, ['kept'], `auditExcluded project was audited: ${picked.join(', ')}`);
 });
 
 // ─── 2. run-audit.js — main() filters out auditExcluded ───────────────────────

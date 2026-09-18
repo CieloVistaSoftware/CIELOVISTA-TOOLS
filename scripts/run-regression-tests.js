@@ -12,6 +12,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { skippedForMissingArtifact } = require('./lib/missing-artifact');
 const { spawn, spawnSync, execSync } = require('child_process');
 const { walkFiles, readSources, readIfPresent } = require('./source-tree-walk');
 
@@ -114,7 +115,11 @@ function subprocess(id, name, scriptPath, args = []) {
     child.on('error', err => settle(() =>
       recordFail(id, name, `could not spawn ${path.relative(ROOT, scriptPath)}: ${err.message}`)));
     child.on('close', (code, signal) => settle(() => {
-      if (code === 0) { recordPass(id, name); }
+      // Exit 0 after skipping for a missing build input is not a pass (#734).
+      if (code === 0 && skippedForMissingArtifact(out)) {
+        recordFail(id, name, 'exited 0 but SKIPPED for a missing build artifact — '
+          + 'the test build (out-test/) is produced before every run, so this test is reading the wrong path');
+      } else if (code === 0) { recordPass(id, name); }
       else { recordFail(id, name, extractFailureDetail(out, code, signal)); }
     }));
   });
@@ -181,6 +186,14 @@ function ensureOutBuilt() {
   }
 
   if (rebuilt) { console.log(''); }
+
+  // The per-module test build, every run (#734). Tests that require a single
+  // module read it from out-test/, never from the shipped bundle's out/.
+  try {
+    execSync(`node "${path.join(ROOT, 'scripts', 'build-test-modules.mjs')}"`, { cwd: ROOT, stdio: 'inherit' });
+  } catch {
+    console.error('  ✗ build-test-modules.mjs failed — every test that loads a module will fail');
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
