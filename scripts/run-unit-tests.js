@@ -126,17 +126,48 @@ if (LIST_ONLY) {
 /**
  * The shipped build (esbuild.mjs -> out/ and mcp-server/dist/). Several
  * top-level tests read it: the per-file bundles under out/features/, the MCP
- * helpers under mcp-server/dist/. Built every run, so a test never reads a
- * stale or missing copy left over from some earlier build (#736, #753).
+ * helpers under mcp-server/dist/. A missing or stale copy is rebuilt, so a
+ * test never reads an old build (#736, #753).
+ *
+ * A CURRENT copy is left alone (#781). npm run rebuild packages the extension
+ * (vscode:prepublish = esbuild --production) and then runs more test steps
+ * through this runner. Rebuilding unconditionally replaced the production
+ * bundle it had just packaged with a dev build, and install.js then compared
+ * the installed bundle against that dev build and reported a false STALE
+ * INSTALL on every deploy.
  */
-const shipped = cp.spawnSync(process.execPath, [path.join(ROOT, 'esbuild.mjs')],
-    { cwd: ROOT, encoding: 'utf8' });
-if (shipped.status !== 0) {
-    process.stderr.write(shipped.stdout + shipped.stderr);
-    console.error('✗ esbuild.mjs failed — no test that reads out/ can run');
-    process.exit(1);
+const SHIPPED_OUTPUTS = [path.join(ROOT, 'out', 'extension.js'), path.join(ROOT, 'mcp-server', 'dist', 'index.js')];
+const SHIPPED_INPUTS  = [path.join(ROOT, 'src'), path.join(ROOT, 'mcp-server', 'src'), path.join(ROOT, 'esbuild.mjs')];
+
+function newestMtime(target) {
+    let st;
+    try { st = fs.statSync(target); } catch { return 0; }
+    if (!st.isDirectory()) { return st.mtimeMs; }
+    let newest = st.mtimeMs;
+    for (const e of fs.readdirSync(target, { withFileTypes: true })) {
+        newest = Math.max(newest, newestMtime(path.join(target, e.name)));
+    }
+    return newest;
 }
-console.log('  built out/ and mcp-server/dist/ (esbuild.mjs)');
+
+function shippedBuildIsCurrent() {
+    const oldestOutput = Math.min(...SHIPPED_OUTPUTS.map(f => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } }));
+    if (!oldestOutput) { return false; }
+    return SHIPPED_INPUTS.every(input => newestMtime(input) <= oldestOutput);
+}
+
+if (shippedBuildIsCurrent()) {
+    console.log('  out/ and mcp-server/dist/ are newer than their sources: left as built');
+} else {
+    const shipped = cp.spawnSync(process.execPath, [path.join(ROOT, 'esbuild.mjs')],
+        { cwd: ROOT, encoding: 'utf8' });
+    if (shipped.status !== 0) {
+        process.stderr.write(shipped.stdout + shipped.stderr);
+        console.error('✗ esbuild.mjs failed — no test that reads out/ can run');
+        process.exit(1);
+    }
+    console.log('  built out/ and mcp-server/dist/ (esbuild.mjs)');
+}
 
 const build = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-test-modules.mjs')],
     { cwd: ROOT, encoding: 'utf8' });
