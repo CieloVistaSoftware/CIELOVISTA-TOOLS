@@ -208,21 +208,38 @@ export function mdToHtml(input: string): string {
         if (line.trim() === '') { i++; continue; }
 
         // ── Paragraph ─────────────────────────────────────────────────────────
-        const paraLines: string[] = [];
-        while (i < lines.length && lines[i].trim() !== '' &&
-               !/^[#>*\-`~]/.test(lines[i]) && !/^\d+\. /.test(lines[i]) &&
-               !/^\|.+\|$/.test(lines[i].trim()) && !/^---+$/.test(lines[i].trim())) {
+        // This line has already failed every block rule above, so it always
+        // starts a paragraph. Later lines join it until a blank line or a line
+        // that would start a real block. (#756: the old stop test was any line
+        // starting with # > * - ` ~, and it was applied to the first line too,
+        // so "**Note:** text" collected nothing and was skipped.)
+        const paraLines: string[] = [line];
+        i++;
+        while (i < lines.length && lines[i].trim() !== '' && !startsBlock(lines[i])) {
             paraLines.push(lines[i]);
             i++;
         }
-        if (paraLines.length > 0) {
-            out.push(`<p>${paraLines.map(l => inlineMarkdown(esc(l))).join('<br>')}</p>`);
-        } else {
-            i++;
-        }
+        out.push(`<p>${paraLines.map(l => inlineMarkdown(esc(l))).join('<br>')}</p>`);
     }
 
     return out.join('\n');
+}
+
+/**
+ * True when `line` would be taken by one of mdToHtml()'s block rules (comment,
+ * fence, table, heading, rule, blockquote, list) rather than continue a
+ * paragraph. The patterns are the same ones the block rules use.
+ */
+function startsBlock(line: string): boolean {
+    const t = line.trim();
+    return /^\s*<!--[\s\S]*?-->\s*$/.test(line)
+        || /^(`{3,}|~{3,})/.test(line)
+        || /^\|.+\|$/.test(t)
+        || /^#{1,4} .+$/.test(line)
+        || /^---+$/.test(t)
+        || /^>\s(.+)$/.test(line)
+        || /^[*\-] .+$/.test(line)
+        || /^\d+\. .+$/.test(line);
 }
 
 function getUniqueHeadingId(rawHeading: string, seen: Map<string, number>): string {
