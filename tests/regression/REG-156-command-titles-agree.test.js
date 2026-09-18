@@ -87,19 +87,16 @@ const TITLE_MISMATCH_ALLOWED = new Set([
     'cvs.registry.demote',                // #764
 ]);
 
-// Rule 4. Palette commands with no launcher entry. Whether each belongs in the
-// launcher is owned by #765.
+// Rule 4. Palette commands with no launcher entry. #765 catalogued seven; these
+// stay out. The two launcher commands open the launcher itself, so an entry
+// inside it would only reopen the panel you are in (#778 asks whether quickRun
+// should exist at all). cvs.config.edit belongs to config-editor, which
+// extension.ts never activates, so a launcher entry would run into "command
+// not found"; wiring or deleting it is #768.
 const NOT_IN_CATALOG_ALLOWED = new Set([
-    'cvs.commands.showAll',               // #765 (opens the launcher itself)
-    'cvs.commands.quickRun',              // #765 (opens the launcher itself)
-    'cvs.project.openHome',               // #765
-    'cvs.htmlTemplates.download',         // #765
-    'cvs.htmlTemplates.openClipboardPath',// #765
-    'cvs.headers.fixAll',                 // #765
-    'cvs.headers.fixOne',                 // #765
-    'cvs.headers.fixFile',                // #765
-    'cvs.headers.viewStandard',           // #765
-    'cvs.config.edit',                    // #765
+    'cvs.commands.showAll',               // #765: opens the launcher itself
+    'cvs.commands.quickRun',              // #765: opens the launcher itself (#778)
+    'cvs.config.edit',                    // #768 (config-editor is never activated)
 ]);
 
 // Rule 5, permanent. Internal commands: called by code with arguments or by
@@ -213,7 +210,7 @@ check('rule 3 allow-list is current (no entry already agrees or has gone)',
 
 const notCatalogued = [...contributed.keys()].filter(id => !catalog.has(id) && !NOT_IN_CATALOG_ALLOWED.has(id));
 const staleCatalogExceptions = [...NOT_IN_CATALOG_ALLOWED].filter(id => catalog.has(id) || !contributed.has(id));
-check(`rule 4: every contributed command is in the launcher (${NOT_IN_CATALOG_ALLOWED.size} allow-listed under #765)`,
+check(`rule 4: every contributed command is in the launcher (${NOT_IN_CATALOG_ALLOWED.size} allow-listed: launcher openers and #768)`,
     notCatalogued.length === 0, list(notCatalogued));
 check('rule 4 allow-list is current (no entry is catalogued or gone)',
     staleCatalogExceptions.length === 0,
