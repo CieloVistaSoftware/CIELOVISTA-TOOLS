@@ -17,7 +17,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-| [`cvs.license.sync`](command:cvs.license.sync) | License: Sync All Projects |
+| [`cvs.license.sync`](command:cvs.license.sync) | License: Sync LICENSE Files Across All Projects |
 
 ---
 
@@ -26,7 +26,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 ```text
 activate(context)
   └── registers 1 command(s)
-  └── License: Sync All Projects → cvs.license.sync
+  └── License: Sync LICENSE Files Across All Projects → cvs.license.sync
 ```
 
 **Key internal functions:**

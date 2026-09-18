@@ -21,6 +21,11 @@
 // contributed. #761 fixed the 8 title pairs where one side was plainly wrong;
 // the rest are wording decisions and are filed.
 //
+// Those filed lists were then worked down: #766 contributed 3 unreachable
+// commands, #765 put 7 palette commands in the launcher, and #764 gave the
+// 26 remaining pairs one name each and dropped emoji from launcher titles
+// (checked below). What is still allow-listed waits on #768 or has a reason.
+//
 // Rules, across ALL commands:
 //   1. Every launcher catalog entry is contributed in package.json.
 //   2. Every contributed command is registered by a registerCommand() in src/.
@@ -56,35 +61,10 @@ console.log('-'.repeat(64));
 
 // ── Exceptions ───────────────────────────────────────────────────────────────
 
-// Rule 3. Titles that differ in wording, not just in prefix. Choosing the one
-// right name for each is a wording decision, owned by #764.
+// Rule 3. Titles that differ in wording, not just in prefix. #764 chose one
+// name for each of the 26 it listed, so this is empty; a new entry needs an
+// issue that owns the wording decision.
 const TITLE_MISMATCH_ALLOWED = new Set([
-    'cvs.tools.home',                     // #764
-    'cvs.copilotRules.reload',            // #764
-    'cvs.terminal.copyOutputClipboard',   // #764
-    'cvs.terminal.setFolder',             // #764
-    'cvs.docs.syncCheck',                 // #764
-    'cvs.audit.findDuplicates',           // #764
-    'cvs.docs.intelligence',              // #764
-    'cvs.consolidate.run',                // #764
-    'cvs.consolidate.byName',             // #764
-    'cvs.consolidate.byContent',          // #764
-    'cvs.catalog.open',                   // #764
-    'cvs.catalog.view',                   // #764
-    'cvs.readme.scan',                    // #764
-    'cvs.readme.new',                     // #764
-    'cvs.readme.fillTodos',               // #764
-    'cvs.marketplace.scan',               // #764
-    'cvs.marketplace.fixAll',             // #764
-    'cvs.headers.scan',                   // #764
-    'cvs.headers.scanAuto',               // #764
-    'cvs.license.sync',                   // #764
-    'cvs.audit.codebase',                 // #764
-    'cvs.audit.codeHighlight',            // #764
-    'cvs.audit.jsErrors',                 // #764
-    'cvs.issues.openViewer',              // #764
-    'cvs.issues.newIssue',                // #764
-    'cvs.registry.demote',                // #764
 ]);
 
 // Rule 4. Palette commands with no launcher entry. #765 catalogued seven; these
@@ -200,11 +180,22 @@ for (const [id, catTitle] of catalog) {
     }
 }
 const goneTitleExceptions = [...TITLE_MISMATCH_ALLOWED].filter(id => !catalog.has(id) || !contributed.has(id));
-check(`rule 3: package.json and launcher titles agree (${agreeing} agree, ${TITLE_MISMATCH_ALLOWED.size} allow-listed under #764)`,
+check(`rule 3: package.json and launcher titles agree (${agreeing} agree, ${TITLE_MISMATCH_ALLOWED.size} allow-listed)`,
     titleMismatches.length === 0, titleMismatches.join('\n       '));
 check('rule 3 allow-list is current (no entry already agrees or has gone)',
     staleTitleExceptions.length === 0 && goneTitleExceptions.length === 0,
     `remove from TITLE_MISMATCH_ALLOWED: ${list([...staleTitleExceptions, ...goneTitleExceptions])}`);
+
+// #764: no title carries an emoji. The launcher already shows the group icon
+// next to every entry, and a title that starts with a pictograph cannot agree
+// with its palette title or be found by typing its name.
+const PICTOGRAPH = /\p{Extended_Pictographic}/u;
+const emojiTitles = [
+    ...[...contributed].filter(([, c]) => PICTOGRAPH.test(c.title ?? '')).map(([id, c]) => `${id}: package.json "${c.title}"`),
+    ...[...catalog].filter(([, t]) => PICTOGRAPH.test(t)).map(([id, t]) => `${id}: launcher "${t}"`),
+];
+check(`no command title carries an emoji (${contributed.size} palette, ${catalog.size} launcher titles)`,
+    emojiTitles.length === 0, emojiTitles.join('\n       '));
 
 // ── Rule 4: contributed ⊆ catalog ────────────────────────────────────────────
 

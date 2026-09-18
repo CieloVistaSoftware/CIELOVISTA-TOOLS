@@ -328,7 +328,7 @@
       },
       {
         "command": "cvs.docs.syncCheck",
-        "title": "Docs: Sync Check (missing CLAUDE.md etc)",
+        "title": "Docs: Sync Check for Missing Project Docs",
         "category": "CieloVista Docs",
         "description": "Check for missing required documentation files like CLAUDE.md."
       },
@@ -400,7 +400,7 @@
       },
       {
         "command": "cvs.docs.intelligence",
-        "title": "Docs: Intelligence — Unified Scan & Fix",
+        "title": "Docs: Doc Intelligence",
         "category": "CieloVista Docs",
         "description": "Unified scan and fix for documentation issues."
       },
@@ -442,13 +442,13 @@
       },
       {
         "command": "cvs.consolidate.byName",
-        "title": "Consolidate: By Filename (same name)",
+        "title": "Consolidate: Docs with the Same Filename",
         "category": "CieloVista Consolidate",
         "description": "Consolidate documentation files with the same filename."
       },
       {
         "command": "cvs.consolidate.byContent",
-        "title": "Consolidate: By Content (similar docs)",
+        "title": "Consolidate: Docs with Similar Content",
         "category": "CieloVista Consolidate",
         "description": "Consolidate documentation files with similar content."
       },
@@ -460,7 +460,7 @@
       },
       {
         "command": "cvs.catalog.open",
-        "title": "Catalog: Open Doc Card Catalog",
+        "title": "Catalog: Open Doc Catalog",
         "category": "CieloVista Catalog",
         "description": "Open the documentation card catalog for browsing."
       },
@@ -472,7 +472,7 @@
       },
       {
         "command": "cvs.catalog.view",
-        "title": "Catalog: View a Doc (quick pick)",
+        "title": "Catalog: View a Doc",
         "category": "CieloVista Catalog",
         "description": "Quick pick to view any documentation card in the catalog."
       },
@@ -484,7 +484,7 @@
       },
       {
         "command": "cvs.readme.scan",
-        "title": "README: Scan Compliance",
+        "title": "README: Scan README Compliance",
         "category": "CieloVista README",
         "description": "Scan all projects for README compliance."
       },
@@ -532,19 +532,19 @@
       },
       {
         "command": "cvs.readme.fillTodos",
-        "title": "README: Fill TODO Stubs with AI",
+        "title": "README: Fill README TODO Stubs (AI)",
         "category": "CieloVista README",
         "description": "Scan all READMEs for _TODO: stubs and replace with AI-generated content."
       },
       {
         "command": "cvs.marketplace.scan",
-        "title": "Marketplace: Scan Compliance",
+        "title": "Marketplace: Scan Marketplace Compliance",
         "category": "CieloVista Marketplace",
         "description": "Scan all projects for marketplace compliance issues."
       },
       {
         "command": "cvs.marketplace.fixAll",
-        "title": "Marketplace: Fix All Auto-Fixable Issues",
+        "title": "Marketplace: Fix All Auto-Fixable Marketplace Issues",
         "category": "CieloVista Marketplace",
         "description": "Automatically fix all marketplace compliance issues that can be auto-fixed."
       },
@@ -694,13 +694,13 @@
       },
       {
         "command": "cvs.license.sync",
-        "title": "License: Sync All Projects",
+        "title": "License: Sync LICENSE Files Across All Projects",
         "category": "CieloVista",
         "description": "Sync license information across all projects."
       },
       {
         "command": "cvs.audit.codebase",
-        "title": "Audit: Codebase Health",
+        "title": "Audit: Codebase Health Audit",
         "category": "CieloVista Audit",
         "description": "Audit the health of your codebase for issues and improvements."
       },
@@ -806,13 +806,13 @@
       },
       {
         "command": "cvs.issues.openViewer",
-        "title": "Issues: Open Issue Viewer",
+        "title": "Issues: Open GitHub Issues Viewer",
         "category": "CieloVista",
         "description": "Open the CieloVista Tools GitHub Issue Viewer panel."
       },
       {
         "command": "cvs.issues.newIssue",
-        "title": "Issues: New Issue for Current Project",
+        "title": "Issues: New GitHub Issue for Current Project",
         "category": "CieloVista",
         "description": "Open GitHub to file a new issue, pre-filled with the current project name."
       },

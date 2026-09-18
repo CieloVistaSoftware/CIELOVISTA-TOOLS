@@ -10,7 +10,7 @@ description: The doc-auditor is a comprehensive, interactive tool for auditing d
 
 | Command ID | Title | Keybinding |
 |---|---|---|
-| `cvs.docs.intelligence` | Docs: Intelligence — Unified Scan & Fix | — |
+| `cvs.docs.intelligence` | Docs: Doc Intelligence | — |
 | `cvs.audit.runDaily` | Audit: Run Daily Health Check | — |
 | `cvs.audit.docs` | Audit: Run Full Docs Audit | — |
 | `cvs.audit.walkthrough` | Audit: Walk Through Findings | — |

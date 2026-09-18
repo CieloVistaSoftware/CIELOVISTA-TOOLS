@@ -17,8 +17,8 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-| [`cvs.marketplace.scan`](command:cvs.marketplace.scan) | Marketplace: Scan |
-| [`cvs.marketplace.fixAll`](command:cvs.marketplace.fixAll) | Marketplace: FixAll |
+| [`cvs.marketplace.scan`](command:cvs.marketplace.scan) | Marketplace: Scan Marketplace Compliance |
+| [`cvs.marketplace.fixAll`](command:cvs.marketplace.fixAll) | Marketplace: Fix All Auto-Fixable Marketplace Issues |
 | [`cvs.marketplace.fixOne`](command:cvs.marketplace.fixOne) | Marketplace: FixOne |
 
 ---
@@ -28,8 +28,8 @@ _Auto-generated stub. Replace this with a human description of the feature._
 ```text
 activate(context)
   └── registers 3 command(s)
-  └── Marketplace: Scan → cvs.marketplace.scan
-  └── Marketplace: FixAll → cvs.marketplace.fixAll
+  └── Marketplace: Scan Marketplace Compliance → cvs.marketplace.scan
+  └── Marketplace: Fix All Auto-Fixable Marketplace Issues → cvs.marketplace.fixAll
   └── Marketplace: FixOne → cvs.marketplace.fixOne
 ```
 
@@ -37,9 +37,9 @@ activate(context)
 
 ## Manual test
 
-1. Open the Command Palette and run **Marketplace: Scan** (`cvs.marketplace.scan`).
+1. Open the Command Palette and run **Marketplace: Scan Marketplace Compliance** (`cvs.marketplace.scan`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
-2. Open the Command Palette and run **Marketplace: FixAll** (`cvs.marketplace.fixAll`).
+2. Open the Command Palette and run **Marketplace: Fix All Auto-Fixable Marketplace Issues** (`cvs.marketplace.fixAll`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 3. Open the Command Palette and run **Marketplace: FixOne** (`cvs.marketplace.fixOne`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.

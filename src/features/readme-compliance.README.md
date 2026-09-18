@@ -17,7 +17,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title | Keybinding |
 |---|---|---|
-| `cvs.readme.fillTodos` | README: Fill TODO Stubs with AI | — |
+| `cvs.readme.fillTodos` | README: Fill README TODO Stubs (AI) | — |
 
 ---
 

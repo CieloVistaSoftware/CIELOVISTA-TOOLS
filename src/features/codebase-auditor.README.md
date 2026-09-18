@@ -16,7 +16,7 @@ Scans `src/` for nine categories of structural health issues: oversized files (3
 
 | Command ID | Title | Keybinding |
 |---|---|---|
-| `cvs.audit.codebase` | Audit: Codebase Health | — |
+| `cvs.audit.codebase` | Audit: Codebase Health Audit | — |
 
 ---
 
@@ -25,7 +25,7 @@ Scans `src/` for nine categories of structural health issues: oversized files (3
 ```text
 activate(context)
   └── registers 1 command(s)
-  └── Audit: Codebase Health → cvs.audit.codebase
+  └── Audit: Codebase Health Audit → cvs.audit.codebase
 ```
 
 **Key internal functions:**
