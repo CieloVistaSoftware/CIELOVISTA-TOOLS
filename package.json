@@ -435,6 +435,12 @@
         "description": "Export the current test coverage report as a markdown file."
       },
       {
+        "command": "cvs.audit.playwrightSetup",
+        "title": "Audit: Playwright Test Setup",
+        "category": "CieloVista Audit",
+        "description": "Check every registered project for a tests folder, a playwright test script, a playwright config and the @playwright/test dependency, with a fix button for each gap."
+      },
+      {
         "command": "cvs.consolidate.run",
         "title": "Consolidate: Run Full Consolidation Wizard",
         "category": "CieloVista Consolidate",
@@ -705,16 +711,6 @@
         "description": "Audit the health of your codebase for issues and improvements."
       },
       {
-        "command": "cvs.config.edit",
-        "title": "Config: Edit CieloVista Tools Config",
-        "category": "CieloVista",
-        "description": "Open the config editor for all CieloVista Tools settings and options.",
-        "icon": {
-          "light": "resources/light/config.svg",
-          "dark": "resources/dark/config.svg"
-        }
-      },
-      {
         "command": "cvs.audit.codeHighlight",
         "title": "Audit: Code Block Highlight Audit",
         "category": "CieloVista Audit",
@@ -978,10 +974,6 @@
         },
         {
           "command": "cvs.python.runFile",
-          "when": "true"
-        },
-        {
-          "command": "cvs.config.edit",
           "when": "true"
         },
         {

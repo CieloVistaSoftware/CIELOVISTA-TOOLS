@@ -13,7 +13,15 @@
  *   - Add @playwright/test to devDependencies (updates package.json)
  *   - Fix All — runs all four fixes for one project
  *
- * Command: cvs.audit.testCoverage
+ * This is the "Fix Now" target of the daily audit's Playwright Test Setup
+ * check (checkId testCoverage). Only project types the check applies to are
+ * offered fixes; the rest are listed as skipped with the check's reason.
+ *
+ * Command: cvs.audit.playwrightSetup
+ *
+ * (cvs.audit.testCoverage is a different feature, test-coverage-auditor.ts: a
+ * tier dashboard for this extension's own tests. This file claimed that id
+ * too and so was never wired in; #768.)
  */
 
 import * as vscode from 'vscode';
@@ -21,7 +29,7 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { callClaude } from '../shared/anthropic-client';
-import { REGISTRY_PATH, loadRegistry } from '../shared/registry';
+import { loadRegistry } from '../shared/registry';
 import { checkTestCoverage } from './daily-audit/checks/test-coverage';
 import type { TestCoverageResult } from './daily-audit/checks/test-coverage';
 import { esc } from '../shared/webview-utils';
@@ -229,7 +237,7 @@ Rules:
     return `Generated ${projName} tests → ${specName}`;
 }
 
-async function runFix(action: string, projPath: string, projName: string): Promise<string> {
+async function runFix(action: string, projPath: string, projName: string, projType: string): Promise<string> {
     switch (action) {
         case 'generateTests': {
             return generateTestsWithAI(projPath, projName);
@@ -239,7 +247,10 @@ async function runFix(action: string, projPath: string, projName: string): Promi
         case 'createConfig':    return fixPlaywrightConfig(projPath, projName);
         case 'addDep':          return fixPlaywrightDep(projPath, projName);
         case 'fixAll': {
-            const r = checkTestCoverage({ name: projName, path: projPath, type: '' });
+            // The real project type: the check skips types that do not need
+            // Playwright, and a skipped result has every has* flag false.
+            const r = checkTestCoverage({ name: projName, path: projPath, type: projType });
+            if (!r.isApplicable) { return `Skipped: ${r.skipReason}`; }
             const msgs: string[] = [];
             if (!r.hasTests)      { msgs.push(await fixCreateTestsFolder(projPath, projName)); }
             if (r.hasNpm) {
@@ -264,12 +275,23 @@ function statusDot(r: TestCoverageResult): string {
 
 function buildHtml(results: TestCoverageResult[]): string {
     const total   = results.length;
-    const passing = results.filter(r => r.issues.length === 0).length;
+    const skipped = results.filter(r => !r.isApplicable).length;
+    const passing = results.filter(r => r.isApplicable && r.issues.length === 0).length;
     const failing = results.filter(r => r.issues.length >  0).length;
 
     const rows = results.map(r => {
         const dot      = statusDot(r);
         const notFound = !fs.existsSync(r.projPath);
+
+        if (!r.isApplicable) {
+            return `<tr class="row-ok">
+  <td class="status-cell">⚪</td>
+  <td class="name-cell">${esc(r.name)}</td>
+  <td class="type-cell">${esc(r.type)}</td>
+  <td class="issues-cell"><span class="skip-label">Skipped: ${esc(r.skipReason)}</span></td>
+  <td class="fix-cell"></td>
+</tr>`;
+        }
 
         if (notFound) {
             return `<tr class="row-warn">
@@ -307,7 +329,7 @@ function buildHtml(results: TestCoverageResult[]): string {
             else if (issue.includes('@playwright'))  { action = 'addDep';      fixLabel = '📦 Add Dep'; }
 
             const fixBtn = action
-                ? `<button class="fix-btn issue-fix-btn" data-action="${esc(action)}" data-proj="${esc(r.name)}" data-proj-path="${esc(r.projPath)}" title="Fix: ${esc(issue)}">${fixLabel}</button>`
+                ? `<button class="fix-btn issue-fix-btn" data-action="${esc(action)}" data-proj="${esc(r.name)}" data-proj-path="${esc(r.projPath)}" data-proj-type="${esc(r.type)}" title="Fix: ${esc(issue)}">${fixLabel}</button>`
                 : '';
 
             return `<tr class="issue-row">
@@ -326,7 +348,7 @@ function buildHtml(results: TestCoverageResult[]): string {
   <td class="type-cell">${esc(r.type)}</td>
   <td class="issues-cell"><span class="issue-count">${r.issues.length} issue${r.issues.length > 1 ? 's' : ''}</span></td>
   <td class="fix-cell">
-    <button class="fix-btn fix-all-btn" data-action="fixAll" data-proj="${esc(r.name)}" data-proj-path="${esc(r.projPath)}">🔧 Fix All</button>
+    <button class="fix-btn fix-all-btn" data-action="fixAll" data-proj="${esc(r.name)}" data-proj-path="${esc(r.projPath)}" data-proj-type="${esc(r.type)}">🔧 Fix All</button>
   </td>
 </tr>${issueRows}`;
     }).join('');
@@ -338,6 +360,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .toolbar{position:sticky;top:0;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-panel-border);padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:10}
 .toolbar h2{font-size:1.05em;font-weight:700;flex:1}
 .pill{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.pill-skip{border-color:var(--vscode-descriptionForeground);color:var(--vscode-descriptionForeground)}
 .pill-ok{border-color:var(--vscode-testing-iconPassed);color:var(--vscode-testing-iconPassed)}
 .pill-err{border-color:var(--vscode-inputValidation-warningBorder,#cca700);color:var(--vscode-inputValidation-warningBorder,#cca700)}
 .rescan-btn{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-size:12px}
@@ -354,6 +377,7 @@ tr.row-ok:hover td,tr.row-err:hover td{background:var(--vscode-list-hoverBackgro
 .type-cell{font-size:10px;color:var(--vscode-descriptionForeground);white-space:nowrap}
 .fix-cell{white-space:nowrap;text-align:right}
 .ok-label{color:var(--vscode-testing-iconPassed);font-size:11px}
+.skip-label{color:var(--vscode-descriptionForeground);font-size:11px}
 .issue-count{color:var(--vscode-inputValidation-warningForeground,#cca700);font-size:11px;font-weight:600}
 .issue-row td{padding:3px 10px;border-bottom:none}
 .issue-detail{display:flex;align-items:center;gap:6px;padding-left:20px}
@@ -372,6 +396,7 @@ tr.row-ok:hover td,tr.row-err:hover td{background:var(--vscode-list-hoverBackgro
 <div class="toolbar">
   <h2>🎭 Playwright Test Coverage</h2>
   <span class="pill pill-ok">✅ ${passing} clean</span>
+  <span class="pill pill-skip">⚪ ${skipped} skipped</span>
   <span class="pill pill-err">⚠️ ${failing} need attention</span>
   <button class="rescan-btn" data-action="rescan">↺ Rescan</button>
   ${failing > 0 ? `<button class="fix-all-projects-btn" data-action="fixAllProjects">🔧 Fix All Projects</button>` : ''}
@@ -400,8 +425,9 @@ document.addEventListener('click',function(e){
   if(action==='fixAllProjects'){showStatus('Fixing all projects…');vscode.postMessage({action:'fixAllProjects'});return;}
   var proj=btn.dataset.proj||'';
   var projPath=btn.dataset.projPath||'';
+  var projType=btn.dataset.projType||'';
   showStatus('Working on '+proj+'…');
-  vscode.postMessage({action:action,proj:proj,projPath:projPath});
+  vscode.postMessage({action:action,proj:proj,projPath:projPath,projType:projType});
 });
 window.addEventListener('message',function(e){
   var m=e.data;
@@ -424,15 +450,24 @@ export async function runPlaywrightCheck(): Promise<void> {
         checkTestCoverage({ name: p.name, path: p.path, type: p.type })
     );
 
+    // One panel: running the command again refreshes and reveals it.
+    if (_panel) {
+        _panel.webview.html = buildHtml(results);
+        _panel.reveal(vscode.ViewColumn.Beside);
+        return;
+    }
+
     const panel = vscode.window.createWebviewPanel(
-        'playwrightCheck', '🎭 Playwright Test Coverage', vscode.ViewColumn.Beside,
+        'playwrightCheck', '🎭 Playwright Test Setup', vscode.ViewColumn.Beside,
         { enableScripts: true, retainContextWhenHidden: true }
     );
+    _panel = panel;
+    panel.onDidDispose(() => { _panel = undefined; });
 
     panel.webview.html = buildHtml(results);
 
     panel.webview.onDidReceiveMessage(async msg => {
-        const { action, proj, projPath } = msg as { action: string; proj: string; projPath: string };
+        const { action, proj, projPath, projType } = msg as { action: string; proj: string; projPath: string; projType?: string };
 
         try {
             if (action === 'rescan') {
@@ -452,7 +487,7 @@ export async function runPlaywrightCheck(): Promise<void> {
                 for (const p of fresh.projects) {
                     const r = checkTestCoverage({ name: p.name, path: p.path, type: p.type });
                     if (r.issues.length > 0) {
-                        await runFix('fixAll', p.path, p.name);
+                        await runFix('fixAll', p.path, p.name, p.type);
                         fixed++;
                     }
                 }
@@ -471,10 +506,10 @@ export async function runPlaywrightCheck(): Promise<void> {
             if (action === 'generateTests') {
                 text = await vscode.window.withProgress(
                     { location: vscode.ProgressLocation.Notification, title: `🤖 Generating tests for ${proj}…`, cancellable: false },
-                    () => runFix(action, projPath, proj)
+                    () => runFix(action, projPath, proj, projType ?? '')
                 );
             } else {
-                text = await runFix(action, projPath, proj);
+                text = await runFix(action, projPath, proj, projType ?? '');
             }
             log(FEATURE, `Fix complete: ${action} on ${proj} — ${text}`);
 
@@ -496,4 +531,22 @@ export async function runPlaywrightCheck(): Promise<void> {
     });
 
     log(FEATURE, `Playwright check opened — ${results.length} projects scanned`);
+}
+
+// ─── Activation ──────────────────────────────────────────────────────────────
+
+export const COMMAND_ID = 'cvs.audit.playwrightSetup';
+
+let _panel: vscode.WebviewPanel | undefined;
+
+export function activate(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+        vscode.commands.registerCommand(COMMAND_ID, () => runPlaywrightCheck())
+    );
+    log(FEATURE, 'Activated');
+}
+
+export function deactivate(): void {
+    _panel?.dispose();
+    _panel = undefined;
 }

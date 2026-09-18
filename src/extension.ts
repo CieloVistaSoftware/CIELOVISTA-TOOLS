@@ -38,6 +38,7 @@ import { activate as npmScriptsTree,          deactivate as deactivateNpmScripts
 import { activate as mcpServerScaffolder,     deactivate as deactivateMcpServerScaffolder } from './features/mcp-server-scaffolder';
 import { activate as openFolderAsRoot,        deactivate as deactivateOpenFolderAsRoot    } from './features/open-folder-as-root';
 import { activate as testCoverageAuditor,     deactivate as deactivateTestCoverageAuditor } from './features/test-coverage-auditor';
+import { activate as playwrightCheck,         deactivate as deactivatePlaywrightCheck     } from './features/playwright-check';
 import { activate as jsErrorAudit,            deactivate as deactivateJsErrorAudit        } from './features/js-error-audit';
 import { activate as codeHighlightAudit,      deactivate as deactivateCodeHighlightAudit  } from './features/code-highlight-audit';
 import { activate as bgHealthRunner,          deactivate as deactivateBgHealthRunner      } from './features/background-health-runner';
@@ -144,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('mcpServerScaffolder',     'MCP Server Scaffolder',         mcpServerScaffolder,     context);
     activateIfEnabled('openFolderAsRoot',        'Explorer: Open Folder as Root', openFolderAsRoot,        context);
     activateIfEnabled('testCoverageAuditor',     'Test Coverage Auditor',         testCoverageAuditor,     context);
+    activateIfEnabled('playwrightCheck',         'Playwright Test Setup',         playwrightCheck,         context);
     activateIfEnabled('codeHighlightAudit',      'Code Highlight Audit',          codeHighlightAudit,      context);
     activateIfEnabled('bgHealthRunner',          'Background Health Runner',      bgHealthRunner,          context);
     activateIfEnabled('jsErrorAudit',            'JS Error Audit',                jsErrorAudit,            context);
@@ -225,6 +227,7 @@ export function deactivate(): void {
     deactivateFrontmatterViewer();
 
     deactivateTestCoverageAuditor();
+    deactivatePlaywrightCheck();
     deactivateHomePage();
     disposeChannel();
 

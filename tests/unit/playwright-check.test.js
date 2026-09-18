@@ -38,6 +38,18 @@ console.log('\nplaywright-check unit tests\n' + '─'.repeat(50));
 
 test('module loads without throwing',       () => assert.ok(mod));
 test('exports runPlaywrightCheck function', () => assert.strictEqual(typeof mod.runPlaywrightCheck, 'function'));
+test('exports activate and deactivate (#768: it had neither, so nothing could wire it)', () => {
+    assert.strictEqual(typeof mod.activate, 'function');
+    assert.strictEqual(typeof mod.deactivate, 'function');
+});
+test('activate registers cvs.audit.playwrightSetup, not the test-coverage-auditor id', () => {
+    const context = { subscriptions: [] };
+    mod.activate(context);
+    assert.ok(registered.has('cvs.audit.playwrightSetup'), `registered: ${[...registered.keys()].join(', ')}`);
+    assert.ok(!registered.has('cvs.audit.testCoverage'), 'cvs.audit.testCoverage belongs to test-coverage-auditor.ts');
+    assert.strictEqual(context.subscriptions.length, 1);
+    mod.deactivate();
+});
 test('source file has copyright header', () => {
     const src = path.join(__dirname, '../../src/features/playwright-check.ts');
     if (!fs.existsSync(src)) return;
