@@ -73,7 +73,7 @@ async function openDoc(filePath: string): Promise<void> {
     if (filePath.toLowerCase().endsWith('.md')) {
         const content = fs.readFileSync(filePath, 'utf8');
         // For now, always treat as Markdown. To use raw HTML, set isHtml: true.
-        showContentViewer({ title: path.basename(filePath), content, isHtml: false });
+        showContentViewer({ title: path.basename(filePath), content, isHtml: false, filePath });
         log(FEATURE, `Opened (ContentViewer): ${filePath}`);
     } else {
         const doc = await vscode.workspace.openTextDocument(filePath);

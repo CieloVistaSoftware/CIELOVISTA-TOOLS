@@ -18,6 +18,8 @@ import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
+import { IMAGE_ROUTE, rewriteImagesToRoute, serveImageRequest } from '../../shared/local-image-route';
+import { createServerToken } from '../../shared/server-token';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
@@ -808,9 +810,23 @@ export async function viewSpecificDoc(): Promise<void> {
         return;
     }
 
+    // Folders the /img route may serve images from (#741): every catalog
+    // project root (the global docs folder is the "global" project's root).
+    // Fixed here, from the catalog, never taken from the request.
+    const imageRoots = [...new Set(cards.map(c => c.projectPath).filter(Boolean))];
+    // Per-server secret: only pages this server renders carry it (#741, #752).
+    const serverToken = createServerToken();
+
     // Start a fresh server
     _viewServer = http.createServer((req, res) => {
         const url = new URL(req.url || '/', 'http://localhost');
+
+        // Images next to a document. Routed before the CORS header below, so
+        // another origin can display them but never read their bytes.
+        if (url.pathname === IMAGE_ROUTE) {
+            serveImageRequest(req, res, url, imageRoots, serverToken);
+            return;
+        }
 
         // CORS so browser fetch() works
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -832,7 +848,8 @@ export async function viewSpecificDoc(): Promise<void> {
             }
             const rawMd  = fs.readFileSync(filePath, 'utf8');
             const port = (_viewServer!.address() as { port: number }).port;
-            const rendered = rewriteDocLinks(mdToHtml(rawMd), filePath, port, backQ);
+            const withLinks = rewriteDocLinks(mdToHtml(rawMd), filePath, port, backQ);
+            const rendered  = rewriteImagesToRoute(withLinks, path.dirname(filePath), `http://127.0.0.1:${port}`, serverToken);
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(buildDocPageHtml(filePath, rendered, port, backQ));
 
