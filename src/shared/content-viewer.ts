@@ -9,11 +9,19 @@
  *
  * If isHtml is true, content is rendered as raw HTML.
  * If isHtml is false, content is treated as Markdown and rendered to HTML.
+ *
+ * Pass filePath when the content came from a file (#741): relative images
+ * ("./diagram.png") then resolve against that file's folder, become webview
+ * URIs, and the panel may read from those folders (localResourceRoots) — the
+ * same mechanism the doc preview uses (#737, webview-images.ts). Without a
+ * filePath there is nothing to resolve a relative path against.
  */
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { mdToHtml } from './md-renderer';
+import { rewriteLocalImageSrcs } from './webview-images';
 
 let _panel: vscode.WebviewPanel | undefined;
 
@@ -26,6 +34,8 @@ export interface ContentViewerOptions {
      */
     content: string | ContentViewerSchema;
     isHtml?: boolean;
+    /** Absolute path of the file the content was read from; enables relative images. */
+    filePath?: string;
 }
 
 /**
@@ -54,19 +64,35 @@ export function showContentViewer(opts: ContentViewerOptions): void {
     } else {
         html = '<div style="color:red">Invalid content for ContentViewer</div>';
     }
-    if (_panel) {
-        _panel.title = `\u{1F4C4} ${opts.title}`;
-        _panel.webview.html = buildHtml(opts.title, html);
-        _panel.reveal(vscode.ViewColumn.Beside, true);
-        return;
+    const isNew = !_panel;
+    if (!_panel) {
+        _panel = vscode.window.createWebviewPanel(
+            'contentViewer', `\u{1F4C4} ${opts.title}`,
+            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+            { enableScripts: true, retainContextWhenHidden: true }
+        );
+        _panel.onDidDispose(() => { _panel = undefined; });
     }
-    _panel = vscode.window.createWebviewPanel(
-        'contentViewer', `\u{1F4C4} ${opts.title}`,
-        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-        { enableScripts: true, retainContextWhenHidden: true }
-    );
-    _panel.webview.html = buildHtml(opts.title, html);
-    _panel.onDidDispose(() => { _panel = undefined; });
+    const panel   = _panel;
+    const webview = panel.webview;
+
+    // Options are set on every show: the panel is reused across documents,
+    // so the folders it may read must follow the document being shown.
+    if (opts.filePath) {
+        const images = rewriteLocalImageSrcs(html, path.dirname(opts.filePath),
+            (absPath: string) => webview.asWebviewUri(vscode.Uri.file(absPath)).toString());
+        html = images.html;
+        webview.options = {
+            enableScripts: true,
+            localResourceRoots: images.resourceRoots.map(r => vscode.Uri.file(r)),
+        };
+    } else {
+        webview.options = { enableScripts: true };
+    }
+
+    panel.title  = `\u{1F4C4} ${opts.title}`;
+    webview.html = buildHtml(opts.title, html);
+    if (!isNew) { panel.reveal(vscode.ViewColumn.Beside, true); }
 }
 
 function escapeHtml(s: string): string {
