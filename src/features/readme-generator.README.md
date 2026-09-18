@@ -8,8 +8,12 @@ description: "Readme Generator — 3 command(s). Auto-generated stub: fill in Wh
 
 ## What it does
 
-<!-- TODO: describe what this feature does in 2–4 sentences -->
-_Auto-generated stub. Replace this with a human description of the feature._
+Scans every registered project for a missing `README.md` and uses the AI to
+write one from the project's `CLAUDE.md`, `package.json` and folder layout.
+Every generated README is shown in a review panel as a new file, and nothing
+is written until you approve it (#798). The generator never overwrites a
+README: a project whose README appeared after the scan is skipped and reported,
+and an approved file is created only if it still does not exist.
 
 ---
 
