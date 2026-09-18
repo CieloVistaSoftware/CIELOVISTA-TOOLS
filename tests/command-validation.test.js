@@ -303,7 +303,7 @@ for (const e of ENTRIES) {
 section(`SUITE 2 — Command registration  (${ENTRIES.length} entries)`);
 
 const EXEMPT = new Set([
-    'cvs.commands.showAll', 'cvs.commands.quickRun', 'cvs.npm.addScriptDescription',
+    'cvs.commands.showAll', 'cvs.npm.addScriptDescription',
     'cvs.project.openHome', 'cvs.htmlTemplates.download', 'cvs.htmlTemplates.openClipboardPath',
     'cvs.headers.fixAll', 'cvs.headers.fixOne', 'cvs.headers.fixFile', 'cvs.headers.viewStandard',
     'cvs.audit.jsErrors',   // JS Error Audit — surfaced via Fix Bugs panel, not the launcher catalog

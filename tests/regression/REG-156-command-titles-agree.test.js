@@ -67,13 +67,13 @@ console.log('-'.repeat(64));
 const TITLE_MISMATCH_ALLOWED = new Set([
 ]);
 
-// Rule 4. Palette commands with no launcher entry. #765 catalogued seven; these
-// stay out. The two launcher commands open the launcher itself, so an entry
-// inside it would only reopen the panel you are in (#778 asks whether quickRun
-// should exist at all). #768 deleted config-editor and its cvs.config.edit.
+// Rule 4. Palette commands with no launcher entry. #765 catalogued seven; this
+// one stays out: it opens the launcher itself, so an entry inside it would only
+// reopen the panel you are in. #778 made cvs.commands.quickRun a real quick
+// pick instead of a second launcher-opener, so it is catalogued now (REG-165).
+// #768 deleted config-editor and its cvs.config.edit.
 const NOT_IN_CATALOG_ALLOWED = new Set([
     'cvs.commands.showAll',               // #765: opens the launcher itself
-    'cvs.commands.quickRun',              // #765: opens the launcher itself (#778)
 ]);
 
 // Rule 5, permanent. Internal commands: called by code with arguments or by

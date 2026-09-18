@@ -199,7 +199,6 @@ test('Every package.json command is in the catalog', function() {
     // Commands that are legitimately internal / context-menu-only, not in launcher catalog
     var EXEMPT = new Set([
         'cvs.commands.showAll',
-        'cvs.commands.quickRun',
         'cvs.npm.addScriptDescription',
         'cvs.project.openHome',          // project home opener - internal
         'cvs.htmlTemplates.download',    // context menu only
