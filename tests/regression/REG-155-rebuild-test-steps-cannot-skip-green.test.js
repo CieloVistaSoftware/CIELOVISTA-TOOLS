@@ -103,6 +103,8 @@ try {
         }
     }
     fs.copyFileSync(path.join(ROOT, 'package.json'), path.join(tmp, 'package.json'));
+    // The runner also builds the shipped out/ with esbuild.mjs (#736, #753).
+    fs.copyFileSync(path.join(ROOT, 'esbuild.mjs'), path.join(tmp, 'esbuild.mjs'));
     // Only the step-owned unit tests: a full unit run here must run none of them.
     fs.mkdirSync(path.join(tmp, 'tests', 'unit'), { recursive: true });
     for (const f of stepOwnedUnit) { fs.copyFileSync(path.join(ROOT, f), path.join(tmp, f)); }
@@ -118,9 +120,10 @@ try {
 
     // 3b ── the full unit run leaves every step-owned test to its step
     const full = run('node scripts/run-unit-tests.js');
-    const notDeferred = stepOwnedUnit.filter(f => !full.out.includes(`- ${path.basename(f)} — runs at its own rebuild step`));
+    // The runner names a deferred file by its path under tests/ (unit/x.test.js, #736).
+    const notDeferred = stepOwnedUnit.filter(f => !full.out.includes(`${path.basename(f)} — runs at its own rebuild step`));
     check(`the full unit run leaves all ${stepOwnedUnit.length} step-owned tests to their steps`,
-        full.code === 0 && notDeferred.length === 0 && /\b0 unit test file\(s\)/.test(full.out),
+        full.code === 0 && notDeferred.length === 0 && /\b0 test file\(s\)/.test(full.out),
         notDeferred.length ? `run by the unit suite too: ${notDeferred.join(', ')}` : tail(full.out));
 
     const step = scripts['test:mcp-status'];
