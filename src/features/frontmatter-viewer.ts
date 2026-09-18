@@ -11,11 +11,17 @@
  *   scripts/build-frontmatter-viewer.js
  *
  * Command: cvs.headers.frontmatterViewer
+ *
+ * Judges every doc by the three-field contract (#707, #708, #730): id, title,
+ * description at the TOP. Until #730 it flagged a top block as a violation,
+ * required a docid, and generated fix tests that demanded a bottom block --
+ * the retired rules. Reading and judging go through src/shared/doc-frontmatter.ts.
  */
 
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
+import { readFrontmatter, contractViolations } from '../shared/doc-frontmatter';
 import { fileFrontmatterViolationAsIssue } from '../shared/github-issue-filer';
 import { log, logError } from '../shared/output-channel';
 import { esc as escStr } from '../shared/webview-utils';
@@ -127,7 +133,9 @@ interface FmFile {
     filename:       string;
     path:           string;
     hasFrontmatter: boolean;
-    atBottom:       boolean;   // true when frontmatter is at end of file (current standard)
+    atBottom:       boolean;   // true when the header is at the END of the file (retired placement)
+    /** Everything wrong under the three-field contract (doc-frontmatter.ts). */
+    contractIssues: string[];
     fieldCount:     number;
     keys:           string[];
     fields:         Record<string, string>;
@@ -164,28 +172,18 @@ function walkMd(dir: string, root: string, acc: string[] = []): string[] {
     return acc;
 }
 
-function _parseFmFields(block: string): Record<string, string> {
-    const fields: Record<string, string> = {};
-    for (const line of block.split(/\r?\n/)) {
-        const kv = line.match(/^\s*([A-Za-z0-9_.-]+)\s*:\s*(.*)\s*$/);
-        if (kv) { fields[kv[1]] = kv[2].replace(/^['"]|['"]$/g, ''); }
-    }
-    return fields;
-}
-
 function parseFm(content: string): { hasFrontmatter: boolean; atBottom: boolean; fields: Record<string, string>; error: string | null } {
-    // Bottom-first: current standard is frontmatter at end of file
-    const bottom = content.match(/\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
-    if (bottom) {
-        return { hasFrontmatter: true, atBottom: true, fields: _parseFmFields(bottom[1]), error: null };
-    }
-    // Top position: legacy — detect but flag as violation
-    if (content.startsWith('---')) {
-        const top = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-        if (!top) { return { hasFrontmatter: true, atBottom: false, fields: {}, error: 'Missing closing frontmatter delimiter' }; }
-        return { hasFrontmatter: true, atBottom: false, fields: _parseFmFields(top[1]), error: null };
-    }
-    return { hasFrontmatter: false, atBottom: false, fields: {}, error: null };
+    const parsed = readFrontmatter(content);
+    // A top block with no closing delimiter is a real parse error; say so
+    // rather than silently reading the doc as headerless.
+    const unclosed = parsed.placement === 'none' && /^---\r?\n/.test(content)
+        && !/^---\r?\n[\s\S]*?\r?\n---(\r?\n|$)/.test(content);
+    return {
+        hasFrontmatter: parsed.placement !== 'none',
+        atBottom:       parsed.placement === 'bottom',
+        fields:         parsed.fields,
+        error:          unclosed ? 'Missing closing frontmatter delimiter' : null,
+    };
 }
 
 function scanProject(root: string): Report {
@@ -194,7 +192,8 @@ function scanProject(root: string): Report {
         const content = fs.readFileSync(fp, 'utf8');
         const { hasFrontmatter, atBottom, fields, error } = parseFm(content);
         const keys = Object.keys(fields).sort((a, b) => a.localeCompare(b));
-        return { filename: path.basename(fp), path: path.relative(root, fp).replace(/\\/g, '/'), hasFrontmatter, atBottom, fieldCount: keys.length, keys, fields, error };
+        const contractIssues = contractViolations(content);
+        return { filename: path.basename(fp), path: path.relative(root, fp).replace(/\\/g, '/'), hasFrontmatter, atBottom, contractIssues, fieldCount: keys.length, keys, fields, error };
     });
     rows.sort((a, b) => a.filename.localeCompare(b.filename) || a.path.localeCompare(b.path));
 
@@ -228,14 +227,9 @@ function scanProject(root: string): Report {
 
 function violations(f: FmFile, dupNames: Set<string>): string[] {
     const r: string[] = [];
-    if (!f.hasFrontmatter)                         { r.push('missing frontmatter'); }
-    if (f.error)                                   { r.push('frontmatter parse error'); }
-    if (f.hasFrontmatter && !f.atBottom)           { r.push('frontmatter-not-at-bottom'); }
-    if (!f.fields['docid'])                        { r.push('missing docid'); }
-    if (f.fields['docid']?.trim() === '')          { r.push('empty docid'); }
-    if ('dewey'   in f.fields)                     { r.push('legacy field: dewey'); }
-    if ('subject' in f.fields)                     { r.push('legacy field: subject'); }
-    if (dupNames.has(f.filename))                  { r.push('duplicate filename'); }
+    if (f.error)                  { r.push('frontmatter parse error'); }
+    else                          { r.push(...f.contractIssues); }
+    if (dupNames.has(f.filename)) { r.push('duplicate filename'); }
     return r;
 }
 
@@ -247,28 +241,26 @@ function toIssueLabel(v: string): string {
 
 function proposedFixes(violationList: string[]): string[] {
     const fixes: string[] = [];
-    if (violationList.includes('missing frontmatter')) {
-        fixes.push('Add a YAML frontmatter block at the bottom of the markdown file (`---` ... `---`).');
+    const has = (prefix: string) => violationList.some(v => v.startsWith(prefix));
+    if (has('no frontmatter')) {
+        fixes.push('Add a header at the top of the file: `---`, then id, title and description, then `---`. Headers: Fix Header in Current File writes it.');
     }
-    if (violationList.includes('frontmatter-not-at-bottom')) {
-        fixes.push('Move the frontmatter block to the end of the file — it must appear after all document content.');
+    if (has('frontmatter at the bottom')) {
+        fixes.push('Move the header to the top of the file. Headers: Fix Header in Current File does this without touching the body.');
     }
-    if (violationList.includes('frontmatter parse error')) {
-        fixes.push('Repair malformed frontmatter and ensure a valid closing `---` delimiter.');
+    if (has('frontmatter parse error')) {
+        fixes.push('Repair the header so it has a closing `---` line.');
     }
-    if (violationList.includes('missing docid') || violationList.includes('empty docid')) {
-        fixes.push('Set a non-empty `docid` field in frontmatter following the project doc contract.');
+    if (has('missing ')) {
+        fixes.push('Fill in every one of id, title and description.');
     }
-    if (violationList.includes('legacy field: dewey')) {
-        fixes.push('Remove legacy `dewey` from frontmatter and use current doc contract fields only.');
+    if (has('fields beyond the contract')) {
+        fixes.push('Remove every header field except id, title and description. Anything derivable (path, dates, category, tags, docid) is not hand-written.');
     }
-    if (violationList.includes('legacy field: subject')) {
-        fixes.push('Remove legacy `subject` from frontmatter and use current doc contract fields only.');
-    }
-    if (violationList.includes('duplicate filename')) {
+    if (has('duplicate filename')) {
         fixes.push('Rename the file to a unique markdown filename and update links/references.');
     }
-    return fixes.length > 0 ? fixes : ['Update this file to satisfy all frontmatter validation rules.'];
+    return fixes.length > 0 ? fixes : ['Update this file to satisfy the doc header contract.'];
 }
 
 function toTestSlug(input: string): string {
@@ -283,25 +275,12 @@ function buildFailureTestContent(relativePath: string, filename: string, violati
     const rel = relativePath.replace(/\\/g, '/');
     const checks: string[] = [];
 
-    // Bottom-position frontmatter is the current standard
-    checks.push("const fmMatch = raw.match(/\\n---\\r?\\n([\\s\\S]*?)\\r?\\n---\\s*$/);");
-    if (violationList.includes('missing frontmatter') || violationList.includes('frontmatter parse error')) {
-        checks.push("assert.ok(fmMatch, 'Expected YAML frontmatter block at end of file');");
-    } else {
-        checks.push("assert.ok(fmMatch, 'Expected parseable frontmatter with closing delimiter at end of file');");
-    }
-    if (violationList.includes('frontmatter-not-at-bottom')) {
-        checks.push("assert.ok(fmMatch, 'Frontmatter must appear at the bottom of the file, not the top');");
-    }
-    if (violationList.includes('missing docid') || violationList.includes('empty docid')) {
-        checks.push("assert.match(fmMatch[1], /^docid:\\s*\\S+/m, 'Expected non-empty docid field in frontmatter');");
-    }
-    if (violationList.includes('legacy field: dewey')) {
-        checks.push("assert.doesNotMatch(fmMatch[1], /^dewey:\\s*/m, 'Legacy field `dewey` must not be present');");
-    }
-    if (violationList.includes('legacy field: subject')) {
-        checks.push("assert.doesNotMatch(fmMatch[1], /^subject:\\s*/m, 'Legacy field `subject` must not be present');");
-    }
+    // The contract: id, title, description -- at the top, and nothing else (#730).
+    checks.push("const fmMatch = raw.match(/^---\\r?\\n([\\s\\S]*?)\\r?\\n---(?:\\r?\\n|$)/);");
+    checks.push("assert.ok(fmMatch, 'Expected the header block at the TOP of the file');");
+    checks.push("const keys = fmMatch[1].split(/\\r?\\n/).map((l) => (l.match(/^([A-Za-z][\\w-]*)\\s*:/) || [])[1]).filter(Boolean).map((k) => k.toLowerCase());");
+    checks.push("assert.deepStrictEqual(keys.slice().sort(), ['description', 'id', 'title'], 'Header must hold exactly id, title and description');");
+    checks.push("for (const k of ['id', 'title', 'description']) { assert.match(fmMatch[1], new RegExp('^' + k + ':\\\\s*\\\\S', 'mi'), 'Header field ' + k + ' must not be empty'); }");
     if (violationList.includes('duplicate filename')) {
         checks.push("const repoRoot = path.resolve(__dirname, '..', '..');");
         checks.push("const allMd = [];\n(function walk(dir){\n  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {\n    if (['node_modules','.git','.vscode','out','dist'].includes(e.name)) { continue; }\n    const p = path.join(dir, e.name);\n    if (e.isDirectory()) { walk(p); } else if (e.isFile() && /\\.md$/i.test(e.name)) { allMd.push(p); }\n  }\n})(repoRoot);");
@@ -802,3 +781,6 @@ export function deactivate(): void {
     _panel?.dispose();
     _panel = undefined;
 }
+
+/** @internal — exported for unit testing only */
+export const _test = { parseFm, violations, proposedFixes, buildFailureTestContent };

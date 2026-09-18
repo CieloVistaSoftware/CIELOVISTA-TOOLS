@@ -1,129 +1,100 @@
-// REG-093 — cvs.headers.scan detects top vs bottom frontmatter position; scanAuto fixes to bottom
+// REG-093 — the header scan judges docs by the three-field contract; scanAuto rewrites to it
+//
+// History: REG-093 first guarded #527's rule that frontmatter goes at the
+// BOTTOM, and scanAuto moved every header in every registered project there.
+// #708 reversed that rule (three fields, at the TOP), and #730 brought this
+// command in line. So the rule guarded here is the opposite of the original.
+//
+// Behavioural: runs the real scan and fix from the out-test/ build on files
+// in a temp directory.
+//
+// Run: node tests/regression/REG-093-header-scan-position-check.test.js
 'use strict';
 
-const assert = require('assert');
 const fs     = require('fs');
-const path   = require('path');
 const os     = require('os');
+const path   = require('path');
+const Module = require('module');
 
-const ROOT   = path.resolve(__dirname, '../..');
-const SRC    = fs.readFileSync(path.join(ROOT, 'src/features/doc-header-scan.ts'), 'utf8');
-const PKG    = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const ROOT = path.resolve(__dirname, '../..');
+const OUT  = path.join(ROOT, 'out-test', 'features', 'doc-header-scan.js');
+const PKG  = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
 let pass = 0, fail = 0;
-function check(desc, cond) {
+function check(desc, cond, detail) {
     if (cond) { console.log(`  ✓ ${desc}`); pass++; }
-    else       { console.error(`  ✗ ${desc}`); fail++; }
+    else       { console.error(`  ✗ ${desc}${detail ? `\n      ${detail}` : ''}`); fail++; }
 }
 
-// ── Source-level checks ────────────────────────────────────────────────────────
+console.log('\nREG-093: header scan follows the three-field contract (#730)\n' + '─'.repeat(60));
 
-// CHECK 1: parseFrontmatter detects top position
-check('parseFrontmatter matches top-position regex',
-    SRC.includes("position: 'top'") && SRC.includes('/^---\\r?\\n'));
+if (!fs.existsSync(OUT)) {
+    console.error(`  ✗ ${OUT} missing — the regression runner builds out-test/ before every run`);
+    process.exit(1);
+}
 
-// CHECK 2: parseFrontmatter detects bottom position
-check('parseFrontmatter matches bottom-position regex',
-    SRC.includes("position: 'bottom'"));
-
-// CHECK 3: moveFrontmatterToBottom function exists
-check('moveFrontmatterToBottom function defined',
-    SRC.includes('function moveFrontmatterToBottom('));
-
-// CHECK 4: re-verify step present (reads file back after write)
-check('re-verify: reads file back after write to confirm position',
-    SRC.includes('verifiedParsed') && SRC.includes("'bottom'"));
-
-// CHECK 5: report has WRONG section
-check('report emits WRONG section header',
-    SRC.includes('WRONG') && SRC.includes("frontmatter at top"));
-
-// CHECK 6: report has FIXED section
-check('report emits FIXED section header',
-    SRC.includes('FIXED'));
-
-// CHECK 7: report has RE-VERIFIED section
-check('report emits RE-VERIFIED section header',
-    SRC.includes('RE-VERIFIED'));
-
-// CHECK 8: runScan(false) is scan-only, runScan(true) is auto-fix
-check('runScan(false) registers as cvs.headers.scan',
-    SRC.includes("'cvs.headers.scan'") && SRC.includes('() => runScan(false)'));
-check('runScan(true) registers as cvs.headers.scanAuto',
-    SRC.includes("'cvs.headers.scanAuto'") && SRC.includes('() => runScan(true)'));
-
-// ── package.json checks ────────────────────────────────────────────────────────
-
-const cmds = new Map((PKG.contributes?.commands ?? []).map(c => [c.command, c]));
-
-// CHECK 10: cvs.headers.scan declared
-check('cvs.headers.scan in contributes.commands',
-    cmds.has('cvs.headers.scan'));
-
-// CHECK 11: cvs.headers.scanAuto declared
-check('cvs.headers.scanAuto in contributes.commands',
-    cmds.has('cvs.headers.scanAuto'));
-
-// ── Functional smoke test (no VS Code needed) ─────────────────────────────────
-// Build a tiny CommonJS shim so we can require the parseFrontmatter logic inline.
-
-const TOP_FILE = `---\ntitle: test\ndescription: a doc\n---\n\n# Hello\n\nBody text.\n`;
-const BOT_FILE = `# Hello\n\nBody text.\n\n---\ntitle: test\ndescription: a doc\n---\n`;
-const NONE_FILE = `# Hello\n\nNo frontmatter here.\n`;
-
-// Inline the parsing logic (mirrors doc-header-scan.ts exactly)
-function parseFmBlock(raw) {
-    const fm = {};
-    for (const line of raw.split('\n')) {
-        const m = line.match(/^(\w[\w-]*):\s*(.*)$/);
-        if (m) { fm[m[1]] = m[2].trim(); }
+const registered = new Map();
+const origLoad = Module._load;
+Module._load = function (req, parent, isMain) {
+    if (req === 'vscode') {
+        return {
+            commands: { registerCommand(n, h) { registered.set(n, h); return { dispose() {} }; } },
+            window:   { showErrorMessage() {}, createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }) },
+            ProgressLocation: { Notification: 15 },
+        };
     }
-    return fm;
-}
-function parseFrontmatter(content) {
-    const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)([\s\S]*)$/);
-    if (topMatch) { return { fm: parseFmBlock(topMatch[1]), position: 'top', fmBlock: topMatch[1], body: topMatch[3] }; }
-    const botMatch = content.match(/^([\s\S]+?)\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
-    if (botMatch) { return { fm: parseFmBlock(botMatch[2]), position: 'bottom', fmBlock: botMatch[2], body: botMatch[1] }; }
-    return null;
-}
+    return origLoad.call(this, req, parent, isMain);
+};
+const mod = require(OUT);
+Module._load = origLoad;
+const t = mod._test;
 
-// CHECK 12: top-position file detected
-const topResult = parseFrontmatter(TOP_FILE);
-check('TOP_FILE detected as position:top',
-    topResult?.position === 'top' && topResult?.fm?.title === 'test');
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'reg093-'));
+const write = (name, text) => { const f = path.join(TMP, name); fs.writeFileSync(f, text, 'utf8'); return f; };
 
-// CHECK 13: bottom-position file detected
-const botResult = parseFrontmatter(BOT_FILE);
-check('BOT_FILE detected as position:bottom',
-    botResult?.position === 'bottom' && botResult?.fm?.title === 'test');
+// A doc on the retired contract: a horizontal rule in the body and a 13-field
+// trailer. The old scan called this CORRECT; the old parsers lost its prose.
+const PROSE = ['Intro.', '## Architecture', 'Step one: build it.', '## Notes', 'Last words.'];
+const OLD = ['# Guide', '', PROSE[0], '', '---', '', PROSE[1], '', PROSE[2], '', PROSE[3], '', PROSE[4], '',
+    '---', 'docid: 150.1.guide', 'id: guide', 'title: Guide', 'description: A guide.', 'status: active', '---', ''].join('\n');
+const oldFile  = write('old.md', OLD);
+const goodFile = write('good.md', '---\nid: good\ntitle: Good\ndescription: Fine.\n---\n\n# Good\n');
+const bareText = '# Bare\n\nNo header here.\n';
+const bareFile = write('bare.md', bareText);
 
-// CHECK 14: no-frontmatter file returns null
-check('NONE_FILE returns null',
-    parseFrontmatter(NONE_FILE) === null);
+const reports = t.scanDirectory(TMP, 'p', TMP);
+const r = name => reports.find(x => x.relativePath === name);
 
-// CHECK 15: moveFrontmatterToBottom round-trip
-const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'reg093-'));
-const tmpFile = path.join(tmpDir, 'test.md');
-fs.writeFileSync(tmpFile, TOP_FILE, 'utf8');
+check('a top three-field header is compliant', r('good.md') && r('good.md').violations.length === 0,
+    r('good.md') && r('good.md').violations.join('; '));
+check('a bottom 13-field trailer is NOT compliant', r('old.md') && r('old.md').violations.includes('frontmatter at the bottom'),
+    r('old.md') && r('old.md').violations.join('; '));
+check('a doc with no header is reported as position "none"', r('bare.md') && r('bare.md').position === 'none');
 
-// Simulate the fix
-const beforeParsed = parseFrontmatter(fs.readFileSync(tmpFile, 'utf8'));
-const body         = beforeParsed.body.trimEnd();
-const fixed        = body.length > 0
-    ? `${body}\n\n---\n${beforeParsed.fmBlock}\n---\n`
-    : `---\n${beforeParsed.fmBlock}\n---\n`;
-fs.writeFileSync(tmpFile, fixed, 'utf8');
-const afterParsed  = parseFrontmatter(fs.readFileSync(tmpFile, 'utf8'));
+const outcome = t.fixToContract(r('old.md'));
+const after = fs.readFileSync(oldFile, 'utf8');
+check('fixing rewrites the header to the top and verifies it', outcome.success && outcome.verified, JSON.stringify(outcome));
+check('fixing keeps id, title and description', after.startsWith('---\nid: guide\ntitle: Guide\ndescription: A guide.\n---\n'), after.slice(0, 90));
+check('fixing drops the retired fields', !/docid|status:/.test(after));
+const lost = PROSE.filter(line => !after.includes(line));
+check('fixing keeps every line of prose, including below the horizontal rule', lost.length === 0, `lost: ${lost.join(' | ')}`);
 
-check('After move, position is bottom', afterParsed?.position === 'bottom');
-check('After move, fm fields preserved', afterParsed?.fm?.title === 'test');
-check('After move, body preserved',      afterParsed?.body?.includes('# Hello'));
+const src = fs.readFileSync(path.join(ROOT, 'src', 'features', 'doc-header-scan.ts'), 'utf8');
+check('scanAuto only rewrites docs that already have a header',
+    /position\s*!==\s*'none'\s*&&\s*r\.violations\.length\s*>\s*0/.test(src));
+check('headerless doc untouched by the scan', fs.readFileSync(bareFile, 'utf8') === bareText);
+check('nothing moves headers to the bottom any more',
+    !/moveFrontmatterToBottom/.test(src) && !PKG.contributes.commands.some(c => c.command === 'cvs.headers.moveToBottom'));
 
-// cleanup
-fs.rmSync(tmpDir, { recursive: true, force: true });
+mod.activate({ subscriptions: [] });
+check('cvs.headers.scan and cvs.headers.scanAuto are registered',
+    registered.has('cvs.headers.scan') && registered.has('cvs.headers.scanAuto'));
+const cmd = id => PKG.contributes.commands.find(c => c.command === id);
+check('package.json no longer describes scanAuto as moving headers to the bottom',
+    cmd('cvs.headers.scanAuto') && !/bottom/i.test(`${cmd('cvs.headers.scanAuto').title} ${cmd('cvs.headers.scanAuto').description || ''}`),
+    cmd('cvs.headers.scanAuto') && JSON.stringify(cmd('cvs.headers.scanAuto')));
 
-// ── Summary ───────────────────────────────────────────────────────────────────
-
-console.log(`\nREG-093: ${pass} passed, ${fail} failed`);
-process.exit(fail > 0 ? 1 : 0);
+fs.rmSync(TMP, { recursive: true, force: true });
+console.log('─'.repeat(60));
+if (fail) { console.error(`✗ REG-093 FAILED (${fail} of ${pass + fail} checks failed).`); process.exit(1); }
+console.log(`✓ REG-093 passed (${pass} checks).`);

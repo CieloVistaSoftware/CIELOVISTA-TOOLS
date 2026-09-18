@@ -1,14 +1,18 @@
 ---
 id: feature-doc-header-scan
 title: "Feature: Doc Header Scan"
-description: "Doc Header Scan — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
+description: "Checks every doc header in the registered projects against the three-field contract, and can rewrite the non-compliant ones."
 ---
 
 # Feature: Doc Header Scan
 
 ## What it does
 
-Scans all markdown files in registered projects for YAML frontmatter compliance, checking for required fields (title, description, project, category, relativePath, created, updated, author, status, tags). Logs results to the CieloVista Tools output channel grouped by project, making it easy to spot docs missing required metadata.
+Scans the markdown files of every registered project against the doc header contract: **id, title and description, at the top of the file, and nothing else** (#707, #708). The report goes to the CieloVista Tools output channel, grouped by project.
+
+**Headers: Scan + Auto-Fix** also rewrites every header that breaks the contract (a block at the bottom, a missing field, retired fields like docid or category), then re-reads each file to confirm it. A doc with no header at all is only reported. Adding headers everywhere is **Headers: Add/Fix All Headers**, which asks first.
+
+Before #730 this scan did the opposite: it treated a header at the top as wrong and moved every header in every project to the bottom. Reading, judging and rewriting now go through `src/shared/doc-frontmatter.ts`.
 
 ---
 
@@ -16,7 +20,8 @@ Scans all markdown files in registered projects for YAML frontmatter compliance,
 
 | Command ID | Title |
 |---|---|
-| [`cvs.headers.scan`](command:cvs.headers.scan) | Headers: Scan |
+| [`cvs.headers.scan`](command:cvs.headers.scan) | Headers: Scan Doc Header Compliance |
+| [`cvs.headers.scanAuto`](command:cvs.headers.scanAuto) | Headers: Scan + Auto-Fix Doc Headers |
 
 ---
 
@@ -30,7 +35,7 @@ activate(context)
 
 **Key internal functions:**
 - `loadRegistry()`
-- `parseFrontmatter()`
+- `fixToContract()`
 - `toRelativePath()`
 - `scanDirectory()`
 - `runScan()`

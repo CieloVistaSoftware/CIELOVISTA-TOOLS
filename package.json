@@ -558,13 +558,13 @@
         "command": "cvs.headers.scan",
         "title": "Headers: Scan Doc Header Compliance",
         "category": "CieloVista Headers",
-        "description": "Scan all .md docs and report which files have frontmatter at the top (position violation)."
+        "description": "Scan all .md docs against the header contract: id, title and description at the top of the file."
       },
       {
         "command": "cvs.headers.scanAuto",
-        "title": "Headers: Scan + Auto-Fix Frontmatter Position",
+        "title": "Headers: Scan + Auto-Fix Doc Headers",
         "category": "CieloVista Headers",
-        "description": "Scan all .md docs for top-position frontmatter, auto-move to bottom, re-verify each fix."
+        "description": "Scan all .md docs and rewrite every non-compliant header to the contract (id, title, description at the top), then re-verify each file. Docs with no header are reported, not changed."
       },
       {
         "command": "cvs.headers.frontmatterViewer",
@@ -576,7 +576,7 @@
         "command": "cvs.headers.fixAll",
         "title": "Headers: Add/Fix All Headers",
         "category": "CieloVista Headers",
-        "description": "Add or fix headers in all documentation files."
+        "description": "Give every documentation file the contract header (id, title, description at the top), after confirmation. The body is never changed."
       },
       {
         "command": "cvs.headers.fixOne",
@@ -591,16 +591,10 @@
         "description": "Fix the header/frontmatter in the currently open documentation file."
       },
       {
-        "command": "cvs.headers.moveToBottom",
-        "title": "Headers: Move Frontmatter to Bottom (All Docs)",
-        "category": "CieloVista Headers",
-        "description": "Migrate all .md files — moves YAML frontmatter block from top to bottom so human-readable content appears first."
-      },
-      {
         "command": "cvs.headers.viewStandard",
         "title": "Headers: View Frontmatter Standard",
         "category": "CieloVista Headers",
-        "description": "View the standard for documentation file headers/frontmatter."
+        "description": "View the doc header standard: three fields at the top of the file."
       },
       {
         "command": "cvs.launch.pick",
@@ -905,16 +899,6 @@
         "title": "Install Missing Corequisite Extensions",
         "category": "CieloVista Marketplace",
         "description": "Install any missing corequisite VS Code extensions"
-      },
-      {
-        "command": "cvs.tags.enrich",
-        "title": "Tags: Scan Frontmatter Tags",
-        "category": "CieloVista Tools"
-      },
-      {
-        "command": "cvs.tags.enrichAuto",
-        "title": "Tags: Enrich Frontmatter Tags",
-        "category": "CieloVista Tools"
       }
     ],
     "menus": {
@@ -1211,11 +1195,6 @@
           "type": "boolean",
           "default": false,
           "description": "When true, verbose debug output is written to the CieloVista Tools output channel."
-        },
-        "cielovistaTools.features.tagsEnrichment": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable or disable the Tags Enrichment feature."
         }
       }
     }

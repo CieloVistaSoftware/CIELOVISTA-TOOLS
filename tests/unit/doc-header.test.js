@@ -5,13 +5,9 @@
  * Uses the _test export handle to access private functions.
  *
  * Covers:
- *   parseFrontmatter()         — YAML block extraction
- *   serializeFrontmatter()     — YAML block serialization + field ordering
- *   extractTitle()             — h1 heading / filename fallback
- *   extractDescription()       — first paragraph extraction
- *   extractTags()              — filename + heading word extraction
- *   assignCategory()           — filename pattern → category label
- *   toRelativePath()           — forward-slash relative path
+ *   applyHeader()    — fixing a file keeps its body and writes the three-field contract (#730)
+ *   scanDirectory()  — what the compliance panel reports
+ *   toRelativePath() — forward-slash relative path
  *
  * Run: node tests/unit/doc-header.test.js
  */
@@ -83,247 +79,110 @@ function eq(a, b, msg)  { assert.strictEqual(a, b, msg); }
 function ok(v, msg)     { assert.ok(v, msg); }
 function has(s, sub, msg) { ok(String(s).includes(sub), msg || `Expected: ${sub}`); }
 
-console.log('\ndoc-header unit tests\n' + '\u2500'.repeat(50));
+console.log('\ndoc-header unit tests\n' + '─'.repeat(50));
+
+// Parsing, judging and rewriting are src/shared/doc-frontmatter.ts, covered by
+// tests/unit/doc-frontmatter.test.js. This file covers what doc-header itself
+// does with them: scan a project, and fix a file on disk (#730).
+
+const os  = require('os');
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'cvt-doc-header-'));
+function write(rel, text) {
+    const full = path.join(TMP, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, text, 'utf8');
+    return full;
+}
 
 // ═══════════════════════════════════════════════════════════
-// parseFrontmatter()
+// applyHeader() — the fix a user runs from the panel
 // ═══════════════════════════════════════════════════════════
-console.log('\n-- parseFrontmatter() --');
+console.log('\n-- applyHeader() --');
 
-const FULL_FM = `---
-title: My Document
-description: A test document.
-project: myProject
-status: active
----
-
-# Heading
-
-Body content here.`;
-
-test('returns null when no frontmatter block', () => {
-    eq(t.parseFrontmatter('# Just a heading\n\nSome content.'), null);
+// The shape of the #731 damage: a doc with horizontal rules and no header.
+// The old parser matched from the first --- and the fix kept only the text
+// above it, plus lines that looked like "word: value".
+test('fixing a doc with horizontal rules keeps every line of its body', () => {
+    const body = [
+        '# Guide', '', 'Intro.', '', '---', '', '## Architecture', '',
+        'Step one: build it.', 'Plain prose line.', '', '---', '', '## Notes', '', 'Last words.', '',
+    ].join('\n');
+    const file = write('rules/guide.md', body);
+    ok(t.applyHeader(file), 'applyHeader reported failure');
+    const out = fs.readFileSync(file, 'utf8');
+    for (const line of body.split('\n').filter(Boolean)) { has(out, line, `lost: ${line}`); }
 });
 
-test('returns null for empty string', () => {
-    eq(t.parseFrontmatter(''), null);
+// The case that actually destroyed prose before #730: a rule in the body AND a
+// trailer at the end. main's applyHeader() kept 1 of these 6 prose lines.
+test('fixing a doc with a rule in its body and a trailer keeps all its prose', () => {
+    const prose = ['Intro.', '## Architecture', 'Step one: build it.', 'Plain prose line.', '## Notes', 'Last words.'];
+    const file = write('rule-and-trailer/guide.md', [
+        '# Guide', '', prose[0], '', '---', '', prose[1], '', prose[2], prose[3], '', prose[4], '', prose[5], '',
+        '---', 'id: guide', 'title: Guide', 'description: A guide.', '---', '',
+    ].join('\n'));
+    ok(t.applyHeader(file), 'applyHeader reported failure');
+    const out = fs.readFileSync(file, 'utf8');
+    for (const line of prose) { has(out, line, `lost: ${line}`); }
+    ok(out.startsWith('---\nid: guide\n'), out.slice(0, 60));
 });
 
-test('parses title field correctly', () => {
-    const result = t.parseFrontmatter(FULL_FM);
-    ok(result !== null);
-    eq(result.fm.title, 'My Document');
+test('fixing a 13-field trailer leaves the three-field block at the top', () => {
+    const file = write('trailer/x.README.md',
+        '# Feature: X\n\nDoes X.\n\n---\ndocid: 150.1.x\nid: feature-x\ntitle: Feature: X\ndescription: Does X well.\nstatus: active\ntags: [a, b]\n---\n');
+    t.applyHeader(file);
+    const out = fs.readFileSync(file, 'utf8');
+    ok(out.startsWith('---\nid: feature-x\n'), out.slice(0, 80));
+    ok(!/docid|status|tags/.test(out), 'retired fields were written back');
+    has(out, 'Does X.');
 });
 
-test('parses multiple fields', () => {
-    const result = t.parseFrontmatter(FULL_FM);
-    eq(result.fm.description, 'A test document.');
-    eq(result.fm.project, 'myProject');
-    eq(result.fm.status, 'active');
+test('a compliant doc is not rewritten', () => {
+    const text = '---\nid: a\ntitle: A\ndescription: The A doc.\n---\n\n# A\n';
+    const file = write('ok/a.md', text);
+    const before = fs.statSync(file).mtimeMs;
+    t.applyHeader(file);
+    eq(fs.readFileSync(file, 'utf8'), text);
+    eq(fs.statSync(file).mtimeMs, before, 'file was written although nothing changed');
 });
 
-test('body is everything after the closing ---', () => {
-    const result = t.parseFrontmatter(FULL_FM);
-    ok(result.body.includes('# Heading'), 'Body must contain the heading');
-    ok(result.body.includes('Body content here.'), 'Body must contain the body text');
-});
-
-test('body does not include the frontmatter block', () => {
-    const result = t.parseFrontmatter(FULL_FM);
-    ok(!result.body.includes('title: My Document'), 'Body must not contain fm fields');
-});
-
-// KNOWN LIMITATION: parseFrontmatter splits on '\n' — CRLF lines end with '\r'.
-// The per-line regex (.*)$ captures '\r' but source calls .trim() so values are clean.
-// This test verifies LF parsing works correctly and CRLF trimming behavior.
-test('parseFrontmatter handles LF line endings', () => {
-    const lf = '---\ntitle: LF Doc\nstatus: active\n---\n\nBody';
-    const result = t.parseFrontmatter(lf);
-    ok(result !== null, 'Must parse LF frontmatter');
-    eq(result.fm.title, 'LF Doc');
-    eq(result.fm.status, 'active');
-});
-
-test('ignores lines that are not key: value format', () => {
-    const fm = '---\ntitle: Valid\nnot a valid line\n---\n\nBody';
-    const result = t.parseFrontmatter(fm);
-    eq(result.fm.title, 'Valid');
-    ok(!('not a valid line' in result.fm), 'Non-key:value lines must be ignored');
-});
-
-// ═══════════════════════════════════════════════════════════
-// serializeFrontmatter()
-// ═══════════════════════════════════════════════════════════
-console.log('\n-- serializeFrontmatter() --');
-
-test('output starts and ends with ---', () => {
-    const result = t.serializeFrontmatter({ title: 'Test' });
-    ok(result.startsWith('---'), 'Must start with ---');
-    ok(result.endsWith('---'), 'Must end with ---');
-});
-
-test('title appears in output', () => {
-    const result = t.serializeFrontmatter({ title: 'My Title' });
-    has(result, 'title: My Title');
-});
-
-test('all standard fields included when provided', () => {
-    const fm = {
-        title: 'T', description: 'D', project: 'P', category: 'C',
-        relativePath: 'r', created: '2024-01-01', updated: '2024-06-01',
-        version: '1.0.0', author: 'CieloVista', status: 'active', tags: '[a, b]',
-    };
-    const result = t.serializeFrontmatter(fm);
-    for (const [key, val] of Object.entries(fm)) {
-        has(result, `${key}: ${val}`, `Must include ${key}`);
-    }
-});
-
-test('title comes before description in output (field order)', () => {
-    const result = t.serializeFrontmatter({ description: 'D', title: 'T' });
-    ok(result.indexOf('title:') < result.indexOf('description:'), 'title must come before description');
-});
-
-test('empty/undefined fields are omitted', () => {
-    const result = t.serializeFrontmatter({ title: 'T', description: undefined, status: '' });
-    ok(!result.includes('description:'), 'undefined fields must be omitted');
-    ok(!result.includes('status:'), 'empty string fields must be omitted');
-});
-
-test('extra non-standard keys are included after standard ones', () => {
-    const result = t.serializeFrontmatter({ title: 'T', customKey: 'customVal' });
-    has(result, 'customKey: customVal');
-    ok(result.indexOf('title:') < result.indexOf('customKey:'), 'Standard fields first');
+test('an unreadable path reports failure instead of throwing', () => {
+    eq(t.applyHeader(path.join(TMP, 'does-not-exist.md')), false);
 });
 
 // ═══════════════════════════════════════════════════════════
-// extractTitle()
+// scanDirectory() — what the compliance panel lists
 // ═══════════════════════════════════════════════════════════
-console.log('\n-- extractTitle() --');
+console.log('\n-- scanDirectory() --');
 
-test('extracts h1 heading from body', () => {
-    eq(t.extractTitle('# My Document Title\n\nBody.', 'doc.md'), 'My Document Title');
+const scanRoot = path.join(TMP, 'scan');
+write('scan/good.md', '---\nid: good\ntitle: Good\ndescription: Fine.\n---\n\n# Good\n');
+write('scan/none.md', '# No header\n\nText.\n');
+write('scan/sub/old.md', '# Old\n\n---\nid: old\ntitle: Old\ndescription: d\ncategory: 150.1\n---\n');
+write('scan/node_modules/skip.md', '# skipped\n');
+
+const reports = t.scanDirectory(scanRoot, 'proj', scanRoot);
+const byName = Object.fromEntries(reports.map(r => [r.relativePath, r]));
+
+test('scans nested docs and skips node_modules', () => {
+    eq(reports.length, 3, reports.map(r => r.relativePath).join(', '));
+    ok(!byName['node_modules/skip.md'], 'node_modules was scanned');
 });
 
-test('strips bold markers from heading', () => {
-    eq(t.extractTitle('# **Bold Title**\n\nBody.', 'doc.md'), 'Bold Title');
+test('a compliant doc has no problems', () => {
+    eq(byName['good.md'].hasFrontmatter, true);
+    eq(byName['good.md'].missingFields.length, 0, byName['good.md'].missingFields.join('; '));
 });
 
-test('strips italic markers from heading', () => {
-    eq(t.extractTitle('# *Italic Title*\n\nBody.', 'doc.md'), 'Italic Title');
+test('a doc with no header is reported as having none', () => {
+    eq(byName['none.md'].hasFrontmatter, false);
 });
 
-test('strips code markers from heading', () => {
-    eq(t.extractTitle('# `Code Title`\n\nBody.', 'doc.md'), 'Code Title');
-});
-
-test('falls back to filename when no h1', () => {
-    eq(t.extractTitle('## No H1\n\nSome content.', 'my-feature.md'), 'my feature');
-});
-
-test('replaces dashes and underscores with spaces in filename fallback', () => {
-    eq(t.extractTitle('No heading here.', 'my_cool-doc.md'), 'my cool doc');
-});
-
-test('strips .md extension from filename fallback', () => {
-    const title = t.extractTitle('', 'architecture-notes.md');
-    ok(!title.includes('.md'), 'Must strip .md extension');
-    ok(title.includes('architecture'), 'Must include base name');
-});
-
-// ═══════════════════════════════════════════════════════════
-// extractDescription()
-// ═══════════════════════════════════════════════════════════
-console.log('\n-- extractDescription() --');
-
-test('extracts first paragraph after heading', () => {
-    const body = '# Title\n\nThis is the first paragraph of content.';
-    const desc = t.extractDescription(body);
-    has(desc, 'first paragraph');
-});
-
-test('returns "No description." for empty body', () => {
-    eq(t.extractDescription(''), 'No description.');
-});
-
-test('strips bold markers from description', () => {
-    const body = '# Title\n\n**Bold text** in paragraph.';
-    const desc = t.extractDescription(body);
-    ok(!desc.includes('**'), 'Bold markers must be stripped');
-});
-
-test('skips blockquote lines (starting with >)', () => {
-    const body = '# Title\n\n> This is a blockquote\n\nThis is regular text.';
-    const desc = t.extractDescription(body);
-    ok(!desc.includes('>'), 'Blockquote lines must be skipped');
-});
-
-test('skips table rows (starting with |)', () => {
-    const body = '# Title\n\n| col | col |\n| --- | --- |\n\nParagraph text.';
-    const desc = t.extractDescription(body);
-    ok(!desc.includes('|'), 'Table rows must be skipped');
-});
-
-test('truncates descriptions over 150 chars with ellipsis', () => {
-    const long = '# Title\n\n' + 'A'.repeat(200);
-    const desc = t.extractDescription(long);
-    ok(desc.length <= 153, `Description must be ≤153 chars, got ${desc.length}`);
-    ok(desc.endsWith('\u2026'), 'Long description must end with ellipsis');
-});
-
-test('falls back to "No description." when only headings present', () => {
-    const body = '# Title\n\n## Sub\n\n### Sub-sub';
-    const desc = t.extractDescription(body);
-    eq(desc, 'No description.');
-});
-
-// ═══════════════════════════════════════════════════════════
-// assignCategory()
-// ═══════════════════════════════════════════════════════════
-console.log('\n-- assignCategory() --');
-
-test('audit- prefix → Audit & Reports', () => {
-    has(t.assignCategory('audit-2024-01.md', 'myProject'), 'Audit');
-});
-
-test('CLAUDE.md → Meta / Session / Status', () => {
-    has(t.assignCategory('CLAUDE.md', 'myProject'), 'Meta');
-});
-
-test('CURRENT-STATUS.md → Meta / Session / Status', () => {
-    has(t.assignCategory('CURRENT-STATUS.md', 'myProject'), 'Meta');
-});
-
-test('JAVASCRIPT-STANDARDS.md → Architecture & Standards', () => {
-    has(t.assignCategory('JAVASCRIPT-STANDARDS.md', 'myProject'), 'Architecture');
-});
-
-test('CHANGELOG.md → Dev Workflow', () => {
-    has(t.assignCategory('CHANGELOG.md', 'myProject'), 'Workflow');
-});
-
-test('test-coverage.md → Testing & Quality', () => {
-    has(t.assignCategory('test-coverage.md', 'myProject'), 'Testing');
-});
-
-test('vscode-extension.md → Tools & Extensions', () => {
-    has(t.assignCategory('vscode-extension.md', 'myProject'), 'Tools');
-});
-
-test('README.md → Project Docs', () => {
-    has(t.assignCategory('README.md', 'myProject'), 'Project Docs');
-});
-
-test('global project + audit prefix → Audit & Reports', () => {
-    has(t.assignCategory('audit-full-2024.md', 'global'), 'Audit');
-});
-
-test('global project without special prefix → Global Standards', () => {
-    has(t.assignCategory('general-notes.md', 'global'), 'Global Standards');
-});
-
-test('unknown filename → Project Docs fallback', () => {
-    has(t.assignCategory('my-random-doc.md', 'myProject'), 'Project Docs');
+test('an old trailer is reported for its placement and its extra field', () => {
+    const r = byName['sub/old.md'];
+    ok(r, 'sub/old.md missing (relative paths must use forward slashes)');
+    ok(r.missingFields.includes('frontmatter at the bottom'), r.missingFields.join('; '));
+    ok(r.missingFields.some(v => v.includes('category')), r.missingFields.join('; '));
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -331,27 +190,22 @@ test('unknown filename → Project Docs fallback', () => {
 // ═══════════════════════════════════════════════════════════
 console.log('\n-- toRelativePath() --');
 
-test('returns forward-slash path on Windows', () => {
-    // Built with path.join so the input is a native path on the host OS; on
-    // Windows it carries backslashes, which is what the conversion is for.
-    const root = path.join(path.sep === '\\' ? 'C:\\' : '/', 'Users', 'john', 'project');
-    const result = t.toRelativePath(path.join(root, 'src', 'features', 'doc-header.ts'), root);
-    ok(!result.includes('\\'), 'Must use forward slashes');
-    eq(result, 'src/features/doc-header.ts');
+test('returns a forward-slash path relative to the project root', () => {
+    const root = path.join(TMP, 'proj');
+    eq(t.toRelativePath(path.join(root, 'src', 'features', 'x.md'), root), 'src/features/x.md');
 });
 
-test('handles Unix-style paths', () => {
-    const result = t.toRelativePath('/home/user/project/docs/guide.md', '/home/user/project');
-    eq(result, 'docs/guide.md');
+test('returns just the file name when the file is at the project root', () => {
+    const root = path.join(TMP, 'proj');
+    eq(t.toRelativePath(path.join(root, 'README.md'), root), 'README.md');
 });
 
-test('returns just filename when file is at project root', () => {
-    const root = path.join(path.sep === '\\' ? 'C:\\' : '/', 'proj');
-    const result = t.toRelativePath(path.join(root, 'README.md'), root);
-    eq(result, 'README.md');
-});
+fs.rmSync(TMP, { recursive: true, force: true });
 
-// ─────────────────────────────────────────────────────────────────────────────
-console.log('\n' + '\u2500'.repeat(50));
-if (failed === 0) { console.log(`\u2713 All ${passed} tests passed\n`); process.exit(0); }
-else { console.error(`\n\u2717 ${failed} test(s) FAILED\n`); process.exit(1); }
+console.log('\n' + '─'.repeat(50));
+if (failed === 0) {
+    console.log(`✓ All ${passed} tests passed\n`);
+    process.exit(0);
+}
+console.error(`\n✗ ${failed} test(s) FAILED\n`);
+process.exit(1);

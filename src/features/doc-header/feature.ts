@@ -6,37 +6,25 @@
 /**
  * doc-header.ts
  *
- * Adds and maintains YAML frontmatter headers in every .md file across
- * all registered CieloVista projects.
+ * Adds and maintains the frontmatter header of every .md file across all
+ * registered CieloVista projects.
  *
- * FRONTMATTER STANDARD:
- * ---------------------
- * ---
- * title: Human-readable title
- * description: One sentence describing the doc.
- * project: project-name
- * category: 600 — Tools & Extensions
- * relativePath: src/features/doc-catalog.ts   ← relative to project root, forward slashes
- * created: YYYY-MM-DD
- * updated: YYYY-MM-DD
- * version: 1.0.0
- * author: CieloVista Software
- * status: active | draft | deprecated | archived
- * tags: [tag1, tag2, tag3]
- * ---
+ * THE CONTRACT (#707, #708, #730) -- three fields, at the top:
  *
- * Rules:
- * - NO absolute paths — relativePath only, always forward-slash normalized
- * - relativePath is relative to the project root (from registry)
- * - Global docs use relativePath relative to CieloVistaStandards folder
- * - auto-fill: title (from # heading), description (from first paragraph),
- *              project (from registry), category (from Dewey patterns),
- *              relativePath (computed), created (file mtime), updated (today)
- * - On subsequent runs: only UPDATE the `updated` field + add any missing fields
- *   Never overwrite user-edited fields like title, description, status, tags
+ *   ---
+ *   id: regression-log
+ *   title: Regression Log
+ *   description: What each REG-NNN test guards and why it exists.
+ *   ---
+ *
+ * Reading, judging and rewriting headers all go through
+ * src/shared/doc-frontmatter.ts. Until #730 this file had its own parser and
+ * wrote the retired 13-field block (category, relativePath, created, updated,
+ * version, author, status, tags...). Its trailer parser also matched from the
+ * FIRST --- line in a document, so "fixing" a doc with a horizontal rule kept
+ * only the text above the rule. A fix now keeps the body byte for byte.
  *
  * Commands registered:
- *   cvs.headers.scan      — scan all docs and show header compliance report
  *   cvs.headers.fixAll    — add/update headers across all docs (with confirmation)
  *   cvs.headers.fixOne    — pick a project and fix its docs
  *   cvs.headers.fixFile   — fix the currently open file
@@ -48,12 +36,11 @@ import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { esc } from '../../shared/webview-utils';
-import { CATEGORIES } from '../../shared/categories';
+import { readFrontmatter, contractViolations, toContract } from '../../shared/doc-frontmatter';
 
 const FEATURE       = 'doc-header';
 const GLOBAL_DOCS   = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
 const REGISTRY_PATH = path.join(GLOBAL_DOCS, 'project-registry.json');
-const TODAY         = new Date().toISOString().slice(0, 10);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,28 +56,14 @@ interface ProjectRegistry {
     projects: ProjectEntry[];
 }
 
-interface Frontmatter {
-    title?:        string;
-    description?:  string;
-    project?:      string;
-    category?:     string;
-    relativePath?: string;
-    created?:      string;
-    updated?:      string;
-    version?:      string;
-    author?:       string;
-    status?:       string;
-    tags?:         string;
-    [key: string]: string | undefined;
-}
-
 interface DocHeaderReport {
     filePath:    string;
     relativePath: string;
     projectName: string;
     hasFrontmatter: boolean;
+    /** Everything wrong under the three-field contract; empty when compliant. */
     missingFields:  string[];
-    currentFm:      Frontmatter;
+    currentFm:      Record<string, string>;
 }
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
@@ -108,192 +81,15 @@ function loadRegistry(): ProjectRegistry | undefined {
     }
 }
 
-// ─── Frontmatter parser / serializer ─────────────────────────────────────────
-
-/** Parses YAML frontmatter from a markdown string.
- *  Checks the TOP of the file first (legacy), then the BOTTOM (new standard).
- *  Returns null if none found. */
-function parseFrontmatter(content: string): { fm: Frontmatter; body: string } | null {
-    // ── Top position (legacy) ─────────────────────────────────────────────────
-    const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-    if (topMatch) {
-        const fm: Frontmatter = {};
-        for (const line of topMatch[1].split('\n')) {
-            const m = line.match(/^(\w+):\s*(.*)$/);
-            if (m) { fm[m[1]] = m[2].trim(); }
-        }
-        return { fm, body: topMatch[2] };
-    }
-    // ── Bottom position (new standard) ───────────────────────────────────────
-    const bottomMatch = content.match(/^([\s\S]*?)\r?\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
-    if (bottomMatch) {
-        const fm: Frontmatter = {};
-        for (const line of bottomMatch[2].split('\n')) {
-            const m = line.match(/^(\w+):\s*(.*)$/);
-            if (m) { fm[m[1]] = m[2].trim(); }
-        }
-        return { fm, body: bottomMatch[1] };
-    }
-    return null;
-}
-
-/** Serializes a Frontmatter object back to a YAML block. */
-function serializeFrontmatter(fm: Frontmatter): string {
-    const FIELD_ORDER = [
-        'title', 'description', 'project', 'category',
-        'relativePath', 'created', 'updated',
-        'version', 'author', 'status', 'tags',
-    ];
-
-    const lines: string[] = ['---'];
-    for (const key of FIELD_ORDER) {
-        if (fm[key] !== undefined && fm[key] !== '') {
-            lines.push(`${key}: ${fm[key]}`);
-        }
-    }
-    // Any extra keys not in the standard order
-    for (const key of Object.keys(fm)) {
-        if (!FIELD_ORDER.includes(key) && fm[key] !== undefined) {
-            lines.push(`${key}: ${fm[key]}`);
-        }
-    }
-    lines.push('---');
-    return lines.join('\n');
-}
-
-// ─── Category assignment (mirrors doc-catalog.ts logic) ──────────────────────
-
-const CATEGORY_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-    { pattern: /^audit-/i,                       label: CATEGORIES.AUDIT },
-    { pattern: /consolidation-log/i,             label: CATEGORIES.AUDIT },
-    { pattern: /^claude\.md$/i,                  label: CATEGORIES.META },
-    { pattern: /current.?status/i,               label: CATEGORIES.META },
-    { pattern: /^session/i,                      label: CATEGORIES.META },
-    { pattern: /tier1|tier2/i,                   label: CATEGORIES.ARCHITECTURE },
-    { pattern: /architectur/i,                   label: CATEGORIES.ARCHITECTURE },
-    { pattern: /standard/i,                      label: CATEGORIES.ARCHITECTURE },
-    { pattern: /laws?\.md$/i,                    label: CATEGORIES.ARCHITECTURE },
-    { pattern: /web.?component/i,                label: CATEGORIES.COMPONENTS },
-    { pattern: /component/i,                     label: CATEGORIES.COMPONENTS },
-    { pattern: /git.?workflow/i,                 label: CATEGORIES.DEV_WORKFLOW },
-    { pattern: /workflow|deploy|build|release/i, label: CATEGORIES.DEV_WORKFLOW },
-    { pattern: /changelog/i,                     label: CATEGORIES.DEV_WORKFLOW },
-    { pattern: /test|spec|quality|compliance/i,  label: CATEGORIES.TESTING },
-    { pattern: /api|integration|trace|signalr/i, label: CATEGORIES.API },
-    { pattern: /vscode|extension|copilot|tool/i, label: CATEGORIES.TOOLS },
-    { pattern: /readme|guide|how.?to|notes/i,    label: CATEGORIES.PROJECT_DOCS },
-];
-
-function assignCategory(fileName: string, projectName: string): string {
-    if (projectName === 'global') {
-        if (/^audit-/i.test(fileName) || /consolidation-log/i.test(fileName)) {
-            return CATEGORIES.AUDIT;
-        }
-        return CATEGORIES.GLOBAL;
-    }
-    for (const { pattern, label } of CATEGORY_PATTERNS) {
-        if (pattern.test(fileName)) { return label; }
-    }
-    return CATEGORIES.PROJECT_DOCS;
-}
-
-// ─── Content extractors ───────────────────────────────────────────────────────
-
-function extractTitle(body: string, fileName: string): string {
-    const h1 = body.match(/^#\s+(.+)$/m);
-    if (h1) { return h1[1].trim().replace(/\*\*|__|\*|_|`/g, ''); }
-    return fileName.replace(/\.md$/i, '').replace(/[-_.]/g, ' ');
-}
-
-function extractDescription(body: string): string {
-    const lines = body.split('\n');
-    const textLines: string[] = [];
-    let pastHeading = false;
-
-    for (const line of lines) {
-        const t = line.trim();
-        if (!t) { continue; }
-        if (t.startsWith('#')) { if (pastHeading && textLines.length) { break; } pastHeading = true; continue; }
-        if (t.startsWith('>') || t.startsWith('<!--') || t.startsWith('---') ||
-            t.startsWith('|') || t.startsWith('```')) { continue; }
-        textLines.push(t.replace(/\*\*|__|\*|_|`/g, ''));
-        if (textLines.join(' ').length > 150) { break; }
-    }
-
-    const desc = textLines.join(' ').trim();
-    return desc.length > 150 ? desc.slice(0, 147) + '…' : desc || 'No description.';
-}
-
-function extractTags(body: string, fileName: string): string {
-    const tags = new Set<string>();
-    fileName.replace(/\.md$/i, '').split(/[-_. ]+/).forEach(w => {
-        if (w.length > 2) { tags.add(w.toLowerCase()); }
-    });
-    const headings = body.match(/^#{1,3}\s+(.+)$/gm) ?? [];
-    for (const h of headings.slice(0, 3)) {
-        h.replace(/^#+\s+/, '').split(/\s+/).forEach(w => {
-            const c = w.replace(/[^a-z0-9]/gi, '').toLowerCase();
-            if (c.length > 3) { tags.add(c); }
-        });
-    }
-    const arr = [...tags].slice(0, 3);
-    return `[${arr.join(', ')}]`;
-}
-
-function fileCreatedDate(filePath: string): string {
-    try {
-        return fs.statSync(filePath).birthtime.toISOString().slice(0, 10);
-    } catch {
-        return TODAY;
-    }
-}
-
-// ─── Compute relative path ────────────────────────────────────────────────────
+// ─── Paths ────────────────────────────────────────────────────────────────────
 
 /** Returns forward-slash relative path from projectRoot to filePath. */
 function toRelativePath(filePath: string, projectRoot: string): string {
     return path.relative(projectRoot, filePath).replace(/\\/g, '/');
 }
 
-// ─── Build the required frontmatter for a file ────────────────────────────────
-
-function buildRequiredFrontmatter(
-    filePath: string,
-    projectName: string,
-    projectRoot: string,
-    existingFm: Frontmatter | null
-): Frontmatter {
-    let content = '';
-    try { content = fs.readFileSync(filePath, 'utf8'); } catch { /* ignore */ }
-
-    // Strip existing frontmatter for body analysis
-    const parsed = parseFrontmatter(content);
-    const body   = parsed ? parsed.body : content;
-    const fileName = path.basename(filePath);
-
-    const relPath = toRelativePath(filePath, projectRoot);
-
-    // Fields we AUTO-set (not overwriting user values):
-    const fm: Frontmatter = {
-        title:        existingFm?.title        || extractTitle(body, fileName),
-        description:  existingFm?.description  || extractDescription(body),
-        project:      existingFm?.project      || projectName,
-        category:     existingFm?.category     || assignCategory(fileName, projectName),
-        relativePath: relPath,                   // always recompute — keep accurate
-        created:      existingFm?.created      || fileCreatedDate(filePath),
-        updated:      TODAY,                     // always refresh on fix
-        version:      existingFm?.version      || '1.0.0',
-        author:       existingFm?.author       || 'CieloVista Software',
-        status:       existingFm?.status       || 'active',
-        tags:         existingFm?.tags         || extractTags(body, fileName),
-    };
-
-    return fm;
-}
-
 // ─── Scanner ──────────────────────────────────────────────────────────────────
 
-const REQUIRED_FIELDS = ['title', 'description', 'project', 'category', 'relativePath', 'created', 'updated', 'author', 'status', 'tags'];
 const SKIP_DIRS = new Set([
     'node_modules', '.git', 'out', 'dist', 'reports', '.vscode',
     '.claude', '.vscode-test',
@@ -320,18 +116,16 @@ function scanDirectory(rootPath: string, projectName: string, projectRoot: strin
                 if (SKIP_FILE_SUFFIXES.some((suffix) => lowerName.endsWith(suffix))) { continue; }
                 try {
                     const content   = fs.readFileSync(fullPath, 'utf8');
-                    const parsed    = parseFrontmatter(content);
+                    const parsed    = readFrontmatter(content);
                     const relPath   = toRelativePath(fullPath, projectRoot);
-                    const fm        = parsed?.fm ?? {};
-                    const missing   = REQUIRED_FIELDS.filter(f => !fm[f] || fm[f]!.trim() === '');
 
                     results.push({
                         filePath:       fullPath,
                         relativePath:   relPath,
                         projectName,
-                        hasFrontmatter: !!parsed,
-                        missingFields:  missing,
-                        currentFm:      fm,
+                        hasFrontmatter: parsed.placement !== 'none',
+                        missingFields:  contractViolations(content).filter(v => v !== 'no frontmatter'),
+                        currentFm:      parsed.fields,
                     });
                 } catch { /* skip */ }
             }
@@ -344,17 +138,11 @@ function scanDirectory(rootPath: string, projectName: string, projectRoot: strin
 
 // ─── Apply header to a single file ───────────────────────────────────────────
 
-function applyHeader(filePath: string, projectName: string, projectRoot: string): boolean {
+function applyHeader(filePath: string): boolean {
     try {
-        let content = fs.readFileSync(filePath, 'utf8');
-        const parsed = parseFrontmatter(content);
-        const existingFm = parsed?.fm ?? null;
-        const body = parsed ? parsed.body : content;
-
-        const fm = buildRequiredFrontmatter(filePath, projectName, projectRoot, existingFm);
-        const newContent = serializeFrontmatter(fm) + '\n\n' + body.trimStart();
-
-        fs.writeFileSync(filePath, newContent, 'utf8');
+        const content = fs.readFileSync(filePath, 'utf8');
+        const fixed   = toContract(content, path.basename(filePath));
+        if (fixed !== content) { fs.writeFileSync(filePath, fixed, 'utf8'); }
         return true;
     } catch (err) {
         logError(`Failed to apply header to ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
@@ -385,7 +173,7 @@ function buildReportHtml(reports: DocHeaderReport[], registry: ProjectRegistry):
             const statusIcon = !r.hasFrontmatter
                 ? '<span class="badge badge-err">No header</span>'
                 : r.missingFields.length > 0
-                    ? `<span class="badge badge-warn">Partial (${r.missingFields.length} missing)</span>`
+                    ? `<span class="badge badge-warn">${r.missingFields.length} problem(s)</span>`
                     : '<span class="badge badge-ok">✅ Complete</span>';
 
             const missingHtml = r.missingFields.length
@@ -413,7 +201,7 @@ function buildReportHtml(reports: DocHeaderReport[], registry: ProjectRegistry):
     <button class="btn-primary sm" data-action="fix-project" data-proj="${esc(projName)}">Fix All in Project</button>
   </h2>
   <table>
-    <thead><tr><th>File</th><th>Status</th><th>Missing fields</th><th></th></tr></thead>
+    <thead><tr><th>File</th><th>Status</th><th>Problems</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
 </section>`;
@@ -568,7 +356,7 @@ async function runScan(): Promise<void> {
             switch (msg.command) {
                 case 'fixAll':     await fixAll();                                      break;
                 case 'fixProject': await fixProject(msg.project);                       break;
-                case 'fixFile':    await fixSingleFile(msg.path, msg.project, msg.root);break;
+                case 'fixFile':    await fixSingleFile(msg.path);                        break;
                 case 'open':       await openFile(msg.path);                            break;
                 case 'rescan':     await runScan();                                     break;
             }
@@ -591,7 +379,8 @@ async function fixAll(): Promise<void> {
     }
 
     const confirm = await vscode.window.showWarningMessage(
-        `Add/update headers in ${toFix.length} doc(s)? Existing content is never touched — only the frontmatter block is added or updated.`,
+        `Rewrite the header of ${toFix.length} doc(s) to the three-field contract (id, title, description at the top)? ` +
+        'Existing id/title/description are kept; every other header field is removed. The body is never touched.',
         { modal: true },
         'Fix All', 'Cancel'
     );
@@ -599,9 +388,7 @@ async function fixAll(): Promise<void> {
 
     let fixed = 0;
     for (const report of toFix) {
-        const proj = registry.projects.find(p => p.name === report.projectName);
-        const root = proj?.path ?? registry.globalDocsPath;
-        if (applyHeader(report.filePath, report.projectName, root)) { fixed++; }
+        if (applyHeader(report.filePath)) { fixed++; }
     }
 
     _panel?.webview.postMessage({ type: 'done', text: `Updated headers in ${fixed} of ${toFix.length} docs. Rescanning…` });
@@ -618,13 +405,11 @@ async function fixProject(projectName: string): Promise<void> {
     const registry = _registry ?? loadRegistry();
     if (!registry) { return; }
 
-    const proj  = registry.projects.find(p => p.name === projectName);
-    const root  = proj?.path ?? (projectName === 'global' ? registry.globalDocsPath : '');
     const toFix = _allReports.filter(r => r.projectName === projectName && (!r.hasFrontmatter || r.missingFields.length > 0));
 
     let fixed = 0;
     for (const report of toFix) {
-        if (applyHeader(report.filePath, projectName, root)) { fixed++; }
+        if (applyHeader(report.filePath)) { fixed++; }
     }
 
     _panel?.webview.postMessage({ type: 'done', text: `Fixed ${fixed} docs in ${projectName}. Rescanning…` });
@@ -637,8 +422,8 @@ async function fixProject(projectName: string): Promise<void> {
     await runScan();
 }
 
-async function fixSingleFile(filePath: string, projectName: string, projectRoot: string): Promise<void> {
-    if (applyHeader(filePath, projectName, projectRoot)) {
+async function fixSingleFile(filePath: string): Promise<void> {
+    if (applyHeader(filePath)) {
         log(FEATURE, `Header applied: ${filePath}`);
     }
 }
@@ -659,16 +444,9 @@ async function fixActiveFile(): Promise<void> {
     }
 
     const filePath = editor.document.fileName;
-    const registry = loadRegistry();
-    if (!registry) { return; }
-
-    // Find which project owns this file
-    const proj = registry.projects.find(p => filePath.startsWith(p.path));
-    const projectName = proj?.name ?? 'global';
-    const projectRoot = proj?.path ?? registry.globalDocsPath;
 
     await editor.document.save();
-    if (applyHeader(filePath, projectName, projectRoot)) {
+    if (applyHeader(filePath)) {
         require('../../shared/show-result-webview').showResultWebview(
             'Header Added/Updated',
             'Fix Header in Current File',
@@ -678,59 +456,6 @@ async function fixActiveFile(): Promise<void> {
         // Reload the document in the editor
         await vscode.commands.executeCommand('workbench.action.revertFile');
     }
-}
-
-// ─── Move frontmatter to bottom ───────────────────────────────────────────────
-
-async function moveAllFrontmatterToBottom(): Promise<void> {
-    const registry = loadRegistry();
-    if (!registry) { return; }
-
-    const confirm = await vscode.window.showWarningMessage(
-        'Move YAML frontmatter from the top to the bottom of every .md file? Files will be rewritten in place.',
-        { modal: true },
-        'Move All'
-    );
-    if (confirm !== 'Move All') { return; }
-
-    // Collect all .md files under globalDocsPath + each project path
-    const mdFiles: string[] = [];
-    function collectMd(dir: string): void {
-        if (!fs.existsSync(dir)) { return; }
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-            const full = path.join(dir, entry.name);
-            if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-                collectMd(full);
-            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-                mdFiles.push(full);
-            }
-        }
-    }
-    collectMd(registry.globalDocsPath);
-    registry.projects.forEach(p => collectMd(p.path));
-
-    let moved = 0;
-    const errors: string[] = [];
-    for (const filePath of mdFiles) {
-        try {
-            const content = fs.readFileSync(filePath, 'utf8');
-            // Only migrate if frontmatter is at the top
-            const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-            if (!topMatch) { continue; }
-            const yamlBlock = topMatch[1];
-            const body      = topMatch[2];
-            const newContent = body.trimEnd() + '\n\n---\n' + yamlBlock + '\n---\n';
-            fs.writeFileSync(filePath, newContent, 'utf8');
-            moved++;
-        } catch (err) {
-            errors.push(path.basename(filePath));
-            logError(`moveToBottom failed: ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-        }
-    }
-
-    const msg = `Moved frontmatter to bottom in ${moved} file(s).${errors.length ? ` ${errors.length} error(s).` : ''}`;
-    vscode.window.showInformationMessage(msg);
-    log(FEATURE, msg);
 }
 
 // ─── Activate / Deactivate ────────────────────────────────────────────────────
@@ -746,10 +471,9 @@ export function activate(context: vscode.ExtensionContext): void {
             void vscode.commands.executeCommand('cvs.headers.scan');
         }),
         vscode.commands.registerCommand('cvs.headers.fixFile',      fixActiveFile),
-        vscode.commands.registerCommand('cvs.headers.moveToBottom', () => { void moveAllFrontmatterToBottom(); }),
         vscode.commands.registerCommand('cvs.headers.viewStandard', () => {
             vscode.window.showInformationMessage(
-                'Frontmatter standard: title, description, project, category, relativePath, created, updated, version, author, status, tags',
+                'Doc header standard: three fields at the top of the file: id, title, description. Nothing else is hand-written.',
                 'Open Scan Panel'
             ).then(c => { if (c === 'Open Scan Panel') { runScan(); } });
         }),
@@ -765,12 +489,7 @@ export function deactivate(): void {
 
 /** @internal — exported for unit testing only */
 export const _test = {
-    parseFrontmatter,
-    serializeFrontmatter,
-    extractTitle,
-    extractDescription,
-    extractTags,
-    assignCategory,
+    scanDirectory,
+    applyHeader,
     toRelativePath,
-    buildRequiredFrontmatter,
 };

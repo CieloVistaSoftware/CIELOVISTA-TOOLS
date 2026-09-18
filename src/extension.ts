@@ -62,7 +62,6 @@ import { activate as notifyServerActivate,         deactivate as notifyServerDea
 import { activate as linkIntegrityActivate,        deactivate as linkIntegrityDeactivate          } from './features/link-integrity-checker';
 import { activate as commandValidatorActivate,     deactivate as commandValidatorDeactivate       } from './features/command-validator';
 import { activate as commandRegistryActivate,      deactivate as commandRegistryDeactivate        } from './features/command-registry-viewer';
-import { activate as tagsEnrichmentActivate,      deactivate as tagsEnrichmentDeactivate         } from './features/tags-enrichment';
 import { initMcpServerPath }                                                                   from './features/mcp-server-status';
 
 import { activate as licenseSyncActivate,     deactivate as licenseSyncDeactivate     } from './features/license-sync';
@@ -162,7 +161,6 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('runningTasks',            'Running Tasks',                       runningTasksActivate,            context);
     activateIfEnabled('linkIntegrityChecker',   'Link Integrity Checker',              linkIntegrityActivate,           context);
     activateIfEnabled('commandValidator',       'Command Validator',                   commandValidatorActivate,         context);
-    activateIfEnabled('tagsEnrichment',         'Tags Enrichment',                     tagsEnrichmentActivate,           context);
     activateIfEnabled('sessionActivity',        'Session Activity Dashboard',          sessionActivity,                  context);
     worktreeCleanerActivate(context);
     regressionLogViewerActivate(context);
@@ -222,7 +220,6 @@ export function deactivate(): void {
     notifyServerDeactivate();
     linkIntegrityDeactivate();
     commandValidatorDeactivate();
-    tagsEnrichmentDeactivate();
     commandRegistryDeactivate();
     deactivateDocHeader();
     deactivateFrontmatterViewer();
