@@ -48,7 +48,7 @@ function buildStructuredTooltip(cmd: CmdEntry, group: string): string {
         '',
         `WHY: ${why}`,
         '',
-        `📍 Dewey: ${cmd.dewey} | Group: ${group}`
+        `📍 Group: ${group}`
     ];
 
     return parts.join('\n');

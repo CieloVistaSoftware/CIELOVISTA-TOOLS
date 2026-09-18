@@ -1,14 +1,26 @@
 /**
  * REG-159-dewey-docid-system-retired.test.js
  *
- * Regression test for #707 stage 3: the Dewey docid system is retired.
+ * Regression test for #707 stage 3 and #787: every Dewey number is retired,
+ * the doc docids and the command launcher's per-command numbers alike.
  *
- * Stage 1 moved every doc to the three-field contract (id, title, description
- * at the top), stage 2 regrouped the Doc Catalog by folder, and stage 3
- * deleted what was left: eight MCP tools that existed only to service Dewey
- * docids, the MCP Endpoint Viewer's Dewey tabs, CatalogCard.dewey, the Doc
- * Intelligence subject/category mismatch check, the doc-contract checker and
- * the scripts that wrote docids. This test keeps all of it gone.
+ * History (this file is the one place in tests/ and scripts/ that may name
+ * the retired system; the rules below keep every other file free of it):
+ *   #707 stage 1 moved every doc to the three-field contract (id, title,
+ *   description at the top), stage 2 regrouped the Doc Catalog by folder, and
+ *   stage 3 deleted what was left: eight MCP tools that existed only to
+ *   service Dewey docids, the MCP Endpoint Viewer's Dewey tabs,
+ *   CatalogCard.dewey, the Doc Intelligence subject/category mismatch check,
+ *   the doc-contract checker and the scripts that wrote docids.
+ *   #787 then retired the launcher's per-command numbers (catalog.ts "dewey"
+ *   fields). They were hand-assigned, required and checked for uniqueness by
+ *   four separate checks, but only ever displayed: the launcher card badge,
+ *   the card and F1 tooltips, the help panel badge, the list_cvt_commands
+ *   output and the MCP Endpoint Viewer column. The command id and its group
+ *   already identify and group every command. The numbers, every display,
+ *   the checks that only enforced them and the helper scripts built on them
+ *   are gone. Stage 3 left allowances here for those five files; #787 removed
+ *   the allowances.
  *
  * Checks:
  *   1. BEHAVIOURAL. The real MCP server (mcp-server/src/server.ts) is bundled
@@ -16,13 +28,11 @@
  *      in-memory transport, and asked for tools/list. None of the eight
  *      retired tools may be listed, and the tools that replaced nothing and
  *      must survive (get_catalog, search_docs, find_project, ...) must be.
- *   2. No file under src/ or mcp-server/src mentions dewey or docid, except
- *      the command launcher's own per-COMMAND numbering. That taxonomy is a
- *      separate system (see the issue filed from #707 stage 3); the files
- *      that surface it outside the launcher are capped at their current
- *      line count so nothing new can hide among them.
- *   3. The deleted files are gone, and package.json no longer runs them.
- *   4. No markdown file in the repository (outside docs/archive) declares a
+ *   2. No file under src/ or mcp-server/src mentions dewey or docid. No
+ *      exceptions: the command launcher is covered too (#787).
+ *   3. No file under tests/ or scripts/ mentions dewey, except this one.
+ *   4. The deleted files are gone, and package.json no longer runs them.
+ *   5. No markdown file in the repository (outside docs/archive) declares a
  *      docid field.
  *
  * The sandbox bundle is how REG-140 compiles mcp-server code too: writing a
@@ -56,16 +66,6 @@ const SURVIVING_TOOLS = [
     'list_cvt_commands', 'registry_promote', 'registry_set_status',
 ];
 
-// Files outside the command launcher that surface the launcher's per-command
-// numbers. Line-count caps: a new dewey/docid line in any of them fails.
-const COMMAND_TAXONOMY_ALLOWED = {
-    'src/shared/help-panel.ts': 3,                   // help panel shows a command's number
-    'src/features/mcp-viewer/symbol-index.ts': 2,    // reads catalog.ts command entries
-    'src/features/mcp-viewer/html.ts': 3,            // list_cvt_commands number column + sort key
-    'mcp-server/src/symbol-index.ts': 4,             // loadCvtCommands() command entries
-    'mcp-server/src/tools/index.ts': 1,              // list_cvt_commands tool description
-};
-const LAUNCHER_DIR = 'src/features/cvs-command-launcher/';
 
 const DELETED_FILES = [
     'tests/unit/doc-contract.test.ts',
@@ -77,6 +77,12 @@ const DELETED_FILES = [
     'scripts/fix-docid-collisions.js',
     'scripts/migrate-docid.js',
     'scripts/build-frontmatter-viewer.js',
+    // #787: the per-command number checks and helpers
+    'tests/catalog-dewey-uniqueness.test.js',
+    'tests/regression/REG-033-no-dewey-field-in-src-docs.test.js',
+    'scripts/patch-help-docs.js',
+    'scripts/print-npm-deweys.js',
+    'scripts/create-github-issues.ps1',
 ];
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', '.claude', '.vscode-test']);
@@ -94,6 +100,9 @@ function walk(dir, exts, out = []) {
 }
 
 function rel(p) { return path.relative(ROOT, p).split(path.sep).join('/'); }
+
+// The one file in tests/ and scripts/ allowed to name the retired system.
+const SELF = rel(__filename);
 
 function readOrNull(p) {
     try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
@@ -136,7 +145,7 @@ async function listToolsFromRealServer() {
 }
 
 (async () => {
-    console.log('\nREG-159: the Dewey docid system is retired (#707 stage 3)\n');
+    console.log('\nREG-159: every Dewey number is retired, docs (#707) and commands (#787)\n');
 
     // ── 1. The real MCP server does not list the retired tools ──────────────
     let names = null;
@@ -157,48 +166,54 @@ async function listToolsFromRealServer() {
             `missing: ${missing.join(', ')}`);
     }
 
-    // ── 2. No dewey/docid in src/ or mcp-server/src outside the launcher ────
+    // ── 2. No dewey/docid anywhere in src/ or mcp-server/src (#787: no exceptions)
     const PATTERN = /dewey|docid/i;
     const offenders = [];
-    const counts = {};
     let total = 0;
     for (const file of [...walk(path.join(ROOT, 'src'), ['.ts', '.js', '.md', '.html', '.json', '.css']),
                         ...walk(path.join(ROOT, 'mcp-server', 'src'), ['.ts', '.js', '.md', '.json'])]) {
-        const r = rel(file);
         const text = readOrNull(file);
         if (text === null) { continue; }
         const lines = text.split(/\r?\n/).filter((l) => PATTERN.test(l));
         if (lines.length === 0) { continue; }
         total += lines.length;
-        if (r.startsWith(LAUNCHER_DIR)) { continue; }
-        counts[r] = lines.length;
-        if (!(r in COMMAND_TAXONOMY_ALLOWED)) {
-            offenders.push(`${r} (${lines.length}): ${lines[0].trim().slice(0, 120)}`);
-        }
+        offenders.push(`${rel(file)} (${lines.length}): ${lines[0].trim().slice(0, 120)}`);
     }
     check(offenders.length === 0,
-        'no file in src/ or mcp-server/src outside the command launcher mentions dewey or docid',
-        `${offenders.length} file(s):\n          ` + offenders.join('\n          '));
-    for (const [file, expected] of Object.entries(COMMAND_TAXONOMY_ALLOWED)) {
-        const actual = counts[file] || 0;
-        check(actual <= expected,
-            `${file}: at most ${expected} command-taxonomy line(s), found ${actual}`,
-            'a new dewey/docid line appeared in a file allowed only for the command launcher\'s own numbers');
-    }
-    console.log(`        (${total} dewey/docid lines in src/ + mcp-server/src in total)`);
+        'no file in src/ or mcp-server/src mentions dewey or docid, the command launcher included',
+        `${total} line(s) in ${offenders.length} file(s):\n          ` + offenders.join('\n          '));
 
-    // ── 3. The deleted files stay deleted, and nothing runs them ────────────
+    // ── 3. No dewey in tests/ or scripts/, except this file's history ───────
+    const DEWEY = /dewey/i;
+    const testOffenders = [];
+    let testTotal = 0;
+    for (const file of [...walk(path.join(ROOT, 'tests'), ['.js', '.mjs', '.cjs', '.ts', '.json', '.md', '.html']),
+                        ...walk(path.join(ROOT, 'scripts'), ['.js', '.mjs', '.cjs', '.ts', '.json', '.md', '.html', '.ps1', '.sh', '.bat'])]) {
+        const r = rel(file);
+        if (r === SELF) { continue; }
+        const text = readOrNull(file);
+        if (text === null) { continue; }
+        const lines = text.split(/\r?\n/).filter((l) => DEWEY.test(l));
+        if (lines.length === 0) { continue; }
+        testTotal += lines.length;
+        testOffenders.push(`${r} (${lines.length}): ${lines[0].trim().slice(0, 120)}`);
+    }
+    check(testOffenders.length === 0,
+        `no file in tests/ or scripts/ other than ${SELF} mentions dewey`,
+        `${testTotal} line(s) in ${testOffenders.length} file(s):\n          ` + testOffenders.join('\n          '));
+
+    // ── 4. The deleted files stay deleted, and nothing runs them ────────────
     const back = DELETED_FILES.filter((f) => fs.existsSync(path.join(ROOT, f)));
-    check(back.length === 0, `all ${DELETED_FILES.length} retired Dewey files are gone`, `present again: ${back.join(', ')}`);
+    check(back.length === 0, `all ${DELETED_FILES.length} retired Dewey files (docs #707, commands #787) are gone`, `present again: ${back.join(', ')}`);
 
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
     const scripts = pkg.scripts || {};
     check(!('test:doc-contract' in scripts), 'package.json has no test:doc-contract script');
-    const runners = Object.entries(scripts).filter(([, v]) => /doc-contract|backfill-doc-contract|fix-docid|migrate-docid/.test(String(v)));
+    const runners = Object.entries(scripts).filter(([, v]) => /doc-contract|backfill-doc-contract|fix-docid|migrate-docid|dewey|patch-help-docs|create-github-issues/i.test(String(v)));
     check(runners.length === 0, 'no package.json script runs a retired Dewey check or script',
         runners.map(([k]) => k).join(', '));
 
-    // ── 4. No markdown file declares a docid ────────────────────────────────
+    // ── 5. No markdown file declares a docid ────────────────────────────────
     const withDocid = walk(ROOT, ['.md'])
         .filter((f) => !rel(f).startsWith('docs/archive/'))
         .filter((f) => /^docid\s*:/m.test(readOrNull(f) || ''));

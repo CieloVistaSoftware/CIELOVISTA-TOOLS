@@ -204,8 +204,8 @@ test('SYM-031', 'loadCvtCommands returns at least 84 commands', () => {
     `Expected ≥84 commands (parking-lot target), got ${commands.length}`);
 });
 
-test('SYM-032', 'All commands have required fields: id, title, group, dewey', () => {
-  const required = ['id', 'title', 'group', 'dewey'];
+test('SYM-032', 'All commands have required fields: id, title, group', () => {
+  const required = ['id', 'title', 'group'];
   const bad = commands.filter(c => required.some(k => !c[k]));
   assert(bad.length === 0,
     `${bad.length} commands missing required fields. First: ${JSON.stringify(bad[0] ?? {})}`);
@@ -228,23 +228,6 @@ test('SYM-035', 'Commands span at least 3 distinct groups', () => {
   assert(groups.size >= 3,
     `Expected ≥3 command groups, found ${groups.size}: ${[...groups].join(', ')}`);
   console.log(`    ℹ ${commands.length} commands across ${groups.size} groups: ${[...groups].sort().join(', ')}`);
-});
-
-test('SYM-036', 'All Dewey numbers match NNN.NNN format', () => {
-  const bad = commands.filter(c => !/^\d{3,4}\.\d{3}$/.test(c.dewey));
-  assert(bad.length === 0,
-    `${bad.length} commands with malformed Dewey. First: ${bad[0]?.id} → "${bad[0]?.dewey}"`);
-});
-
-test('SYM-037', 'No duplicate Dewey numbers', () => {
-  const seen = new Map();
-  const dupes = [];
-  for (const c of commands) {
-    if (seen.has(c.dewey)) { dupes.push(c.dewey); }
-    else { seen.set(c.dewey, c.id); }
-  }
-  assert(dupes.length === 0,
-    `${dupes.length} duplicate Dewey numbers: ${dupes.join(', ')}`);
 });
 
 // ── Summary ──────────────────────────────────────────────────────────────────

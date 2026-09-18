@@ -509,7 +509,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "list_cvt_commands",
-    "Lists every CieloVista Tools command from the cielovista-tools catalog. Each entry has id, title, description, tags, group, Dewey number, scope, and source location. Optionally filter by group. Use this before proposing any new command — the 83-entry catalog is the authoritative index of what CVT already does.",
+    "Lists every CieloVista Tools command from the cielovista-tools catalog. Each entry has id, title, description, tags, group, scope, action and source location. Optionally filter by group. Use this before proposing any new command — the catalog is the authoritative index of what CVT already does.",
     ListCvtCommandsToolSchema.shape,
     async ({ group }) => {
       try {

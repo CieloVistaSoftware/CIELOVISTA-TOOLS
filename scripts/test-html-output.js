@@ -106,11 +106,11 @@ const links = stubLinks.map(l =>
 ).join('');
 
 const tableRows = `<tr>
-  <td class="folder-cell"><span class="dewey">000</span><span class="folder-name">global</span><span class="doc-count">1</span></td>
+  <td class="folder-cell"><span class="folder-name">global</span><span class="doc-count">1</span></td>
   <td class="links-cell">${links.slice(0, links.indexOf('</a>') + 4)}</td>
 </tr>
 <tr>
-  <td class="folder-cell"><span class="dewey">100</span><span class="folder-name">wb-core</span><span class="doc-count">3</span></td>
+  <td class="folder-cell"><span class="folder-name">wb-core</span><span class="doc-count">3</span></td>
   <td class="links-cell">${links.slice(links.indexOf('</a>') + 4)}</td>
 </tr>`;
 

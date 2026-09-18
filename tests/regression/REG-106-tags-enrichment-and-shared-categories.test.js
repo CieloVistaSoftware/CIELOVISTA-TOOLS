@@ -45,7 +45,7 @@ check('#730 — the Doc Catalog still derives tags itself (extractTags)',
 
 // ── #481 -> #707: category labels are retired ─────────────────────────────
 //
-// #481 moved the Dewey category labels into src/shared/categories.ts so
+// #481 moved the numbered category labels into src/shared/categories.ts so
 // doc-header and the Doc Catalog shared one list. #730 stopped doc-header
 // writing a category, and #707 stage 2 regrouped the catalog by project and
 // folder, so nothing assigns a category label any more and both category

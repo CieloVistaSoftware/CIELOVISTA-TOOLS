@@ -28,6 +28,7 @@ inventory is reviewed.
 - Eight MCP tools that only serviced Dewey doc numbers: `lookup_dewey`, `migrate_dewey`, `list_old_dewey`, `refresh_doc_ledger`, `validate_doc`, `list_doc_violations`, `normalize_doc`, `get_doc_by_identity`
 - The matching tabs in the MCP Endpoint Viewer, and Doc Intelligence's subject/category mismatch check
 - The doc-contract checker (`tests/unit/doc-contract.test.ts`) and the scripts that wrote Dewey numbers into docs. Docs are identified by their `id` field and grouped by folder
+- The command launcher's per-command Dewey numbers (#787). Launcher cards, their tooltips, the F1 panel and the help panel no longer show a number, `list_cvt_commands` no longer returns a `dewey` field, and the MCP Endpoint Viewer's command table has no number column. Commands are identified by their id and grouped by their group, as before
 
 ### Fixed
 

@@ -269,7 +269,6 @@ export interface CvtCommandEntry {
     description: string;
     tags: string[];
     group: string;
-    dewey: string;
     scope: string;
     action?: string;
     location?: string;
@@ -314,7 +313,6 @@ function parseCatalogLine(line: string): CvtCommandEntry | undefined {
         description: pick('description') ?? '',
         tags: pickArray('tags'),
         group: pick('group') ?? '',
-        dewey: pick('dewey') ?? '',
         scope: pick('scope') ?? '',
         action: pick('action'),
         location: pick('location'),

@@ -16,7 +16,7 @@ body:
     id: whats_wrong
     attributes:
       label: What's drifting?
-      description: Missing content, broken links, outdated screenshots, wrong code examples, missing diagram at a cited Dewey number — be specific.
+      description: Missing content, broken links, outdated screenshots, wrong code examples, a missing diagram — be specific.
       placeholder: |
         - 47 internal relative links in the doc
         - ~15 are expected to be dead (folder reorganizations)

@@ -77,7 +77,7 @@ const extSrc      = fs.readFileSync(EXT_FILE,      'utf8');
 const pkg         = JSON.parse(fs.readFileSync(PKG_FILE, 'utf8'));
 
 // ── Parse catalog into per-entry objects ──────────────────────────────────────
-// Pull each { id, title, description, dewey, scope, action?, nextAction? } from source
+// Pull each { id, title, description, scope, action?, nextAction? } from source
 const ENTRIES = [];
 const ENTRY_RE = /\{[^{}]*?\bid:\s*'([^']+)'[^{}]*?\}/gs;
 let em;
@@ -93,7 +93,6 @@ while ((em = ENTRY_RE.exec(catalogSrc)) !== null) {
         id:          get('id'),
         title:       get('title'),
         description: get('description'),
-        dewey:       get('dewey'),
         scope:       get('scope'),
         action:      get('action'),
         nextAction:  get('nextAction'),
@@ -204,7 +203,7 @@ section(`SUITE 1 — Catalog structure  (${ENTRIES.length} entries)`);
 
 // 1a: Required fields
 console.log('\n  [1a] Required fields on every entry');
-const REQUIRED = ['id', 'title', 'description', 'dewey', 'scope', 'group'];
+const REQUIRED = ['id', 'title', 'description', 'scope', 'group'];
 for (const e of ENTRIES) {
     const missing = REQUIRED.filter(f => !e[f]);
     if (missing.length) {
@@ -213,7 +212,7 @@ for (const e of ENTRIES) {
             fixHint: `Add the missing field(s) to the entry for '${e.id}' in catalog.ts.`,
         });
     } else {
-        pass(`${e.id} — required fields`, `id, title, description, dewey, scope, group all present`);
+        pass(`${e.id} — required fields`, `id, title, description, scope, group all present`);
     }
 }
 
@@ -232,26 +231,8 @@ for (const e of ENTRIES) {
     }
 }
 
-// 1c: Duplicate Dewey numbers
-console.log('\n  [1c] Duplicate Dewey numbers');
-const seenDewey = new Map();
-for (const e of ENTRIES) {
-    if (!e.dewey) continue;
-    if (seenDewey.has(e.dewey)) {
-        fail(`Duplicate Dewey ${e.dewey} on ${e.id}`,
-            `Dewey '${e.dewey}' already used by '${seenDewey.get(e.dewey)}' — each command needs a unique number`, {
-            category: 'catalog-integrity', severity: 'high', commandId: e.id,
-            autoFixable: false,
-            fixHint: `Assign a new unique Dewey number to '${e.id}' in catalog.ts.`,
-        });
-    } else {
-        pass(`${e.id} — Dewey ${e.dewey}`, `Unique`);
-        seenDewey.set(e.dewey, e.id);
-    }
-}
-
-// 1d: Valid scope values
-console.log('\n  [1d] Valid scope values');
+// 1c: Valid scope values
+console.log('\n  [1c] Valid scope values');
 const VALID_SCOPES = new Set(['global', 'workspace', 'diskcleanup', 'tools']);
 for (const e of ENTRIES) {
     if (!e.scope) continue;
@@ -265,8 +246,8 @@ for (const e of ENTRIES) {
     }
 }
 
-// 1e: Valid action values
-console.log('\n  [1e] Valid action values (only if present)');
+// 1d: Valid action values
+console.log('\n  [1d] Valid action values (only if present)');
 const VALID_ACTIONS = new Set(['read', 'run']);
 for (const e of ENTRIES) {
     if (!e.action) {
@@ -281,8 +262,8 @@ for (const e of ENTRIES) {
     }
 }
 
-// 1f: nextAction points to a real ID (if present)
-console.log('\n  [1f] nextAction references valid ID (if present)');
+// 1e: nextAction points to a real ID (if present)
+console.log('\n  [1e] nextAction references valid ID (if present)');
 const allIds = new Set(ENTRIES.map(e => e.id));
 for (const e of ENTRIES) {
     if (!e.nextAction) {

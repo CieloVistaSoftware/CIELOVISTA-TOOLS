@@ -4,8 +4,8 @@
  * Regression test for #696 — MCP could read the project registry but not write it.
  *
  * Every registry-facing MCP tool was read-only: list_projects, find_project,
- * project_status, list_old_dewey, lookup_dewey (the last two were retired with
- * the Dewey docid system in #707). Promotion existed only as the
+ * project_status, and two doc-number lookup tools (retired with the
+ * doc-numbering system in #707). Promotion existed only as the
  * interactive VS Code command cvs.registry.promote, so an agent could see the
  * registry through five tools and add to it through none. Registering a project
  * meant hand-editing project-registry.json and then re-deriving CLAUDE.md and

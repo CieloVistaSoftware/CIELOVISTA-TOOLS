@@ -5,20 +5,19 @@
  *
  *  LAYER 1 - Catalog structure
  *   1.  No duplicate IDs
- *   2.  No duplicate Dewey numbers
- *   3.  All scopes are known values
- *   4.  All actions are known values
- *   5.  Catalog has entries
+ *   2.  All scopes are known values
+ *   3.  All actions are known values
+ *   4.  Catalog has entries
  *
  *  LAYER 2 - Command registration
- *   6.  Every catalog ID has a registerCommand in the codebase
- *   7.  Every package.json contributes command is in the catalog
+ *   5.  Every catalog ID has a registerCommand in the codebase
+ *   6.  Every package.json contributes command is in the catalog
  *
  *  LAYER 3 - Project launcher accuracy
- *   8.  No cd /d syntax
- *   9.  SnapIt/DiskCleanUp paths exist
- *  10.  Scripts map to real npm scripts or dotnet targets
- *  11.  Launcher IDs are registered
+ *   7.  No cd /d syntax
+ *   8.  SnapIt/DiskCleanUp paths exist
+ *   9.  Scripts map to real npm scripts or dotnet targets
+ *  10.  Launcher IDs are registered
  */
 
 const fs   = require('fs');
@@ -36,12 +35,10 @@ const packageJson  = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'),
 
 // ── Parse catalog ─────────────────────────────────────────────────────────────
 const idRe      = /\bid:\s*'([^']+)'/g;
-const deweyRe   = /\bdewey:\s*'([^']+)'/g;
 const scopeRe   = /\bscope:\s*'([^']+)'/g;
 const actionRe  = /\baction:\s*'([^']+)'/g;
 
 const catalogIds    = [...catalogSrc.matchAll(idRe)].map(m => m[1]);
-const catalogDeweys = [...catalogSrc.matchAll(deweyRe)].map(m => m[1]);
 const catalogScopes = [...catalogSrc.matchAll(scopeRe)].map(m => m[1]);
 const catalogActions= [...catalogSrc.matchAll(actionRe)].map(m => m[1]);
 
@@ -158,15 +155,6 @@ test('No duplicate command IDs', function() {
         seen.add(catalogIds[i]);
     }
     assert(dupes.length === 0, 'Duplicate IDs: ' + dupes.join(', '));
-});
-
-test('No duplicate Dewey numbers', function() {
-    var seen = new Set(); var dupes = [];
-    for (var i = 0; i < catalogDeweys.length; i++) {
-        if (seen.has(catalogDeweys[i])) { dupes.push(catalogDeweys[i]); }
-        seen.add(catalogDeweys[i]);
-    }
-    assert(dupes.length === 0, 'Duplicate Dewey: ' + dupes.join(', '));
 });
 
 test('All scopes are valid (global|workspace|diskcleanup|tools)', function() {

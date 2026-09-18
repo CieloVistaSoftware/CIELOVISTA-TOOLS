@@ -21,7 +21,7 @@
  *   4. The home page Quick Launch grid wires cvs.tools.fileList so
  *      the user has a one-click entry point. This is the contract
  *      with the user from the issue's UX section.
- *   5. The launcher catalog entry exists at dewey 700.020 inside
+ *   5. The launcher catalog has a cvs.tools.fileList entry in
  *      cvs-command-launcher/catalog.ts so the command is visible
  *      in the guided launcher and discoverable by tag search.
  *
@@ -166,13 +166,11 @@ const catalogSrc = fs.readFileSync(CATALOG_TS, 'utf8');
     ok('home-page.ts routes the FileList button through OPEN_DIRECT');
 })();
 
-// ─── 5. Catalog entry exists at the agreed dewey ────────────────────────
+// ─── 5. Catalog entry exists ────────────────────────────────────────────
 
 (function checkCatalogEntry() {
     // The launcher catalog must include cvs.tools.fileList so users
-    // can find it via the guided launcher search. Dewey 700.020 was
-    // assigned during implementation; if a future refactor reassigns
-    // it, that's fine, but the entry itself must exist.
+    // can find it via the guided launcher search.
     if (!/['"]cvs\.tools\.fileList['"]/.test(catalogSrc)) {
         fail('cvs-command-launcher/catalog.ts must contain a cvs.tools.fileList entry so the command shows up in the guided launcher');
         return;

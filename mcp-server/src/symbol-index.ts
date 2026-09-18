@@ -518,7 +518,7 @@ export function findSymbolByName(all: SymbolEntry[], name: string, limit = 10): 
  * Reads the cielovista-tools command catalog (a TypeScript array literal in
  * `src/features/cvs-command-launcher/catalog.ts`) and returns each entry as
  * plain JSON. Because catalog.ts is source-of-truth for every CVT command
- * and Dewey number, exposing it lets callers answer "is there already a
+ * (id, title, group, scope), exposing it lets callers answer "is there already a
  * command for this" without reading the file manually.
  */
 
@@ -542,7 +542,6 @@ export interface CvtCommandEntry {
   description: string;
   tags: string[];
   group: string;
-  dewey: string;
   scope: string;
   action?: string;
   location?: string;
@@ -616,7 +615,6 @@ function normalizeCatalogEntry(raw: unknown): CvtCommandEntry | undefined {
     description: typeof c.description === "string" ? c.description : "",
     tags:        Array.isArray(c.tags) ? c.tags.filter((t): t is string => typeof t === "string") : [],
     group:       typeof c.group       === "string" ? c.group       : "",
-    dewey:       typeof c.dewey       === "string" ? c.dewey       : "",
     scope:       typeof c.scope       === "string" ? c.scope       : "",
     action:      typeof c.action      === "string" ? c.action      : undefined,
     location:    typeof c.location    === "string" ? c.location    : undefined,
@@ -672,7 +670,6 @@ function parseCatalogLine(line: string): CvtCommandEntry | undefined {
     description: pick("description") ?? "",
     tags: pickArray("tags"),
     group: pick("group") ?? "",
-    dewey: pick("dewey") ?? "",
     scope: pick("scope") ?? "",
     action: pick("action"),
     location: pick("location"),

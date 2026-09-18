@@ -78,7 +78,7 @@ test('frontmatterEnd returns 0 when no frontmatter', () => {
 });
 
 test('frontmatterEnd returns correct line index after closing ---', () => {
-  const lines = ['---', 'docid: abc', 'dewey: 150.5', '---', '# Title'];
+  const lines = ['---', 'id: abc', 'title: Title', '---', '# Title'];
   // closing --- is at index 3, so end = 4
   assert.strictEqual(frontmatterEnd(lines), 4);
 });

@@ -11,9 +11,9 @@ const assert = require('assert');
 
 // Simulate the CATALOG from the compiled launcher
 const CATALOG = [
-    { id: 'cvs.audit.testCoverage', title: 'Audit: Test Coverage Dashboard', description: 'Interactive dashboard showing test coverage by tier with one-click unit test generation.', tags: ['test', 'audit', 'coverage', 'dashboard', 'unit tests', 'playwright', 'jest'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.002', auditCheckId: 'testCoverage' },
-    { id: 'cvs.audit.testCoverage.refresh', title: 'Audit: Refresh Test Coverage', description: 'Re-run the test coverage audit and update metrics.', tags: ['test', 'refresh', 'coverage', 'playwright'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.0021' },
-    { id: 'cvs.audit.testCoverage.export', title: 'Audit: Export Coverage Report', description: 'Save and open the test coverage report as markdown.', tags: ['test', 'export', 'report', 'playwright'], group: 'Doc Audit', groupIcon: '🔍', dewey: '900.0022' },
+    { id: 'cvs.audit.testCoverage', title: 'Audit: Test Coverage Dashboard', description: 'Interactive dashboard showing test coverage by tier with one-click unit test generation.', tags: ['test', 'audit', 'coverage', 'dashboard', 'unit tests', 'playwright', 'jest'], group: 'Doc Audit', groupIcon: '🔍', auditCheckId: 'testCoverage' },
+    { id: 'cvs.audit.testCoverage.refresh', title: 'Audit: Refresh Test Coverage', description: 'Re-run the test coverage audit and update metrics.', tags: ['test', 'refresh', 'coverage', 'playwright'], group: 'Doc Audit', groupIcon: '🔍' },
+    { id: 'cvs.audit.testCoverage.export', title: 'Audit: Export Coverage Report', description: 'Save and open the test coverage report as markdown.', tags: ['test', 'export', 'report', 'playwright'], group: 'Doc Audit', groupIcon: '🔍' },
 ];
 
 /**

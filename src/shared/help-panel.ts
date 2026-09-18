@@ -25,7 +25,6 @@ export interface HelpCmdEntry {
     id:          string;
     title:       string;
     description: string;
-    dewey?:      string;
 }
 
 // ─── Command ID extraction ────────────────────────────────────────────────────
@@ -198,7 +197,6 @@ export function buildHelpPanelHtml(
     <div class="qa-card">
       <div class="qa-card-top">
         <div class="qa-title">${esc(cmd.title)}</div>
-        ${cmd.dewey ? `<span class="qa-dewey">${esc(cmd.dewey)}</span>` : ''}
       </div>
       <div class="qa-desc">${esc(cmd.description)}</div>
       <div class="qa-footer">
@@ -262,13 +260,6 @@ ${CVS_CSS}
 .qa-card:hover{border-color:var(--vscode-focusBorder)}
 .qa-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
 .qa-title{font-weight:700;font-size:0.9em;line-height:1.3;flex:1}
-.qa-dewey{
-  font-family:var(--vscode-editor-font-family);font-size:9px;
-  color:var(--vscode-descriptionForeground);
-  background:var(--vscode-textCodeBlock-background);
-  border:1px solid var(--vscode-panel-border);
-  border-radius:3px;padding:1px 5px;white-space:nowrap;opacity:0.75;
-}
 .qa-desc{font-size:11px;line-height:1.45;opacity:0.85;flex:1}
 .qa-footer{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
 .qa-id{
