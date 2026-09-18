@@ -57,7 +57,11 @@ mustContain(out, 'text only; no files attached',
   'COMPILED: Send Path tooltip text missing in compiled output');
 mustContain(out, "type:'sendPathToChat'",
   'COMPILED: sendPathToChat postMessage missing in compiled output');
-mustContain(out, "msg.type === 'sendPathToChat' && msg.path",
+// out/features/home-page.js is written by esbuild (#264, 8b56a75), which
+// prints host code with double quotes; only webview strings inside template
+// literals keep their single quotes. Match the handler in either quote style
+// (#736: this check had failed since the esbuild switch).
+assert.ok(/msg\.type === (['"])sendPathToChat\1 && msg\.path/.test(out),
   'COMPILED: sendPathToChat host handler missing in compiled output');
 mustContain(out, 'workbench.action.chat.open',
   'COMPILED: chat open command wiring missing in compiled output');

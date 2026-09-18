@@ -12,6 +12,10 @@ const { execSync } = require('child_process');
 const WORKSPACE_ROOT = path.resolve(__dirname, '..');
 const SCRIPT_PATH = path.join(WORKSPACE_ROOT, 'scripts', 'audit-test-coverage.js');
 const SCRIPT_CMD = `node "${SCRIPT_PATH}" --json`;
+// The audit writes its markdown report to reports/ (gitignored). #708 moved it
+// out of docs/_today/: generated audit output never lives in docs/. This test
+// still looked in docs/_today/ and found nothing (#736).
+const REPORTS_DIR = path.join(WORKSPACE_ROOT, 'reports');
 
 console.log('\n🧪 Test Coverage Command Integration Tests\n');
 
@@ -83,21 +87,23 @@ test('Metrics includes tier breakdown', () => {
 
 // Test 7: Verify report directory
 test('Report output directory exists', () => {
-    const reportsDir = path.join(WORKSPACE_ROOT, 'docs', '_today');
+    const reportsDir = REPORTS_DIR;
     assert.ok(fs.existsSync(reportsDir), `Reports dir not found: ${reportsDir}`);
 });
 
 // Test 8: Verify markdown report was generated
 test('Markdown report file is created', () => {
-    const reportsDir = path.join(WORKSPACE_ROOT, 'docs', '_today');
+    const reportsDir = REPORTS_DIR;
     const files = fs.readdirSync(reportsDir).filter(f => f.startsWith('test-coverage-audit-') && f.endsWith('.md'));
     assert.ok(files.length > 0, 'No markdown report files found');
-    console.log(`      Found: ${files[files.length - 1]}`);
+    const today = `test-coverage-audit-${new Date().toISOString().split('T')[0]}.md`;
+    assert.ok(files.includes(today), `This run did not write ${today}`);
+    console.log(`      Found: ${today}`);
 });
 
 // Test 9: Verify generated report has content
 test('Markdown report has content', () => {
-    const reportsDir = path.join(WORKSPACE_ROOT, 'docs', '_today');
+    const reportsDir = REPORTS_DIR;
     const files = fs.readdirSync(reportsDir)
         .filter(f => f.startsWith('test-coverage-audit-') && f.endsWith('.md'))
         .sort();

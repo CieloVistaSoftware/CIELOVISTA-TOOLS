@@ -4,8 +4,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// Create a test markdown file
-const testMarkdownDir = path.join(__dirname, '..', 'data');
+// Create a test markdown file in a private temp dir, never in the repo's
+// data/ folder (#736: tests own their environment).
+const testMarkdownDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cvt-view-doc-'));
 const testMarkdownFile = path.join(testMarkdownDir, 'test-doc.md');
 
 // Ensure directory exists
@@ -107,7 +108,7 @@ try {
 
 // Clean up test file
 try {
-    fs.unlinkSync(testMarkdownFile);
+    fs.rmSync(testMarkdownDir, { recursive: true, force: true });
 } catch (_) {}
 
 console.log(`\n────────────────────────────────────────────────────────────`);

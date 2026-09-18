@@ -1,10 +1,13 @@
 // Copyright (c) 2026 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 /**
- * run-unit-tests.js — build out-test/, then run EVERY unit test (#734).
+ * run-unit-tests.js — build out/ and out-test/, then run EVERY unit test (#734)
+ * and every top-level tests/*.test.js file (#736).
  *
- *   node scripts/run-unit-tests.js            all of tests/unit/
+ *   node scripts/run-unit-tests.js            all of tests/unit/ and tests/*.test.js
  *   node scripts/run-unit-tests.js doc-header only files whose name contains "doc-header"
+ *   node scripts/run-unit-tests.js --list     print the files a full run would run, then
+ *                                             exit without building (REG-146 reads this)
  *   node scripts/run-unit-tests.js tests/unit/x.test.js
  *                                             exactly that file, even one a rebuild
  *                                             step owns — this is how those steps
@@ -21,8 +24,10 @@
  *    that as a pass. This runner reads the output: exit 0 plus a
  *    missing-artifact skip line fails the file.
  *
- * Every file in tests/unit/ runs. There is no list to keep in sync; a list is
- * how most of these tests fell out of every gate in the first place.
+ * Every file in tests/unit/ and every *.test.js directly under tests/ runs.
+ * There is no list to keep in sync; a list is how most of these tests fell out
+ * of every gate in the first place. The top-level files were in no gate at
+ * all until #736, and 11 of 31 had rotted unseen.
  */
 'use strict';
 
@@ -31,9 +36,13 @@ const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
 
-const ROOT     = path.resolve(__dirname, '..');
-const UNIT_DIR = path.join(ROOT, 'tests', 'unit');
-const FILTER   = process.argv[2] || '';
+const ROOT      = path.resolve(__dirname, '..');
+const TESTS_DIR = path.join(ROOT, 'tests');
+const UNIT_DIR  = path.join(TESTS_DIR, 'unit');
+/** The directories a full run covers: tests/unit/ and the top level of tests/ (#736). */
+const TEST_DIRS = [UNIT_DIR, TESTS_DIR];
+const LIST_ONLY = process.argv.includes('--list');
+const FILTER    = process.argv.slice(2).find(a => !a.startsWith('--')) || '';
 /**
  * A test file path (tests/.../x.test.js) instead of a name filter: run exactly
  * that file. Every `npm run rebuild` step that runs a test goes through here
@@ -53,15 +62,6 @@ const WORKERS  = Math.max(2, Math.min(8, os.cpus().length - 1));
 
 const { skippedForMissingArtifact } = require('./lib/missing-artifact');
 
-const build = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-test-modules.mjs')],
-    { cwd: ROOT, encoding: 'utf8' });
-if (build.status !== 0) {
-    process.stderr.write(build.stdout + build.stderr);
-    console.error('✗ build-test-modules failed — no unit test can run');
-    process.exit(1);
-}
-process.stdout.write(build.stdout);
-
 /**
  * Unit tests that `npm run rebuild` already runs as their own step, mapped to
  * that step. Some of them check what a LATER step produces — the packaged
@@ -70,7 +70,8 @@ process.stdout.write(build.stdout);
  * locally only because a .vsix from an earlier rebuild was lying around; on a
  * clean CI runner they failed. Their own step is where they belong, and it
  * already gates the build. Derived from package.json, so there is no list here
- * to keep in sync.
+ * to keep in sync. Keys are paths relative to tests/ ("unit/x.test.js" or
+ * "install-verify.test.js").
  *
  * That step runs its file through this runner (`node scripts/run-unit-tests.js
  * tests/unit/x.test.js`, the EXPLICIT mode above), so the path still appears in
@@ -85,7 +86,7 @@ function testsOwnedByRebuildSteps() {
         if (seen.has(name) || !scripts[name]) { return; }
         seen.add(name);
         const body = scripts[name];
-        for (const m of body.matchAll(/tests\/unit\/([\w.-]+\.test\.(?:js|ts))/g)) {
+        for (const m of body.matchAll(/tests\/((?:unit\/)?[\w.-]+\.test\.(?:js|ts))/g)) {
             if (!owned.has(m[1])) { owned.set(m[1], name); }
         }
         for (const m of body.matchAll(/npm run ([\w:.-]+)/g)) { visit(m[1]); }
@@ -95,14 +96,57 @@ function testsOwnedByRebuildSteps() {
 
 const OWNED = testsOwnedByRebuildSteps();
 
-const files = EXPLICIT ? [] : fs.readdirSync(UNIT_DIR)
-    .filter(n => /\.test\.(js|ts)$/.test(n) && n.includes(FILTER))
+/** Every test file a full run covers, as paths relative to tests/ (forward slashes). */
+function discoverTests() {
+    const out = [];
+    for (const dir of TEST_DIRS) {
+        const rel = path.relative(TESTS_DIR, dir).split(path.sep).join('/');
+        for (const n of fs.readdirSync(dir)) {
+            if (!/\.test\.(js|ts)$/.test(n) || !fs.statSync(path.join(dir, n)).isFile()) { continue; }
+            out.push(rel ? `${rel}/${n}` : n);
+        }
+    }
+    return out;
+}
+
+const files = EXPLICIT ? [] : discoverTests()
+    .filter(n => path.basename(n).includes(FILTER))
     .sort();
 for (const name of files.filter(n => OWNED.has(n))) {
     console.log(`  - ${name} — runs at its own rebuild step (npm run ${OWNED.get(name)})`);
 }
 /** Absolute paths of the test files to run. */
-const toRun = EXPLICIT ? [EXPLICIT] : files.filter(n => !OWNED.has(n)).map(n => path.join(UNIT_DIR, n));
+const toRun = EXPLICIT ? [EXPLICIT] : files.filter(n => !OWNED.has(n)).map(n => path.join(TESTS_DIR, ...n.split('/')));
+
+if (LIST_ONLY) {
+    for (const file of toRun) { console.log(path.relative(ROOT, file).split(path.sep).join('/')); }
+    process.exit(0);
+}
+
+/**
+ * The shipped build (esbuild.mjs -> out/ and mcp-server/dist/). Several
+ * top-level tests read it: the per-file bundles under out/features/, the MCP
+ * helpers under mcp-server/dist/. Built every run, so a test never reads a
+ * stale or missing copy left over from some earlier build (#736, #753).
+ */
+const shipped = cp.spawnSync(process.execPath, [path.join(ROOT, 'esbuild.mjs')],
+    { cwd: ROOT, encoding: 'utf8' });
+if (shipped.status !== 0) {
+    process.stderr.write(shipped.stdout + shipped.stderr);
+    console.error('✗ esbuild.mjs failed — no test that reads out/ can run');
+    process.exit(1);
+}
+console.log('  built out/ and mcp-server/dist/ (esbuild.mjs)');
+
+const build = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-test-modules.mjs')],
+    { cwd: ROOT, encoding: 'utf8' });
+if (build.status !== 0) {
+    process.stderr.write(build.stdout + build.stderr);
+    console.error('✗ build-test-modules failed — no unit test can run');
+    process.exit(1);
+}
+process.stdout.write(build.stdout);
+
 
 function runOne(file) {
     const name = path.relative(ROOT, file).split(path.sep).join('/').replace(/^tests\/unit\//, '');
@@ -163,7 +207,7 @@ function trackedChanges() {
         for (const line of tail) { console.log(`      ${line.slice(0, 200)}`); }
     }
     const failed = results.filter(r => !r.ok);
-    console.log(`\n${results.length} unit test file(s): ${results.length - failed.length} passed, ${failed.length} failed`);
+    console.log(`\n${results.length} test file(s) (tests/unit/ and tests/*.test.js): ${results.length - failed.length} passed, ${failed.length} failed`);
 
     const after = trackedChanges();
     const touched = before && after

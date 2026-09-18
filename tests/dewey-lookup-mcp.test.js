@@ -30,9 +30,16 @@ function rmrf(target) {
   fs.mkdirSync(path.join(projA, 'docs'), { recursive: true });
   fs.mkdirSync(path.join(projB, 'docs'), { recursive: true });
 
-  fs.writeFileSync(path.join(globalDocs, '100.001.md'), '# Global\n\nroot\n', 'utf8');
-  fs.writeFileSync(path.join(projA, 'docs', '1400.005.md'), '# A\n\nitem\n', 'utf8');
-  fs.writeFileSync(path.join(projB, 'docs', '1400.150.md'), '# B\n\nitem\n', 'utf8');
+  // A doc's Dewey number comes from its front-matter docid, never from its
+  // file name: c6601b2 ("One-time-one-place identity: catalog dewey comes from
+  // frontmatter docid only"). The fixtures used to rely on the file name and
+  // every lookup came back empty (#736). The Dewey tools themselves are being
+  // retired in stages under #707; until stage 3 removes lookup_dewey, this
+  // test checks what it does today.
+  const doc = (docid, title) => `---\ndocid: ${docid}\n---\n# ${title}\n\nitem\n`;
+  fs.writeFileSync(path.join(globalDocs, 'global.md'), doc('100.001', 'Global'), 'utf8');
+  fs.writeFileSync(path.join(projA, 'docs', 'a.md'), doc('1400.005', 'A'), 'utf8');
+  fs.writeFileSync(path.join(projB, 'docs', 'b.md'), doc('1400.150', 'B'), 'utf8');
 
   const registry = {
     globalDocsPath: globalDocs,

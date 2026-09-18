@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
 import { loadRegistry } from './registry';
-import { loadArchiveEntries, restoreDoc } from './archive';
+import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
 import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
 import { scanForCards, resetCardCounter } from './scanner';
 import { buildProjectDeweyMap, lookupDewey } from './categories';
@@ -101,15 +101,18 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
         { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog\u2026', cancellable: false },
         async (progress) => {
             const deweyMap = buildProjectDeweyMap(registry.projects.map(p => p.name));
+            // Archived docs stay out of the catalog. e29f04c dropped this
+            // argument, so an archived doc came back on the next rebuild (#736).
+            const archivedPaths = loadArchivedPaths();
             const cards: CatalogCard[] = scanForCards(
                 registry.globalDocsPath, 'global', registry.globalDocsPath,
-                lookupDewey(deweyMap, 'global').num
+                lookupDewey(deweyMap, 'global').num, 3, archivedPaths
             );
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}\u2026` });
                 if (fs.existsSync(project.path)) {
                     const dewey = lookupDewey(deweyMap, project.name);
-                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num));
+                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num, 3, archivedPaths));
                 }
             }
             cards.sort((a, b) => {
@@ -339,6 +342,27 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
             case 'new-issue': {
                 const { newIssueForProject } = await import('../github-issues');
                 newIssueForProject(msg.project as string | undefined);
+                break;
+            }
+            // Posted by the catalog's Archive button (#238, #239): the host
+            // asks, because confirm() always returns false inside a webview.
+            // e29f04c deleted this case, so Archive silently did nothing (#736).
+            case 'archive-doc-confirm': {
+                const filePath = msg.data as string;
+                const docTitle = msg.title as string;
+                const projName = msg.project as string;
+                if (!filePath) { break; }
+                const label = docTitle || filePath;
+                const choice = await vscode.window.showWarningMessage(
+                    `Archive "${label}"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived Docs.`,
+                    { modal: true },
+                    'Archive'
+                );
+                if (choice !== 'Archive') { break; }
+                archiveDoc(filePath, docTitle, projName);
+                clearCachedCards();
+                log(FEATURE, `Archived: ${filePath}`);
+                void panel.webview.postMessage({ command: 'remove-card', filePath });
                 break;
             }
             case 'finish-doc-confirm': {
@@ -600,8 +624,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 #viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
 #viewer-path{font-family:monospace;font-size:10px;color:#858585;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#btn-copy-path{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
-#btn-copy-path:hover{border-color:#0078d4;color:#d4d4d4}
+#btn-copy-path,#btn-open-vscode,#btn-set-cwd,#btn-explorer{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
+#btn-copy-path:hover,#btn-open-vscode:hover,#btn-set-cwd:hover,#btn-explorer:hover{border-color:#0078d4;color:#d4d4d4}
 #doc-frame{flex:1;border:none;background:#1e1e1e;}
 #welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;gap:8px;}
 #welcome svg{opacity:.25}
@@ -638,7 +662,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
   <div id="viewer">
     <div id="viewer-bar">
       <span id="viewer-path">Select a document from the index</span>
-      <button id="btn-copy-path" style="display:none" title="Copy file path">&#128203; Copy Path</button>
+      <button id="btn-open-vscode" style="display:none" title="Open folder in VS Code">&#128193; VS Code</button>
+      <button id="btn-set-cwd"     style="display:none" title="Set terminal CWD to this folder">&#128196; Set CWD</button>
+      <button id="btn-explorer"    style="display:none" title="Reveal file in Explorer">&#128269; Explorer</button>
+      <button id="btn-copy-path"   style="display:none" title="Copy file path">&#128203; Copy Path</button>
     </div>
     <div id="welcome">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#888" stroke-width="2"/><line x1="11" y1="12" x2="29" y2="12" stroke="#888" stroke-width="1.5"/><line x1="11" y1="17" x2="29" y2="17" stroke="#888" stroke-width="1.5"/><line x1="11" y1="22" x2="22" y2="22" stroke="#888" stroke-width="1.5"/></svg>
@@ -662,6 +689,9 @@ var frame     = document.getElementById('doc-frame');
 var welcome   = document.getElementById('welcome');
 var viewerPath= document.getElementById('viewer-path');
 var btnCopy   = document.getElementById('btn-copy-path');
+var btnVSCode   = document.getElementById('btn-open-vscode');
+var btnCwd      = document.getElementById('btn-set-cwd');
+var btnExplorer = document.getElementById('btn-explorer');
 var TOTAL     = ${totalDocs};
 var _currentPath = '';
 
@@ -714,6 +744,9 @@ function openDoc(docPath, linkEl) {
   // Update viewer bar
   viewerPath.textContent = docPath;
   btnCopy.style.display = '';
+  if (btnVSCode) { btnVSCode.style.display = ''; }
+  if (btnCwd)    { btnCwd.style.display = ''; }
+  if (btnExplorer) { btnExplorer.style.display = ''; }
 
   // Load in iframe
   var docUrl = BASE + '/doc?path=' + encodeURIComponent(docPath);
@@ -739,6 +772,23 @@ document.addEventListener('click', function(e) {
 });
 
 // \u2500\u2500 Copy path \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Toolbar actions (#261). e29f04c removed these buttons and their routes
+// without saying so; restored in #736.
+if (btnVSCode) { btnVSCode.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/open-in-vscode?path=' + encodeURIComponent(_currentPath)).catch(function(){});
+  toast('Opening folder in VS Code…');
+}); }
+if (btnCwd) { btnCwd.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/set-cwd?path=' + encodeURIComponent(_currentPath)).catch(function(){});
+  toast('Setting terminal CWD…');
+}); }
+if (btnExplorer) { btnExplorer.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/reveal?path=' + encodeURIComponent(_currentPath)).catch(function(){});
+  toast('Revealing in Explorer…');
+}); }
 btnCopy.addEventListener('click', function() {
   if (!_currentPath) { return; }
   navigator.clipboard.writeText(_currentPath).then(function() {
@@ -859,6 +909,33 @@ export async function viewSpecificDoc(): Promise<void> {
             res.end('OK');
             if (folderPath) {
                 void openProjectFolderSmart(folderPath);
+            }
+
+        } else if (url.pathname === '/open-in-vscode') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (filePath) {
+                void openProjectFolderSmart(path.dirname(filePath));
+            }
+
+        } else if (url.pathname === '/set-cwd') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (filePath) {
+                const folder = path.dirname(filePath);
+                const term = vscode.window.terminals[0] ?? vscode.window.createTerminal({ name: 'CieloVista', cwd: folder });
+                term.sendText(`cd "${folder}"`);
+                term.show();
+            }
+
+        } else if (url.pathname === '/reveal') {
+            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+            if (filePath && fs.existsSync(filePath)) {
+                void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(filePath));
             }
 
         } else {
