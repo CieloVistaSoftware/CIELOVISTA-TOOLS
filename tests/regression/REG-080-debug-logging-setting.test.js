@@ -6,19 +6,18 @@
  * cielovista-tools.debug.enabled VS Code setting.
  *
  * Verifies:
- *   1. src/shared/output-channel.ts exports a `debug` function
- *   2. package.json contributes cielovista-tools.debug.enabled as a boolean setting
- *   3. The debug() function body reads 'debug.enabled' from 'cielovista-tools' config
- *   4. The debug() function calls log() with a [DEBUG] prefix
- *   5. A mock of the same logic suppresses output when setting=false
- *   6. A mock of the same logic writes output when setting=true
+ *   1. package.json contributes cielovista-tools.debug.enabled as a boolean setting, default false
+ *   2. The build of src/shared/output-channel.ts exports a debug function
+ *   3. The real debug() reads 'debug.enabled' from the 'cielovista-tools' config
+ *   4. The real debug() writes nothing when the setting is false
+ *   5. The real debug() writes one [DEBUG] line when the setting is true
+ * Checks 2-5 run the out-test build, not the source text or a copy (#823).
  */
 
 const fs   = require('fs');
 const path = require('path');
 
 const ROOT       = path.join(__dirname, '..', '..');
-const OUTPUT_TS  = path.join(ROOT, 'src', 'shared', 'output-channel.ts');
 const PKG_JSON   = path.join(ROOT, 'package.json');
 
 let passed = 0;
@@ -37,15 +36,6 @@ function check(desc, cond, detail) {
 console.log('REG-080: debug() in output-channel.ts respects cielovista-tools.debug.enabled');
 console.log('');
 
-// ── Read source files ─────────────────────────────────────────────────────────
-let src;
-try {
-    src = fs.readFileSync(OUTPUT_TS, 'utf8');
-} catch (e) {
-    console.error(`  ✗ Cannot read ${OUTPUT_TS}: ${e.message}`);
-    process.exit(1);
-}
-
 let pkg;
 try {
     pkg = JSON.parse(fs.readFileSync(PKG_JSON, 'utf8'));
@@ -54,13 +44,7 @@ try {
     process.exit(1);
 }
 
-// ── Check 1: debug export exists ──────────────────────────────────────────────
-check(
-    "output-channel.ts exports a 'debug' function",
-    /export function debug\s*\(/.test(src)
-);
-
-// ── Check 2: setting is in package.json ───────────────────────────────────────
+// ── Check 1: setting is in package.json ───────────────────────────────────────
 const cfgProps = pkg &&
     pkg.contributes &&
     pkg.contributes.configuration &&
@@ -71,7 +55,6 @@ check(
     cfgProps && Object.prototype.hasOwnProperty.call(cfgProps, 'cielovista-tools.debug.enabled')
 );
 
-// ── Check 3: setting type is boolean with default false ───────────────────────
 const settingDef = cfgProps && cfgProps['cielovista-tools.debug.enabled'];
 check(
     "'cielovista-tools.debug.enabled' is a boolean with default: false",
@@ -81,53 +64,62 @@ check(
     settingDef ? JSON.stringify(settingDef) : 'property missing'
 );
 
-// ── Check 4: debug() reads 'debug.enabled' from 'cielovista-tools' config ─────
-const debugFnIdx = src.indexOf('export function debug(');
-check(
-    "debug() function reads from 'cielovista-tools' configuration namespace",
-    debugFnIdx !== -1 &&
-    src.slice(debugFnIdx, debugFnIdx + 500).includes("getConfiguration('cielovista-tools')")
-);
-
-check(
-    "debug() function checks 'debug.enabled' key",
-    debugFnIdx !== -1 &&
-    src.slice(debugFnIdx, debugFnIdx + 500).includes("'debug.enabled'")
-);
-
-// ── Check 5: debug() calls log() with [DEBUG] prefix ─────────────────────────
-check(
-    "debug() calls log() with '[DEBUG]' prefix",
-    debugFnIdx !== -1 &&
-    src.slice(debugFnIdx, debugFnIdx + 500).includes('[DEBUG]') &&
-    src.slice(debugFnIdx, debugFnIdx + 500).includes('log(')
-);
-
-// ── Check 6: mock — output suppressed when setting=false ──────────────────────
-// Replicate the same conditional logic as the real debug() function to verify
-// correct suppress/emit behaviour without importing VS Code.
-function mockDebug(debugEnabled, feature, message) {
-    const logged = [];
-    // mirrors: if (!cfg.get<boolean>('debug.enabled', false)) { return; }
-    if (!debugEnabled) { return logged; }
-    // mirrors: log(feature, `[DEBUG] ${message}`);
-    logged.push(`[DEBUG] ${message}`);
-    return logged;
+// ── Checks 2-5: the real debug(), run against the setting ────────────────────
+// Loads the out-test build of src/shared/output-channel.ts with a vscode mock
+// whose getConfiguration() returns the setting, and records what reaches the
+// channel. Until #823 these checks ran a copy of debug()'s logic (mockDebug),
+// so the real function could stop reading the setting and they stayed green.
+const OUTPUT_JS = path.join(ROOT, 'out-test', 'shared', 'output-channel.js');
+if (!fs.existsSync(OUTPUT_JS)) {
+    // Not a skip: the runners build out-test/ first, so this is a real failure.
+    console.error(`  ✗ out-test build missing: ${OUTPUT_JS}`);
+    process.exit(1);
 }
 
-const suppressedResult = mockDebug(false, 'test-feature', 'hello');
+let debugEnabled = false;
+const configReads = [];
+const written = [];
+const vscodeMock = {
+    window: {
+        createOutputChannel: () => ({ appendLine: (l) => { written.push(l); }, show: () => {}, dispose: () => {} }),
+    },
+    workspace: {
+        getConfiguration: (section) => ({
+            get: (key, dflt) => {
+                configReads.push(`${section}:${key}`);
+                return section === 'cielovista-tools' && key === 'debug.enabled' ? debugEnabled : dflt;
+            },
+        }),
+    },
+};
+const Module   = require('module');
+const origLoad = Module._load;
+Module._load = function (req) { return req === 'vscode' ? vscodeMock : origLoad.apply(this, arguments); };
+const { debug } = require(OUTPUT_JS);
+Module._load = origLoad;
+
+check("the build of output-channel.ts exports a debug function", typeof debug === 'function', typeof debug);
+if (typeof debug !== 'function') { console.error('REG-080 FAILED'); process.exit(1); }
+
+debugEnabled = false;
+debug('test-feature', 'hello-off');
 check(
-    "mock: debug() produces no output when setting=false",
-    suppressedResult.length === 0,
-    `got ${suppressedResult.length} entries`
+    "debug() writes nothing when cielovista-tools.debug.enabled is false",
+    written.length === 0,
+    `got: ${JSON.stringify(written)}`
+);
+check(
+    "debug() reads 'debug.enabled' from the 'cielovista-tools' configuration",
+    configReads.includes('cielovista-tools:debug.enabled'),
+    `reads: ${JSON.stringify(configReads)}`
 );
 
-// ── Check 7: mock — output emitted when setting=true ─────────────────────────
-const emittedResult = mockDebug(true, 'test-feature', 'hello');
+debugEnabled = true;
+debug('test-feature', 'hello-on');
 check(
-    "mock: debug() produces output when setting=true",
-    emittedResult.length === 1 && emittedResult[0] === '[DEBUG] hello',
-    `got: ${JSON.stringify(emittedResult)}`
+    "debug() writes one '[DEBUG]' line, tagged with the feature, when the setting is true",
+    written.length === 1 && written[0].includes('[test-feature] [DEBUG] hello-on'),
+    `got: ${JSON.stringify(written)}`
 );
 
 // ── Summary ───────────────────────────────────────────────────────────────────

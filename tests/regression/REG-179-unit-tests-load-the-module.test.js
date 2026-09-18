@@ -13,21 +13,31 @@
 // source text of html.ts and never ran it) and command-renames (a copy of
 // home-page.ts's buildGroupedCommands).
 //
-// Guards, over every file in tests/unit/:
-//   1. A test whose name is a module in src/ requires that module from a build
-//      (out-test/ or out/). "Named after" means the file name, less .test.js
-//      and any .qualifier, is src/features/<n>.ts, src/features/<n>/,
-//      src/shared/<n>.ts, or src/features/<dir>/<rest>.ts for <dir>-<rest>.
-//      Mentioning the path is not enough; it has to reach a require() call.
-//   2. No unit test defines a function with the name of an export of a src
-//      module it names (by file name or build path). That is a copy of the
-//      code it claims to test.
+// Issue #823 found the same shape in five tests outside tests/unit/: a copy
+// of home-page.ts's label rule, a hand-written launcher CATALOG and search, a
+// stand-in HTTP server for View a Doc, copies of readme-compliance helpers
+// (REG-030) and a stand-in for debug() (REG-080).
+//
+// Guards:
+//   1. Over tests/unit/: a test whose name is a module in src/ requires that
+//      module from a build (out-test/ or out/). "Named after" means the file
+//      name, less .test.js and any .qualifier, is src/features/<n>.ts,
+//      src/features/<n>/, src/shared/<n>.ts, or src/features/<dir>/<rest>.ts
+//      for <dir>-<rest>. Mentioning the path is not enough; it has to reach a
+//      require() call.
+//   2. Over tests/unit/, top-level tests/*.test.js and tests/regression/: no
+//      test defines a function, or a top-level array/object/regex constant,
+//      with the name of an export of a src module it names (by file name,
+//      '<basename>.ts', build path, or feature folder name). Exports include
+//      the members of a module's _test handle. That is a copy of the code it
+//      claims to test.
 // A self-check runs the rules on known-bad and known-good test text first, so
 // a rule that stops matching fails here instead of passing everything.
 //
 // Not caught: a test that requires its module and then never calls it (the
-// old cvt-registry shape), when its stand-in helpers have names of their own.
-// Telling a used binding from an unused one needs a parser, not a regex.
+// old cvt-registry shape), or a stand-in with a name of its own (mockDebug,
+// groupAndStripCommands, a private http.createServer). Telling a stand-in
+// from a helper needs a reader, not a regex.
 
 'use strict';
 
@@ -48,14 +58,14 @@ function check(name, ok, detail) {
 
 /** src-relative module paths (no extension, '/' separators) a test file name refers to. */
 function modulesNamedBy(fileName) {
-    const base  = fileName.replace(/\.test\.(js|ts)$/, '');
+    const base  = fileName.replace(/\.test\.(js|ts)$/, '').replace(/^REG-\d+-/, '');
     const names = [...new Set([base, base.split('.')[0]])];
     const found = [];
     const has = rel => fs.existsSync(path.join(SRC, rel));
+    const exact = n => [`features/${n}.ts`, `features/${n}/index.ts`, `shared/${n}.ts`]
+        .filter(has).map(f => f.replace(/(\/index)?\.ts$/, ''));
     for (const n of names) {
-        if (has(`features/${n}.ts`))       { found.push(`features/${n}`); }
-        if (has(`features/${n}/index.ts`)) { found.push(`features/${n}`); }
-        if (has(`shared/${n}.ts`))         { found.push(`shared/${n}`); }
+        found.push(...exact(n));
         const parts = n.split('-');
         for (let i = 1; i < parts.length; i++) {
             const rel = `features/${parts.slice(0, i).join('-')}/${parts.slice(i).join('-')}`;
@@ -87,13 +97,25 @@ function requiresModule(text, mod) {
     return vars.some(v => new RegExp(`(?:require|import)\\s*\\(\\s*${v}\\s*\\)`).test(t));
 }
 
-/** Names of functions (declarations and function/arrow bindings) a test defines at any depth. */
+/**
+ * Names a test defines: functions (declarations and function/arrow bindings)
+ * at any depth, and top-level constants whose value is an array, object or
+ * regex literal written in the test (a hand-made CATALOG or LANG_HINTS table).
+ * A constant taken from a module (require(), mod._test.x) or holding a path
+ * is not a definition.
+ */
 function definedFunctions(text) {
     const re = /(?:^|\n)[ \t]*(?:async\s+)?function\s+(\w+)\s*\(|(?:^|\n)[ \t]*(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>|\w+\s*=>)/g;
-    return new Set([...text.matchAll(re)].map(m => m[1] || m[2]));
+    const names = new Set([...text.matchAll(re)].map(m => m[1] || m[2]));
+    for (const m of text.matchAll(/(?:^|\n)(?:const|let|var)\s+(\w+)\s*=\s*(\[|\{|\/(?![/*]))/g)) { names.add(m[1]); }
+    return names;
 }
 
-/** Every src module: rel path (no extension) -> exported function/const/class names. */
+/**
+ * Every src module: rel path (no extension) -> exported function/const/class
+ * names, and the members of its _test handle, which are exports too: a test
+ * reaches them through it (#823: REG-030 copied five of readme-compliance's).
+ */
 function srcExports() {
     const map = new Map();
     (function walk(dir) {
@@ -104,18 +126,25 @@ function srcExports() {
             const rel  = path.relative(SRC, full).split(path.sep).join('/').replace(/\.ts$/, '');
             const text = fs.readFileSync(full, 'utf8');
             const names = [...text.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+(\w+)/gm)].map(m => m[1]);
-            map.set(rel, names);
+            const handle = text.match(/^export\s+const\s+_test\b[^=]*=\s*\{([\s\S]*?)^\};?/m);
+            if (handle) { names.push(...[...handle[1].matchAll(/^\s*(\w+)\s*(?:[,:]|$)/gm)].map(m => m[1])); }
+            map.set(rel, [...new Set(names)]);
         }
     })(SRC);
     return map;
 }
 
-/** Modules a test names: by name, by '<basename>.ts', or by build path. */
+/**
+ * Modules a test names: by name, by '<basename>.ts', by build path, or, for a
+ * module inside a feature folder, by the folder's name (cvs-command-launcher).
+ */
 function modulesMentioned(fileName, text, exportsMap) {
     const t = normalise(text);
     const out = new Set(modulesNamedBy(fileName));
     for (const rel of exportsMap.keys()) {
-        const base = rel.split('/').pop();
+        const parts = rel.split('/');
+        const base  = parts[parts.length - 1];
+        if (parts.length === 3 && new RegExp(`(?<![\\w-])${parts[1]}(?![\\w-])`).test(t)) { out.add(rel); }
         if (base === 'index' || base === 'types') { continue; }
         if (t.includes(`${base}.ts`) || new RegExp(buildPathRe(rel)).test(t)) { out.add(rel); }
     }
@@ -175,27 +204,73 @@ check('self-check: require(path.join(..., segments)) counts as loading it',
 check('self-check: a real require is not reported as a copy',
     copiedExports(NAME, loadsIt, EXPORTS).length === 0);
 
-// ── The unit tests ───────────────────────────────────────────────────────────
-const files = fs.readdirSync(UNIT).filter(f => /\.test\.(js|ts)$/.test(f)).sort();
-check('tests/unit/ has test files to check', files.length > 0);
+// The shapes #823 found outside tests/unit/, as they were.
+const homePageCopy = [
+    '// Simulate the grouping and prefix-stripping logic from home-page.ts',
+    'const commandLabel = (title) => title.slice(title.indexOf(":") + 1).trim();',
+].join('\n');
+const oldLauncherCoverage = [
+    ' * Tests that the cvs-command-launcher properly includes and searches',
+    "const CATALOG = [ { id: 'cvs.audit.testCoverage', tags: ['test'] } ];",
+    'function searchCatalog(query) { return CATALOG; }',
+].join('\n');
+const oldReadmeCompliance = [
+    '// Inline copies of helpers from feature.ts',
+    "function normalizeHeading(h) { return h.toLowerCase(); }",
+    'const LANG_HINTS = [',
+    "  [/^def /m, 'python'],",
+    '];',
+].join('\n');
+check('self-check: a top-level test with its own copy of home-page.ts commandLabel is caught',
+    copiedExports('home-page-prefix-strip.test.js', homePageCopy, EXPORTS).includes('features/home-page:commandLabel'),
+    JSON.stringify(copiedExports('home-page-prefix-strip.test.js', homePageCopy, EXPORTS)));
+check('self-check: a regression test name is read past its REG-NNN- prefix',
+    modulesNamedBy('REG-999-home-page.test.js').includes('features/home-page'));
+check('self-check: a hand-written copy of an exported constant is caught (launcher CATALOG)',
+    copiedExports('launcher-test-coverage.test.js', oldLauncherCoverage, EXPORTS).includes('features/cvs-command-launcher/catalog:CATALOG'),
+    JSON.stringify(copiedExports('launcher-test-coverage.test.js', oldLauncherCoverage, EXPORTS)));
+check('self-check: a copy of a _test handle member is caught (REG-030 normalizeHeading, LANG_HINTS)',
+    ['normalizeHeading', 'LANG_HINTS'].every(n => copiedExports('REG-030-readme-compliance-smart-fixer.test.js', oldReadmeCompliance, EXPORTS)
+        .includes(`features/readme-compliance/feature:${n}`)),
+    JSON.stringify(copiedExports('REG-030-readme-compliance-smart-fixer.test.js', oldReadmeCompliance, EXPORTS)));
+check('self-check: a constant taken from require() is not a copy',
+    !definedFunctions("const CATALOG = require(CATALOG_JS).CATALOG;").has('CATALOG'));
+
+// ── The tests ────────────────────────────────────────────────────────────────
+// Rule 2 (no copy) holds every test directory the runners run: #819 held
+// tests/unit/, and #823 found the same shape in five tests outside it.
+// Rule 1 (a test named after a module loads it) holds tests/unit/ only: the
+// top-level and regression tests named after a module include source-text
+// checks (reading a .ts file for a pattern), which are not copies of it.
+const DIRS = [
+    { label: 'tests/unit/',       dir: UNIT,                                    mustLoad: true  },
+    { label: 'tests/*.test.js',   dir: path.join(ROOT, 'tests'),                mustLoad: false },
+    { label: 'tests/regression/', dir: path.join(ROOT, 'tests', 'regression'),  mustLoad: false },
+];
+const SELF = path.basename(__filename);
 
 const notLoading = [];
 const copies     = [];
 let named = 0;
-for (const f of files) {
-    const text = fs.readFileSync(path.join(UNIT, f), 'utf8');
-    const mods = modulesNamedBy(f);
-    if (mods.length) {
-        named++;
-        if (!mods.some(m => requiresModule(text, m))) { notLoading.push(`${f} (names ${mods.join(', ')})`); }
+for (const { label, dir, mustLoad } of DIRS) {
+    const files = fs.readdirSync(dir).filter(f => /\.test\.(js|ts)$/.test(f) && f !== SELF).sort();
+    check(`${label} has test files to check`, files.length > 0);
+    const rel = path.relative(ROOT, dir).split(path.sep).join('/');
+    for (const f of files) {
+        const text = fs.readFileSync(path.join(dir, f), 'utf8');
+        const mods = mustLoad ? modulesNamedBy(f) : [];
+        if (mods.length) {
+            named++;
+            if (!mods.some(m => requiresModule(text, m))) { notLoading.push(`${rel}/${f} (names ${mods.join(', ')})`); }
+        }
+        for (const hit of copiedExports(f, text, EXPORTS)) { copies.push(`${rel}/${f} defines ${hit}`); }
     }
-    for (const hit of copiedExports(f, text, EXPORTS)) { copies.push(`${f} defines ${hit}`); }
 }
 
 check(`every unit test named after a src module loads it (${named} named)`, notLoading.length === 0,
     'does not require its module from out-test/ or out/:\n       ' + notLoading.join('\n       '));
-check('no unit test defines its own copy of an export of a module it names', copies.length === 0,
-    copies.join('\n       '));
+check('no test in tests/unit/, tests/*.test.js or tests/regression/ defines its own copy of an export of a module it names',
+    copies.length === 0, copies.join('\n       '));
 
 console.log('-'.repeat(64));
 console.log(`${passed} passed, ${failed} failed`);
