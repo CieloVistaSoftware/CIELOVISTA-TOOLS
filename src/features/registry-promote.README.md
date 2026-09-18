@@ -95,17 +95,30 @@ delegated. Since #696 the same logic is reachable over MCP:
 - `package.json` — command contribution and Explorer context menu entry.
 
 ---
-└── TODO: describe call flow
+
+## Internal architecture
+
+```text
+activate()
+  └── TODO: describe call flow
+```
+
+---
+
+## Manual test
+
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
+
+---
 docid: 150.1.registry-promote-readme
 id: registry-promote
 title: registry-promote
 project: cielovista-tools
 description: Register a folder as a CieloVista product. One-click alternative to hand-editing project-registry.json.
 status: active
-tags: [cvs.registry.demote, cvs.registry.promote, promote, readme, registry]
+tags: [registry, promote, readme]
 category: 150.1 — Components / Features
 created: 2026-04-22
 updated: 2026-04-27
