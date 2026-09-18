@@ -88,15 +88,31 @@ const ORDERED_ITEM = /^(\d{1,9})\. .+$/;
 export function mdToHtml(input: string): string {
     const lines  = input.split('\n').map(l => l.replace(/\r$/, ''));
     const { block: fmBlock, startAt } = parseFrontmatter(lines);
+    const { blocks } = renderBlocks(lines.slice(startAt), new Map<string, number>());
     const out: string[] = fmBlock ? [fmBlock] : [];
-    const headingIds = new Map<string, number>();
-    let i = startAt;
+    return out.concat(blocks.map(b => b.html)).join('\n');
+}
+
+/** One rendered block; `paragraph` marks a <p>, which a one-paragraph quote unwraps. */
+interface Block { html: string; paragraph: boolean; }
+
+/**
+ * Render a sequence of lines (a whole document after its front matter, or
+ * the inside of a blockquote) with every block rule. `openParagraph` is true
+ * when the last line was paragraph text, so a following plain line could
+ * still continue it; a blockquote uses that for lazy continuation (#785).
+ */
+function renderBlocks(lines: string[], headingIds: Map<string, number>): { blocks: Block[]; openParagraph: boolean } {
+    const out: Block[] = [];
+    let openParagraph = false;
+    const push = (html: string, paragraph = false): void => { out.push({ html, paragraph }); openParagraph = false; };
+    let i = 0;
 
     while (i < lines.length) {
         const line = lines[i];
 
         // ── HTML comment lines — invisible metadata, skip rendering ────────────
-        if (/^\s*<!--[\s\S]*?-->\s*$/.test(line)) { i++; continue; }
+        if (/^\s*<!--[\s\S]*?-->\s*$/.test(line)) { i++; openParagraph = false; continue; }
 
         // ── Fenced code blocks ────────────────────────────────────────────────
         const fenceMatch = line.match(/^(`{3,}|~{3,})(\w*).*$/);
@@ -112,7 +128,7 @@ export function mdToHtml(input: string): string {
             const rawCode    = codeLines.join('\n');
             const highlighted = highlightCode(rawCode, lang);
             const langClass  = lang ? ` class="language-${esc(lang)}"` : '';
-            out.push(`<pre><code${langClass}>${highlighted}</code></pre>`);
+            push(`<pre><code${langClass}>${highlighted}</code></pre>`);
             i++; // skip closing fence
             continue;
         }
@@ -125,24 +141,24 @@ export function mdToHtml(input: string): string {
                 i++;
             }
             if (tableLines.length >= 2 && /^\|[\s\-:|]+\|$/.test(tableLines[1])) {
-                const alignments = tableLines[1].split('|').slice(1,-1).map(c => {
+                const alignments = tableCells(tableLines[1]).map(c => {
                     const t = c.trim();
                     if (/^:-+:$/.test(t)) { return ' style="text-align:center"'; }
                     if (/^-+:$/.test(t))  { return ' style="text-align:right"'; }
                     return '';
                 });
-                const headerCells = tableLines[0].split('|').slice(1,-1).map((c, ci) =>
+                const headerCells = tableCells(tableLines[0]).map((c, ci) =>
                     `<th${alignments[ci] ?? ''}>${inlineMarkdown(esc(c.trim()))}</th>`
                 ).join('');
                 const bodyRows = tableLines.slice(2).map(row => {
-                    const cells = row.split('|').slice(1,-1).map((c, ci) =>
+                    const cells = tableCells(row).map((c, ci) =>
                         `<td${alignments[ci] ?? ''}>${inlineMarkdown(esc(c.trim()))}</td>`
                     ).join('');
                     return `<tr>${cells}</tr>`;
                 }).join('');
-                out.push(`<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`);
+                push(`<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`);
             } else {
-                tableLines.forEach(l => out.push(`<p>${inlineMarkdown(esc(l))}</p>`));
+                tableLines.forEach(l => push(`<p>${inlineMarkdown(esc(l))}</p>`, true));
             }
             continue;
         }
@@ -152,30 +168,49 @@ export function mdToHtml(input: string): string {
         if (heading) {
             const level = heading[1].length;
             const id = getUniqueHeadingId(heading[2], headingIds);
-            out.push(`<h${level} id="${id}">${inlineMarkdown(esc(heading[2]))}</h${level}>`);
+            push(`<h${level} id="${id}">${inlineMarkdown(esc(heading[2]))}</h${level}>`);
             i++;
             continue;
         }
 
         // ── Horizontal rule ───────────────────────────────────────────────────
-        if (/^---+$/.test(line.trim())) { out.push('<hr>'); i++; continue; }
+        if (/^---+$/.test(line.trim())) { push('<hr>'); i++; continue; }
 
         // ── Blockquote ────────────────────────────────────────────────────────
         // CommonMark: each line is ">" optionally followed by one space. The
         // consecutive lines form one quote; a line that is only ">" is a blank
         // line inside it and separates its paragraphs (#773).
+        // The quote's inside, markers stripped, is rendered by this same
+        // function, so a list, heading, fence, rule, table or nested quote
+        // inside a quote is that block (#785). A plain line with no ">" right
+        // after quoted paragraph text is a lazy continuation line: it joins
+        // that paragraph, inside the quote (#785). A line that would start a
+        // block, or a blank line, still ends the quote.
         if (BLOCKQUOTE.test(line)) {
-            const paras: string[][] = [[]];
-            while (i < lines.length && BLOCKQUOTE.test(lines[i])) {
-                const content = lines[i].replace(BLOCKQUOTE, '$1');
-                if (content.trim() === '') { paras.push([]); }
-                else { paras[paras.length - 1].push(inlineMarkdown(esc(content))); }
+            const inner: string[] = [];
+            let open: boolean | undefined;   // is a paragraph open at the end of `inner`?
+            while (i < lines.length) {
+                const l = lines[i];
+                if (BLOCKQUOTE.test(l)) {
+                    inner.push(l.replace(BLOCKQUOTE, '$1'));
+                    open = undefined;
+                    i++;
+                    continue;
+                }
+                if (l.trim() === '' || startsBlock(l)) { break; }
+                // Probe with a scratch id map so the probe cannot use up heading ids.
+                if (open === undefined) { open = renderBlocks(inner, new Map<string, number>()).openParagraph; }
+                if (!open) { break; }
+                inner.push(l);   // a lazy line keeps the paragraph open
                 i++;
             }
-            const filled = paras.filter(p => p.length > 0).map(p => p.join('<br>'));
+            const quote = renderBlocks(inner, headingIds);
             // One paragraph keeps the renderer's original <blockquote>text</blockquote> form.
-            const body = filled.length === 1 ? filled[0] : filled.map(p => `<p>${p}</p>`).join('');
-            out.push(`<blockquote>${body}</blockquote>`);
+            const body = quote.blocks.length === 1 && quote.blocks[0].paragraph
+                ? quote.blocks[0].html.slice('<p>'.length, -'</p>'.length)
+                : quote.blocks.map(b => b.html).join('');
+            push(`<blockquote>${body}</blockquote>`);
+            openParagraph = quote.openParagraph;
             continue;
         }
 
@@ -196,12 +231,12 @@ export function mdToHtml(input: string): string {
                 const content = l.replace(/^(?:[*+\-]|\d{1,9}\.) /, '');
                 return `<li>${inlineMarkdown(esc(content))}</li>`;
             }).join('');
-            out.push(`<${tag}${start}>${items}</${tag}>`);
+            push(`<${tag}${start}>${items}</${tag}>`);
             continue;
         }
 
         // ── Blank line ────────────────────────────────────────────────────────
-        if (line.trim() === '') { i++; continue; }
+        if (line.trim() === '') { i++; openParagraph = false; continue; }
 
         // ── Paragraph ─────────────────────────────────────────────────────────
         // This line has already failed every block rule above, so it always
@@ -215,10 +250,20 @@ export function mdToHtml(input: string): string {
             paraLines.push(lines[i]);
             i++;
         }
-        out.push(`<p>${paraLines.map(l => inlineMarkdown(esc(l))).join('<br>')}</p>`);
+        push(`<p>${paraLines.map(l => inlineMarkdown(esc(l))).join('<br>')}</p>`, true);
+        openParagraph = true;
     }
 
-    return out.join('\n');
+    return { blocks: out, openParagraph };
+}
+
+/**
+ * The cells of a table row, split at every "|" that is not backslash-escaped
+ * (GFM), without the outer pipes. An escaped "\|" in a cell is a literal pipe,
+ * inside a code span too, so it is unescaped here before inline rendering.
+ */
+function tableCells(row: string): string[] {
+    return row.split(/(?<!\\)\|/).slice(1, -1).map(c => c.replace(/\\\|/g, '|'));
 }
 
 /**
@@ -322,12 +367,56 @@ function inlineMarkdown(s: string): string {
     // The placeholder delimiters are private-use characters; one already in
     // the text is emitted as its numeric reference so it cannot pose as a token.
     let t = s.replace(/[]/g, c => `&#${c.charCodeAt(0)};`);
-    t = t.replace(/`([^`]+)`/g, (source: string, code: string) =>
-        hold({ html: `<code>${code}</code>`, source, text: code }));
+    t = holdCodeAndEscapes(t, hold);
     // Images first, so a badge [![alt](img.svg)](url) becomes a linked image.
     t = replaceLinks(t, true, held, hold);
     t = replaceLinks(t, false, held, hold);
     return expand(emphasis(t), held, 'html');
+}
+
+// A backslash escape (#785): a backslash before any ASCII punctuation character
+// makes that character literal, so it can never start emphasis, a link, a
+// code span or anything else. The input has been through esc(), so the
+// escapable < > & arrive as the entities &lt; &gt; &amp;. A backslash before
+// anything else (a letter, a space, a Windows path's next folder) stays.
+const ESCAPED = /\\(&lt;|&gt;|&amp;|[!-/:-@[-`{-~])/y;
+
+/**
+ * Hold every code span and every backslash escape, scanning left to right as
+ * CommonMark does, so each one decides the other: an escaped backtick opens
+ * no code span, and inside a code span a backslash is just a backslash.
+ * A code span is a backtick, at least one other character, and the next
+ * backtick (the renderer's rule since the start). An escaped character is
+ * held as itself, and its `source` is the character too: CommonMark applies
+ * escapes inside a link destination and title, so that is the value an
+ * attribute gets.
+ */
+function holdCodeAndEscapes(s: string, hold: (h: Held) => string): string {
+    let out = '';
+    let i = 0;
+    while (i < s.length) {
+        const c = s[i];
+        if (c === '\\') {
+            ESCAPED.lastIndex = i;
+            const m = ESCAPED.exec(s);
+            if (m) {
+                out += hold({ html: m[1], source: m[1], text: m[1] });
+                i += m[0].length;
+                continue;
+            }
+        } else if (c === '`') {
+            const close = s.indexOf('`', i + 1);
+            if (close > i + 1) {
+                const code = s.slice(i + 1, close);
+                out += hold({ html: `<code>${code}</code>`, source: s.slice(i, close + 1), text: code });
+                i = close + 1;
+                continue;
+            }
+        }
+        out += c;
+        i++;
+    }
+    return out;
 }
 
 // ── Inline links and images ───────────────────────────────────────────────────
