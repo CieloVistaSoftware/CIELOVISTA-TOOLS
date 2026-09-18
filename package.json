@@ -35,7 +35,7 @@
     "clean:project": "node scripts/clean-project.js",
     "clean:project:apply": "node scripts/clean-project.js --apply",
     "docs:sync": "node scripts/docs-sync.js && node scripts/docs-site.js",
-    "docs:check": "node scripts/docs-sync.js --check && node scripts/docs-site.js --check",
+    "docs:check": "node scripts/docs-sync.js --check && node scripts/docs-site.js --check && node scripts/generate-marketplace-features.js --check && node scripts/sync-doc-versions.js --check",
     "docs:generate": "node scripts/generate-feature-docs.js",
     "docs:marketplace": "node scripts/generate-marketplace-features.js",
     "docs:sync-versions": "node scripts/sync-doc-versions.js",
