@@ -48,7 +48,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
             logError(...args) { loggedErrors.push(args); }
         };
     }
-    if (request.includes('terminal-copy-output')) {
+    if (request.includes('shared/copilot-chat')) {
         return {
             sendToCopilotChat: async (value) => {
                 if (sendBehavior === 'throw') {

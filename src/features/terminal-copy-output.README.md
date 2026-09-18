@@ -34,7 +34,7 @@ copyTerminalOutput(opts)
   ├── sanitisation pipeline             — strip terminal noise (see below)
   ├── formatAsMarkdown?                 — wrap in ```bash``` fencing
   └── pasteToChat?
-      └── sendToCopilotChat(content)
+      └── sendToCopilotChat(content)          — from src/shared/copilot-chat.ts
           ├── Strategy 1: chat.open({ query, mode })   — structured payload
           ├── Strategy 2: chat.open(string)            — raw string compat
           └── Strategy 3: copilot.chat.focus + clipboard — manual Ctrl+V

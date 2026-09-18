@@ -14,7 +14,7 @@ import { mergeFiles, moveToGlobal, deleteDoc, diffFiles } from './actions';
 import { saveAuditReport, parseReportActions, getReportDir, reportFileName } from './report';
 import { walkThroughFindings } from './walkthrough';
 import { collectDocs } from './scanner';
-import { sendToCopilotChat } from '../terminal-copy-output';
+import { sendToCopilotChat } from '../../shared/copilot-chat';
 import type { DocFile } from './types';
 
 const FEATURE = 'doc-auditor';

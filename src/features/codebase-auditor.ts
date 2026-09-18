@@ -26,7 +26,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
-import { sendToCopilotChat } from './terminal-copy-output';
+import { sendToCopilotChat } from '../shared/copilot-chat';
 import { esc } from '../shared/webview-utils';
 
 const FEATURE      = 'codebase-auditor';
