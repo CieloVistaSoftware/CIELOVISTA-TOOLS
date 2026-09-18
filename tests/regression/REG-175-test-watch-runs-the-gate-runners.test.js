@@ -15,8 +15,9 @@
 // the per-result lines they print. This test holds it to that:
 //   1. The source names no test file and never runs node on a test file.
 //   2. The full suite and a changed-file run both go through the runners.
-//   3. Its parser reads the real unit runner's output for a real test file,
-//      and counts a runner's missing-artifact failure line as a failure.
+//   3. Its parser reads the real unit runner's output, run in a sealed temp
+//      copy so it never rebuilds the repo's out-test/ mid-suite (#820), and
+//      counts a runner's missing-artifact failure line as a failure.
 
 'use strict';
 
@@ -80,14 +81,64 @@ if (typeof parseRunnerOutput === 'function') {
         byName['REG-002: Errors are logged with their stack'].ok === false);
     check('a pass line is a pass', byName['doc-header.test.js'] && byName['doc-header.test.js'].ok === true);
 
-    // The real unit runner, on one real, fast test file
-    const target = 'tests/unit/doc-header.test.js';
-    const run = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'run-unit-tests.js'), target],
-        { cwd: ROOT, encoding: 'utf8', timeout: 300000 });
-    const real = typeof verdictOfExplicitRun === 'function' ? verdictOfExplicitRun((run.stdout || '') + (run.stderr || '')) : [];
-    check(`the runner's verdict on ${target} is read from its own line, not the test's case lines`,
-        run.status === 0 && real.length === 1 && real[0].ok && real[0].name === 'doc-header.test.js',
-        `exit ${run.status}; parsed ${JSON.stringify(real.map(r => [r.name, r.ok]))}`);
+    // The real unit runner, run in a sealed temp copy (#820). Running it in the
+    // repo rebuilt out-test/ while the rest of the concurrent regression suite
+    // was reading it, and other REG tests failed on missing modules. The copy
+    // has its own fixture tests and stub builds, so nothing shared is touched.
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reg175-'));
+    try {
+        const put = (rel, body) => {
+            const f = path.join(tmp, ...rel.split('/'));
+            fs.mkdirSync(path.dirname(f), { recursive: true });
+            fs.writeFileSync(f, body);
+            return f;
+        };
+        put('package.json', JSON.stringify({ scripts: {} }));
+        put('scripts/run-unit-tests.js', fs.readFileSync(path.join(ROOT, 'scripts', 'run-unit-tests.js')));
+        put('scripts/lib/missing-artifact.js', fs.readFileSync(path.join(ROOT, 'scripts', 'lib', 'missing-artifact.js')));
+        put('scripts/build-test-modules.mjs', "console.log('stub build-test-modules');\n");
+        // The shipped build counts as current when its outputs are newer than its inputs.
+        const inputs = [put('esbuild.mjs', '// stub\n'), put('src/x.ts', ''), put('mcp-server/src/x.ts', '')];
+        const outputs = [put('out/extension.js', ''), put('mcp-server/dist/index.js', '')];
+        const past = new Date(Date.now() - 3600_000);
+        for (const f of inputs) { fs.utimesSync(f, past, past); }
+        fs.rmSync(path.join(tmp, 'src', 'x.ts')); fs.rmSync(path.join(tmp, 'mcp-server', 'src', 'x.ts'));
+        for (const d of ['src', path.join('mcp-server', 'src')]) { fs.utimesSync(path.join(tmp, d), past, past); }
+        for (const f of outputs) { fs.utimesSync(f, new Date(), new Date()); }
+
+        // A passing test that prints its own case lines, and one that skips for a missing artifact.
+        put('tests/unit/sample.test.js', "console.log('  \u2713 first case');\nconsole.log('  \u2713 second case');\nconsole.log('All 2 tests passed');\n");
+        put('tests/unit/skipper.test.js', "console.log('SKIP: out-test/shared/x.js not compiled');\n");
+
+        const runOne = rel => {
+            const r = cp.spawnSync(process.execPath, [path.join(tmp, 'scripts', 'run-unit-tests.js'), rel],
+                { cwd: tmp, encoding: 'utf8', timeout: 60000 });
+            return { status: r.status, out: (r.stdout || '') + (r.stderr || '') };
+        };
+        const pass = runOne('tests/unit/sample.test.js');
+        const passVerdict = typeof verdictOfExplicitRun === 'function' ? verdictOfExplicitRun(pass.out) : [];
+        check(`the runner's verdict on a passing file is read from its own line, not the test's case lines`,
+            pass.status === 0 && passVerdict.length === 1 && passVerdict[0].ok && passVerdict[0].name === 'sample.test.js',
+            `exit ${pass.status}; parsed ${JSON.stringify(passVerdict.map(r => [r.name, r.ok]))}\n${pass.out.slice(-400)}`);
+
+        const skip = runOne('tests/unit/skipper.test.js');
+        const skipVerdict = typeof verdictOfExplicitRun === 'function' ? verdictOfExplicitRun(skip.out) : [];
+        check('a file that skips for a missing artifact reads as a failure through the real runner',
+            skip.status !== 0 && skipVerdict.length === 1 && !skipVerdict[0].ok && skipVerdict[0].name === 'skipper.test.js',
+            `exit ${skip.status}; parsed ${JSON.stringify(skipVerdict.map(r => [r.name, r.ok]))}`);
+
+        const full = cp.spawnSync(process.execPath, [path.join(tmp, 'scripts', 'run-unit-tests.js')],
+            { cwd: tmp, encoding: 'utf8', timeout: 60000 });
+        const fullParsed = parseRunnerOutput((full.stdout || '') + (full.stderr || ''));
+        check('a full run parses to one result per file: the pass and the skip',
+            fullParsed.length === 2 && fullParsed.filter(r => r.ok).length === 1,
+            `parsed ${JSON.stringify(fullParsed.map(r => [r.name, r.ok]))}`);
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+    check('REG-175 never runs a runner inside the repo (it would rebuild out-test/ mid-suite, #820)',
+        !/spawnSync\(process\.execPath,\s*\[path\.join\(ROOT,\s*'scripts'/.test(fs.readFileSync(__filename, 'utf8')));
 }
 
 console.log(`\n${passed + failed} checks — ${passed} passed, ${failed} failed`);
