@@ -367,22 +367,104 @@ if (trailerCount) {
 //   features.md linked 52 of 53 feature modules, missing 11 outright.
 //   Four .README.md files documented features whose code had been deleted.
 
-const FEATURES_DIR = path.join(ROOT, 'src', 'features');
-const featureIds = listDir(FEATURES_DIR)
-    .filter(e => e.isFile() && e.name.endsWith('.ts') && !e.name.endsWith('.d.ts'))
-    .map(e => path.basename(e.name, '.ts'));
+const FEATURES_DIR   = path.join(ROOT, 'src', 'features');
+const EXTENSION_TS   = path.join(ROOT, 'src', 'extension.ts');
+
+/** Shipped content folders under src/features/, never modules (see checkOrphanReadmes). */
+const NOT_MODULE_DOCS = new Set(['CommandHelp', 'image-reader-assets']);
+
+/**
+ * WHAT IS A FEATURE (#755)
+ *
+ * A feature is a top-level module under src/features/ that src/extension.ts
+ * imports. extension.ts is wiring only: importing a feature there is the one
+ * and only way it gets activated, so the import list IS the feature list.
+ *
+ * The module may be a single file (src/features/<id>.ts) or a folder
+ * (src/features/<id>/ with index.ts). The id is the first path segment after
+ * ./features/, so './features/doc-catalog/index' and
+ * './features/cvs-command-launcher/command-history' both mean one feature each,
+ * and readme-compliance -- which has both readme-compliance.ts (a shim) and
+ * readme-compliance/ -- is listed once.
+ *
+ * Deriving the list from the directory instead is how it went wrong twice:
+ * listing only flat *.ts left out every folder feature (doc-catalog, doc-header,
+ * mcp-viewer, github-issues ...), and listing every *.ts would count a module
+ * that nothing activates as a feature the user can use. A folder or file under
+ * src/features/ that extension.ts does not import is a helper or dead code, not
+ * a feature, and is not listed.
+ */
+function wiredFeatures() {
+    const source = fs.readFileSync(EXTENSION_TS, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')          // block comments
+        .replace(/^\s*\/\/.*$/gm, '');              // line comments
+    const byId = new Map();
+    for (const m of source.matchAll(/\bfrom\s+['"]\.\/features\/([^'"]+)['"]/g)) {
+        const spec = m[1];
+        const id   = spec.split('/')[0];
+        if (NOT_MODULE_DOCS.has(id)) { continue; }
+        const isFolder = spec.includes('/') || !fs.existsSync(path.join(FEATURES_DIR, `${id}.ts`));
+        const prev = byId.get(id);
+        // A folder import wins: './features/x/index' means x/ is the module even
+        // when a compatibility x.ts sits beside it.
+        byId.set(id, { id, isFolder: isFolder || (prev ? prev.isFolder : false) });
+    }
+    return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+const features   = wiredFeatures();
+const featureIds = features.map(f => f.id);
+
+if (!features.length) {
+    problems.push('src/extension.ts: no ./features/ imports found — the feature catalogue would be empty');
+}
+for (const f of features) {
+    const onDisk = f.isFolder
+        ? fs.existsSync(path.join(FEATURES_DIR, f.id, 'index.ts'))
+        : fs.existsSync(path.join(FEATURES_DIR, `${f.id}.ts`));
+    if (!onDisk) {
+        problems.push(`src/extension.ts: imports feature "${f.id}", but src/features/`
+            + `${f.isFolder ? `${f.id}/index.ts` : `${f.id}.ts`} does not exist`);
+    }
+}
+
+/** The README beside the module extension.ts imports; the other form as a fallback. */
+function featureReadme(f) {
+    const folder = path.join(FEATURES_DIR, f.id, 'README.md');
+    const flat   = path.join(FEATURES_DIR, `${f.id}.README.md`);
+    for (const candidate of f.isFolder ? [folder, flat] : [flat, folder]) {
+        if (fs.existsSync(candidate)) { return candidate; }
+    }
+    return null;
+}
+
+/** Where a feature's line must point, as a path relative to the repo root. */
+function featureTarget(f) {
+    const readme = featureReadme(f);
+    if (readme) { return path.relative(ROOT, readme).split(path.sep).join('/'); }
+    return f.isFolder ? `src/features/${f.id}/` : `src/features/${f.id}.ts`;
+}
+
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 const featuresDoc = docs.find(d => d.id === 'features');
 if (featuresDoc) {
     const text = fs.readFileSync(path.join(ROOT, featuresDoc.path), 'utf8');
-    // When the catalogue is generated, completeness is guaranteed by construction
-    // and this check would fire on the pre-write content -- crying wolf on a run
-    // that is about to fix it. It stays as a guard for the case where someone
-    // removes the markers and goes back to hand-maintaining the list.
-    const missing = text.includes(BEGIN_MARKER) ? [] : featureIds.filter(id => !text.includes(id));
+    // A feature counts as documented only when the catalogue names ITS target.
+    // A bare substring test on the id passed doc-header because doc-header-scan
+    // was listed, which is how a missing feature can hide behind a longer name.
+    //
+    // When the catalogue is generated and this run is about to write it,
+    // completeness is guaranteed by construction and checking the pre-write
+    // content would cry wolf. Under --check nothing is written, so the committed
+    // file is what ships and it is checked, naming each missing feature. Without
+    // markers the list is hand-maintained and is always checked.
+    const generated = text.includes(BEGIN_MARKER);
+    const missing = (generated && !CHECK_ONLY) ? [] : features.filter(f =>
+        !new RegExp(`(^|[/(\`\\s])${escapeRegExp(featureTarget(f))}($|[)\`\\s])`, 'm').test(text));
     if (missing.length) {
-        problems.push(`${featuresDoc.path}: ${missing.length} feature(s) in src/features/ are not `
-            + `documented here — ${missing.join(', ')}`);
+        problems.push(`${featuresDoc.path}: ${missing.length} feature(s) activated by src/extension.ts `
+            + `are not in the catalogue — ${missing.map(f => f.id).join(', ')}`);
     }
 }
 
@@ -400,7 +482,7 @@ if (featuresDoc) {
 // doc-catalog/scanner.ts, doc-header-scan.ts, doc-intelligence/scanner.ts,
 // docs-broken-refs.ts and readme-compliance (feature + scanner). A new check
 // that contradicts five existing ones is the new check being wrong.
-const NOT_MODULE_DOCS = new Set(['CommandHelp', 'image-reader-assets']);
+// (NOT_MODULE_DOCS itself is declared above the feature list, which uses it too.)
 
 (function checkOrphanReadmes(dir) {
     for (const entry of listDir(dir)) {
@@ -460,32 +542,37 @@ const featureWrites = [];
  * It had drifted to 52 of 53 modules with 11 features missing outright, and
  * still linked two READMEs whose code had been deleted. A hand-written list of
  * 53 entries cannot stay correct; the only version that does is one nobody
- * types. Titles come from each README's first heading so the wording stays
- * owned by the feature, not by this script.
+ * types. The title and description come from the README's own three-field
+ * header (falling back to its first heading) so the wording stays owned by the
+ * feature, not by this script. Which modules count is wiredFeatures() above.
  */
-function featureTitle(id) {
-    for (const candidate of [
-        path.join(FEATURES_DIR, `${id}.README.md`),
-        path.join(FEATURES_DIR, id, 'README.md'),
-    ]) {
-        try {
-            const heading = fs.readFileSync(candidate, 'utf8').match(/^#\s+(.+)$/m);
-            if (heading) { return heading[1].replace(/^Feature:\s*/i, '').trim(); }
-        } catch { /* no README — fall through */ }
-    }
-    return id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+function featureSummary(f) {
+    const readme = featureReadme(f);
+    const fallback = f.id.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    if (!readme) { return { title: fallback, description: '' }; }
+    const text = fs.readFileSync(readme, 'utf8');
+    const { fields, body } = readFrontmatter(text);
+    const heading = body.match(/^#\s+(.+)$/m);
+    const raw = fields.title || (heading ? heading[1] : '') || fallback;
+    return {
+        title:       raw.replace(/^Feature:\s*/i, '').trim() || fallback,
+        description: (fields.description || '').trim(),
+    };
 }
 
 function renderFeatureBlock() {
     const lines = [BEGIN_MARKER, ''];
-    for (const id of [...featureIds].sort()) {
-        const readme = fs.existsSync(path.join(FEATURES_DIR, `${id}.README.md`))
-            ? `../../src/features/${id}.README.md`
-            : fs.existsSync(path.join(FEATURES_DIR, id, 'README.md'))
-                ? `../../src/features/${id}/README.md`
-                : null;
-        const label = featureTitle(id);
-        lines.push(readme ? `- [${label}](${readme})` : `- ${label} — \`src/features/${id}.ts\` (no README yet)`);
+    const hrefBase = featuresDoc ? path.dirname(path.join(ROOT, featuresDoc.path)) : DOCS_DIR;
+    for (const f of features) {
+        const readme = featureReadme(f);
+        const { title, description } = featureSummary(f);
+        const tail = description ? ` — ${description}` : '';
+        if (readme) {
+            const href = path.relative(hrefBase, readme).split(path.sep).join('/');
+            lines.push(`- [${title}](${href})${tail}`);
+        } else {
+            lines.push(`- ${title} — \`${featureTarget(f)}\` (no README yet)`);
+        }
     }
     lines.push('', END_MARKER);
     return lines.join('\n');
