@@ -24,6 +24,13 @@
  *    that as a pass. This runner reads the output: exit 0 plus a
  *    missing-artifact skip line fails the file.
  *
+ * 3. One run per checkout at a time (#818). A second run's build deletes
+ *    out-test/ while this run's tests load it, and they report false "not
+ *    compiled" failures. The run takes scripts/lib/test-run-lock.js before it
+ *    builds; a second run waits ("waiting for pid N"). A runner started
+ *    inside the run that holds the lock (npm run rebuild, or a test that runs
+ *    this runner) goes straight through, and skips a build its holder did.
+ *
  * Every file in tests/unit/ and every *.test.js directly under tests/ runs.
  * There is no list to keep in sync; a list is how most of these tests fell out
  * of every gate in the first place. The top-level files were in no gate at
@@ -61,6 +68,7 @@ const TIMEOUT  = 180000;
 const WORKERS  = Math.max(2, Math.min(8, os.cpus().length - 1));
 
 const { skippedForMissingArtifact } = require('./lib/missing-artifact');
+const { acquireTestRunLock, TestRunLockTimeout } = require('./lib/test-run-lock');
 
 /**
  * Unit tests that `npm run rebuild` already runs as their own step, mapped to
@@ -156,27 +164,30 @@ function shippedBuildIsCurrent() {
     return SHIPPED_INPUTS.every(input => newestMtime(input) <= oldestOutput);
 }
 
-if (shippedBuildIsCurrent()) {
-    console.log('  out/ and mcp-server/dist/ are newer than their sources: left as built');
-} else {
-    const shipped = cp.spawnSync(process.execPath, [path.join(ROOT, 'esbuild.mjs')],
+/** Build out/ (when stale) and out-test/ (always). Exits the process on a build failure. */
+function buildTestInputs() {
+    if (shippedBuildIsCurrent()) {
+        console.log('  out/ and mcp-server/dist/ are newer than their sources: left as built');
+    } else {
+        const shipped = cp.spawnSync(process.execPath, [path.join(ROOT, 'esbuild.mjs')],
+            { cwd: ROOT, encoding: 'utf8' });
+        if (shipped.status !== 0) {
+            process.stderr.write(shipped.stdout + shipped.stderr);
+            console.error('✗ esbuild.mjs failed — no test that reads out/ can run');
+            process.exit(1);
+        }
+        console.log('  built out/ and mcp-server/dist/ (esbuild.mjs)');
+    }
+
+    const build = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-test-modules.mjs')],
         { cwd: ROOT, encoding: 'utf8' });
-    if (shipped.status !== 0) {
-        process.stderr.write(shipped.stdout + shipped.stderr);
-        console.error('✗ esbuild.mjs failed — no test that reads out/ can run');
+    if (build.status !== 0) {
+        process.stderr.write(build.stdout + build.stderr);
+        console.error('✗ build-test-modules failed — no unit test can run');
         process.exit(1);
     }
-    console.log('  built out/ and mcp-server/dist/ (esbuild.mjs)');
+    process.stdout.write(build.stdout);
 }
-
-const build = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-test-modules.mjs')],
-    { cwd: ROOT, encoding: 'utf8' });
-if (build.status !== 0) {
-    process.stderr.write(build.stdout + build.stderr);
-    console.error('✗ build-test-modules failed — no unit test can run');
-    process.exit(1);
-}
-process.stdout.write(build.stdout);
 
 
 function runOne(file) {
@@ -219,6 +230,22 @@ function trackedChanges() {
 }
 
 (async () => {
+    // One run per checkout, from the build to the last result (#818): a second
+    // run's build deletes out-test/ while this one's tests are loading it.
+    let lock;
+    try { lock = await acquireTestRunLock(ROOT); }
+    catch (e) {
+        if (!(e instanceof TestRunLockTimeout)) { throw e; }
+        console.error(`✗ ${e.message}`);
+        process.exit(1);
+    }
+    if (lock.nested && lock.built) {
+        console.log(`  out/ and out-test/ were built by the run that holds this checkout (pid ${lock.holder.pid}): left as built`);
+    } else {
+        buildTestInputs();
+        lock.markBuilt();
+    }
+
     const before = trackedChanges();
     const results = [];
     const queue = [...toRun];

@@ -32,3 +32,6 @@ _*.tmp
 
 # Per-module test build (#734). Never packaged, never committed.
 out-test/
+
+# One test run per checkout (#818): the lock scripts/lib/test-run-lock.js holds.
+/.test-run.lock*

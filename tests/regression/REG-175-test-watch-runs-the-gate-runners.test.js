@@ -96,7 +96,10 @@ if (typeof parseRunnerOutput === 'function') {
         };
         put('package.json', JSON.stringify({ scripts: {} }));
         put('scripts/run-unit-tests.js', fs.readFileSync(path.join(ROOT, 'scripts', 'run-unit-tests.js')));
-        put('scripts/lib/missing-artifact.js', fs.readFileSync(path.join(ROOT, 'scripts', 'lib', 'missing-artifact.js')));
+        // Every helper the runner requires (missing-artifact.js, test-run-lock.js, ...).
+        for (const f of fs.readdirSync(path.join(ROOT, 'scripts', 'lib'))) {
+            put(`scripts/lib/${f}`, fs.readFileSync(path.join(ROOT, 'scripts', 'lib', f)));
+        }
         put('scripts/build-test-modules.mjs', "console.log('stub build-test-modules');\n");
         // The shipped build counts as current when its outputs are newer than its inputs.
         const inputs = [put('esbuild.mjs', '// stub\n'), put('src/x.ts', ''), put('mcp-server/src/x.ts', '')];
