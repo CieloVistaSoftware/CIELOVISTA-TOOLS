@@ -8,39 +8,34 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
-**Task:** #728 (delete the wb-core demo server) and #707 stage 1 (src/ onto the
-three-field doc contract). Stage 1 turned up #731, real data loss, fixed first.
+**Task:** #707 stage 3, the last stage: delete what was left of the Dewey docid system.
+Branch `feat/707-stage3-delete-dewey`, PR closes #707.
 
-**The one that mattered — #731:** commit `bf72645` (2026-06-24, "land great-hopper")
-deleted **2,246 lines of prose from 42 feature READMEs**. It treated every body line
-containing `": "` as a frontmatter field, dropped the sections around them and moved
-311 fragments into the trailer. Nothing checked what a trailer held, so it went
-unseen for three months. Restored with a three-way reverse-apply (`git merge-file`,
-base `bf72645`, theirs `bf72645^`) so later edits survived; zero conflicts.
+**Deleted:**
+- 8 MCP tools: lookup_dewey, migrate_dewey, list_old_dewey, refresh_doc_ledger,
+  validate_doc, list_doc_violations, normalize_doc, get_doc_by_identity, with their
+  schemas and every helper only they used (catalog-helpers.ts 1567 to ~660 lines).
+- The MCP Endpoint Viewer's six matching tabs, their HTTP/JSON-RPC handlers, and
+  active_markdown / list_markdown_paths (only the validate/normalize forms used them).
+- CatalogCard.dewey and the scanner code that filled it; help-utils now returns help
+  markdown only.
+- Doc Intelligence's subject/category mismatch check (it compared the Dewey subject
+  number with the category number; nothing else).
+- tests/unit/doc-contract.test.ts (+ its rebuild step), REG-138, REG-027 (docid
+  collisions), REG-111 (bottom frontmatter), tests/dewey-lookup-mcp.test.js,
+  scripts/backfill-doc-contract.mjs, fix-docid-collisions.js, migrate-docid.js,
+  build-frontmatter-viewer.js.
+- The 13-field trailer on CLAUDE.md, copilot-rules.md and
+  scripts/audit-test-coverage.README.md (now the three-field top block) and on
+  CHANGELOG.md (no frontmatter: the marketplace renders any block as an H2).
 
-**This session, on branch `fix/728-731-707-src-doc-contract`:**
-| # | What |
-|---|---|
-| #728 | Demo button, `wb-demo` handler and `C:\dev\wb-core` spawn deleted. REG-046 (tested the deleted handler) replaced by REG-141 |
-| #731 | The 42 READMEs restored, as above |
-| #707 stage 1 | All 74 `src/**/*.md` on id/title/description at the top. `docs-sync.js` enforces it on src/ (150 violations on the old tree, 0 now); the rebuild-time generator writes the new block; REG-111 and REG-138 updated |
+**Guard:** REG-159 starts the real MCP server in a sandbox and checks tools/list, and
+fails on any dewey/docid in src/ or mcp-server/src outside the command launcher.
 
-**Filed, open:**
-- **#730** — `cvs.headers.moveToBottom` / `fixAll` / `fixFile` and `cvs.tags.enrichAuto`
-  still write the 13-field trailer. Running one undoes the migration (REG-134 would
-  now fail on it). Fold into #707 stage 3 or rewrite to the new contract.
-- **#732** — `docs:check` is red on every Windows checkout: `docs-site.js --check`
-  compares its LF output with the CRLF checkout of `docs/index.html`. No content diff.
+**Open question, filed:** #787, whether the command launcher's per-command Dewey
+numbers go too. They are display-only; REG-159 caps the files that show them.
 
-**Still open on #707:** stage 2 regroup the Doc Card Catalog by folder
-(`scanner.ts` derives `categoryNum` from a docid; REG-031 guards the Dewey badges),
-then stage 3 delete the 8 Dewey MCP tools, `tests/unit/doc-contract.test.ts`, and
-REG-138. **Stage 3 last.** The catalog never read src/ trailer docids (it only parses a
-top block), so stage 1 changed nothing it shows.
-
-**Next step:** confirm the PR merged and `npm run rebuild` ran, then #707 stage 2. 69
-of the 74 src/ descriptions are still "Auto-generated stub" or truncated text carried
-over from the old trailers. That is refurbishment work, not part of the migration.
+**Next step:** confirm the PR merged and `npm run rebuild` ran. Then #787.
 
 **Watch out for:**
 - A Python patch script must use `newline=''` on **both** read and write, or it

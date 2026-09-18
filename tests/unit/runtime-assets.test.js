@@ -117,7 +117,7 @@ test('extension/mcp-server/dist/index.js present in VSIX', () => {
 });
 test('extension/mcp-server/dist/tools/catalog-helpers.js present in VSIX', () => {
     assert.ok(has('extension/mcp-server/dist/tools/catalog-helpers.js'),
-        'catalog-helpers.js missing from VSIX — needed by backfill scripts');
+        'catalog-helpers.js missing from VSIX — needed by scripts/fix-broken-refs-bulk.js');
 });
 test('extension/mcp-server/package.json present in VSIX (ESM type declaration)', () => {
     assert.ok(has('extension/mcp-server/package.json'),

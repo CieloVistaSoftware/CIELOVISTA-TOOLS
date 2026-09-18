@@ -17,7 +17,7 @@ The "View a Doc" feature provides a searchable, interactive catalog of documenta
 - **Content Table**
   - Columns: Folder | Documents
   - Each row: One folder (global or project) and its docs as clickable links
-  - Docs are grouped by folder/project, sorted by priority (Dewey number), then name
+  - Docs are grouped by project, then folder, then file name (#707)
 - **Responsive Design**
   - At ≤600px width, table reflows to a single column for narrow panels
 

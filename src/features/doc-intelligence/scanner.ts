@@ -67,9 +67,7 @@ export function collectDocs(rootPath: string, projectName: string, maxDepth = 3)
                         mtime:          stat.mtimeMs,
                         fmStatus:       fm['status'],
                         fmDescription:  fm['description'],
-                        fmDewey:        fm['docid'] ?? fm['dewey'] ?? fm['subject'],
                         fmTitle:        fm['title'],
-                        fmCategory:     fm['category'],
                     });
                 } catch { /* skip unreadable */ }
             }

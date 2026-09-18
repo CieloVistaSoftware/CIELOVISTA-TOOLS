@@ -53,7 +53,7 @@ export function buildCatalogInitPayload(
     }
 
     // Sections are projects, alphabetical; within a project the folder is the
-    // category (#707 stage 2 -- Dewey numbers retired).
+    // category (#707).
     const sortedCategories = [...byCategory.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
     const categorySections = sortedCategories.map(([catLabel, catCards]) => {

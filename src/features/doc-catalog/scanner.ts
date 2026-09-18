@@ -6,7 +6,7 @@
 import * as fs   from 'fs';
 import * as path from 'path';
 import { extractTitle, extractDescription, extractTags, extractDocType, stripTypePrefix } from './content';
-import { extractDeweyAndHelp } from '../../shared/help-utils';
+import { extractHelpMarkdown } from '../../shared/help-utils';
 import type { CatalogCard } from './types';
 
 const SKIP_DIRS  = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
@@ -15,19 +15,6 @@ const SKIP_FILES = new Set(['.gitignore', '.gitattributes']);
 let _cardIdCounter = 0;
 
 export function resetCardCounter(): void { _cardIdCounter = 0; }
-
-/** Frontmatter docid, kept only for the Dewey tools #707 stage 3 removes. */
-function extractFrontmatterDocId(content: string): string | undefined {
-    const lines = content.split('\n');
-    if (lines[0]?.trim() !== '---') { return undefined; }
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line === '---') { break; }
-        const m = line.match(/^docid\s*:\s*(.+?)\s*$/i);
-        if (m) { return m[1].trim(); }
-    }
-    return undefined;
-}
 
 function extractFrontmatterCommand(content: string): string | undefined {
     const lines = content.split('\n');
@@ -66,9 +53,8 @@ export function scanForCards(
                 try {
                     const content = fs.readFileSync(fullPath, 'utf8');
                     const stat    = fs.statSync(fullPath);
-                    // #707 stage 2: the catalog groups by project and folder. It no
-                    // longer reads a docid; the folder IS the category.
-                    const { dewey: helpDewey, helpMarkdown } = extractDeweyAndHelp(fullPath);
+                    // #707: the catalog groups by project and folder; the folder IS the category.
+                    const helpMarkdown = extractHelpMarkdown(content);
                     const folder = path.relative(projectRootPath, path.dirname(fullPath)).split(path.sep).join('/');
                     const rawTitle = extractTitle(content, entry.name);
                     const docType  = extractDocType(content, rawTitle);
@@ -85,7 +71,6 @@ export function scanForCards(
                         projectPath:  projectRootPath,
                         category:     projectName,   // section heading = project name
                         folder:       folder === '.' ? '' : folder,
-                        dewey:        extractFrontmatterDocId(content) ?? helpDewey,
                         sizeBytes:    Buffer.byteLength(content, 'utf8'),
                         lastModified: stat.mtime.toISOString().slice(0, 10),
                         tags:         extractTags(content, entry.name),

@@ -112,7 +112,7 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
                 }
             }
             cards.sort((a, b) => {
-                // Project, then folder, then file (#707: no Dewey numbers).
+                // Project, then folder, then file (#707).
                 if (a.projectName !== b.projectName) { return a.projectName.localeCompare(b.projectName); }
                 if (a.folder !== b.folder) { return a.folder.localeCompare(b.folder); }
                 return a.fileName.localeCompare(b.fileName);

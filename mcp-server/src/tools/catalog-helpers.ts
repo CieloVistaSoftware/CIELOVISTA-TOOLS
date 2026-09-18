@@ -15,16 +15,12 @@ export interface ProjectEntry {
   description: string;
   /** Lifecycle status. Missing entries default to "product" for backward compatibility. */
   status?: "product" | "workbench" | "generated" | "archived";
-  /** Fixed Dewey hundred for this project. Stored in project-registry.json. */
-  dewey?: number;
   /** GitHub repository URL, used to build GitHub links in the viewer. */
   githubUrl?: string;
 }
 
 export interface ProjectRegistry {
   globalDocsPath: string;
-  /** Dewey number for the global docs folder. Defaults to 0. */
-  globalDewey?: number;
   projects: ProjectEntry[];
 }
 
@@ -34,21 +30,13 @@ export interface DocEntry {
   filePath: string;
   title: string;
   description: string;
-  dewey: string;
-  docId?: string; // Frontmatter docid (the stable numeric doc identifier)
-  id?: string; // Frontmatter id (the stable identity slug)
-  projectDewey: number;
+  id?: string; // Frontmatter id (the three-field doc contract, #708)
   projectPath: string;
   projectStatus: "product" | "workbench" | "generated" | "archived";
   tags: string[];
   sizeBytes: number;
   lastModified: string;
   helpMarkdown?: string;
-}
-
-interface ProjectDewey {
-  num: number;
-  label: string;
 }
 
 // ─── Registry ───────────────────────────────────────────────────────────────
@@ -96,7 +84,6 @@ export function scanProjectDocs(
   projectName: string,
   projectPath: string,
   projectStatus: "product" | "workbench" | "generated" | "archived",
-  projectDewey: number,
   maxDepth = 3
 ): DocEntry[] {
   const docs: DocEntry[] = [];
@@ -125,27 +112,19 @@ export function scanProjectDocs(
         try {
           const content = fs.readFileSync(full, "utf8");
           const stat = fs.statSync(full);
-          const help = extractDeweyAndHelp(full, content);
-          const frontmatter = extractFrontmatterDocIdAndId(content);
-          const dewey = (frontmatter.docId ?? "").trim();
-          
           docs.push({
             projectName,
             fileName: entry.name,
             filePath: full,
             title: extractTitle(content, entry.name),
             description: extractDescription(content),
-            // One-time-one-place identity: catalog dewey comes from frontmatter docid only.
-            dewey: dewey || "missing-docid",
-            docId: dewey || undefined,
-            id: frontmatter.id,
-            projectDewey,
+            id: extractFrontmatterId(content),
             projectPath,
             projectStatus,
             tags: extractTags(content, entry.name),
             sizeBytes: Buffer.byteLength(content, "utf8"),
             lastModified: stat.mtime.toISOString().slice(0, 10),
-            helpMarkdown: help.helpMarkdown,
+            helpMarkdown: extractHelpMarkdown(content),
           });
         } catch {
           /* skip unreadable files */
@@ -244,13 +223,7 @@ export function extractTags(content: string, fileName: string): string[] {
   return [...tags].slice(0, 12);
 }
 
-export function extractDeweyAndHelp(
-  mdFilePath: string,
-  content: string
-): { dewey?: string; helpMarkdown?: string } {
-  const match = mdFilePath.match(/([0-9]{3,}\.[0-9]{3})\.md$/);
-  const dewey = match ? match[1] : undefined;
-
+export function extractHelpMarkdown(content: string): string | undefined {
   const lines = content.split("\n");
   const helpLines: string[] = [];
   let started = false;
@@ -268,81 +241,26 @@ export function extractDeweyAndHelp(
     }
   }
 
-  const helpMarkdown = helpLines.join("\n").trim() || undefined;
-  return { dewey, helpMarkdown };
+  return helpLines.join("\n").trim() || undefined;
 }
 
-/** Extract docid and id from YAML frontmatter (between --- delimiters).
- * Returns extracted values or undefined if not found.
- */
-export function extractFrontmatterDocIdAndId(content: string): { docId?: string; id?: string } {
+/** The frontmatter id from a top YAML block (the three-field contract, #708). */
+export function extractFrontmatterId(content: string): string | undefined {
   const lines = content.split("\n");
   if (lines[0]?.trim() !== "---") {
-    return {};
+    return undefined;
   }
-
-  const result: { docId?: string; id?: string } = {};
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === "---") {
-      break; // End of frontmatter
+      break;
     }
-
-    const docIdMatch = line.match(/^docid:\s*(.+?)(?:\s*#.*)?$/i);
-    if (docIdMatch) {
-      result.docId = docIdMatch[1].trim();
-    }
-
-    // Backward-compatibility read path during migration from subject -> docid.
-    const subjectMatch = line.match(/^subject:\s*(.+?)(?:\s*#.*)?$/i);
-    if (!result.docId && subjectMatch) {
-      result.docId = subjectMatch[1].trim();
-    }
-
     const idMatch = line.match(/^id:\s*(.+?)(?:\s*#.*)?$/);
     if (idMatch) {
-      result.id = idMatch[1].trim();
+      return idMatch[1].trim();
     }
   }
-
-  return result;
-}
-
-export function buildProjectDeweyMap(
-  projects: ProjectEntry[] | string[],
-  registry?: ProjectRegistry
-): Map<string, ProjectDewey> {
-  const map = new Map<string, ProjectDewey>();
-  const globalDewey = registry?.globalDewey ?? 0;
-  map.set("global", { num: globalDewey, label: "Global Standards" });
-
-  if (projects.length === 0) { return map; }
-
-  if (typeof projects[0] === "string") {
-    // Legacy: string[] path — look up dewey from registry if available
-    const entries = projects as string[];
-    entries.forEach((name, index) => {
-      const entry = registry?.projects.find((p) => p.name === name);
-      const num = entry?.dewey ?? (index + 1) * 100;
-      map.set(name, { num, label: name });
-    });
-  } else {
-    // Preferred: ProjectEntry[] path — use dewey field directly
-    const entries = projects as ProjectEntry[];
-    entries.forEach((entry, index) => {
-      const num = entry.dewey ?? (index + 1) * 100;
-      map.set(entry.name, { num, label: entry.name });
-    });
-  }
-
-  return map;
-}
-
-export function lookupDewey(
-  map: Map<string, ProjectDewey>,
-  projectName: string
-): ProjectDewey {
-  return map.get(projectName) ?? { num: 999, label: projectName };
+  return undefined;
 }
 
 // ─── Query helpers ──────────────────────────────────────────────────────────
@@ -364,16 +282,13 @@ export function scanAllDocs(
   projectNameFilter?: string
 ): DocEntry[] {
   const docs: DocEntry[] = [];
-  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-
   if (!projectNameFilter || projectNameFilter === "global") {
     docs.push(
       ...scanProjectDocs(
         registry.globalDocsPath,
         "global",
         registry.globalDocsPath,
-        "product",
-        lookupDewey(deweyMap, "global").num
+        "product"
       )
     );
   }
@@ -387,454 +302,12 @@ export function scanAllDocs(
         p.path,
         p.name,
         p.path,
-        p.status ?? "product",
-        lookupDewey(deweyMap, p.name).num
+        p.status ?? "product"
       )
     );
   }
 
   return docs;
-}
-
-export type DocViolationCode =
-  | "missing-frontmatter"
-  | "missing-docid"
-  | "missing-id"
-  | "missing-title"
-  | "missing-project"
-  | "missing-description"
-  | "missing-status"
-  | "invalid-docid-format"
-  | "docid-project-mismatch"
-  | "invalid-id-format"
-  | "invalid-status"
-  | "identity-collision";
-
-export interface DocViolation {
-  projectName: string;
-  projectDewey: number;
-  filePath: string;
-  identity?: string;
-  code: DocViolationCode;
-  message: string;
-}
-
-export interface DocViolationsResult {
-  totalDocsScanned: number;
-  totalViolations: number;
-  violations: DocViolation[];
-  byProject: Array<{ projectName: string; projectDewey: number; count: number }>;
-  byCode: Array<{ code: DocViolationCode; count: number }>;
-}
-
-export interface ValidateDocResult {
-  ok: boolean;
-  filePath: string;
-  projectName: string;
-  projectDewey: number;
-  expectedDocIdPrefix: string;
-  identity?: string;
-  violations: DocViolation[];
-}
-
-function readDocId(fm: Record<string, string>): string {
-  return (fm.docid ?? fm.subject ?? "").trim();
-}
-
-function parseFrontmatter(content: string): Record<string, string> | null {
-  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*/);
-  if (!match) {
-    return null;
-  }
-  const result: Record<string, string> = {};
-  const lines = match[1].split(/\r?\n/);
-  for (const line of lines) {
-    const idx = line.indexOf(":");
-    if (idx <= 0) {
-      continue;
-    }
-    const key = line.slice(0, idx).trim().toLowerCase();
-    const value = line.slice(idx + 1).trim().replace(/^['"]|['"]$/g, "");
-    if (key) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-export function validateDoc(
-  registry: ProjectRegistry,
-  filePath: string
-): ValidateDocResult {
-  const resolved = path.resolve(filePath);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`File not found: ${resolved}`);
-  }
-  if (!/\.md$/i.test(resolved)) {
-    throw new Error(`validate_doc only supports .md files: ${resolved}`);
-  }
-
-  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-  const roots: Array<{ projectName: string; rootPath: string; projectDewey: number }> = [
-    { projectName: "global", rootPath: path.resolve(registry.globalDocsPath), projectDewey: 0 },
-    ...registry.projects.map((p) => ({
-      projectName: p.name,
-      rootPath: path.resolve(p.path),
-      projectDewey: lookupDewey(deweyMap, p.name).num,
-    })),
-  ];
-
-  const lower = resolved.toLowerCase();
-  const owner = roots.find((r) => lower.startsWith(r.rootPath.toLowerCase()));
-  const projectName = owner?.projectName ?? "unknown";
-  const projectDewey = owner?.projectDewey ?? 999;
-  const expectedPrefix = String(projectDewey).padStart(3, "0");
-
-  const content = fs.readFileSync(resolved, "utf8");
-  const fm = parseFrontmatter(content);
-  const violations: DocViolation[] = [];
-  const allowedStatus = new Set(["active", "draft", "archived"]);
-  let identity: string | undefined;
-
-  if (!fm) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-frontmatter",
-      message: "Missing YAML front-matter block",
-    });
-    return {
-      ok: false,
-      filePath: resolved,
-      projectName,
-      projectDewey,
-      expectedDocIdPrefix: expectedPrefix,
-      violations,
-    };
-  }
-
-  const docId = readDocId(fm);
-  const id = (fm.id ?? "").trim();
-  const title = (fm.title ?? "").trim();
-  const project = (fm.project ?? "").trim();
-  const description = (fm.description ?? "").trim();
-  const status = (fm.status ?? "").trim().toLowerCase();
-
-  if (!docId) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-docid",
-      message: "Missing required front-matter field: docid",
-    });
-  } else if (!/^\d{3}\.\d+$/.test(docId)) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "invalid-docid-format",
-      message: "docid must match pattern ###.# (for example 200.1)",
-    });
-  } else if (projectName !== "unknown" && !docId.startsWith(`${expectedPrefix}.`)) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "docid-project-mismatch",
-      message: `docid prefix must match project Dewey ${expectedPrefix}`,
-    });
-  }
-
-  if (!id) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-id",
-      message: "Missing required front-matter field: id",
-    });
-  } else if (!/^[a-z0-9]+(?:-[a-z0-9]+){0,24}$/.test(id) || id.length < 3 || id.length > 50) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "invalid-id-format",
-      message: "id must be lowercase-kebab-case, 3-50 chars",
-    });
-  }
-
-  if (!title) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-title",
-      message: "Missing required front-matter field: title",
-    });
-  }
-  if (!project) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-project",
-      message: "Missing required front-matter field: project",
-    });
-  }
-  if (!description) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-description",
-      message: "Missing required front-matter field: description",
-    });
-  }
-  if (!status) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "missing-status",
-      message: "Missing required front-matter field: status",
-    });
-  } else if (!allowedStatus.has(status)) {
-    violations.push({
-      projectName,
-      projectDewey,
-      filePath: resolved,
-      code: "invalid-status",
-      message: "status must be one of: active, draft, archived",
-    });
-  }
-
-  if (docId && id) {
-    identity = `${docId}.${id}`.toLowerCase();
-    const allDocs = scanAllDocs(registry);
-    let seen = 0;
-    for (const doc of allDocs) {
-      try {
-        const docFm = parseFrontmatter(fs.readFileSync(doc.filePath, "utf8"));
-        if (!docFm) {
-          continue;
-        }
-        const docSubject = readDocId(docFm).toLowerCase();
-        const docId = (docFm.id ?? "").trim().toLowerCase();
-        if (docSubject && docId && `${docSubject}.${docId}` === identity) {
-          seen += 1;
-        }
-      } catch {
-        // ignore unreadable docs
-      }
-    }
-    if (seen > 1) {
-      violations.push({
-        projectName,
-        projectDewey,
-        filePath: resolved,
-        identity,
-        code: "identity-collision",
-        message: `Identity collision: ${identity} appears in ${seen} docs`,
-      });
-    }
-  }
-
-  return {
-    ok: violations.length === 0,
-    filePath: resolved,
-    projectName,
-    projectDewey,
-    expectedDocIdPrefix: expectedPrefix,
-    identity,
-    violations,
-  };
-}
-
-export function listDocViolations(
-  registry: ProjectRegistry,
-  projectName?: string
-): DocViolationsResult {
-  const docs = scanAllDocs(registry, projectName);
-  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-  const violations: DocViolation[] = [];
-  const identityBuckets = new Map<string, DocEntry[]>();
-  const allowedStatus = new Set(["active", "draft", "archived"]);
-
-  for (const doc of docs) {
-    let content = "";
-    try {
-      content = fs.readFileSync(doc.filePath, "utf8");
-    } catch {
-      continue;
-    }
-
-    const projectDewey = doc.projectName === "global"
-      ? 0
-      : lookupDewey(deweyMap, doc.projectName).num;
-    const expectedPrefix = String(projectDewey).padStart(3, "0");
-    const fm = parseFrontmatter(content);
-
-    if (!fm) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-frontmatter",
-        message: "Missing YAML front-matter block",
-      });
-      continue;
-    }
-
-    const subject = readDocId(fm);
-    const id = (fm.id ?? "").trim();
-    const title = (fm.title ?? "").trim();
-    const project = (fm.project ?? "").trim();
-    const description = (fm.description ?? "").trim();
-    const status = (fm.status ?? "").trim().toLowerCase();
-
-    if (!subject) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-docid",
-        message: "Missing required front-matter field: docid",
-      });
-    } else if (!/^\d{3}\.\d+$/.test(subject)) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "invalid-docid-format",
-        message: "docid must match pattern ###.# (for example 200.1)",
-      });
-    } else if (!subject.startsWith(`${expectedPrefix}.`)) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "docid-project-mismatch",
-        message: `docid prefix must match project Dewey ${expectedPrefix}`,
-      });
-    }
-
-    if (!id) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-id",
-        message: "Missing required front-matter field: id",
-      });
-    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+){0,24}$/.test(id) || id.length < 3 || id.length > 50) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "invalid-id-format",
-        message: "id must be lowercase-kebab-case, 3-50 chars",
-      });
-    }
-
-    if (!title) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-title",
-        message: "Missing required front-matter field: title",
-      });
-    }
-    if (!project) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-project",
-        message: "Missing required front-matter field: project",
-      });
-    }
-    if (!description) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-description",
-        message: "Missing required front-matter field: description",
-      });
-    }
-    if (!status) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "missing-status",
-        message: "Missing required front-matter field: status",
-      });
-    } else if (!allowedStatus.has(status)) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey,
-        filePath: doc.filePath,
-        code: "invalid-status",
-        message: "status must be one of: active, draft, archived",
-      });
-    }
-
-    if (subject && id) {
-      const identity = `${subject}.${id}`.toLowerCase();
-      const bucket = identityBuckets.get(identity);
-      if (bucket) {
-        bucket.push(doc);
-      } else {
-        identityBuckets.set(identity, [doc]);
-      }
-    }
-  }
-
-  for (const [identity, bucket] of identityBuckets) {
-    if (bucket.length < 2) {
-      continue;
-    }
-    for (const doc of bucket) {
-      violations.push({
-        projectName: doc.projectName,
-        projectDewey: doc.projectDewey,
-        filePath: doc.filePath,
-        identity,
-        code: "identity-collision",
-        message: `Identity collision: ${identity} appears in ${bucket.length} docs`,
-      });
-    }
-  }
-
-  const byProjectMap = new Map<string, { projectName: string; projectDewey: number; count: number }>();
-  for (const v of violations) {
-    const key = `${v.projectName}:${v.projectDewey}`;
-    const row = byProjectMap.get(key);
-    if (row) {
-      row.count += 1;
-    } else {
-      byProjectMap.set(key, { projectName: v.projectName, projectDewey: v.projectDewey, count: 1 });
-    }
-  }
-
-  const byCodeMap = new Map<DocViolationCode, number>();
-  for (const v of violations) {
-    byCodeMap.set(v.code, (byCodeMap.get(v.code) ?? 0) + 1);
-  }
-
-  return {
-    totalDocsScanned: docs.length,
-    totalViolations: violations.length,
-    violations,
-    byProject: [...byProjectMap.values()].sort((a, b) => b.count - a.count),
-    byCode: [...byCodeMap.entries()]
-      .map(([code, count]) => ({ code, count }))
-      .sort((a, b) => b.count - a.count),
-  };
 }
 
 export function searchDocs(docs: DocEntry[], query: string): DocEntry[] {
@@ -848,44 +321,6 @@ export function searchDocs(docs: DocEntry[], query: string): DocEntry[] {
   );
 }
 
-function normalizeDeweyQuery(input: string): { raw: string; digits: string } {
-  const raw = input.trim().toLowerCase();
-  const digits = raw.replace(/\D+/g, "");
-  return { raw, digits };
-}
-
-function scoreDeweyMatch(candidate: string, query: string): number {
-  const c = normalizeDeweyQuery(candidate);
-  const q = normalizeDeweyQuery(query);
-  if (!q.raw) {
-    return 0;
-  }
-  if (c.raw === q.raw || (q.digits && c.digits === q.digits)) {
-    return 300;
-  }
-  if (c.raw.startsWith(q.raw) || (q.digits && c.digits.startsWith(q.digits))) {
-    return 200;
-  }
-  if (c.raw.includes(q.raw) || (q.digits && c.digits.includes(q.digits))) {
-    return 100;
-  }
-  return 0;
-}
-
-export function lookupDocsByDewey(docs: DocEntry[], query: string, limit = 25): DocEntry[] {
-  const ranked = docs
-    .map((doc) => ({ doc, score: scoreDeweyMatch(doc.dewey, query) }))
-    .filter((row) => row.score > 0)
-    .sort((a, b) => {
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
-      return a.doc.dewey.localeCompare(b.doc.dewey);
-    })
-    .slice(0, limit);
-  return ranked.map((row) => row.doc);
-}
-
 export interface BrokenRefCandidate {
   projectName: string;
   filePath: string;
@@ -894,7 +329,6 @@ export interface BrokenRefCandidate {
 
 export interface BrokenRefFinding {
   projectName: string;
-  projectDewey: number;
   filePath: string;
   line: number;
   refType: "image" | "doc" | "doc-id";
@@ -909,7 +343,7 @@ export interface BrokenRefsResult {
   totalDocsScanned: number;
   totalBroken: number;
   findings: BrokenRefFinding[];
-  byProject: Array<{ projectName: string; projectDewey: number; count: number }>;
+  byProject: Array<{ projectName: string; count: number }>;
   placeholdersCreated: number;
 }
 
@@ -1071,17 +505,16 @@ export function listBrokenRefs(
   createPlaceholder = false
 ): BrokenRefsResult {
   const docs = scanAllDocs(registry, projectName);
-  const roots: Array<{ projectName: string; projectDewey: number; rootPath: string }> = [];
+  const roots: Array<{ projectName: string; rootPath: string }> = [];
 
   if (!projectName || projectName === "global") {
-    roots.push({ projectName: "global", projectDewey: 0, rootPath: path.resolve(registry.globalDocsPath) });
+    roots.push({ projectName: "global", rootPath: path.resolve(registry.globalDocsPath) });
   }
   for (const p of registry.projects) {
     if (projectName && p.name !== projectName) {
       continue;
     }
-    const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-    roots.push({ projectName: p.name, projectDewey: lookupDewey(deweyMap, p.name).num, rootPath: path.resolve(p.path) });
+    roots.push({ projectName: p.name, rootPath: path.resolve(p.path) });
   }
 
   const projectIndices = new Map<string, Map<string, string[]>>();
@@ -1104,23 +537,21 @@ export function listBrokenRefs(
     }
     const refs = parseMarkdownRefs(content);
     const projectRoot = roots.find((r) => r.projectName === doc.projectName)?.rootPath;
-    const projectDewey = roots.find((r) => r.projectName === doc.projectName)?.projectDewey ?? doc.projectDewey;
 
     for (const ref of refs) {
       if (ref.target.startsWith("/doc/")) {
-        const docId = ref.target.slice("/doc/".length).toLowerCase();
-        const known = docs.some((d) => d.dewey.toLowerCase() === docId);
+        const refId = ref.target.slice("/doc/".length).toLowerCase();
+        const known = docs.some((d) => (d.id ?? "").toLowerCase() === refId);
         if (!known) {
           findings.push({
             projectName: doc.projectName,
-            projectDewey,
             filePath: doc.filePath,
             line: ref.line,
             refType: "doc-id",
             target: ref.target,
-            reason: "Doc-contract ID does not match any known Dewey entry",
+            reason: "Doc id does not match any doc's frontmatter id",
             candidates: docs
-              .filter((d) => d.dewey.slice(0, 3) === String(projectDewey).padStart(3, "0"))
+              .filter((d) => d.projectName === doc.projectName && d.id)
               .slice(0, 5)
               .map((d) => ({ projectName: d.projectName, filePath: d.filePath, distance: 0 })),
           });
@@ -1157,7 +588,6 @@ export function listBrokenRefs(
 
       findings.push({
         projectName: doc.projectName,
-        projectDewey,
         filePath: doc.filePath,
         line: ref.line,
         refType: ref.refType,
@@ -1170,14 +600,13 @@ export function listBrokenRefs(
     }
   }
 
-  const byProjectMap = new Map<string, { projectName: string; projectDewey: number; count: number }>();
+  const byProjectMap = new Map<string, { projectName: string; count: number }>();
   for (const f of findings) {
-    const key = `${f.projectName}:${f.projectDewey}`;
-    const row = byProjectMap.get(key);
+    const row = byProjectMap.get(f.projectName);
     if (row) {
       row.count += 1;
     } else {
-      byProjectMap.set(key, { projectName: f.projectName, projectDewey: f.projectDewey, count: 1 });
+      byProjectMap.set(f.projectName, { projectName: f.projectName, count: 1 });
     }
   }
 
@@ -1234,334 +663,4 @@ export function repairBrokenRefs(input: {
   }
 
   return { editsApplied, placeholdersCreated, failures };
-}
-
-// ─── Phase 3: Normalizer ─────────────────────────────────────────────────────
-
-export interface NormalizeDocResult {
-  filePath: string;
-  projectName: string;
-  projectDewey: number;
-  hasFrontmatter: boolean;
-  missingFields: string[];
-  proposed: {
-    docid?: string;
-    id?: string;
-    title?: string;
-    project?: string;
-    description?: string;
-    status?: string;
-  };
-  suggestedFrontmatter: string;
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 50)
-    .replace(/^-|-$/g, "");
-}
-
-export function normalizeDoc(
-  registry: ProjectRegistry,
-  filePath: string
-): NormalizeDocResult {
-  const resolved = path.resolve(filePath);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`File not found: ${resolved}`);
-  }
-
-  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-  const roots: Array<{ projectName: string; rootPath: string; projectDewey: number }> = [
-    { projectName: "global", rootPath: path.resolve(registry.globalDocsPath), projectDewey: registry.globalDewey ?? 0 },
-    ...registry.projects.map((p) => ({
-      projectName: p.name,
-      rootPath: path.resolve(p.path),
-      projectDewey: deweyMap.get(p.name)?.num ?? 999,
-    })),
-  ];
-
-  const lower = resolved.toLowerCase();
-  const owner = roots.find((r) => lower.startsWith(r.rootPath.toLowerCase()));
-  const projectName = owner?.projectName ?? "unknown";
-  const projectDewey = owner?.projectDewey ?? 999;
-  const prefix = String(projectDewey).padStart(3, "0");
-
-  const content = fs.readFileSync(resolved, "utf8");
-  const fm = parseFrontmatter(content);
-  const hasFrontmatter = fm !== null;
-
-  const docid = readDocId(fm ?? {});
-  const id = fm?.id?.trim() ?? "";
-  const title = fm?.title?.trim() ?? extractTitle(content, path.basename(resolved));
-  const project = fm?.project?.trim() ?? "";
-  const description = fm?.description?.trim() ?? extractDescription(content);
-  const status = fm?.status?.trim() ?? "";
-
-  const missing: string[] = [];
-  const proposed: NormalizeDocResult["proposed"] = {};
-
-  if (!docid) {
-    missing.push("docid");
-    proposed.docid = `${prefix}.9`;
-  }
-  if (!id) {
-    missing.push("id");
-    const raw = slugify(title || path.basename(resolved, ".md"));
-    proposed.id = raw.length >= 3 ? raw : `${raw}-doc`;
-  }
-  if (!title) {
-    missing.push("title");
-    proposed.title = path.basename(resolved, ".md").replace(/[-_]/g, " ");
-  }
-  if (!project) {
-    missing.push("project");
-    if (projectName !== "unknown") { proposed.project = projectName; }
-  }
-  if (!description) {
-    missing.push("description");
-    const auto = extractDescription(content);
-    if (auto !== "No description.") { proposed.description = auto.slice(0, 200); }
-  }
-  if (!status) {
-    missing.push("status");
-    proposed.status = "draft";
-  }
-
-  const merged = {
-    docid: docid || proposed.docid || `${prefix}.9`,
-    id: id || proposed.id || "unnamed-doc",
-    title: title || proposed.title || path.basename(resolved, ".md"),
-    project: project || proposed.project || projectName,
-    description: description || proposed.description || "No description.",
-    status: status || proposed.status || "draft",
-  };
-
-  const suggestedFrontmatter = [
-    "---",
-    `docid: ${merged.docid}`,
-    `id: ${merged.id}`,
-    `title: ${merged.title}`,
-    `project: ${merged.project}`,
-    `description: ${merged.description.slice(0, 200)}`,
-    `status: ${merged.status}`,
-    "---",
-  ].join("\n");
-
-  return { filePath: resolved, projectName, projectDewey, hasFrontmatter, missingFields: missing, proposed, suggestedFrontmatter };
-}
-
-// ─── Phase 4: Doc ledger / identity resolution ───────────────────────────────
-
-export interface DocIdentityEntry {
-  identity: string;
-  docid: string;
-  id: string;
-  filePath: string;
-  projectName: string;
-  projectDewey: number;
-  title: string;
-  description: string;
-  status: string;
-  githubUrl?: string;
-}
-
-export interface DocLedgerResult {
-  docsScanned: number;
-  identitiesIndexed: number;
-  duplicates: number;
-  index: DocIdentityEntry[];
-}
-
-const ALIAS_PATH = path.join(
-  os.homedir(),
-  "Downloads",
-  "CieloVistaStandards",
-  "dewey-aliases.json"
-);
-
-function loadAliases(): Record<string, string> {
-  try {
-    if (!fs.existsSync(ALIAS_PATH)) { return {}; }
-    const raw = JSON.parse(fs.readFileSync(ALIAS_PATH, "utf8")) as { aliases?: Record<string, string> };
-    return raw.aliases ?? {};
-  } catch {
-    return {};
-  }
-}
-
-export function buildDocLedger(
-  registry: ProjectRegistry,
-  projectName?: string
-): DocLedgerResult {
-  const docs = scanAllDocs(registry, projectName);
-  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-  const index: DocIdentityEntry[] = [];
-  const seen = new Map<string, number>();
-  let duplicates = 0;
-
-  const githubByProject = new Map<string, string>();
-  for (const p of registry.projects) {
-    if (p.githubUrl) { githubByProject.set(p.name, p.githubUrl); }
-  }
-
-  for (const doc of docs) {
-    let content = "";
-    try { content = fs.readFileSync(doc.filePath, "utf8"); } catch { continue; }
-    const fm = parseFrontmatter(content);
-    if (!fm) { continue; }
-    const subject = readDocId(fm);
-    const id = (fm.id ?? "").trim();
-    if (!subject || !id) { continue; }
-    const identity = `${subject}.${id}`.toLowerCase();
-    const projectDewey = doc.projectName === "global"
-      ? (registry.globalDewey ?? 0)
-      : (deweyMap.get(doc.projectName)?.num ?? 999);
-    seen.set(identity, (seen.get(identity) ?? 0) + 1);
-    if ((seen.get(identity) ?? 0) > 1) { duplicates += 1; }
-    index.push({
-      identity,
-      docid: subject,
-      id,
-      filePath: doc.filePath,
-      projectName: doc.projectName,
-      projectDewey,
-      title: (fm.title ?? doc.title).trim(),
-      description: (fm.description ?? doc.description).trim(),
-      status: (fm.status ?? "active").trim(),
-      githubUrl: githubByProject.get(doc.projectName),
-    });
-  }
-
-  return { docsScanned: docs.length, identitiesIndexed: index.length, duplicates, index };
-}
-
-export function getDocByIdentity(
-  registry: ProjectRegistry,
-  identity: string
-): DocIdentityEntry | null {
-  const normalized = identity.trim().toLowerCase();
-  const aliases = loadAliases();
-  const resolved = aliases[normalized] ?? normalized;
-
-  const ledger = buildDocLedger(registry);
-  return ledger.index.find((e) => e.identity === resolved) ?? null;
-}
-
-// ─── Phase 4: Old Dewey scanner ──────────────────────────────────────────────
-
-export interface OldDeweyEntry {
-  filePath: string;
-  projectName: string;
-  projectDewey: number;
-  title: string;
-  oldDewey: string;
-  source: "filename" | "frontmatter-category" | "frontmatter-dewey";
-}
-
-export interface OldDeweyResult {
-  totalFound: number;
-  docs: OldDeweyEntry[];
-}
-
-export function listOldDewey(
-  registry: ProjectRegistry,
-  projectName?: string
-): OldDeweyResult {
-  const docs = scanAllDocs(registry, projectName);
-  const deweyMap = buildProjectDeweyMap(registry.projects, registry);
-  const results: OldDeweyEntry[] = [];
-
-  for (const doc of docs) {
-    const projectDewey = doc.projectName === "global"
-      ? (registry.globalDewey ?? 0)
-      : (deweyMap.get(doc.projectName)?.num ?? 999);
-
-    // Check filename pattern: NNN.NNN.md or NNNN.NNN.md
-    const fnMatch = path.basename(doc.filePath).match(/^(\d{3,}\.\d{3})\.md$/i);
-    if (fnMatch) {
-      results.push({ filePath: doc.filePath, projectName: doc.projectName, projectDewey, title: doc.title, oldDewey: fnMatch[1], source: "filename" });
-      continue;
-    }
-
-    // Check front-matter for old-style numeric `category` or `dewey` fields
-    let content = "";
-    try { content = fs.readFileSync(doc.filePath, "utf8"); } catch { continue; }
-    const fm = parseFrontmatter(content);
-    if (!fm) { continue; }
-
-    const category = (fm.category ?? "").trim();
-    if (category && /^\d{3,}\.\d{3}$/.test(category)) {
-      results.push({ filePath: doc.filePath, projectName: doc.projectName, projectDewey, title: doc.title, oldDewey: category, source: "frontmatter-category" });
-      continue;
-    }
-    const dewey = (fm.dewey ?? "").trim();
-    if (dewey && /^\d{3,}\.\d{3}$/.test(dewey)) {
-      results.push({ filePath: doc.filePath, projectName: doc.projectName, projectDewey, title: doc.title, oldDewey: dewey, source: "frontmatter-dewey" });
-    }
-  }
-
-  return { totalFound: results.length, docs: results };
-}
-
-// ─── Phase 4: Dewey migration proposal ──────────────────────────────────────
-
-export interface MigrateDeweyResult {
-  filePath: string;
-  projectName: string;
-  oldDewey: string | null;
-  proposedDocId: string;
-  proposedId: string;
-  proposedIdentity: string;
-  suggestedFrontmatterAdditions: string;
-  aliasEntry: { old: string; new: string } | null;
-}
-
-export function migrateDewey(
-  registry: ProjectRegistry,
-  filePath: string,
-  overrideDocId?: string,
-  overrideId?: string
-): MigrateDeweyResult {
-  const resolved = path.resolve(filePath);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`File not found: ${resolved}`);
-  }
-
-  const norm = normalizeDoc(registry, resolved);
-  const content = fs.readFileSync(resolved, "utf8");
-  const fm = parseFrontmatter(content);
-
-  // Find old Dewey: filename pattern, or category/dewey front-matter field
-  let oldDewey: string | null = null;
-  const fnMatch = path.basename(resolved).match(/^(\d{3,}\.\d{3})\.md$/i);
-  if (fnMatch) { oldDewey = fnMatch[1]; }
-  else if (fm) {
-    const cat = (fm.category ?? "").trim();
-    const dw = (fm.dewey ?? "").trim();
-    if (/^\d{3,}\.\d{3}$/.test(cat)) { oldDewey = cat; }
-    else if (/^\d{3,}\.\d{3}$/.test(dw)) { oldDewey = dw; }
-  }
-
-  const proposedDocId = overrideDocId ?? norm.proposed.docid ?? readDocId(fm ?? {}) ?? `${String(norm.projectDewey).padStart(3, "0")}.9`;
-  const rawId = overrideId ?? norm.proposed.id ?? fm?.id ?? slugify(norm.proposed.title ?? path.basename(resolved, ".md"));
-  const proposedId = rawId.length >= 3 ? rawId : `${rawId}-doc`;
-  const proposedIdentity = `${proposedDocId}.${proposedId}`.toLowerCase();
-
-  const suggestedFrontmatterAdditions = [
-    `docid: ${proposedDocId}`,
-    `id: ${proposedId}`,
-    `project: ${norm.projectName}`,
-    `status: draft`,
-  ].join("\n");
-
-  const aliasEntry = oldDewey
-    ? { old: oldDewey, new: proposedIdentity }
-    : null;
-
-  return { filePath: resolved, projectName: norm.projectName, oldDewey, proposedDocId, proposedId, proposedIdentity, suggestedFrontmatterAdditions, aliasEntry };
 }

@@ -10,7 +10,7 @@ description: "Checks every doc header in the registered projects against the thr
 
 Scans the markdown files of every registered project against the doc header contract: **id, title and description, at the top of the file, and nothing else** (#707, #708). The report goes to the CieloVista Tools output channel, grouped by project.
 
-**Headers: Scan + Auto-Fix** also rewrites every header that breaks the contract (a block at the bottom, a missing field, retired fields like docid or category), then re-reads each file to confirm it. A doc with no header at all is only reported. Adding headers everywhere is **Headers: Add/Fix All Headers**, which asks first.
+**Headers: Scan + Auto-Fix** also rewrites every header that breaks the contract (a block at the bottom, a missing field, retired fields like the numbered doc id or category), then re-reads each file to confirm it. A doc with no header at all is only reported. Adding headers everywhere is **Headers: Add/Fix All Headers**, which asks first.
 
 Before #730 this scan did the opposite: it treated a header at the top as wrong and moved every header in every project to the bottom. Reading, judging and rewriting now go through `src/shared/doc-frontmatter.ts`.
 

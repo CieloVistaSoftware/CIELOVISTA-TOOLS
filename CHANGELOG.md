@@ -22,6 +22,13 @@ inventory is reviewed.
 
 - `docs/` reorganised into `using/`, `working/`, `status/`, with 18 retired items moved to `docs/archive/` (kept, not deleted). Generated audit reports now write to `reports/` instead of `docs/` — that was 5,778 lines, 81% of the folder
 
+### Removed
+
+**The Dewey doc-numbering system (#707)**
+- Eight MCP tools that only serviced Dewey doc numbers: `lookup_dewey`, `migrate_dewey`, `list_old_dewey`, `refresh_doc_ledger`, `validate_doc`, `list_doc_violations`, `normalize_doc`, `get_doc_by_identity`
+- The matching tabs in the MCP Endpoint Viewer, and Doc Intelligence's subject/category mismatch check
+- The doc-contract checker (`tests/unit/doc-contract.test.ts`) and the scripts that wrote Dewey numbers into docs. Docs are identified by their `id` field and grouped by folder
+
 ### Fixed
 
 - Link Integrity checker validated nothing: it resolved `package.json` at a fixed `__dirname` depth that is wrong in the esbuild bundle, so every run threw ENOENT and skipped every `command:` link (#677)
@@ -178,20 +185,3 @@ inventory is reviewed.
 - MCP server integration
 - Home page with quick-launch grid
 - NPM Scripts tree panel
-
----
-
-docid: 150.6
-id: changelog-cielovista-tools
-title: Changelog — cielovista-tools
-project: cielovista-tools
-description: All notable changes to this project are documented here.
-status: active
-tags: [all, changelog, changes, cielovista, cielovistatools, deployment, documented, here, notable, project, release, tools, unreleased]
-category: 150.6 — Release & Deployment
-created: 2026-04-22
-updated: 2026-07-23
-version: 1.0.3
-author: CieloVista Software
-relativepath: CHANGELOG.md
----

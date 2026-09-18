@@ -65,7 +65,7 @@ async function buildMcpServer() {
     format:      'esm',
     sourcemap:   false,
   });
-  // Standalone catalog-helpers module consumed by scripts/backfill-doc-contract.mjs
+  // Standalone catalog-helpers module consumed by scripts/fix-broken-refs-bulk.js
   await esbuild.build({
     ...nodeBase,
     entryPoints: ['mcp-server/src/tools/catalog-helpers.ts'],

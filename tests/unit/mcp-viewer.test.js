@@ -36,14 +36,18 @@ const ALL_TABS = [
     'find_project',
     'search_docs',
     'get_catalog',
+    'list_symbols',
+    'find_symbol',
+    'list_cvt_commands',
+];
+
+// Retired with the Dewey docid system (#707 stage 3). None may come back.
+const RETIRED_TABS = [
     'list_doc_violations',
     'validate_doc',
     'normalize_doc',
     'get_doc_by_identity',
     'list_old_dewey',
-    'list_symbols',
-    'find_symbol',
-    'list_cvt_commands',
     'lookup_dewey',
 ];
 
@@ -53,15 +57,9 @@ const TAB_RENDER = {
     find_project:        'renderFindProjectTable',
     search_docs:         'renderDocsTable',
     get_catalog:         'renderDocsTable',
-    list_doc_violations: 'renderDocViolations',
-    validate_doc:        'renderValidateDoc',
-    normalize_doc:       'renderNormalizeDoc',
-    get_doc_by_identity: 'renderDocIdentity',
-    list_old_dewey:      'renderOldDewey',
     list_symbols:        'renderSymbolsTable',
     find_symbol:         'renderSymbolsTable',
     list_cvt_commands:   'renderCvtCommandsTable',
-    lookup_dewey:        'renderLookupDewey',
 };
 
 console.log('\nmcp-viewer unit tests\n' + '─'.repeat(60));
@@ -81,7 +79,7 @@ test('every request from the page carries the server token (#780)', () => {
 });
 
 // ── 2. Tab buttons ────────────────────────────────────────────────────────────
-console.log('\n[2] Tab buttons — all 13 tabs present');
+console.log('\n[2] Tab buttons — all ' + ALL_TABS.length + ' tabs present, no retired ones');
 
 for (const tab of ALL_TABS) {
     test(`tab button: ${tab}`, () => {
@@ -89,6 +87,11 @@ for (const tab of ALL_TABS) {
             src.includes(`data-endpoint="${tab}"`),
             `Missing tab button for endpoint "${tab}"`
         );
+    });
+}
+for (const tab of RETIRED_TABS) {
+    test(`retired tab absent: ${tab}`, () => {
+        assert.ok(!src.includes(tab), `"${tab}" is still in the viewer; it was retired with the Dewey docid system (#707)`);
     });
 }
 
@@ -107,17 +110,6 @@ for (const tab of ALL_TABS) {
 // Spot-check specific control elements
 test('find_project CONTROLS has query input', () => {
     assert.ok(src.includes("find_project: '<label for=\"q\">query</label>"), 'find_project must have a query label');
-});
-test('validate_doc CONTROLS has Use Active .md button', () => {
-    assert.ok(src.includes("btn-active-file"), 'validate_doc must have btn-active-file button');
-});
-test('normalize_doc CONTROLS has Use Active .md button', () => {
-    const idx = src.indexOf('normalize_doc:');
-    const slice = src.slice(idx, idx + 500);
-    assert.ok(slice.includes('btn-active-file'), 'normalize_doc must have btn-active-file button');
-});
-test('lookup_dewey CONTROLS has includeCommands checkbox', () => {
-    assert.ok(src.includes('includeCommands'), 'lookup_dewey must have includeCommands checkbox');
 });
 test('list_symbols CONTROLS has exported-only checkbox', () => {
     assert.ok(src.includes('exportedOnly'), 'list_symbols must have exportedOnly checkbox');
@@ -180,9 +172,6 @@ test('countSummary() exists', () => {
 test('countSummary handles projectCount', () => {
     assert.ok(src.includes("json.projectCount"), 'countSummary must check projectCount');
 });
-test('countSummary handles totalViolations', () => {
-    assert.ok(src.includes("json.totalViolations"), 'countSummary must check totalViolations');
-});
 test('sortDocs() exists with 4 modes', () => {
     assert.ok(src.includes('function sortDocs('), 'sortDocs must be defined');
     assert.ok(src.includes("mode === 'title'"),       "sortDocs must handle 'title' mode");
@@ -210,36 +199,6 @@ test('renderProjectsTable emits c-name and c-path columns', () => {
     assert.ok(slice.includes('c-name'), 'renderProjectsTable must emit c-name cell');
     assert.ok(slice.includes('c-path'), 'renderProjectsTable must emit c-path cell');
 });
-test('renderDocViolations renders summary byCode table', () => {
-    const idx = src.indexOf('function renderDocViolations(');
-    const slice = src.slice(idx, idx + 1200);
-    assert.ok(slice.includes('byCode'), 'renderDocViolations must render byCode summary');
-    assert.ok(slice.includes('totalViolations'), 'renderDocViolations must show totalViolations count');
-});
-test('renderValidateDoc shows ok/violations-found status', () => {
-    const idx = src.indexOf('function renderValidateDoc(');
-    const slice = src.slice(idx, idx + 1200);
-    assert.ok(slice.includes('violations found'), 'renderValidateDoc must show "violations found" label');
-    assert.ok(slice.includes('data.ok'), 'renderValidateDoc must check data.ok flag');
-});
-test('renderNormalizeDoc shows missingFields', () => {
-    const idx = src.indexOf('function renderNormalizeDoc(');
-    const slice = src.slice(idx, idx + 1200);
-    assert.ok(slice.includes('missingFields'), 'renderNormalizeDoc must reference missingFields');
-    assert.ok(slice.includes('suggestedFrontmatter'), 'renderNormalizeDoc must show suggestedFrontmatter');
-});
-test('renderDocIdentity shows found/not-found states', () => {
-    const idx = src.indexOf('function renderDocIdentity(');
-    const slice = src.slice(idx, idx + 1200);
-    assert.ok(slice.includes('not found'), 'renderDocIdentity must have not-found state');
-    assert.ok(slice.includes('data.found'), 'renderDocIdentity must check data.found');
-    assert.ok(slice.includes('data.identity'), 'renderDocIdentity must display identity');
-});
-test('renderOldDewey shows oldDewey column', () => {
-    const idx = src.indexOf('function renderOldDewey(');
-    const slice = src.slice(idx, idx + 1000);
-    assert.ok(slice.includes('oldDewey'), 'renderOldDewey must render oldDewey column');
-});
 test('renderSymbolsTable groups by project and shows kind/role', () => {
     // function body is long (inline regex escaping pads line 375), search full source
     assert.ok(src.includes("esc(s.kind)"), 'renderSymbolsTable must display symbol kind');
@@ -253,12 +212,6 @@ test('renderCvtCommandsTable groups by group name', () => {
     const slice = src.slice(idx, idx + 1200);
     assert.ok(slice.includes('group-hd'), 'renderCvtCommandsTable must use group headers');
     assert.ok(slice.includes('c.dewey'), 'renderCvtCommandsTable must show Dewey column');
-});
-test('renderLookupDewey renders both docs and commands sections', () => {
-    const idx = src.indexOf('function renderLookupDewey(');
-    const slice = src.slice(idx, idx + 1500);
-    assert.ok(slice.includes('Documents'), 'renderLookupDewey must render Documents section');
-    assert.ok(slice.includes('CVT Commands'), 'renderLookupDewey must render CVT Commands section');
 });
 test('docs table links use /md-preview with the token and ?path= for file preview (#780)', () => {
     assert.ok(src.includes("/md-preview?t=' + TOKEN + '&path='"), 'Doc table rows must link to /md-preview, token included, for file preview');
@@ -292,7 +245,7 @@ if (bundle.length === 0) {
     test('bundle contains buildViewerHtml function name', () => {
         assert.ok(bundle.includes('buildViewerHtml'), 'buildViewerHtml must appear in bundle');
     });
-    test('bundle contains all 13 tab endpoint names', () => {
+    test('bundle contains every tab endpoint name', () => {
         for (const tab of ALL_TABS) {
             assert.ok(bundle.includes(`data-endpoint="${tab}"`), `Tab "${tab}" missing from bundle`);
         }
