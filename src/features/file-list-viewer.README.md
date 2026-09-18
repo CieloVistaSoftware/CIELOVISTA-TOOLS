@@ -18,13 +18,13 @@ A details-view file browser surfaced as a Quick Launch button on the CieloVista 
 
 | Command ID | Title | Keybinding |
 |---|---|---|
-| `cvs.tools.fileList` | Tools: FileList | — |
-| `cvs.tools.fileList.navigateTo` | FileList: Open folder here | — |
+| `cvs.tools.fileList` | Tools: File List | — |
+| `cvs.tools.fileList.navigateTo` | FileList: Open Folder Here | — |
 | `cvs.filelist.revealInFilelist` | FileList: Reveal in FileList Explorer | — |
 
 ## Usage
 
-Open the Home page (`cvs.tools.home`) and click **FileList**, or run **CieloVista: Tools: FileList** from the command palette (`cvs.tools.fileList`).
+Open the Home page (`cvs.tools.home`) and click **FileList**, or run **CieloVista: Tools: File List** from the command palette (`cvs.tools.fileList`).
 
 The webview opens at the current workspace root. Click any column header to sort — click again to flip direction. The sort indicator (▲ / ▼) shows the active column and direction.
 
