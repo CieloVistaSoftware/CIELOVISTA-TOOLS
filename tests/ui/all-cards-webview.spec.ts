@@ -65,7 +65,7 @@ function makeTestCards(): string {
   </div>
 </article>`).join('');
         html += `<section class="cat-section" data-category="${cat}">
-  <h2 class="cat-heading"><span class="cat-dewey">100</span> ${cat}
+  <h2 class="cat-heading"><span class="cat-list">&#9776;</span> ${cat}
     <span class="cat-count">${items.length}</span></h2>
   <div class="card-grid">${cardHtml}</div>
 </section>`;

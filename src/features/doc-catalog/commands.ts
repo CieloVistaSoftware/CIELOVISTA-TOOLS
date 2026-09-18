@@ -12,7 +12,6 @@ import { loadRegistry } from './registry';
 import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
 import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
 import { scanForCards, resetCardCounter } from './scanner';
-import { buildProjectDeweyMap, lookupDewey } from './categories';
 import { loadProjectInfo } from './projects';
 import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
@@ -100,24 +99,22 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
     return vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog\u2026', cancellable: false },
         async (progress) => {
-            const deweyMap = buildProjectDeweyMap(registry.projects.map(p => p.name));
             // Archived docs stay out of the catalog. e29f04c dropped this
             // argument, so an archived doc came back on the next rebuild (#736).
             const archivedPaths = loadArchivedPaths();
             const cards: CatalogCard[] = scanForCards(
-                registry.globalDocsPath, 'global', registry.globalDocsPath,
-                lookupDewey(deweyMap, 'global').num, 3, archivedPaths
+                registry.globalDocsPath, 'global', registry.globalDocsPath, 3, archivedPaths
             );
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}\u2026` });
                 if (fs.existsSync(project.path)) {
-                    const dewey = lookupDewey(deweyMap, project.name);
-                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num, 3, archivedPaths));
+                    cards.push(...scanForCards(project.path, project.name, project.path, 3, archivedPaths));
                 }
             }
             cards.sort((a, b) => {
-                if (a.categoryNum !== b.categoryNum) { return a.categoryNum - b.categoryNum; }
+                // Project, then folder, then file (#707: no Dewey numbers).
                 if (a.projectName !== b.projectName) { return a.projectName.localeCompare(b.projectName); }
+                if (a.folder !== b.folder) { return a.folder.localeCompare(b.folder); }
                 return a.fileName.localeCompare(b.fileName);
             });
             _cachedCards = cards;
@@ -139,7 +136,7 @@ function _rbEsc(s: string): string {
 function buildRebuildSummaryHtml(
     cards: CatalogCard[],
     elapsedMs: number,
-    projectCounts: Array<{ name: string; count: number; dewey: string; path: string }>,
+    projectCounts: Array<{ name: string; count: number; path: string }>,
     rebuiltAt: string
 ): string {
     const nonce = getNonce();
@@ -147,7 +144,7 @@ function buildRebuildSummaryHtml(
     const totalProjects = projectCounts.length;
     const elapsedSec    = (elapsedMs / 1000).toFixed(2);
     const projectRows   = projectCounts.map(p =>
-        `<tr data-action="open-project-vscode" data-path="${_rbEsc(p.path)}" style="cursor:pointer" title="Open in VS Code"><td class="rb-dw">${_rbEsc(p.dewey)}</td><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
+        `<tr data-action="open-project-vscode" data-path="${_rbEsc(p.path)}" style="cursor:pointer" title="Open in VS Code"><td class="rb-nm">${_rbEsc(p.name)}</td><td class="rb-ct">${p.count}</td></tr>`
     ).join('');
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';"><style>
@@ -165,7 +162,6 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 table{width:100%;border-collapse:collapse}
 thead th{position:sticky;top:0;background:var(--vscode-textCodeBlock-background);padding:6px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border)}
 tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{border-bottom:none}tbody tr:hover{background:var(--vscode-list-hoverBackground)}
-.rb-dw{padding:5px 10px;font-family:monospace;font-size:9px;font-weight:700;color:var(--vscode-textLink-foreground);width:70px}
 .rb-nm{padding:5px 10px;font-weight:500;font-size:12px}
 .rb-ct{padding:5px 10px;text-align:right;font-family:monospace;font-size:12px;color:var(--vscode-descriptionForeground);width:55px}
 .rb-btns{display:flex;gap:8px;flex-wrap:wrap}
@@ -183,7 +179,7 @@ tbody tr{border-bottom:1px solid var(--vscode-panel-border)}tbody tr:last-child{
   <div class="rb-stat"><div class="rb-stat-n">${elapsedSec}s</div><div class="rb-stat-l">Time to rebuild</div></div>
 </div>
 <div class="rb-tbl"><table>
-  <thead><tr><th>Dewey</th><th>Project</th><th style="text-align:right">Docs</th></tr></thead>
+  <thead><tr><th>Project</th><th style="text-align:right">Docs</th></tr></thead>
   <tbody>${projectRows}</tbody>
 </table></div>
 <div class="rb-btns">
@@ -206,16 +202,15 @@ export async function rebuildCatalog(): Promise<void> {
     const cards   = await buildCatalog(true);
     const elapsed = Date.now() - startMs;
     if (!cards?.length) { vscode.window.showWarningMessage('Rebuild found no docs.'); return; }
-    const projectMap = new Map<string, { count: number; dewey: string; path: string }>();
+    const projectMap = new Map<string, { count: number; path: string }>();
     for (const card of cards) {
         const existing = projectMap.get(card.projectName);
-        const dewey    = String(card.categoryNum).padStart(3, '0');
         if (existing) { existing.count++; }
-        else          { projectMap.set(card.projectName, { count: 1, dewey, path: card.projectPath }); }
+        else          { projectMap.set(card.projectName, { count: 1, path: card.projectPath }); }
     }
     const projectCounts = [...projectMap.entries()]
-        .sort((a, b) => Number(a[1].dewey) - Number(b[1].dewey))
-        .map(([name, { count, dewey, path }]) => ({ name, count, dewey, path }));
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, { count, path }]) => ({ name, count, path }));
     const html  = buildRebuildSummaryHtml(cards, elapsed, projectCounts, new Date().toLocaleTimeString());
     const title = '\u{1F4CA} Catalog Rebuilt';
     if (_rebuildPanel) {
@@ -536,11 +531,7 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number, token: stri
         if (!byProject.has(card.projectName)) { byProject.set(card.projectName, []); }
         byProject.get(card.projectName)!.push(card);
     }
-    const sortedProjects = [...byProject.entries()].sort((a, b) => {
-        const numA = a[1][0]?.categoryNum ?? 999;
-        const numB = b[1][0]?.categoryNum ?? 999;
-        return numA - numB || a[0].localeCompare(b[0]);
-    });
+    const sortedProjects = [...byProject.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     const totalDocs     = cards.length;
     const totalProjects = sortedProjects.length;
 
@@ -558,7 +549,6 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number, token: stri
             if (pa !== pb) { return pa - pb; }
             return a.title.localeCompare(b.title);
         });
-        const deweyBase   = String(projCards[0]?.categoryNum ?? 0).padStart(3, '0');
         const projectPath = projCards[0]?.projectPath || '';
         const links = sortedCards.map(c => {
             const pri = getPriority(c.fileName) < 999 ? ' pri' : '';
@@ -568,7 +558,7 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number, token: stri
             ? `<button class="folder-btn" data-folder="${_escV(projectPath)}" title="Open project in VS Code">&#128194;</button>`
             : '';
         return `<div class="proj-group" data-proj="${_escV(projName)}">
-  <div class="proj-hd"><span class="dw">${_escV(deweyBase)}</span><span class="fn">${_escV(projName)}</span>${folderBtn}<span class="cnt">${sortedCards.length}</span></div>
+  <div class="proj-hd"><span class="fn">${_escV(projName)}</span>${folderBtn}<span class="cnt">${sortedCards.length}</span></div>
   <div class="proj-links">${links}</div>
 </div>`;
     }).join('');
