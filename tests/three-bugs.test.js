@@ -74,10 +74,13 @@ test('BUG-A SOURCE: attachMessageHandler openFolder calls openProjectFolderSmart
     assert.ok(slice.includes('openProjectFolderSmart'), 'openFolder must delegate to openProjectFolderSmart');
 });
 
+// /openfolder now passes the token + registered-project gate first and is
+// dispatched by runViewServerAction() (#752).
 test('BUG-A SOURCE: HTTP openfolder endpoint calls openProjectFolderSmart', () => {
-    const idx = srcCmds.indexOf("pathname === '/openfolder'");
-    assert.ok(idx !== -1, "pathname === '/openfolder' missing from HTTP server");
+    const idx = srcCmds.indexOf('function runViewServerAction(');
+    assert.ok(idx !== -1, 'runViewServerAction missing from HTTP server');
     const slice = srcCmds.slice(idx, idx + 400);
+    assert.ok(slice.includes("route === '/openfolder'"), '/openfolder not dispatched');
     assert.ok(slice.includes('openProjectFolderSmart'), '/openfolder must call openProjectFolderSmart');
 });
 

@@ -42,35 +42,40 @@ test('SOURCE: btn-explorer button in viewer-bar HTML', () => {
     assert.ok(src.includes('btn-explorer'), 'btn-explorer missing from HTML');
 });
 
-test('SOURCE: /open-in-vscode HTTP route exists', () => {
-    assert.ok(src.includes("pathname === '/open-in-vscode'"), '/open-in-vscode route missing');
-});
-test('SOURCE: /set-cwd HTTP route exists', () => {
-    assert.ok(src.includes("pathname === '/set-cwd'"), '/set-cwd route missing');
-});
-test('SOURCE: /reveal HTTP route exists', () => {
-    assert.ok(src.includes("pathname === '/reveal'"), '/reveal route missing');
+// The action routes go through one gate, authorizeViewServerRequest(), and
+// one dispatcher, runViewServerAction() (#752). The server behaviour itself
+// (token, project check, no shell text) is driven for real by REG-152.
+const ACTIONS_FN = (() => {
+    const i = src.indexOf('function runViewServerAction(');
+    return i === -1 ? '' : src.slice(i, i + 1200);
+})();
+
+test('SOURCE: /open-in-vscode, /set-cwd, /reveal are action routes behind the gate', () => {
+    const m = src.match(/const ACTION_ROUTES = new Set\(\[([^\]]*)\]\)/);
+    assert.ok(m, 'ACTION_ROUTES missing');
+    for (const r of ['/open-in-vscode', '/set-cwd', '/reveal']) {
+        assert.ok(m[1].includes("'" + r + "'"), r + ' is not an action route');
+    }
 });
 
-test('SOURCE: /open-in-vscode calls openProjectFolderSmart with dirname', () => {
-    const idx = src.indexOf("pathname === '/open-in-vscode'");
-    assert.ok(idx !== -1);
-    const slice = src.slice(idx, idx + 300);
-    assert.ok(slice.includes('openProjectFolderSmart'), '/open-in-vscode must call openProjectFolderSmart');
-    assert.ok(slice.includes('path.dirname'), 'must use path.dirname to get the folder');
+test('SOURCE: /open-in-vscode opens the doc folder via openProjectFolderSmart', () => {
+    assert.ok(/route === '\/open-in-vscode'/.test(ACTIONS_FN), '/open-in-vscode not dispatched');
+    assert.ok(ACTIONS_FN.includes('openProjectFolderSmart'), '/open-in-vscode must call openProjectFolderSmart');
+    const gate = src.slice(src.indexOf('function authorizeViewServerRequest('));
+    assert.ok(gate.includes('path.dirname'), 'the gate must reduce a doc path to its folder');
 });
-test('SOURCE: /set-cwd sends cd to terminal', () => {
-    const idx = src.indexOf("pathname === '/set-cwd'");
-    assert.ok(idx !== -1);
-    const slice = src.slice(idx, idx + 700);
-    assert.ok(slice.includes('sendText'), '/set-cwd must call terminal.sendText');
-    assert.ok(slice.includes('cd "'), 'must send cd command');
+test('SOURCE: /set-cwd opens a terminal in the folder and never types into a shell', () => {
+    const i = ACTIONS_FN.indexOf("route === '/set-cwd'");
+    assert.ok(i !== -1, '/set-cwd not dispatched');
+    const slice = ACTIONS_FN.slice(i, i + 500);
+    assert.ok(slice.includes('createTerminal') && slice.includes('cwd: target'), '/set-cwd must use createTerminal({ cwd })');
+    const server = src.slice(src.indexOf('const ACTION_ROUTES'), src.indexOf('export async function viewArchivedCatalog'));
+    assert.ok(server.length > 0 && !server.includes('sendText'), 'the View-a-Doc server must never sendText request input (#752)');
 });
 test('SOURCE: /reveal calls revealInExplorer', () => {
-    const idx = src.indexOf("pathname === '/reveal'");
-    assert.ok(idx !== -1);
-    const slice = src.slice(idx, idx + 600);
-    assert.ok(slice.includes('revealInExplorer'), '/reveal must call revealInExplorer');
+    const i = ACTIONS_FN.indexOf("route === '/reveal'");
+    assert.ok(i !== -1, '/reveal not dispatched');
+    assert.ok(ACTIONS_FN.slice(i, i + 300).includes('revealInExplorer'), '/reveal must call revealInExplorer');
 });
 
 test('SOURCE: browser JS fetches /open-in-vscode on button click', () => {
@@ -94,6 +99,8 @@ test('SOURCE: buttons shown when a doc is opened (openDoc function)', () => {
 
 // ─── DOM behavioral test ─────────────────────────────────────────────────────
 
+const TEST_TOKEN = 'f00dfeed';
+
 function extractBrowserScript(src) {
     const fnStart = src.indexOf('function buildViewDocBrowserHtml(');
     if (fnStart === -1) { return null; }
@@ -103,7 +110,9 @@ function extractBrowserScript(src) {
     if (sStart === -1 || sEnd === -1) { return null; }
     return scope.slice(sStart + '<script>'.length, sEnd)
         .replace(/\$\{port\}/g, '9999')
-        .replace(/\$\{totalDocs\}/g, '2');
+        .replace(/\$\{totalDocs\}/g, '2')
+        .replace(/\$\{token\}/g, TEST_TOKEN)
+        .replace(/\$\{SERVER_TOKEN_PARAM\}/g, 't');
 }
 
 const script = extractBrowserScript(src);
@@ -180,6 +189,7 @@ test('DOM: clicking VS Code button fetches /open-in-vscode', () => {
     doc.getElementById('btn-open-vscode').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     assert.ok(fetchCalls.length >= 1, 'fetch not called on VS Code button click');
     assert.ok(fetchCalls[0].includes('/open-in-vscode'), `expected /open-in-vscode in fetch URL, got: ${fetchCalls[0]}`);
+    assert.ok(fetchCalls[0].includes('&t=' + TEST_TOKEN), 'the page must send its server token (#752)');
     assert.ok(fetchCalls[0].includes('README'), 'path must be encoded in the fetch URL');
 });
 
@@ -191,6 +201,7 @@ test('DOM: clicking Set CWD button fetches /set-cwd', () => {
     doc.getElementById('btn-set-cwd').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     assert.ok(fetchCalls.length >= 1, 'fetch not called on Set CWD button click');
     assert.ok(fetchCalls[0].includes('/set-cwd'), `expected /set-cwd in fetch URL, got: ${fetchCalls[0]}`);
+    assert.ok(fetchCalls[0].includes('&t=' + TEST_TOKEN), 'the page must send its server token (#752)');
 });
 
 test('DOM: clicking Explorer button fetches /reveal', () => {
@@ -201,6 +212,7 @@ test('DOM: clicking Explorer button fetches /reveal', () => {
     doc.getElementById('btn-explorer').dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     assert.ok(fetchCalls.length >= 1, 'fetch not called on Explorer button click');
     assert.ok(fetchCalls[0].includes('/reveal'), `expected /reveal in fetch URL, got: ${fetchCalls[0]}`);
+    assert.ok(fetchCalls[0].includes('&t=' + TEST_TOKEN), 'the page must send its server token (#752)');
 });
 
 // ─── Output ──────────────────────────────────────────────────────────────────

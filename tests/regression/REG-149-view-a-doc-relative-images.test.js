@@ -212,7 +212,12 @@ async function partViewADoc() {
     PORT = Number(new URL(url).port);
     const origin = `http://127.0.0.1:${PORT}`;
 
-    const page = await request(`/doc?path=${encodeURIComponent(guideDoc)}`);
+    // /doc needs the server token too (#758). A browser gets it from the
+    // index page, which embeds it for the page's own requests.
+    const index = await request('/');
+    const pageToken = (index.body.toString('utf8').match(/&t=([0-9a-f]{64})/) || [])[1] || '';
+    check('the index page embeds the server token', !!pageToken);
+    const page = await request(`/doc?path=${encodeURIComponent(guideDoc)}&t=${pageToken}`);
     check('/doc renders the guide', page.status === 200, `status ${page.status}`);
     const srcs = imgSrcs(page.body.toString('utf8'));
     check('all six images were rendered as <img>', srcs.length === 6, `srcs: ${JSON.stringify(srcs)}`);
