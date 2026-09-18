@@ -27,6 +27,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { sameGenerated } = require('./lib/same-generated');
 
 const ROOT     = path.resolve(__dirname, '..');
 const DOCS_DIR = path.join(ROOT, 'docs');
@@ -256,7 +257,7 @@ let current = null;
 try { current = fs.readFileSync(OUT, 'utf8'); } catch { /* absent */ }
 
 if (process.argv.includes('--check')) {
-    if (current !== html) {
+    if (!sameGenerated(current, html)) {
         console.error('✗ docs/index.html is out of date — run `npm run docs:sync`');
         process.exit(1);
     }
@@ -264,7 +265,7 @@ if (process.argv.includes('--check')) {
     process.exit(0);
 }
 
-if (current !== html) {
+if (!sameGenerated(current, html)) {
     fs.writeFileSync(OUT, html);
     console.log(`docs-site: wrote docs/index.html (${sections.length} doors, ${archive.length} archived)`);
 } else {

@@ -40,6 +40,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { sameGenerated } = require('./lib/same-generated');
 
 const ROOT       = path.resolve(__dirname, '..');
 const DOCS_DIR   = path.join(ROOT, 'docs');
@@ -498,7 +499,7 @@ if (featuresDoc) {
             new RegExp(`${BEGIN_MARKER}[\\s\\S]*?${END_MARKER}`),
             () => renderFeatureBlock(),
         );
-        if (next !== current) { featureWrites.push([file, next, featuresDoc.path]); }
+        if (!sameGenerated(current, next)) { featureWrites.push([file, next, featuresDoc.path]); }
     }
 }
 
@@ -522,7 +523,7 @@ for (const section of sections) {
         new RegExp(`${BEGIN_MARKER}[\\s\\S]*?${END_MARKER}`),
         () => block,
     );
-    if (next !== current) { writes.push([file, next, hub.path]); }
+    if (!sameGenerated(current, next)) { writes.push([file, next, hub.path]); }
 }
 
 // Backlinks: "what points AT this document?" — the question you need answered
@@ -549,7 +550,7 @@ const catalogJson = JSON.stringify({
 
 let catalogCurrent = null;
 try { catalogCurrent = fs.readFileSync(CATALOG, 'utf8'); } catch { /* absent */ }
-if (catalogCurrent !== catalogJson) { writes.push([CATALOG, catalogJson, 'docs/catalog.json']); }
+if (!sameGenerated(catalogCurrent, catalogJson)) { writes.push([CATALOG, catalogJson, 'docs/catalog.json']); }
 
 if (CHECK_ONLY) {
     for (const [, , label] of writes) {
