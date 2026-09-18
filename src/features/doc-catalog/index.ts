@@ -10,7 +10,6 @@
  *   types.ts      — shared interfaces
  *   registry.ts   — loadRegistry
  *   content.ts    — text extraction, esc, extractTitle, extractDescription, extractTags
- *   categories.ts — Dewey category assignment
  *   scanner.ts    — scanForCards (walks disk)
  *   projects.ts   — loadProjectInfo, buildProjectsSectionHtml
  *   html.ts       — buildCatalogHtml (pure HTML string builder)

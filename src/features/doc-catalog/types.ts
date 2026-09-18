@@ -36,17 +36,22 @@ export interface CatalogCard {
     projectName: string;
     projectPath: string;
     category: string;
-    categoryNum: number;
+    /** The doc's folder relative to its project root, forward slashes; '' at the root (#707). */
+    folder: string;
     sizeBytes: number;
     lastModified: string;
     tags: string[];
+    /**
+     * The doc's frontmatter docid, if it declares one. The catalog itself no
+     * longer groups, sorts or badges by it (#707 stage 2). Only the MCP
+     * Endpoint Viewer's Dewey tools still read it, and #707 stage 3 deletes
+     * those tools and this field together.
+     */
     dewey?: string;
     helpDoc?: string;
     helpMarkdown?: string;
     /** Type extracted from frontmatter `type:` or stripped from title prefix (e.g. "Feature") */
     docType?: string;
-    /** True when another card in the catalog shares this dewey id */
-    docIdCollision?: boolean;
     /** VS Code command ID from frontmatter `command:` field or matched via CATALOG helpDoc */
     command?: string;
 }

@@ -64,7 +64,7 @@ export function buildProjectsSectionHtml(
     // One place, one interface — no duplicate card rendering here.
     return `<section class="cat-section" data-category="\u{1F680} Projects">
   <h2 class="cat-heading">
-    <span class="cat-dewey">PRJ</span>
+    <span class="cat-list">PRJ</span>
     Projects
     <span class="cat-count">${projects.length}</span>
   </h2>

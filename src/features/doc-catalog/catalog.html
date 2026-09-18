@@ -16,7 +16,7 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 #catalog{padding:12px 16px}
 .cat-section{margin-bottom:28px}
 .cat-heading{font-size:0.95em;font-weight:700;border-bottom:2px solid var(--vscode-focusBorder);padding-bottom:5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
-.cat-dewey{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;font-weight:700;background:var(--vscode-focusBorder);color:var(--vscode-editor-background);border-radius:3px;padding:1px 7px;letter-spacing:0.05em;flex-shrink:0}
+.cat-list{font-family:var(--vscode-editor-font-family,monospace);font-size:11px;font-weight:700;background:var(--vscode-focusBorder);color:var(--vscode-editor-background);border-radius:3px;padding:1px 7px;letter-spacing:0.05em;flex-shrink:0}
 .cat-count{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 7px;font-size:0.8em;font-weight:400}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(24rem,100%),1fr));gap:10px;width:100%}
 .doc-group-hd{grid-column:1/-1;font-size:0.8em;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-panel-border);padding-bottom:3px;margin-top:6px;margin-bottom:2px;opacity:0.75}
@@ -28,8 +28,8 @@ select{padding:4px 8px;background:var(--vscode-dropdown-background);color:var(--
 .card-header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0}
 .card-project{font-size:10px;font-weight:700;color:var(--vscode-textLink-foreground);text-transform:uppercase;letter-spacing:0.05em}
 .card-date{font-size:10px;color:var(--vscode-descriptionForeground)}
-.card-dewey-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px;margin-bottom:2px;min-width:0}
-.card-dewey{font-family:var(--vscode-editor-font-family);font-size:10px;font-weight:700;background:var(--vscode-editor-background);color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:1px 6px;letter-spacing:0.05em;flex-shrink:0}
+.card-folder-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px;margin-bottom:2px;min-width:0}
+.card-folder{font-family:var(--vscode-editor-font-family);font-size:10px;font-weight:700;background:var(--vscode-editor-background);color:var(--vscode-textLink-foreground);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:1px 6px;letter-spacing:0.05em;flex-shrink:0}
 .card-filename{font-family:var(--vscode-editor-font-family);font-size:10px;color:var(--vscode-descriptionForeground);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-title{font-weight:700;font-size:0.92em;line-height:1.3;transition:color 0.1s;cursor:pointer}
 .card-title[data-action]:hover{color:var(--vscode-textLink-foreground)}
@@ -245,14 +245,14 @@ function _copySelectedPaths() {
 
 // ── Keyboard shortcuts (Ctrl+A, Ctrl+C, Escape) ───────────────────────────────
 document.addEventListener('click', function(e) {
-    var pop = document.getElementById('_dewey-popover');
+    var pop = document.getElementById('_cat-popover');
     if (pop && pop.style.display !== 'none' && !pop.contains(e.target) && !e.target.closest('[data-action="show-cat-list"]')) {
         pop.style.display = 'none';
     }
 });
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        var pop = document.getElementById('_dewey-popover');
+        var pop = document.getElementById('_cat-popover');
         if (pop) { pop.style.display = 'none'; }
         _clearSelection();
         return;
@@ -380,14 +380,6 @@ function applyFilters() {
     document.querySelectorAll('.cat-section').forEach(function(s) {
         var firstVisibleCard = s.querySelector('.card:not(.hidden)');
         s.classList.toggle('hidden', !firstVisibleCard);
-
-        var badge = s.querySelector('.cat-dewey');
-        var cardDewey = firstVisibleCard ? firstVisibleCard.querySelector('.card-dewey') : null;
-        if (badge && cardDewey) {
-            var raw = (cardDewey.textContent || '').trim();
-            var m = raw.match(/^(\d{3})\./);
-            badge.textContent = m ? m[1] : raw;
-        }
     });
 
     var visibleSecs = document.querySelectorAll('.cat-section:not(.hidden)').length;
@@ -548,23 +540,29 @@ document.addEventListener('click', function(e) {
     else if (a === 'create-claude')       { vscode.postMessage({ command: 'createClaude',        data: btn.dataset.projPath }); }
     else if (a === 'create-tests')        { vscode.postMessage({ command: 'create-tests',        data: btn.dataset.projPath, projName: btn.dataset.projName }); }
     else if (a === 'run-command')         { vscode.postMessage({ command: 'run-command',         commandId: btn.dataset.commandId }); }
-    else if (a === 'jump-to-cat') {
-        var catEl = document.querySelector('.cat-section[data-category="' + btn.dataset.catLabel + '"]');
-        if (catEl) { catEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    else if (a === 'filter-folder') {
+        // A card's folder badge narrows the catalog to that project's folder,
+        // through the same project + section filters as the toolbar (#707).
+        var projSel = document.getElementById('proj-filter');
+        projSel.value = btn.dataset.project;
+        try { localStorage.setItem('catalog-proj-filter', btn.dataset.project); } catch (err) { /* storage unavailable */ }
+        updateSectionDropdown();
+        document.getElementById('section-filter').value = btn.dataset.section;
+        applyFilters();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     else if (a === 'show-cat-list') {
-        var prefix = btn.dataset.deweyPrefix;
         var secs = Array.from(document.querySelectorAll('.cat-section:not(.hidden)'));
         var rows = secs.map(function(s) {
             var label = s.dataset.category || '';
             var count = s.querySelectorAll('.card:not([style*="display:none"])').length || s.querySelectorAll('.card').length;
             return '<div style="padding:3px 0;cursor:pointer;white-space:nowrap" data-pop-cat="' + label.replace(/"/g, '&quot;') + '">' + label + ' <span style="color:var(--vscode-descriptionForeground);font-size:10px">(' + count + ')</span></div>';
         }).join('');
-        var pop = document.getElementById('_dewey-popover');
-        if (!pop) { pop = document.createElement('div'); pop.id = '_dewey-popover'; pop.style.cssText = 'position:fixed;z-index:9999;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:8px 12px;font-size:12px;max-height:300px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.4)'; document.body.appendChild(pop); }
+        var pop = document.getElementById('_cat-popover');
+        if (!pop) { pop = document.createElement('div'); pop.id = '_cat-popover'; pop.style.cssText = 'position:fixed;z-index:9999;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:8px 12px;font-size:12px;max-height:300px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.4)'; document.body.appendChild(pop); }
         var r = btn.getBoundingClientRect();
         pop.style.left = r.left + 'px'; pop.style.top = (r.bottom + 4) + 'px';
-        pop.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:var(--vscode-descriptionForeground)">Categories</div>' + rows;
+        pop.innerHTML = '<div style="font-weight:700;margin-bottom:6px;color:var(--vscode-descriptionForeground)">Projects</div>' + rows;
         pop.style.display = 'block';
         pop.querySelectorAll('[data-pop-cat]').forEach(function(row) {
             row.addEventListener('click', function() {

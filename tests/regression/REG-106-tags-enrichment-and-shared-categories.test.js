@@ -1,4 +1,4 @@
-// REG-106 — Tags Enrichment retired (#480 -> #730), shared CATEGORIES (#481), frontmatter desc fix (#482)
+// REG-106 — Tags Enrichment retired (#480 -> #730), category labels retired (#481 -> #707), frontmatter desc fix (#482)
 //
 // #480 added a Tags Enrichment feature that wrote a `tags:` field into every
 // doc's frontmatter. The doc contract (#707/#708) allows three hand-written
@@ -13,7 +13,6 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 function src(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
 
-const CATEGORIES= src('src/shared/categories.ts');
 const FEATURE   = src('src/features/doc-header/feature.ts');
 const CONTENT   = src('src/features/doc-catalog/content.ts');
 const EXT       = src('src/extension.ts');
@@ -44,29 +43,22 @@ check('#730 — no tagsEnrichment setting, toggle, wiring or launcher entry',
 check('#730 — the Doc Catalog still derives tags itself (extractTags)',
     CONTENT.includes('export function extractTags('));
 
-// ── #481: CATEGORIES shared constants ────────────────────────────────────────
+// ── #481 -> #707: category labels are retired ─────────────────────────────
+//
+// #481 moved the Dewey category labels into src/shared/categories.ts so
+// doc-header and the Doc Catalog shared one list. #730 stopped doc-header
+// writing a category, and #707 stage 2 regrouped the catalog by project and
+// folder, so nothing assigns a category label any more and both category
+// modules are gone.
 
-check('#481 — src/shared/categories.ts exists and exports CATEGORIES',
-    CATEGORIES.includes('export const CATEGORIES'));
+check('#707 — src/shared/categories.ts is gone',
+    !fs.existsSync(path.join(ROOT, 'src/shared/categories.ts')));
 
-check('#481 — CATEGORIES has all 10 keys',
-    CATEGORIES.includes('META') && CATEGORIES.includes('ARCHITECTURE') &&
-    CATEGORIES.includes('COMPONENTS') && CATEGORIES.includes('DEV_WORKFLOW') &&
-    CATEGORIES.includes('TESTING') && CATEGORIES.includes('API') &&
-    CATEGORIES.includes('TOOLS') && CATEGORIES.includes('PROJECT_DOCS') &&
-    CATEGORIES.includes('GLOBAL') && CATEGORIES.includes('AUDIT'));
+check('#707 — src/features/doc-catalog/categories.ts is gone',
+    !fs.existsSync(path.join(ROOT, 'src/features/doc-catalog/categories.ts')));
 
-check('#481 — CATEGORIES exports CategoryLabel type',
-    CATEGORIES.includes('export type CategoryLabel'));
-
-// doc-header used CATEGORIES to write a `category:` field. The contract has no
-// such field (#730), so doc-header no longer assigns one; the Doc Catalog is
-// the remaining user of these labels.
-check('#730 — doc-header writes no category field any more',
+check('#730 — doc-header writes no category field',
     !FEATURE.includes('CATEGORIES') && !FEATURE.includes('assignCategory'));
-
-check('#481 — the Doc Catalog takes its labels from shared CATEGORIES',
-    src('src/features/doc-catalog/commands.ts').includes('categories'));
 
 // ── #482: extractDescription skips bottom frontmatter fields ─────────────────
 

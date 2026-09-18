@@ -77,11 +77,12 @@ test('card-title has tooltip title attribute with Where/When/Why/How', () => {
     includes(htmlSrc, '`When:', 'tooltip must contain When section');
     includes(htmlSrc, '`Why:', 'tooltip must contain Why section');
     includes(htmlSrc, '`How:', 'tooltip must contain How section');
-    includes(htmlSrc, '`Dewey:', 'tooltip must include Dewey number');
+    includes(htmlSrc, '`Folder:', 'tooltip must include the doc folder (#707 stage 2 replaced the Dewey number)');
 });
 
-test('card-title tooltip uses deweyNum in footer line', () => {
-    includes(htmlSrc, 'Dewey: ${deweyNum}', 'tooltip footer must embed the computed deweyNum');
+test('card-title tooltip footer names the folder, not a Dewey number (#707)', () => {
+    includes(htmlSrc, 'Folder: ${folderLabel}', 'tooltip footer must embed the folder label');
+    if (htmlSrc.includes('Dewey:')) { throw new Error('tooltip still prints a Dewey number'); }
 });
 
 test('catalog shell has a Rebuild Catalog button in the toolbar', () => {

@@ -16,14 +16,15 @@ let _cardIdCounter = 0;
 
 export function resetCardCounter(): void { _cardIdCounter = 0; }
 
+/** Frontmatter docid, kept only for the Dewey tools #707 stage 3 removes. */
 function extractFrontmatterDocId(content: string): string | undefined {
     const lines = content.split('\n');
     if (lines[0]?.trim() !== '---') { return undefined; }
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line === '---') { break; }
-        const mDocid = line.match(/^docid\s*:\s*(.+?)\s*$/i);
-        if (mDocid) { return mDocid[1].trim(); }
+        const m = line.match(/^docid\s*:\s*(.+?)\s*$/i);
+        if (m) { return m[1].trim(); }
     }
     return undefined;
 }
@@ -40,19 +41,10 @@ function extractFrontmatterCommand(content: string): string | undefined {
     return undefined;
 }
 
-function categoryNumFromDocId(docId: string | undefined, fallback: number): number {
-    if (!docId) { return fallback; }
-    const m = docId.match(/^(\d{3})\./);
-    if (!m) { return fallback; }
-    const n = Number(m[1]);
-    return Number.isFinite(n) ? n : fallback;
-}
-
 export function scanForCards(
     rootPath:        string,
     projectName:     string,
     projectRootPath: string,
-    projectDeweyNum: number,   // e.g. 300 for DiskCleanUp
     maxDepth = 3,
     archivedPaths: Set<string> = new Set()
 ): CatalogCard[] {
@@ -74,10 +66,10 @@ export function scanForCards(
                 try {
                     const content = fs.readFileSync(fullPath, 'utf8');
                     const stat    = fs.statSync(fullPath);
-                    const { dewey, helpMarkdown } = extractDeweyAndHelp(fullPath);
-                    const fmDocid = extractFrontmatterDocId(content);
-                    const docId = fmDocid ?? dewey;
-                    const categoryNum = categoryNumFromDocId(docId, projectDeweyNum);
+                    // #707 stage 2: the catalog groups by project and folder. It no
+                    // longer reads a docid; the folder IS the category.
+                    const { dewey: helpDewey, helpMarkdown } = extractDeweyAndHelp(fullPath);
+                    const folder = path.relative(projectRootPath, path.dirname(fullPath)).split(path.sep).join('/');
                     const rawTitle = extractTitle(content, entry.name);
                     const docType  = extractDocType(content, rawTitle);
                     const title    = stripTypePrefix(rawTitle);
@@ -92,11 +84,11 @@ export function scanForCards(
                         projectName,
                         projectPath:  projectRootPath,
                         category:     projectName,   // section heading = project name
-                        categoryNum,
+                        folder:       folder === '.' ? '' : folder,
+                        dewey:        extractFrontmatterDocId(content) ?? helpDewey,
                         sizeBytes:    Buffer.byteLength(content, 'utf8'),
                         lastModified: stat.mtime.toISOString().slice(0, 10),
                         tags:         extractTags(content, entry.name),
-                        dewey: docId,
                         helpMarkdown,
                         command:      fmCommand,
                     });
