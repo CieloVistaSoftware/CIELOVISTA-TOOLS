@@ -669,6 +669,18 @@
         "description": "Start or stop the Model Context Protocol (MCP) server."
       },
       {
+        "command": "cvs.mcp.build",
+        "title": "MCP Server: Build",
+        "category": "CieloVista MCP",
+        "description": "Run npm run build in the open workspace's mcp-server/ folder and show the build output as a markdown preview. MCP Server: Start/Stop needs the dist/index.js this produces."
+      },
+      {
+        "command": "cvs.mcp.build.stop",
+        "title": "MCP Server: Stop Build",
+        "category": "CieloVista MCP",
+        "description": "Kill a running MCP Server: Build process."
+      },
+      {
         "command": "cvs.explorer.openFolderAsRoot",
         "title": "Explorer: Open Folder as Root",
         "category": "CieloVista",
@@ -719,6 +731,12 @@
         "title": "Health: Fix Bugs (Background Runner)",
         "category": "CieloVista",
         "description": "Run background health checks and automatically fix bugs."
+      },
+      {
+        "command": "cvs.health.stopRunner",
+        "title": "Health: Stop Background Runner",
+        "category": "CieloVista",
+        "description": "Stop the background health runner's round-robin checks and hourly regression run until the window is reloaded."
       },
       {
         "command": "cvs.tools.errorLog",

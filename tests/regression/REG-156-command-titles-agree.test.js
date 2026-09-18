@@ -112,13 +112,13 @@ const INTERNAL_COMMANDS = new Set([
     'cvs.tools.fileList._debugOpenEntry', // #448: integration-test hook (REG-079)
 ]);
 
-// Rule 5, pending. User-facing commands nobody can reach: contribute or delete,
-// owned by #766.
+// Rule 5, pending. User-facing commands nobody can reach: contribute or delete.
+// #766 contributed cvs.mcp.build, cvs.mcp.build.stop and cvs.health.stopRunner.
+// cvs.scripts.runScript belongs to script-runner, which extension.ts never
+// activates, so contributing it would add a "command not found" to the
+// palette; whether to wire or delete the module is #768.
 const UNCONTRIBUTED_ALLOWED = new Set([
-    'cvs.mcp.build',                      // #766
-    'cvs.mcp.build.stop',                 // #766
-    'cvs.scripts.runScript',              // #766
-    'cvs.health.stopRunner',              // #766
+    'cvs.scripts.runScript',              // #768 (script-runner is never activated)
 ]);
 
 // ── Sources ──────────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ check('rule 4 allow-list is current (no entry is catalogued or gone)',
 
 const uncontributed = [...registered.keys()].filter(id =>
     !contributed.has(id) && !INTERNAL_COMMANDS.has(id) && !UNCONTRIBUTED_ALLOWED.has(id));
-check(`rule 5: every registered command is contributed (${INTERNAL_COMMANDS.size} internal, ${UNCONTRIBUTED_ALLOWED.size} allow-listed under #766)`,
+check(`rule 5: every registered command is contributed (${INTERNAL_COMMANDS.size} internal, ${UNCONTRIBUTED_ALLOWED.size} allow-listed under #768)`,
     uncontributed.length === 0,
     `${list(uncontributed)}; contribute it, or if code alone calls it, add it to INTERNAL_COMMANDS with the reason`);
 const internalContributed = [...INTERNAL_COMMANDS].filter(id => contributed.has(id));

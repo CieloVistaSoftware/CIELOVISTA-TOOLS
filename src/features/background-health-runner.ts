@@ -1355,6 +1355,17 @@ function stopRunner(): void {
     }
 }
 
+/** The palette command: stopRunner(), plus a word when there is nothing to stop. */
+function stopRunnerCommand(): void {
+    if (!_running) {
+        vscode.window.showInformationMessage(
+            'The background health runner is not running in this window (it runs in one window at a time, or has already been stopped).');
+        return;
+    }
+    stopRunner();
+    vscode.window.showInformationMessage('Background health runner stopped. Reload the window to start it again.');
+}
+
 export async function showFixBugsPanel(): Promise<void> {
     const html = buildFixBugsHtml(_state);
 
@@ -1483,7 +1494,10 @@ export async function showFixBugsPanel(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel)
+        vscode.commands.registerCommand('cvs.health.fixBugs', showFixBugsPanel),
+        // Registered before the singleton check so the palette entry (#766)
+        // always exists; in a window whose runner never started it says so.
+        vscode.commands.registerCommand('cvs.health.stopRunner', stopRunnerCommand)
     );
 
     if (isAlreadyRunning()) {
@@ -1509,9 +1523,6 @@ export function activate(context: vscode.ExtensionContext): void {
     // Schedule the first regression run 2 min after startup, then every hour —
     // but only from a source checkout (#698). An installed build arms no timer.
     _regressionSchedulerArmed = armRegressionScheduler();
-    context.subscriptions.push(
-        vscode.commands.registerCommand('cvs.health.stopRunner', stopRunner)
-    );
 
     // Monitor extension-launched terminals for non-zero exit codes
     context.subscriptions.push(

@@ -14,7 +14,7 @@ Each feature is implemented in its own file or folder under `src/features/` and 
 
 <!-- docs-sync:begin -->
 
-- [Bg Health Runner](../../src/features/background-health-runner.README.md) — Bg Health Runner — 1 command(s). Auto-generated stub: fill in What it does and Manual test.
+- [Bg Health Runner](../../src/features/background-health-runner.README.md) — Bg Health Runner — 2 command(s). Continuous background health checks, a Fix Bugs panel, and a command to stop the runner.
 - [Claude Process Monitor](../../src/features/claude-process-monitor.README.md) — Claude Process Monitor — 1 command(s). Auto-generated stub: fill in What it does and Manual test.
 - [Code Auditor](../../src/features/code-auditor.README.md) — Code Auditor — 1 command(s). Auto-generated stub: fill in What it does and Manual test.
 - [Code Highlight Audit](../../src/features/code-highlight-audit.README.md) — Code Highlight Audit — 1 command(s). Auto-generated stub: fill in What it does and Manual test.
@@ -50,7 +50,7 @@ Each feature is implemented in its own file or folder under `src/features/` and 
 - [License Sync](../../src/features/license-sync.README.md) — License Sync — 1 command(s). Auto-generated stub: fill in What it does and Manual test.
 - [Link Integrity Checker](../../src/features/link-integrity-checker.README.md) — Link Integrity Checker — 0 command(s). Auto-generated stub: fill in What it does and Manual test.
 - [Marketplace Compliance](../../src/features/marketplace-compliance/README.md) — Marketplace Compliance — 3 command(s). Auto-generated stub: fill in What it does and Manual test.
-- [Mcp Build](../../src/features/mcp-build.README.md) — Mcp Build — 2 command(s). Auto-generated stub: fill in What it does and Manual test.
+- [Mcp Build](../../src/features/mcp-build.README.md) — Build the open workspace's mcp-server/ folder and show the result; stop a build that is still running.
 - [Mcp Server Scaffolder](../../src/features/mcp-server-scaffolder.README.md) — Mcp Server Scaffolder — 0 command(s). Auto-generated stub: fill in What it does and Manual test.
 - [Mcp Server Status](../../src/features/mcp-server-status.README.md) — Mcp Server Status — 0 command(s). Auto-generated stub: fill in What it does and Manual test.
 - [Mcp Viewer](../../src/features/mcp-viewer/README.md) — Mcp Viewer — 1 command(s). Auto-generated stub: fill in What it does and Manual test.
