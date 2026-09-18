@@ -61,7 +61,6 @@ Each feature is implemented in its own file or folder under `src/features/` and 
 - [Running Tasks](../../src/features/running-tasks.README.md)
 - [Script Runner](../../src/features/script-runner.README.md)
 - [Session Activity Dashboard](../../src/features/session-activity.README.md)
-- [Tags Enrichment](../../src/features/tags-enrichment.README.md)
 - [terminal-copy-output.ts](../../src/features/terminal-copy-output.README.md)
 - [terminal-folder-tracker.ts](../../src/features/terminal-folder-tracker.README.md)
 - [terminal-prompt-shortener.ts](../../src/features/terminal-prompt-shortener.README.md)

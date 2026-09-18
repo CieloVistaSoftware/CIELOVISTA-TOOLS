@@ -1,4 +1,10 @@
-// REG-106 — Tags Enrichment (#480), shared CATEGORIES (#481), frontmatter desc fix (#482)
+// REG-106 — Tags Enrichment retired (#480 -> #730), shared CATEGORIES (#481), frontmatter desc fix (#482)
+//
+// #480 added a Tags Enrichment feature that wrote a `tags:` field into every
+// doc's frontmatter. The doc contract (#707/#708) allows three hand-written
+// fields -- id, title, description -- and nothing derivable, so #730 retired
+// the feature: it could only create violations. The Doc Catalog derives tags
+// from file names and headings (doc-catalog/content.ts extractTags).
 'use strict';
 
 const fs   = require('fs');
@@ -7,7 +13,6 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 function src(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
 
-const ENRICH    = src('src/features/tags-enrichment.ts');
 const CATEGORIES= src('src/shared/categories.ts');
 const FEATURE   = src('src/features/doc-header/feature.ts');
 const CONTENT   = src('src/features/doc-catalog/content.ts');
@@ -22,66 +27,22 @@ function check(desc, cond) {
     else       { console.error(`  ✗ ${desc}`); fail++; }
 }
 
-// ── #480: tags-enrichment feature ────────────────────────────────────────────
+// ── #730: Tags Enrichment is retired ─────────────────────────────────────────
 
-check('#480 — tags-enrichment.ts: exports activate()',
-    ENRICH.includes('export function activate('));
+check('#730 — src/features/tags-enrichment.ts no longer exists',
+    !fs.existsSync(path.join(ROOT, 'src/features/tags-enrichment.ts')));
 
-check('#480 — tags-enrichment.ts: exports deactivate()',
-    ENRICH.includes('export function deactivate()'));
+check('#730 — no cvs.tags.* command is contributed',
+    !(PKG.contributes?.commands ?? []).some(c => /^cvs\.tags\./.test(c.command)));
 
-check('#480 — registers cvs.tags.enrich command',
-    ENRICH.includes("'cvs.tags.enrich'"));
+check('#730 — no tagsEnrichment setting, toggle, wiring or launcher entry',
+    !('cielovistaTools.features.tagsEnrichment' in (PKG.contributes?.configuration?.properties ?? {})) &&
+    !TOGGLE.includes("'tagsEnrichment'") &&
+    !EXT.includes('tagsEnrichment') &&
+    !CATALOG.includes("'cvs.tags."));
 
-check('#480 — registers cvs.tags.enrichAuto command',
-    ENRICH.includes("'cvs.tags.enrichAuto'"));
-
-check('#480 — deriveTags function present',
-    ENRICH.includes('function deriveTags') || ENRICH.includes('deriveTags('));
-
-check('#480 — placeholder tags filtered (tag1/tag2/tag3)',
-    ENRICH.includes('tag1') && ENRICH.includes('tag2') && ENRICH.includes('tag3'));
-
-check('#480 — enrichFile function present',
-    ENRICH.includes('function enrichFile') || ENRICH.includes('enrichFile('));
-
-check('#480 — parseFrontmatter present in tags-enrichment.ts',
-    ENRICH.includes('parseFrontmatter'));
-
-check('#480 — idempotent: existing non-placeholder tags preserved',
-    ENRICH.includes('existing') || ENRICH.includes('existingTags'));
-
-check('#480 — uses getLauncherTargetColumn from panel-context',
-    ENRICH.includes('getLauncherTargetColumn') &&
-    ENRICH.includes("from '../shared/panel-context'"));
-
-check('#480 — package.json has cvs.tags.enrich',
-    (PKG.contributes?.commands ?? []).some(c => c.command === 'cvs.tags.enrich'));
-
-check('#480 — package.json has cvs.tags.enrichAuto',
-    (PKG.contributes?.commands ?? []).some(c => c.command === 'cvs.tags.enrichAuto'));
-
-check('#480 — package.json has tagsEnrichment feature toggle setting',
-    'cielovistaTools.features.tagsEnrichment' in (PKG.contributes?.configuration?.properties ?? {}));
-
-check('#480 — catalog.ts has cvs.tags.enrich entry',
-    CATALOG.includes("'cvs.tags.enrich'"));
-
-check('#480 — catalog.ts has cvs.tags.enrichAuto entry',
-    CATALOG.includes("'cvs.tags.enrichAuto'"));
-
-check('#480 — feature-toggle FEATURE_REGISTRY includes tagsEnrichment',
-    TOGGLE.includes("'tagsEnrichment'"));
-
-check('#480 — extension.ts imports tagsEnrichmentActivate',
-    EXT.includes('tagsEnrichmentActivate'));
-
-check('#480 — extension.ts calls activateIfEnabled("tagsEnrichment"',
-    EXT.includes("activateIfEnabled('tagsEnrichment'") ||
-    EXT.includes('activateIfEnabled("tagsEnrichment"'));
-
-check('#480 — extension.ts calls tagsEnrichmentDeactivate()',
-    EXT.includes('tagsEnrichmentDeactivate()'));
+check('#730 — the Doc Catalog still derives tags itself (extractTags)',
+    CONTENT.includes('export function extractTags('));
 
 // ── #481: CATEGORIES shared constants ────────────────────────────────────────
 
@@ -98,20 +59,14 @@ check('#481 — CATEGORIES has all 10 keys',
 check('#481 — CATEGORIES exports CategoryLabel type',
     CATEGORIES.includes('export type CategoryLabel'));
 
-check('#481 — doc-header/feature.ts imports CATEGORIES from shared',
-    FEATURE.includes("from '../../shared/categories'") &&
-    FEATURE.includes('CATEGORIES'));
+// doc-header used CATEGORIES to write a `category:` field. The contract has no
+// such field (#730), so doc-header no longer assigns one; the Doc Catalog is
+// the remaining user of these labels.
+check('#730 — doc-header writes no category field any more',
+    !FEATURE.includes('CATEGORIES') && !FEATURE.includes('assignCategory'));
 
-check('#481 — CATEGORY_PATTERNS uses CATEGORIES.AUDIT (not hardcoded string)',
-    FEATURE.includes('CATEGORIES.AUDIT') &&
-    !FEATURE.includes("label: '900 — Audit"));
-
-check('#481 — CATEGORY_PATTERNS uses CATEGORIES.META',
-    FEATURE.includes('CATEGORIES.META') &&
-    !FEATURE.includes("label: '000 — Meta"));
-
-check('#481 — assignCategory uses CATEGORIES.GLOBAL and CATEGORIES.PROJECT_DOCS',
-    FEATURE.includes('CATEGORIES.GLOBAL') && FEATURE.includes('CATEGORIES.PROJECT_DOCS'));
+check('#481 — the Doc Catalog takes its labels from shared CATEGORIES',
+    src('src/features/doc-catalog/commands.ts').includes('categories'));
 
 // ── #482: extractDescription skips bottom frontmatter fields ─────────────────
 

@@ -4,14 +4,25 @@
  * doc-header-scan.ts
  *
  * Registers two commands:
- *   cvs.headers.scan       — scan all .md docs, report position violations (frontmatter at top)
- *   cvs.headers.scanAuto   — same scan, then auto-moves frontmatter from top to bottom, re-verifies
+ *   cvs.headers.scan       — scan all .md docs against the three-field header contract
+ *   cvs.headers.scanAuto   — same scan, then rewrites every non-compliant header to the
+ *                            contract and re-verifies each file
+ *
+ * THE CONTRACT (#707, #708, #730): id, title, description, at the TOP. Until #730
+ * this scan called a top block "wrong" and its auto-fix moved every header in every
+ * registered project to the bottom, undoing the contract docs/ and src/ follow.
+ * Reading, judging and rewriting all go through src/shared/doc-frontmatter.ts.
+ *
+ * scanAuto only rewrites docs that already HAVE a header. A doc with none is
+ * reported, not given one: adding headers everywhere is Headers: Fix All, which
+ * asks first.
  */
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
+import { readFrontmatter, contractViolations, toContract, Placement } from '../shared/doc-frontmatter';
 
 const FEATURE = 'doc-header-scan';
 const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
@@ -26,91 +37,32 @@ interface ProjectRegistry {
     globalDocsPath: string;
     projects: ProjectEntry[];
 }
-interface Frontmatter {
-    [key: string]: string | undefined;
-}
-
-type FmPosition = 'top' | 'bottom' | 'none';
-
-interface ParseResult {
-    fm:       Frontmatter;
-    position: FmPosition;
-    fmBlock:  string;   // raw YAML lines between the --- delimiters
-    body:     string;   // content excluding the frontmatter block
-}
-
 interface DocHeaderReport {
-    filePath:    string;
+    filePath:     string;
     relativePath: string;
-    projectName: string;
-    position:    FmPosition;
-    missingFields: string[];
-    currentFm:   Frontmatter;
+    projectName:  string;
+    position:     Placement;
+    /** Everything wrong under the contract; empty when compliant. */
+    violations:   string[];
 }
 
 interface FixResult {
-    filePath:    string;
+    filePath:     string;
     relativePath: string;
-    projectName: string;
-    success:     boolean;
-    verified:    boolean;          // re-read after write confirmed bottom position
-    error?:      string;
-}
-
-// ── Parsing ───────────────────────────────────────────────────────────────────
-
-function parseFmBlock(raw: string): Frontmatter {
-    const fm: Frontmatter = {};
-    for (const line of raw.split('\n')) {
-        const m = line.match(/^(\w[\w-]*):\s*(.*)$/);
-        if (m) { fm[m[1]] = m[2].trim(); }
-    }
-    return fm;
-}
-
-function parseFrontmatter(content: string): ParseResult | null {
-    // Top-position: file starts with ---
-    const topMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)([\s\S]*)$/);
-    if (topMatch) {
-        return {
-            fm:       parseFmBlock(topMatch[1]),
-            position: 'top',
-            fmBlock:  topMatch[1],
-            body:     topMatch[3],
-        };
-    }
-    // Bottom-position: file ends with ---\n...\n---\n? (with content before)
-    const botMatch = content.match(/^([\s\S]+?)\n---\r?\n([\s\S]*?)\r?\n---\s*$/);
-    if (botMatch) {
-        return {
-            fm:       parseFmBlock(botMatch[2]),
-            position: 'bottom',
-            fmBlock:  botMatch[2],
-            body:     botMatch[1],
-        };
-    }
-    return null;
+    projectName:  string;
+    success:      boolean;
+    verified:     boolean;          // re-read after write is compliant
+    error?:       string;
 }
 
 // ── Fix ───────────────────────────────────────────────────────────────────────
 
-function moveFrontmatterToBottom(r: DocHeaderReport): Omit<FixResult, 'filePath' | 'relativePath' | 'projectName'> {
+function fixToContract(r: DocHeaderReport): Omit<FixResult, 'filePath' | 'relativePath' | 'projectName'> {
     try {
-        const content  = fs.readFileSync(r.filePath, 'utf8');
-        const parsed   = parseFrontmatter(content);
-        if (!parsed || parsed.position !== 'top') {
-            return { success: false, verified: false, error: 'Frontmatter not at top — nothing to move' };
-        }
-        const body    = parsed.body.trimEnd();
-        const fixed   = body.length > 0
-            ? `${body}\n\n---\n${parsed.fmBlock}\n---\n`
-            : `---\n${parsed.fmBlock}\n---\n`;
-        fs.writeFileSync(r.filePath, fixed, 'utf8');
-
-        // Re-verify
-        const verifiedContent = fs.readFileSync(r.filePath, 'utf8');
-        const verifiedParsed  = parseFrontmatter(verifiedContent);
-        const verified        = verifiedParsed?.position === 'bottom';
+        const content = fs.readFileSync(r.filePath, 'utf8');
+        const fixed   = toContract(content, path.basename(r.filePath));
+        if (fixed !== content) { fs.writeFileSync(r.filePath, fixed, 'utf8'); }
+        const verified = contractViolations(fs.readFileSync(r.filePath, 'utf8')).length === 0;
         return { success: true, verified };
     } catch (err) {
         return { success: false, verified: false, error: err instanceof Error ? err.message : String(err) };
@@ -119,7 +71,6 @@ function moveFrontmatterToBottom(r: DocHeaderReport): Omit<FixResult, 'filePath'
 
 // ── Directory scanner ─────────────────────────────────────────────────────────
 
-const REQUIRED_FIELDS = ['title', 'description', 'project', 'category', 'relativePath', 'created', 'updated', 'author', 'status', 'tags'];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', 'reports', '.vscode', '.vscode-test', '.claude', 'CommandHelp', 'image-reader-assets']);
 
 function toRelativePath(filePath: string, projectRoot: string): string {
@@ -140,17 +91,12 @@ function scanDirectory(rootPath: string, projectName: string, projectRoot: strin
             } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
                 try {
                     const content  = fs.readFileSync(fullPath, 'utf8');
-                    const parsed   = parseFrontmatter(content);
-                    const relPath  = toRelativePath(fullPath, projectRoot);
-                    const fm       = parsed?.fm ?? {};
-                    const missing  = REQUIRED_FIELDS.filter(f => !fm[f] || fm[f]!.trim() === '');
                     results.push({
-                        filePath:      fullPath,
-                        relativePath:  relPath,
+                        filePath:     fullPath,
+                        relativePath: toRelativePath(fullPath, projectRoot),
                         projectName,
-                        position:      parsed?.position ?? 'none',
-                        missingFields: missing,
-                        currentFm:     fm,
+                        position:     readFrontmatter(content).placement,
+                        violations:   contractViolations(content),
                     });
                 } catch { /* skip unreadable */ }
             }
@@ -178,98 +124,70 @@ function loadRegistry(): ProjectRegistry | undefined {
 // ── Report ────────────────────────────────────────────────────────────────────
 
 function logReport(reports: DocHeaderReport[], fixResults: FixResult[], autoFix: boolean, projectCount: number): void {
-    const total       = reports.length;
-    const atTop       = reports.filter(r => r.position === 'top');
-    const atBottom    = reports.filter(r => r.position === 'bottom');
-    const noFm        = reports.filter(r => r.position === 'none');
+    const total     = reports.length;
+    const compliant = reports.filter(r => r.violations.length === 0);
+    const toFix     = reports.filter(r => r.position !== 'none' && r.violations.length > 0);
+    const noFm      = reports.filter(r => r.position === 'none');
 
     const mode = autoFix ? 'Scan + Auto-Fix' : 'Scan';
-    log(FEATURE, `=== Frontmatter Position ${mode} ===`);
+    log(FEATURE, `=== Doc Header Contract ${mode} ===`);
     log(FEATURE, `Scanned ${total} markdown files across ${projectCount} projects`);
+    log(FEATURE, 'Contract: id, title, description at the top of the file');
     log(FEATURE, '');
-    log(FEATURE, `  ✅ Correct (bottom):          ${atBottom.length}`);
-    log(FEATURE, `  ⚠️  Wrong (top — must move):   ${atTop.length}`);
-    log(FEATURE, `  ❌ No frontmatter:             ${noFm.length}`);
+    log(FEATURE, `  ✅ Compliant:                    ${compliant.length}`);
+    log(FEATURE, `  ⚠️  Header needs rewriting:      ${toFix.length}`);
+    log(FEATURE, `  ❌ No header (Headers: Fix All): ${noFm.length}`);
 
-    if (atTop.length === 0) {
+    if (toFix.length === 0) {
         log(FEATURE, '');
-        log(FEATURE, '🎉 All files have frontmatter at the bottom — nothing to fix.');
+        log(FEATURE, 'Every header present follows the contract — nothing for auto-fix to do.');
         log(FEATURE, `=== End of ${mode} ===`);
         return;
     }
 
-    // ── Section 1: WRONG ─────────────────────────────────────────────────────
     log(FEATURE, '');
-    log(FEATURE, '─── WRONG — frontmatter at top ───────────────────────────────');
+    log(FEATURE, '─── NEEDS REWRITING ──────────────────────────────────────────');
     const byProject = new Map<string, DocHeaderReport[]>();
-    for (const r of atTop) {
+    for (const r of toFix) {
         if (!byProject.has(r.projectName)) { byProject.set(r.projectName, []); }
         byProject.get(r.projectName)!.push(r);
     }
     for (const [proj, items] of byProject) {
         log(FEATURE, `  [${proj}] — ${items.length} file(s)`);
         for (const r of items.slice(0, 20)) {
-            log(FEATURE, `    ⚠️  ${r.relativePath}`);
+            log(FEATURE, `    ⚠️  ${r.relativePath} — ${r.violations.join('; ')}`);
         }
         if (items.length > 20) { log(FEATURE, `    … and ${items.length - 20} more`); }
     }
 
     if (!autoFix) {
         log(FEATURE, '');
-        log(FEATURE, `─── No fixes applied (scan-only mode) ───────────────────────`);
-        log(FEATURE, `  Run: Headers: Scan + Auto-Fix   (cvs.headers.scanAuto)`);
-        log(FEATURE, `=== End of Scan ===`);
+        log(FEATURE, '─── No fixes applied (scan-only mode) ───────────────────────');
+        log(FEATURE, '  Run: Headers: Scan + Auto-Fix   (cvs.headers.scanAuto)');
+        log(FEATURE, '=== End of Scan ===');
         return;
     }
 
-    // ── Section 2: FIXED ─────────────────────────────────────────────────────
-    const fixed   = fixResults.filter(r => r.success);
-    const failed  = fixResults.filter(r => !r.success);
+    const fixed    = fixResults.filter(r => r.success);
+    const failed   = fixResults.filter(r => !r.success);
     const verified = fixed.filter(r => r.verified);
 
     log(FEATURE, '');
     log(FEATURE, '─── FIXED ────────────────────────────────────────────────────');
-    log(FEATURE, `  Applied:  ${fixResults.length}`);
-    log(FEATURE, `  Success:  ${fixed.length}`);
-    log(FEATURE, `  Failed:   ${failed.length}`);
-
-    const fixByProject = new Map<string, FixResult[]>();
-    for (const f of fixResults) {
-        if (!fixByProject.has(f.projectName)) { fixByProject.set(f.projectName, []); }
-        fixByProject.get(f.projectName)!.push(f);
-    }
-    for (const [proj, items] of fixByProject) {
-        log(FEATURE, `  [${proj}]`);
-        for (const f of items) {
-            if (f.success) {
-                log(FEATURE, `    ✅ FIXED   ${f.relativePath}`);
-            } else {
-                log(FEATURE, `    ❌ FAILED  ${f.relativePath}  — ${f.error ?? 'unknown error'}`);
-            }
-        }
+    log(FEATURE, `  Applied: ${fixResults.length}   Success: ${fixed.length}   Failed: ${failed.length}`);
+    for (const f of failed) {
+        log(FEATURE, `    ❌ FAILED  ${f.relativePath}  — ${f.error ?? 'unknown error'}`);
     }
 
-    // ── Section 3: RE-VERIFIED ────────────────────────────────────────────────
     log(FEATURE, '');
     log(FEATURE, '─── RE-VERIFIED (re-read after write) ────────────────────────');
-    log(FEATURE, `  Verified correct (position: bottom):  ${verified.length}`);
-    log(FEATURE, `  Verify failed (position mismatch):    ${fixed.length - verified.length}`);
-
-    for (const [proj, items] of fixByProject) {
-        const projFixed = items.filter(f => f.success);
-        if (projFixed.length === 0) { continue; }
-        log(FEATURE, `  [${proj}]`);
-        for (const f of projFixed) {
-            if (f.verified) {
-                log(FEATURE, `    ✅ OK      ${f.relativePath}`);
-            } else {
-                log(FEATURE, `    ⚠️  MISMATCH ${f.relativePath}  (position did not become bottom)`);
-            }
-        }
+    log(FEATURE, `  Compliant after fix: ${verified.length}   Still non-compliant: ${fixed.length - verified.length}`);
+    for (const f of fixed.filter(r => !r.verified)) {
+        log(FEATURE, `    ⚠️  ${f.relativePath}  (still non-compliant after rewrite)`);
     }
 
     log(FEATURE, '');
-    log(FEATURE, `=== End of Auto-Fix ===`);
+    log(FEATURE, '=== End of Auto-Fix ===');
 }
 
 // ── Core runner ───────────────────────────────────────────────────────────────
@@ -281,7 +199,7 @@ async function runScan(autoFix: boolean): Promise<void> {
     const reports: DocHeaderReport[] = await vscode.window.withProgress(
         {
             location: vscode.ProgressLocation.Notification,
-            title: autoFix ? 'Scanning + auto-fixing frontmatter position…' : 'Scanning frontmatter position…',
+            title: autoFix ? 'Scanning + fixing doc headers…' : 'Scanning doc headers…',
             cancellable: false,
         },
         async (progress) => {
@@ -297,12 +215,12 @@ async function runScan(autoFix: boolean): Promise<void> {
         }
     ) as DocHeaderReport[];
 
-    const atTop = reports.filter(r => r.position === 'top');
+    const toFix = reports.filter(r => r.position !== 'none' && r.violations.length > 0);
 
     let fixResults: FixResult[] = [];
-    if (autoFix && atTop.length > 0) {
-        fixResults = atTop.map(r => {
-            const outcome = moveFrontmatterToBottom(r);
+    if (autoFix && toFix.length > 0) {
+        fixResults = toFix.map(r => {
+            const outcome = fixToContract(r);
             return { filePath: r.filePath, relativePath: r.relativePath, projectName: r.projectName, ...outcome };
         });
     }
@@ -321,3 +239,6 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 }
 export function deactivate(): void {}
+
+/** @internal — exported for unit testing only */
+export const _test = { scanDirectory, fixToContract };
