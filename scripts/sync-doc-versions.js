@@ -16,9 +16,15 @@
 // Regression test count is NOT auto-synced here — it changes with nearly
 // every PR and computing it live would mean running the full suite inside
 // this lightweight doc step; review "Tests Green" by hand each release.
+//
+// --check writes nothing and exits 1 when any page on disk differs from what
+// this script would write (line endings ignored). Part of npm run docs:check
+// and REG-163 (#790): the pages are published by GitHub Pages from main, so a
+// PR that adds a command or feature must carry the updated counts with it.
 
 const fs = require('fs');
 const path = require('path');
+const { sameGenerated } = require('./lib/same-generated');
 
 const ROOT = path.join(__dirname, '..');
 const DOCS_TODAY = path.join(ROOT, 'docs', '_today');
@@ -41,50 +47,76 @@ function countFeatures() {
 }
 
 /**
- * @param {string} filePath
+ * The page content this script writes. Pure: depends only on its inputs.
+ * @param {string} before
  * @param {{version: string, commandCount: number, featureCount: number}} facts
+ * @returns {string}
  */
-function syncFile(filePath, facts) {
-    const before = fs.readFileSync(filePath, 'utf8');
-    const after = before
+function syncContent(before, facts) {
+    return before
         .replace(/cielovista-tools-\d+\.\d+\.\d+\.vsix/g, `cielovista-tools-${facts.version}.vsix`)
         .replace(HERO_LABEL_RE, `$1v${facts.version}`)
         .replace(NAV_BADGE_RE, `$1v${facts.version}$2`)
         .replace(COMMANDS_STAT_RE, `$1${facts.commandCount}$2`)
         .replace(FEATURES_STAT_RE, `$1${facts.featureCount}+$2`);
-    if (after !== before) {
-        fs.writeFileSync(filePath, after, 'utf8');
-        return true;
-    }
-    return false;
 }
 
-function main() {
+/** @returns {{version: string, commandCount: number, featureCount: number}} */
+function collectFacts() {
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
     const version = pkg.version;
     if (!version) {
         throw new Error('package.json has no version field');
     }
-    const facts = {
+    return {
         version,
         commandCount: pkg.contributes.commands.length,
         featureCount: countFeatures(),
     };
+}
 
-    const files = [
+/** Every page this script keeps in sync, as absolute paths. */
+function targetFiles() {
+    return [
         path.join(ROOT, 'index.html'),
-        ...fs.readdirSync(DOCS_TODAY).filter((f) => f.endsWith('.html')).map((f) => path.join(DOCS_TODAY, f)),
+        ...fs.readdirSync(DOCS_TODAY).filter((f) => f.endsWith('.html')).sort().map((f) => path.join(DOCS_TODAY, f)),
     ].filter((f) => fs.existsSync(f));
+}
+
+function main() {
+    const facts = collectFacts();
+    const files = targetFiles();
+    const check = process.argv.includes('--check');
 
     let changedCount = 0;
     for (const full of files) {
-        if (syncFile(full, facts)) {
-            changedCount++;
-            console.log(`  updated ${path.relative(ROOT, full)}`);
+        const before = fs.readFileSync(full, 'utf8');
+        const after = syncContent(before, facts);
+        if (sameGenerated(before, after)) { continue; }
+        changedCount++;
+        const rel = path.relative(ROOT, full).replace(/\\/g, '/');
+        if (check) {
+            console.error(`  out of date: ${rel}`);
+        } else {
+            fs.writeFileSync(full, after, 'utf8');
+            console.log(`  updated ${rel}`);
         }
     }
 
-    console.log(`\nsync-doc-versions: v${facts.version}, ${facts.commandCount} commands, ${facts.featureCount} features — ${changedCount} file(s) updated, ${files.length} scanned`);
+    const summary = `v${facts.version}, ${facts.commandCount} commands, ${facts.featureCount} features`;
+    if (check) {
+        if (changedCount) {
+            console.error(`\nsync-doc-versions --check: ${changedCount} of ${files.length} page(s) do not show ${summary}. Run: npm run docs:sync-versions, then commit them.`);
+            process.exit(1);
+        }
+        console.log(`sync-doc-versions --check: all ${files.length} page(s) show ${summary}`);
+        return;
+    }
+    console.log(`\nsync-doc-versions: ${summary} — ${changedCount} file(s) updated, ${files.length} scanned`);
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = { syncContent, collectFacts, targetFiles, ROOT };

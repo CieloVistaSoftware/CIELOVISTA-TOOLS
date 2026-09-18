@@ -9,13 +9,19 @@
 // feature groups show up automatically the next time this script runs —
 // no second manual edit required.
 //
-// Run: node scripts/generate-marketplace-features.js
+// Run:   node scripts/generate-marketplace-features.js
+// Check: node scripts/generate-marketplace-features.js --check
+//        exits 1 when the page on disk is not what this script would write
+//        (line endings ignored), and writes nothing. Part of npm run docs:check
+//        and REG-163 (#790), so a PR that changes the catalog cannot leave the
+//        published page stale.
 // Wire: called as part of npm run rebuild via npm run docs:marketplace
 
 'use strict';
 
 const fs   = require('fs');
 const path = require('path');
+const { sameGenerated } = require('./lib/same-generated');
 
 const ROOT          = path.resolve(__dirname, '..');
 const CATALOG_PATH   = path.join(ROOT, 'src', 'features', 'cvs-command-launcher', 'catalog.ts');
@@ -188,17 +194,40 @@ function replaceBetweenMarkers(html, startMarker, endMarker, replacement) {
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
-function main() {
-    const catalogSrc = fs.readFileSync(CATALOG_PATH, 'utf8');
+/**
+ * The page this script writes, given the catalog source and the page as it
+ * stands. Pure: reads and writes nothing. Output depends only on its inputs.
+ * @param {string} catalogSrc
+ * @param {string} currentHtml
+ * @returns {{ html: string, entries: string[], groups: object[] }}
+ */
+function renderMarketplace(catalogSrc, currentHtml) {
     const entries = extractCatalogEntries(catalogSrc);
     if (entries.length === 0) {
         throw new Error('Parsed zero catalog entries — catalog.ts format may have changed; update scripts/generate-marketplace-features.js');
     }
     const groups = groupCatalogEntries(entries);
-
-    let html = fs.readFileSync(MARKETPLACE_HTML, 'utf8');
+    let html = currentHtml;
     html = replaceBetweenMarkers(html, CHIPS_START, CHIPS_END, buildChipsHtml(groups));
     html = replaceBetweenMarkers(html, CARDS_START, CARDS_END, buildCardsHtml(groups));
+    return { html, entries, groups };
+}
+
+function main() {
+    const catalogSrc = fs.readFileSync(CATALOG_PATH, 'utf8');
+    const current = fs.readFileSync(MARKETPLACE_HTML, 'utf8');
+    const { html, entries, groups } = renderMarketplace(catalogSrc, current);
+    const rel = path.relative(ROOT, MARKETPLACE_HTML).replace(/\\/g, '/');
+
+    if (process.argv.includes('--check')) {
+        if (!sameGenerated(current, html)) {
+            console.error(`✗ ${rel} is out of date with catalog.ts. Run: npm run docs:marketplace, then commit it.`);
+            process.exit(1);
+        }
+        console.log(`✓ ${rel} is current (${entries.length} commands, ${groups.length} feature groups)`);
+        return;
+    }
+
     fs.writeFileSync(MARKETPLACE_HTML, html, 'utf8');
 
     console.log('\nCieloVista Tools — Marketplace Feature Sync');
@@ -207,7 +236,11 @@ function main() {
     for (const g of groups) {
         console.log(`  ${g.icon}  ${g.name} (${g.count})`);
     }
-    console.log(`✓ Updated ${path.relative(ROOT, MARKETPLACE_HTML)}\n`);
+    console.log(`✓ Updated ${rel}\n`);
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = { renderMarketplace, CATALOG_PATH, MARKETPLACE_HTML };
