@@ -6,10 +6,17 @@
  *
  * After all checks:
  *   1. Writes data/command-errors.json  (all failures, wb-core error format)
- *   2. Auto-fixes what can be fixed
- *   3. Appends each fix to data/fixes.json (wb-core fix format)
+ *   2. With --repair only: auto-fixes what can be fixed, appends each fix to
+ *      data/fixes.json (wb-core fix format), and files a GitHub issue for
+ *      any failure.
  *
- * Run:  node tests/command-validation.test.js
+ * Run:  node tests/command-validation.test.js            check only (the gate)
+ *       node tests/command-validation.test.js --repair   npm run test:commands
+ *
+ * The gate (scripts/run-unit-tests.js, #736) runs it without --repair: a test
+ * that runs on every rebuild must not edit source, rewrite tracked data, or
+ * open an issue each time it fails (#538 and #539 are two identical issues
+ * that behaviour filed).
  */
 
 'use strict';
@@ -18,6 +25,8 @@ const fs            = require('fs');
 const path          = require('path');
 const { execSync }  = require('child_process');
 const { parsePathConst } = require('./utils/parse-path-const.js');
+
+const REPAIR = process.argv.includes('--repair');
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 const ROOT          = path.join(__dirname, '..');
@@ -32,6 +41,7 @@ const FIXES_FILE    = path.join(DATA, 'fixes.json');
 
 // ── Auto-issue filer (called on any failure or crash) ─────────────────────────
 function fileIssueOnFailure(title, bodyText) {
+    if (!REPAIR) { console.log('\n(issue not filed: run with --repair to file one)'); return; }
     if (!fs.existsSync(DATA)) { fs.mkdirSync(DATA, { recursive: true }); }
     const tmpBody = path.join(DATA, '_test-commands-issue-body.md');
     try {
@@ -347,7 +357,14 @@ if (cdHits.length) {
 }
 
 console.log('\n  [3b] Project paths exist on disk');
-if (!snapitPath) {
+// SnapIt and DiskCleanUp are personal side-projects at fixed local paths
+// (_SNAPIT_ROOT / _DISKCLEANUP_ROOT). No CI runner has them, so under CI their
+// on-disk checks are skipped, as #656 decided for catalog-integrity (#736).
+function personalPathAbsentInCi(p) { return !!process.env.CI && !!p && !fs.existsSync(p); }
+function skipPersonal(name) { console.log(`  SKIP: ${name} (personal local path, absent on CI runners, #656)`); }
+if (personalPathAbsentInCi(snapitPath)) {
+    skipPersonal('SNAPIT path exists');
+} else if (!snapitPath) {
     fail('SNAPIT constant missing from project-launcher.ts', 'Could not parse the SNAPIT path constant', {
         category: 'configuration', severity: 'critical', file: 'project-launcher.ts',
     });
@@ -360,7 +377,9 @@ if (!snapitPath) {
     pass(`SNAPIT path exists`, snapitPath);
 }
 
-if (!diskcleanPath) {
+if (personalPathAbsentInCi(diskcleanPath)) {
+    skipPersonal('DISKCLEAN path exists');
+} else if (!diskcleanPath) {
     fail('DISKCLEAN constant missing from project-launcher.ts', 'Could not parse the DISKCLEAN path constant', {
         category: 'configuration', severity: 'critical', file: 'project-launcher.ts',
     });
@@ -380,6 +399,7 @@ for (const { id, cmd } of launcherCmds) {
     const scripts      = isSnapit ? snapitScripts : isDiskclean ? diskcleanScripts : {};
     const projPath     = isSnapit ? snapitPath    : isDiskclean ? diskcleanPath    : '';
     const projName     = isSnapit ? 'SnapIt'      : isDiskclean ? 'DiskCleanUp'   : '?';
+    if ((isSnapit || isDiskclean) && personalPathAbsentInCi(projPath)) { skipPersonal(id); continue; }
 
     if (cmd.startsWith('npm run ')) {
         const scriptName = cmd.slice(8).trim();
@@ -522,6 +542,11 @@ if (!autoFixable.length) {
         fileIssueOnFailure(`test:commands — ${failed} failure${failed > 1 ? 's' : ''} (${crit} critical)`, body);
     }
     process.exit(failed > 0 ? 1 : 0);
+}
+
+if (!REPAIR) {
+    console.log(`\n🔧 ${autoFixable.length} auto-fixable issue(s) — run with --repair to apply them.\n`);
+    process.exit(1);
 }
 
 console.log(`\n🔧 Auto-fixing ${autoFixable.length} issue(s)...\n`);
