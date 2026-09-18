@@ -219,15 +219,11 @@ if (!fs.existsSync(ARCHIVE_JS)) {
     const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'cvt-archive-test-'));
     const tmpFile = path.join(tmpDir, 'archived-docs.json');
 
-    const origJs    = fs.readFileSync(ARCHIVE_JS, 'utf8');
-    const patchedJs = origJs.replace(
-        /const ARCHIVE_FILE\s*=\s*path\.join\([^)]+\)/,
-        `const ARCHIVE_FILE = ${JSON.stringify(tmpFile)}`
-    );
-    const tmpJs = path.join(tmpDir, 'archive-patched.js');
-    fs.writeFileSync(tmpJs, patchedJs, 'utf8');
-
-    const { archiveDoc, isArchived, restoreDoc } = require(tmpJs);
+    // archive.js keeps archived-docs.json in dataDir(), which CVT_DATA_DIR
+    // overrides (#825). This test used to rewrite the module's source text to
+    // swap the path in; it now loads the real module pointed at tmpDir.
+    process.env.CVT_DATA_DIR = tmpDir;
+    const { archiveDoc, isArchived, restoreDoc } = require(ARCHIVE_JS);
     const TEST_PATH  = '/test/projects/my-doc.md';
     const TEST_TITLE = 'My Doc';
     const TEST_PROJ  = 'test-project';

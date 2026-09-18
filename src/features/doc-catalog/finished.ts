@@ -13,6 +13,7 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
+import { dataDir } from '../../shared/data-dir';
 
 export interface FinishedEntry {
     filePath:    string;
@@ -21,7 +22,7 @@ export interface FinishedEntry {
     finishedAt:  string;
 }
 
-const FINISHED_FILE = path.join(__dirname, '..', 'data', 'finished-work.json');
+const FINISHED_FILE = path.join(dataDir(path.join(__dirname, '..', 'data')), 'finished-work.json');
 
 function readFile(): FinishedEntry[] {
     try {

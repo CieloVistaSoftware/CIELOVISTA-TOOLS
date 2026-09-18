@@ -22,6 +22,7 @@ const assert = require('assert');
 const path   = require('path');
 const fs     = require('fs');
 const Module = require('module');
+const { useOwnDataDir } = require('../../scripts/lib/test-data-dir');
 
 // ── vscode mock ───────────────────────────────────────────────────────────────
 const vscodeMock = {
@@ -56,6 +57,10 @@ for (const p of [OUT_CHANNEL, OUT]) {
     }
 }
 
+// The log this test clears and fills is its own (#825): without CVT_DATA_DIR
+// the module writes out-test/data/tools-errors.json, one file for every test
+// process the runner starts in parallel.
+const DATA_DIR = useOwnDataDir('error-log');
 const errorLog = require(OUT);
 const t = errorLog._test;
 
@@ -178,8 +183,8 @@ test('getLogPath returns a string ending in .json', () => {
     ok(p.endsWith('.json'), 'Must end in .json');
 });
 
-test('getLogPath includes data/ in path', () => {
-    ok(errorLog.getLogPath().includes('data'), 'Path must include data/ directory');
+test('getLogPath is in the data directory CVT_DATA_DIR names (#825)', () => {
+    eq(path.dirname(errorLog.getLogPath()), DATA_DIR, 'the log must follow CVT_DATA_DIR, not the directory every test process shares');
 });
 
 // ── logError() / getErrors() / clearErrors() ─────────────────────────────────

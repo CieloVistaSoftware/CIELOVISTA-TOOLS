@@ -18,6 +18,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from './output-channel';
+import { dataDir } from './data-dir';
 
 const FEATURE = 'error-log-utils';
 
@@ -52,7 +53,7 @@ export interface ErrorEntry {
 
 // Fixed path inside the extension's own data/ directory — workspace-independent
 // so errors logged in any open project are always visible in the viewer.
-const LOG_FILE_PATH = path.join(__dirname, '..', 'data', 'cielovista-errors.json');
+const LOG_FILE_PATH = path.join(dataDir(path.join(__dirname, '..', 'data')), 'cielovista-errors.json');
 
 function getLogFilePath(): string {
     const dir = path.dirname(LOG_FILE_PATH);

@@ -35,6 +35,7 @@ import { scanFile }      from './code-highlight-audit';
 import { CATALOG }       from './cvs-command-launcher/catalog';
 import { esc }           from '../shared/webview-utils';
 import { isFeatureEnabled } from './feature-toggle';
+import { dataDir } from '../shared/data-dir';
 
 /**
  * Commands that are only registered when their feature toggle is enabled.
@@ -65,7 +66,7 @@ const FEATURE    = 'bg-health-runner';
 // One-time-one-place: data dir resolves to the workspace's data/ folder so
 // bg-health.json lives beside test-watch.json (both in <repo>/data/).
 // Falls back to the extension's own data/ when no workspace is open.
-let DATA_DIR    = path.join(__dirname, '..', 'data');
+let DATA_DIR    = dataDir(path.join(__dirname, '..', 'data'));
 let HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
 // Default gap between checks — overridden by cvs.bgHealthRunner.intervalSeconds setting
 const CHECK_GAP_DEFAULT_S    = 30;
@@ -1501,7 +1502,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // share one location (one-time-one-place rule). Fallback: extension's own data/.
     const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (wsRoot) {
-        DATA_DIR    = path.join(wsRoot, 'data');
+        DATA_DIR    = dataDir(path.join(wsRoot, 'data'));
         HEALTH_FILE = path.join(DATA_DIR, 'bg-health.json');
     }
 

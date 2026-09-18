@@ -13,6 +13,7 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
+import { dataDir } from '../../shared/data-dir';
 
 export interface ArchivedEntry {
     filePath:    string;
@@ -21,7 +22,7 @@ export interface ArchivedEntry {
     archivedAt:  string;
 }
 
-const ARCHIVE_FILE = path.join(__dirname, '..', 'data', 'archived-docs.json');
+const ARCHIVE_FILE = path.join(dataDir(path.join(__dirname, '..', 'data')), 'archived-docs.json');
 
 function readFile(): ArchivedEntry[] {
     try {

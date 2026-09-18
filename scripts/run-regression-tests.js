@@ -13,6 +13,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { skippedForMissingArtifact } = require('./lib/missing-artifact');
+const { testDataEnv } = require('./lib/test-data-dir');
 const { acquireTestRunLock, TestRunLockTimeout } = require('./lib/test-run-lock');
 const { spawn, spawnSync, execSync } = require('child_process');
 const { walkFiles, readSources, readIfPresent } = require('./source-tree-walk');
@@ -106,8 +107,11 @@ function subprocess(id, name, scriptPath, args = []) {
   return new Promise(resolve => {
     let out = '';
     let settled = false;
-    const settle = fn => { if (settled) { return; } settled = true; fn(); resolve(); };
-    const child = spawn(process.execPath, [scriptPath, ...args], { cwd: ROOT });
+    // A data directory of its own for every test process (#825), so no two
+    // tests running in parallel share out/data/ or out-test/data/ files.
+    const data = testDataEnv(path.basename(scriptPath));
+    const settle = fn => { if (settled) { return; } settled = true; data.dispose(); fn(); resolve(); };
+    const child = spawn(process.execPath, [scriptPath, ...args], { cwd: ROOT, env: data.env });
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { out += d; });
     // Without this handler a spawn failure emits an unhandled 'error' event and

@@ -67,10 +67,29 @@ function assert(cond, message) {
 // ─── Load error-log-utils with its log redirected into a sandbox ──────────────
 
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'reg133-'));
-// LOG_FILE_PATH is path.join(__dirname, '..', 'data', ...), so binding __dirname
-// to <sandbox>/anything puts the log at <sandbox>/data/cielovista-errors.json.
+// LOG_FILE_PATH is path.join(dataDir(path.join(__dirname, '..', 'data')), ...).
+// Binding __dirname to <sandbox>/anything puts the default at <sandbox>/data/,
+// and CVT_DATA_DIR (#825) is pointed there too: the runner sets it to a temp
+// directory of its own for every test, which would otherwise win.
 const fakeDirname = path.join(sandbox, 'out');
 const LOG_FILE    = path.join(sandbox, 'data', 'cielovista-errors.json');
+process.env.CVT_DATA_DIR = path.dirname(LOG_FILE);
+
+function transpile(file) {
+    return ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText;
+}
+
+/** src/shared/data-dir.ts, loaded from source like error-log-utils itself. */
+function loadDataDir() {
+    const module = { exports: {} };
+    new Function('module', 'exports', 'require', transpile(path.join(ROOT, 'src', 'shared', 'data-dir.ts')))(
+        module, module.exports, require,
+    );
+    return module.exports;
+}
+const dataDirModule = loadDataDir();
 
 const utilsJs = ts.transpileModule(fs.readFileSync(UTILS, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -83,6 +102,7 @@ function loadUtils() {
     const shimRequire = (request) => {
         if (request === 'vscode') { return {}; }
         if (request === './output-channel') { return { log: (...a) => logged.push(a) }; }
+        if (request === './data-dir') { return dataDirModule; }
         return require(request);
     };
     new Function('module', 'exports', 'require', '__dirname', utilsJs)(

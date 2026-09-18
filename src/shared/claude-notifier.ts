@@ -18,6 +18,7 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
+import { dataDir } from './data-dir';
 
 export interface WorkQueueEntry {
     bugId:           string;
@@ -38,7 +39,7 @@ export interface NotifyResult {
     error?: string;
 }
 
-const DATA_DIR    = path.join(__dirname, '..', 'data');
+const DATA_DIR    = dataDir(path.join(__dirname, '..', 'data'));
 export const DEFAULT_QUEUE_PATH = path.join(DATA_DIR, 'claude-work-queue.json');
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────

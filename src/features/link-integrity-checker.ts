@@ -23,10 +23,11 @@ import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
 import { walkDocTree }   from '../shared/doc-collector';
 import { getContributedCommandIds } from '../shared/extension-package';
+import { dataDir } from '../shared/data-dir';
 
 const FEATURE     = 'link-integrity-checker';
 const COMMAND     = 'cvs.links.check';
-const DATA_DIR    = path.join(__dirname, '..', 'data');
+const DATA_DIR    = dataDir(path.join(__dirname, '..', 'data'));
 const REPORT_FILE = path.join(DATA_DIR, 'link-integrity.json');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
