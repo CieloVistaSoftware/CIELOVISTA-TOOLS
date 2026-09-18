@@ -11,8 +11,8 @@ description: The doc-consolidator is a robust, interactive tool for eliminating 
 | Command ID | Title | Keybinding |
 |---|---|---|
 | `cvs.consolidate.run` | Consolidate: Run Full Consolidation Wizard | — |
-| `cvs.consolidate.byName` | Consolidate: By Filename (same name) | — |
-| `cvs.consolidate.byContent` | Consolidate: By Content (similar docs) | — |
+| `cvs.consolidate.byName` | Consolidate: Docs with the Same Filename | — |
+| `cvs.consolidate.byContent` | Consolidate: Docs with Similar Content | — |
 | `cvs.consolidate.log` | Consolidate: Open Consolidation Log | — |
 
 ## Overview

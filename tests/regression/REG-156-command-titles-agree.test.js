@@ -21,6 +21,11 @@
 // contributed. #761 fixed the 8 title pairs where one side was plainly wrong;
 // the rest are wording decisions and are filed.
 //
+// Those filed lists were then worked down: #766 contributed 3 unreachable
+// commands, #765 put 7 palette commands in the launcher, and #764 gave the
+// 26 remaining pairs one name each and dropped emoji from launcher titles
+// (checked below). What is still allow-listed waits on #768 or has a reason.
+//
 // Rules, across ALL commands:
 //   1. Every launcher catalog entry is contributed in package.json.
 //   2. Every contributed command is registered by a registerCommand() in src/.
@@ -56,50 +61,22 @@ console.log('-'.repeat(64));
 
 // ── Exceptions ───────────────────────────────────────────────────────────────
 
-// Rule 3. Titles that differ in wording, not just in prefix. Choosing the one
-// right name for each is a wording decision, owned by #764.
+// Rule 3. Titles that differ in wording, not just in prefix. #764 chose one
+// name for each of the 26 it listed, so this is empty; a new entry needs an
+// issue that owns the wording decision.
 const TITLE_MISMATCH_ALLOWED = new Set([
-    'cvs.tools.home',                     // #764
-    'cvs.copilotRules.reload',            // #764
-    'cvs.terminal.copyOutputClipboard',   // #764
-    'cvs.terminal.setFolder',             // #764
-    'cvs.docs.syncCheck',                 // #764
-    'cvs.audit.findDuplicates',           // #764
-    'cvs.docs.intelligence',              // #764
-    'cvs.consolidate.run',                // #764
-    'cvs.consolidate.byName',             // #764
-    'cvs.consolidate.byContent',          // #764
-    'cvs.catalog.open',                   // #764
-    'cvs.catalog.view',                   // #764
-    'cvs.readme.scan',                    // #764
-    'cvs.readme.new',                     // #764
-    'cvs.readme.fillTodos',               // #764
-    'cvs.marketplace.scan',               // #764
-    'cvs.marketplace.fixAll',             // #764
-    'cvs.headers.scan',                   // #764
-    'cvs.headers.scanAuto',               // #764
-    'cvs.license.sync',                   // #764
-    'cvs.audit.codebase',                 // #764
-    'cvs.audit.codeHighlight',            // #764
-    'cvs.audit.jsErrors',                 // #764
-    'cvs.issues.openViewer',              // #764
-    'cvs.issues.newIssue',                // #764
-    'cvs.registry.demote',                // #764
 ]);
 
-// Rule 4. Palette commands with no launcher entry. Whether each belongs in the
-// launcher is owned by #765.
+// Rule 4. Palette commands with no launcher entry. #765 catalogued seven; these
+// stay out. The two launcher commands open the launcher itself, so an entry
+// inside it would only reopen the panel you are in (#778 asks whether quickRun
+// should exist at all). cvs.config.edit belongs to config-editor, which
+// extension.ts never activates, so a launcher entry would run into "command
+// not found"; wiring or deleting it is #768.
 const NOT_IN_CATALOG_ALLOWED = new Set([
-    'cvs.commands.showAll',               // #765 (opens the launcher itself)
-    'cvs.commands.quickRun',              // #765 (opens the launcher itself)
-    'cvs.project.openHome',               // #765
-    'cvs.htmlTemplates.download',         // #765
-    'cvs.htmlTemplates.openClipboardPath',// #765
-    'cvs.headers.fixAll',                 // #765
-    'cvs.headers.fixOne',                 // #765
-    'cvs.headers.fixFile',                // #765
-    'cvs.headers.viewStandard',           // #765
-    'cvs.config.edit',                    // #765
+    'cvs.commands.showAll',               // #765: opens the launcher itself
+    'cvs.commands.quickRun',              // #765: opens the launcher itself (#778)
+    'cvs.config.edit',                    // #768 (config-editor is never activated)
 ]);
 
 // Rule 5, permanent. Internal commands: called by code with arguments or by
@@ -112,13 +89,13 @@ const INTERNAL_COMMANDS = new Set([
     'cvs.tools.fileList._debugOpenEntry', // #448: integration-test hook (REG-079)
 ]);
 
-// Rule 5, pending. User-facing commands nobody can reach: contribute or delete,
-// owned by #766.
+// Rule 5, pending. User-facing commands nobody can reach: contribute or delete.
+// #766 contributed cvs.mcp.build, cvs.mcp.build.stop and cvs.health.stopRunner.
+// cvs.scripts.runScript belongs to script-runner, which extension.ts never
+// activates, so contributing it would add a "command not found" to the
+// palette; whether to wire or delete the module is #768.
 const UNCONTRIBUTED_ALLOWED = new Set([
-    'cvs.mcp.build',                      // #766
-    'cvs.mcp.build.stop',                 // #766
-    'cvs.scripts.runScript',              // #766
-    'cvs.health.stopRunner',              // #766
+    'cvs.scripts.runScript',              // #768 (script-runner is never activated)
 ]);
 
 // ── Sources ──────────────────────────────────────────────────────────────────
@@ -203,17 +180,28 @@ for (const [id, catTitle] of catalog) {
     }
 }
 const goneTitleExceptions = [...TITLE_MISMATCH_ALLOWED].filter(id => !catalog.has(id) || !contributed.has(id));
-check(`rule 3: package.json and launcher titles agree (${agreeing} agree, ${TITLE_MISMATCH_ALLOWED.size} allow-listed under #764)`,
+check(`rule 3: package.json and launcher titles agree (${agreeing} agree, ${TITLE_MISMATCH_ALLOWED.size} allow-listed)`,
     titleMismatches.length === 0, titleMismatches.join('\n       '));
 check('rule 3 allow-list is current (no entry already agrees or has gone)',
     staleTitleExceptions.length === 0 && goneTitleExceptions.length === 0,
     `remove from TITLE_MISMATCH_ALLOWED: ${list([...staleTitleExceptions, ...goneTitleExceptions])}`);
 
+// #764: no title carries an emoji. The launcher already shows the group icon
+// next to every entry, and a title that starts with a pictograph cannot agree
+// with its palette title or be found by typing its name.
+const PICTOGRAPH = /\p{Extended_Pictographic}/u;
+const emojiTitles = [
+    ...[...contributed].filter(([, c]) => PICTOGRAPH.test(c.title ?? '')).map(([id, c]) => `${id}: package.json "${c.title}"`),
+    ...[...catalog].filter(([, t]) => PICTOGRAPH.test(t)).map(([id, t]) => `${id}: launcher "${t}"`),
+];
+check(`no command title carries an emoji (${contributed.size} palette, ${catalog.size} launcher titles)`,
+    emojiTitles.length === 0, emojiTitles.join('\n       '));
+
 // ── Rule 4: contributed ⊆ catalog ────────────────────────────────────────────
 
 const notCatalogued = [...contributed.keys()].filter(id => !catalog.has(id) && !NOT_IN_CATALOG_ALLOWED.has(id));
 const staleCatalogExceptions = [...NOT_IN_CATALOG_ALLOWED].filter(id => catalog.has(id) || !contributed.has(id));
-check(`rule 4: every contributed command is in the launcher (${NOT_IN_CATALOG_ALLOWED.size} allow-listed under #765)`,
+check(`rule 4: every contributed command is in the launcher (${NOT_IN_CATALOG_ALLOWED.size} allow-listed: launcher openers and #768)`,
     notCatalogued.length === 0, list(notCatalogued));
 check('rule 4 allow-list is current (no entry is catalogued or gone)',
     staleCatalogExceptions.length === 0,
@@ -223,7 +211,7 @@ check('rule 4 allow-list is current (no entry is catalogued or gone)',
 
 const uncontributed = [...registered.keys()].filter(id =>
     !contributed.has(id) && !INTERNAL_COMMANDS.has(id) && !UNCONTRIBUTED_ALLOWED.has(id));
-check(`rule 5: every registered command is contributed (${INTERNAL_COMMANDS.size} internal, ${UNCONTRIBUTED_ALLOWED.size} allow-listed under #766)`,
+check(`rule 5: every registered command is contributed (${INTERNAL_COMMANDS.size} internal, ${UNCONTRIBUTED_ALLOWED.size} allow-listed under #768)`,
     uncontributed.length === 0,
     `${list(uncontributed)}; contribute it, or if code alone calls it, add it to INTERNAL_COMMANDS with the reason`);
 const internalContributed = [...INTERNAL_COMMANDS].filter(id => contributed.has(id));

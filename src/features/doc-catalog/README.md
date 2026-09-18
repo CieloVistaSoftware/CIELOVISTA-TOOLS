@@ -17,9 +17,9 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-| [`cvs.catalog.open`](command:cvs.catalog.open) | Catalog: Open |
+| [`cvs.catalog.open`](command:cvs.catalog.open) | Catalog: Open Doc Catalog |
 | [`cvs.catalog.rebuild`](command:cvs.catalog.rebuild) | Catalog: Rebuild |
-| [`cvs.catalog.view`](command:cvs.catalog.view) | Catalog: View |
+| [`cvs.catalog.view`](command:cvs.catalog.view) | Catalog: View a Doc |
 | [`cvs.catalog.viewArchived`](command:cvs.catalog.viewArchived) | Catalog: ViewArchived |
 
 ---
@@ -29,9 +29,9 @@ _Auto-generated stub. Replace this with a human description of the feature._
 ```text
 activate(context)
   └── registers 4 command(s)
-  └── Catalog: Open → cvs.catalog.open
+  └── Catalog: Open Doc Catalog → cvs.catalog.open
   └── Catalog: Rebuild → cvs.catalog.rebuild
-  └── Catalog: View → cvs.catalog.view
+  └── Catalog: View a Doc → cvs.catalog.view
   └── Catalog: ViewArchived → cvs.catalog.viewArchived
 ```
 
@@ -39,11 +39,11 @@ activate(context)
 
 ## Manual test
 
-1. Open the Command Palette and run **Catalog: Open** (`cvs.catalog.open`).
+1. Open the Command Palette and run **Catalog: Open Doc Catalog** (`cvs.catalog.open`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 2. Open the Command Palette and run **Catalog: Rebuild** (`cvs.catalog.rebuild`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
-3. Open the Command Palette and run **Catalog: View** (`cvs.catalog.view`).
+3. Open the Command Palette and run **Catalog: View a Doc** (`cvs.catalog.view`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
 4. Open the Command Palette and run **Catalog: ViewArchived** (`cvs.catalog.viewArchived`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.

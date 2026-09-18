@@ -17,7 +17,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-| [`cvs.audit.jsErrors`](command:cvs.audit.jsErrors) | Audit: JsErrors |
+| [`cvs.audit.jsErrors`](command:cvs.audit.jsErrors) | Audit: JS Error Handling Audit |
 
 ---
 
@@ -26,7 +26,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 ```text
 activate(context)
   └── registers 1 command(s)
-  └── Audit: JsErrors → cvs.audit.jsErrors
+  └── Audit: JS Error Handling Audit → cvs.audit.jsErrors
 ```
 
 **Key internal functions:**
@@ -63,5 +63,5 @@ activate(context)
 
 ## Manual test
 
-1. Open the Command Palette and run **Audit: JsErrors** (`cvs.audit.jsErrors`).
+1. Open the Command Palette and run **Audit: JS Error Handling Audit** (`cvs.audit.jsErrors`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.

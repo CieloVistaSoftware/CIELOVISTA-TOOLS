@@ -15,10 +15,10 @@ description: The docs-manager is the central orchestrator for all documentation 
 | `cvs.docs.searchAll` | Docs: Search All Docs | — |
 | `cvs.docs.newGlobal` | Docs: New Global Standards Doc | — |
 | `cvs.docs.newProjectDoc` | Docs: New Project Doc | — |
-| `cvs.docs.syncCheck` | Docs: Sync Check (missing CLAUDE.md etc) | — |
+| `cvs.docs.syncCheck` | Docs: Sync Check for Missing Project Docs | — |
 | `cvs.docs.openRegistry` | Docs: Open Project Registry | — |
 | `cvs.docs.addProject` | Docs: Add Project to Registry | — |
-| `cvs.readme.scan` | README: Scan Compliance | — |
+| `cvs.readme.scan` | README: Scan README Compliance | — |
 | `cvs.readme.fix` | README: Fix a Non-Compliant README | — |
 | `cvs.readme.fixAll` | README: Fix All Non-Compliant READMEs | — |
 | `cvs.readme.new` | README: New Compliant README from Template | — |

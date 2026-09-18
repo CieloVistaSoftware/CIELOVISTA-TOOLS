@@ -1,7 +1,7 @@
 ---
 id: feature-background-health-runner
 title: "Feature: Bg Health Runner"
-description: "Bg Health Runner — 1 command(s). Auto-generated stub: fill in What it does and Manual test."
+description: "Bg Health Runner — 2 command(s). Continuous background health checks, a Fix Bugs panel, and a command to stop the runner."
 ---
 
 # Feature: Bg Health Runner
@@ -16,7 +16,10 @@ Runs continuous background health checks every 8 seconds (round-robin) across th
 
 | Command ID | Title |
 |---|---|
-| [`cvs.health.fixBugs`](command:cvs.health.fixBugs) | Health: Fix Bugs |
+| [`cvs.health.fixBugs`](command:cvs.health.fixBugs) | Health: Fix Bugs (Background Runner) |
+| [`cvs.health.stopRunner`](command:cvs.health.stopRunner) | Health: Stop Background Runner |
+
+**Health: Stop Background Runner** stops the round-robin checks and the hourly regression run in this window until the window is reloaded. The runner runs in one window at a time; in any other window the command says it is not running there.
 
 ---
 
@@ -24,8 +27,9 @@ Runs continuous background health checks every 8 seconds (round-robin) across th
 
 ```text
 activate(context)
-  └── registers 1 command(s)
-  └── Health: FixBugs → cvs.health.fixBugs
+  └── registers 2 command(s)
+  └── Health: Fix Bugs (Background Runner) → cvs.health.fixBugs
+  └── Health: Stop Background Runner → cvs.health.stopRunner
 ```
 
 **Key internal functions:**

@@ -16,7 +16,7 @@ Scans all markdown files in registered projects for fenced code blocks missing a
 
 | Command ID | Title |
 |---|---|
-| [`cvs.audit.codeHighlight`](command:cvs.audit.codeHighlight) | Audit: CodeHighlight |
+| [`cvs.audit.codeHighlight`](command:cvs.audit.codeHighlight) | Audit: Code Block Highlight Audit |
 
 ---
 
@@ -25,7 +25,7 @@ Scans all markdown files in registered projects for fenced code blocks missing a
 ```text
 activate(context)
   └── registers 1 command(s)
-  └── Audit: CodeHighlight → cvs.audit.codeHighlight
+  └── Audit: Code Block Highlight Audit → cvs.audit.codeHighlight
 ```
 
 **Key internal functions:**
@@ -40,5 +40,5 @@ activate(context)
 
 ## Manual test
 
-1. Open the Command Palette and run **Audit: CodeHighlight** (`cvs.audit.codeHighlight`).
+1. Open the Command Palette and run **Audit: Code Block Highlight Audit** (`cvs.audit.codeHighlight`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.

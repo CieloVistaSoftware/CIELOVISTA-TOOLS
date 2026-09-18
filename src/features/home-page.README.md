@@ -17,7 +17,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 
 | Command ID | Title |
 |---|---|
-| [`cvs.tools.home`](command:cvs.tools.home) | Tools: Home |
+| [`cvs.tools.home`](command:cvs.tools.home) | Open Home Dashboard |
 
 ---
 
@@ -26,7 +26,7 @@ _Auto-generated stub. Replace this with a human description of the feature._
 ```text
 activate(context)
   └── registers 1 command(s)
-  └── Tools: Home → cvs.tools.home
+  └── Open Home Dashboard → cvs.tools.home
 ```
 
 **Key internal functions:**
@@ -47,5 +47,5 @@ activate(context)
 
 ## Manual test
 
-1. Open the Command Palette and run **Tools: Home** (`cvs.tools.home`).
+1. Open the Command Palette and run **Open Home Dashboard** (`cvs.tools.home`).
    Verify the expected output/panel opens with no errors in the CieloVista Tools output channel.
