@@ -136,9 +136,11 @@ if (!fs.existsSync(vsix)) {
 repairExtensionsRegistry();
 
 function findCodeInsiders() {
-    // 1. Use where.exe to find whatever is on PATH first
+    // 1. Use where.exe to find whatever is on PATH first. stdio 'pipe' already
+    //    swallows stderr; a "2>nul" redirect created a file named nul on
+    //    Linux (#792), leaving git status dirty after a CI rebuild.
     try {
-        const found = cp.execSync('where.exe code-insiders.cmd 2>nul', { encoding: 'utf8', stdio: 'pipe' }).trim().split('\n')[0].trim();
+        const found = cp.execSync('where.exe code-insiders.cmd',{ encoding: 'utf8', stdio: 'pipe' }).trim().split('\n')[0].trim();
         if (found && fs.existsSync(found)) { return found; }
     } catch { /* not on PATH */ }
     // 2. Known user-install locations
