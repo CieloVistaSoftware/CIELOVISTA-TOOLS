@@ -150,7 +150,7 @@ syncCheck()
        fixAll        → run all three fixes for one project, rescan
        openRegistry  → openTextDocument(REGISTRY_PATH)
        rescan        → rebuild results, replace panel HTML
-```text
+```
 ---
 
 ## Manual test

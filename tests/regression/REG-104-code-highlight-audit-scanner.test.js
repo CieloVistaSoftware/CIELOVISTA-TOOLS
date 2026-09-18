@@ -19,20 +19,44 @@ function check(desc, cond) {
 
 // ── #495: closing fence detection ────────────────────────────────────────────
 
-// The closing fence must have hasNoContent check
-check('#495 — closing fence guard: hasNoContent check present in scanFile',
-    SRC.includes('hasNoContent') && SRC.includes('fenceMatch[2].trim()'));
-
+// Since #799 scanFile pairs fences with the shared CommonMark rule
+// (src/shared/md-fence.ts). These run the real scanner (out-test/, with a
+// vscode stub) on a temp file instead of reading its source.
 check('#495 — guard comment references issue #495',
     SRC.includes('#495'));
-
-check('#495 — closing fence condition rejects non-empty trailing content',
-    SRC.includes('!hasNoContent'));
-
-// Verify a ``` with trailing text inside a block is NOT treated as closing fence
-// by reading the logic flow: the condition now has three ANDed guards
-check('#495 — all three guards ANDed: sameFenceChar && enoughFenceLen && hasNoContent',
-    SRC.includes('!sameFenceChar || !enoughFenceLen || !hasNoContent'));
+check('#799 — scanFile pairs fences with the shared scanner',
+    SRC.includes("from '../shared/md-fence'") && SRC.includes('scanFences(lines)'));
+{
+    const fs = require('fs'), os = require('os'), Module = require('module');
+    const origLoad = Module._load;
+    Module._load = function (req, parent, isMain) {
+        if (req === 'vscode') { return { window: {}, workspace: {}, commands: { registerCommand() { return { dispose() {} }; } } }; }
+        return origLoad.call(this, req, parent, isMain);
+    };
+    let scanFile;
+    try { ({ scanFile } = require(path.join(ROOT, 'out-test', 'features', 'code-highlight-audit.js'))); }
+    catch (err) { console.error(`  ✗ cannot load the scanner: ${err.message}`); }
+    finally { Module._load = origLoad; }
+    const BT3 = String.fromCharCode(96).repeat(3);
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reg104-'));
+    const scan = (lines) => {
+        const f = path.join(tmp, 'doc.md');
+        fs.writeFileSync(f, lines.join('\n'));
+        return scanFile ? scanFile(f, 'p') : undefined;
+    };
+    try {
+        // A bare block holding a "```typescript" example line: that line is content, not a closer.
+        const a = scan([BT3, BT3 + 'typescript', 'const x = 1;', BT3, '', 'prose', '', BT3 + 'ts', 'y', BT3]);
+        check('#495 — a fence line with trailing text inside a block does not close it',
+            !!a && a.length === 1 && a[0].lineNumber === 1);
+        // A closer of the other character or shorter than the opener does not close.
+        const b = scan(['~~~~', 'x', '~~~', BT3, '~~~~', '', BT3 + 'ts', 'y', BT3]);
+        check('#495 — only a same-character closer at least as long closes',
+            !!b && b.length === 1 && b[0].lineNumber === 1 && b[0].fenceOpen === '~~~~');
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+}
 
 // ── #496: Fix button always present ──────────────────────────────────────────
 

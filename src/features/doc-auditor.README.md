@@ -134,7 +134,7 @@ walkThroughFindings(results)
 actOnReport()
   └── pick report file → parseReportActions() → AUDIT-ACTION tags
   └── showQuickPick(actions) → execute chosen action
-```text
+```
 
 ---
 
