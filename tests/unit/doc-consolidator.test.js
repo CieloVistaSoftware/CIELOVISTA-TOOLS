@@ -44,8 +44,8 @@ for (const dep of ['output-channel', 'registry']) {
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
-// Stub consolidation-plan-webview if it exists
-const cpwPath = path.join(__dirname, '../../out-test/shared/consolidation-plan-webview.js');
+// Stub the plan preview panel if it exists (moved from shared/ into the feature, #750)
+const cpwPath = path.join(__dirname, '../../out-test/features/doc-consolidator/plan-webview.js');
 if (fs.existsSync(cpwPath)) { try { require(cpwPath); } catch { /* optional */ } }
 
 const OUT = path.join(__dirname, '../../out-test/features/doc-consolidator/index.js');

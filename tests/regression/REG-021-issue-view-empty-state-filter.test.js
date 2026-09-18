@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const VIEW_TS = path.join(ROOT, 'src', 'shared', 'github-issues-view.ts');
+const VIEW_TS = path.join(ROOT, 'src', 'features', 'github-issues', 'view.ts');
 
 let failed = 0;
 

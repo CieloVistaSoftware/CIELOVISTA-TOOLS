@@ -35,7 +35,6 @@ Each feature is implemented in its own file or folder under `src/features/` and 
 - [Feature Toggle](../../src/features/feature-toggle.README.md)
 - [FileList — Sortable Alternative File Browser](../../src/features/file-list-viewer.README.md)
 - [Frontmatter Viewer](../../src/features/frontmatter-viewer.README.md)
-- [GitHub Issues](../../src/features/github-issues.README.md)
 - [Home Page](../../src/features/home-page.README.md)
 - [html-template-downloader.ts](../../src/features/html-template-downloader.README.md)
 - [Image Reader Feature](../../src/features/image-reader.README.md)
@@ -72,7 +71,7 @@ Each feature is implemented in its own file or folder under `src/features/` and 
 <!-- docs-sync:end -->
 
 ## Special Integrations
-- Issue Viewer: `showGithubIssues` from `src/shared/github-issues-view.ts`
+- Issue Viewer: `showGithubIssues` from the `src/features/github-issues/` feature
 
 ---
 

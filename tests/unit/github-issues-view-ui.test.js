@@ -39,7 +39,7 @@ require.cache.__vs_issues_ui__ = {
     paths: [],
 };
 
-const outPath = path.join(__dirname, '../../out-test/shared/github-issues-view.js');
+const outPath = path.join(__dirname, '../../out-test/features/github-issues/view.js');
 if (!fs.existsSync(outPath)) {
     console.error('SKIP: not compiled');
     process.exit(0);
@@ -84,7 +84,7 @@ const sampleIssues = [{
     user: { login: 'john' },
     labels: [{ name: 'bug', color: 'd73a4a' }],
     assignees: [{ login: 'alice' }],
-    body: 'Fix in src/shared/github-issues-view.ts with regression in tests/unit/github-issues-view-ui.test.js. REG-021',
+    body: 'Fix in src/features/github-issues/view.ts with regression in tests/unit/github-issues-view-ui.test.js. REG-021',
     comments: 2,
 }];
 
@@ -166,14 +166,14 @@ test('closed issues render clickable local fix links when file refs exist', () =
     const closedIssue = [{ ...sampleIssues[0], state: 'closed', closed_at: '2026-04-28T12:00:00.000Z' }];
     const html = buildHtml(false, closedIssue, null, 'closed');
     has(html, 'class="fix-link-btn"', 'fix link button missing in closed view');
-    has(html, 'data-local-path="src/shared/github-issues-view.ts"', 'source fix path missing');
+    has(html, 'data-local-path="src/features/github-issues/view.ts"', 'source fix path missing');
     has(html, 'data-local-path="tests/unit/github-issues-view-ui.test.js"', 'test fix path missing');
     has(html, "vsc.postMessage({ type: 'openLocal', relativePath: relativePath });", 'openLocal postMessage missing');
 });
 
 test('extractLocalFixRefs returns existing local workspace files only', () => {
     const refs = extractLocalFixRefs(sampleIssues[0]);
-    has(JSON.stringify(refs), 'src/shared/github-issues-view.ts', 'source file ref should be extracted');
+    has(JSON.stringify(refs), 'src/features/github-issues/view.ts', 'source file ref should be extracted');
     has(JSON.stringify(refs), 'tests/unit/github-issues-view-ui.test.js', 'test file ref should be extracted');
 });
 

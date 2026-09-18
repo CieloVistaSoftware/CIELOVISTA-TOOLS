@@ -45,7 +45,7 @@ auto-refresh convention.
 ## Design decision (GitHub issue #650)
 
 **New dedicated feature file** (`src/features/session-activity.ts`), not an
-extension of the existing Issue Viewer (`src/shared/github-issues-view.ts`,
+extension of the existing Issue Viewer (`src/features/github-issues/view.ts`, in `shared/` until #745,
 wired from `home-page.ts`). Reasoning:
 
 - Issue Viewer's job is browsing/triaging/claiming individual issues in one
@@ -54,7 +54,7 @@ wired from `home-page.ts`). Reasoning:
   list`, `gh issue list`) that Issue Viewer has no reason to know about.
   Folding those in would turn one focused file into two jobs, violating the
   "one job per file" rule.
-- No logic is duplicated to get there. `src/shared/github-issues-view.ts` was
+- No logic is duplicated to get there. The Issue Viewer module was
   given two small additions specifically so this feature could reuse them
   instead of re-implementing:
   - `detectRepoFromWorkspace(wsPath?)` — was already implemented there but
@@ -72,7 +72,7 @@ wired from `home-page.ts`). Reasoning:
     deploy branch, `gh run list` for CI) has no existing shared helper
     anywhere in `src/shared/` — there is no dedicated git/gh wrapper module
     in this codebase yet. It's implemented here the same ad hoc way
-    `github-issues-view.ts` and `mcp-viewer/index.ts` already shell out to
+    `github-issues/view.ts` and `mcp-viewer/index.ts` already shell out to
     `git`/`gh` directly (`child_process.execFile`), so this isn't a new
     pattern, just the existing one applied to a new feature.
 - Rendered as a **webview panel** (`vscode.window.createWebviewPanel`), the
