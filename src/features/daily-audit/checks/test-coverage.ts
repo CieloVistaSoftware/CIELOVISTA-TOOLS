@@ -223,7 +223,7 @@ export function runTestCoverageCheck(projects: ProjectEntry[]): AuditCheck {
         detail:           failing.map(r => `${r.name}: ${r.issues.join(', ')}`).join('\n'),
         affectedProjects: failing.map(r => r.name),
         affectedFiles:    failing.flatMap(r => [path.join(r.projPath, 'tests'), path.join(r.projPath, 'package.json')]),
-        action:           'cvs.audit.testCoverage',
+        action:           'cvs.audit.playwrightSetup',
         actionLabel:      failing.length > 0 ? 'Fix Now' : 'View',
         ranAt:            new Date().toISOString(),
         durationMs:       Date.now() - t0,

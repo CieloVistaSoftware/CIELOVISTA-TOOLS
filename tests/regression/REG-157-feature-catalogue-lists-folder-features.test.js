@@ -27,8 +27,8 @@
  *      readme-compliance/, is listed once, pointing at the folder extension.ts
  *      imports
  *   5. every link in the generated block resolves, and none lists a module
- *      extension.ts does not import (config-editor, playwright-check and
- *      script-runner are not wired, so they are not features)
+ *      extension.ts does not import (REG-158 keeps every src/features/
+ *      module wired or deleted, so none is left to list by mistake)
  *   6. each entry uses the README's own title, not a bare id
  *   7. node scripts/docs-sync.js --check passes: the committed catalogue is
  *      exactly what the generator produces
@@ -56,7 +56,6 @@ const BEGIN = '<!-- docs-sync:begin -->';
 const END   = '<!-- docs-sync:end -->';
 
 const KNOWN_FOLDER_FEATURES = ['doc-catalog', 'doc-header', 'mcp-viewer', 'github-issues', 'readme-compliance'];
-const NOT_WIRED             = ['config-editor', 'playwright-check', 'script-runner'];
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -178,8 +177,6 @@ test('5. every link resolves, and nothing unwired is listed as a feature', () =>
     const unwired = entries.map(e => idForReadme(e.resolved)).filter(o => !o || !wired.has(o.id));
     assert(!broken.length, `links that do not resolve: ${broken.join(', ')}`);
     assert(!unwired.length, `listed but not imported by extension.ts: ${unwired.map(o => o ? o.id : '?').join(', ')}`);
-    const stillListed = NOT_WIRED.filter(id => entries.some(e => e.href.includes(`/${id}.README.md`)));
-    assert(!stillListed.length, `not activated anywhere, yet listed: ${stillListed.join(', ')}`);
 });
 
 test('6. each entry uses its README\'s own title', () => {

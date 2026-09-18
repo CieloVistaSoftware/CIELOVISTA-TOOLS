@@ -1040,7 +1040,7 @@ var FIX_ACTIONS = {
   'marketplace':    { id: 'cvs.marketplace.fixAll', label: '🔧 Fix All Marketplace Issues'   },
   'readmeQuality':  { id: 'cvs.readme.fixAll',      label: '🔧 Fix All READMEs'              },
   'changelog':      { id: 'cvs.marketplace.fixAll', label: '🔧 Auto-generate Changelog'      },
-  'testCoverage':   { id: 'cvs.audit.testCoverage', label: '🎭 Fix Test Coverage'            },
+  'testCoverage':   { id: 'cvs.audit.playwrightSetup', label: '🎭 Fix Playwright Setup'     },
 };
 
 function showAuditDetail(dotEl) {

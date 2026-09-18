@@ -70,13 +70,10 @@ const TITLE_MISMATCH_ALLOWED = new Set([
 // Rule 4. Palette commands with no launcher entry. #765 catalogued seven; these
 // stay out. The two launcher commands open the launcher itself, so an entry
 // inside it would only reopen the panel you are in (#778 asks whether quickRun
-// should exist at all). cvs.config.edit belongs to config-editor, which
-// extension.ts never activates, so a launcher entry would run into "command
-// not found"; wiring or deleting it is #768.
+// should exist at all). #768 deleted config-editor and its cvs.config.edit.
 const NOT_IN_CATALOG_ALLOWED = new Set([
     'cvs.commands.showAll',               // #765: opens the launcher itself
     'cvs.commands.quickRun',              // #765: opens the launcher itself (#778)
-    'cvs.config.edit',                    // #768 (config-editor is never activated)
 ]);
 
 // Rule 5, permanent. Internal commands: called by code with arguments or by
@@ -90,12 +87,10 @@ const INTERNAL_COMMANDS = new Set([
 ]);
 
 // Rule 5, pending. User-facing commands nobody can reach: contribute or delete.
-// #766 contributed cvs.mcp.build, cvs.mcp.build.stop and cvs.health.stopRunner.
-// cvs.scripts.runScript belongs to script-runner, which extension.ts never
-// activates, so contributing it would add a "command not found" to the
-// palette; whether to wire or delete the module is #768.
+// #766 contributed cvs.mcp.build, cvs.mcp.build.stop and cvs.health.stopRunner;
+// #768 deleted script-runner and its cvs.scripts.runScript. Empty: a new entry
+// needs an issue that owns the contribute-or-delete decision.
 const UNCONTRIBUTED_ALLOWED = new Set([
-    'cvs.scripts.runScript',              // #768 (script-runner is never activated)
 ]);
 
 // ── Sources ──────────────────────────────────────────────────────────────────

@@ -289,11 +289,11 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 const projName = msg.projName as string;
                 if (!projPath) { break; }
                 try {
-                    await vscode.commands.executeCommand('cvs.audit.testCoverage');
-                    vscode.window.showInformationMessage(`Opening Test Coverage Dashboard for ${projName} \u2014 use "\u{1F916} Generate Tests" on the project row.`, 'Open Dashboard');
+                    await vscode.commands.executeCommand('cvs.audit.playwrightSetup');
+                    vscode.window.showInformationMessage(`Opening Playwright Test Setup for ${projName}\u2014 use "\u{1F916} Generate Tests" on the project row.`);
                 } catch {
-                    vscode.window.showInformationMessage(`To generate tests for ${projName}: run "Audit: Test Coverage Dashboard" and click "\u{1F916} Generate Tests".`, 'Open Test Coverage')
-                        .then(c => { if (c === 'Open Test Coverage') { vscode.commands.executeCommand('cvs.audit.testCoverage'); } });
+                    vscode.window.showInformationMessage(`To generate tests for ${projName}: run "Audit: Playwright Test Setup" and click "\u{1F916} Generate Tests".`, 'Open Playwright Test Setup')
+                        .then(c => { if (c === 'Open Playwright Test Setup') { vscode.commands.executeCommand('cvs.audit.playwrightSetup'); } });
                 }
                 break;
             }

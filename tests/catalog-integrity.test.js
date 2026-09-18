@@ -207,8 +207,7 @@ test('Every package.json command is in the catalog', function() {
         'cvs.headers.fixAll',            // doc header commands - not yet in launcher
         'cvs.headers.fixOne',
         'cvs.headers.fixFile',
-        'cvs.headers.viewStandard',
-        'cvs.config.edit'                // internal config editor
+        'cvs.headers.viewStandard'
     ]);
     var missing = pkgCmds.filter(function(id) { return !EXEMPT.has(id) && !catalogIds.includes(id); });
     assert(missing.length === 0,
