@@ -38,9 +38,9 @@ const SAMPLE  = 100;
 // block and renders it as a card, and has no bottom handling at all, so the old
 // workaround had started causing the very problem it was written to prevent.
 // docs/ is governed by REG-134 (`node scripts/docs-sync.js --check`) instead.
-// src/**/*.README.md still carries the old trailer and stays under this rule
-// until it is migrated.
-const NEW_CONTRACT_ROOTS = [path.join(ROOT, 'docs')];
+// #707 stage 1 moved src/**/*.md to the same contract, so REG-134 governs src/
+// too. What remains under this rule is the handful of root-level files.
+const NEW_CONTRACT_ROOTS = [path.join(ROOT, 'docs'), path.join(ROOT, 'src')];
 function underNewContract(file) {
     return NEW_CONTRACT_ROOTS.some(root => file.startsWith(root + path.sep) || file.startsWith(root + '/'));
 }

@@ -1,3 +1,9 @@
+---
+id: feature-terminal-set-folderts
+title: "feature: terminal-set-folder.ts"
+description: Right-click any folder in the VS Code Explorer and immediately cd the active terminal to that folder. No typing the path, no drag and drop.
+---
+
 # feature: terminal-set-folder.ts
 
 ## What it does
@@ -44,19 +50,3 @@ This feature contains no logic of its own beyond registering the command — all
 2. Select "Terminal: Set Working Directory".
 3. The terminal should open (or focus) and show `cd "path"` — verify the directory changed.
 4. Run the command from the command palette with no folder selected — a folder picker should appear.
-
----
-docid: 150.1.terminal-set-folder-readme
-id: feature-terminal-set-folderts
-title: "feature: terminal-set-folder.ts"
-project: cielovista-tools
-description: Right-click any folder in the VS Code Explorer and immediately cd the active terminal to that folder. No typing the path, no drag and drop.
-status: active
-tags: [terminal, set, folder]
-category: 150.1 — Components / Features
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: src/features/terminal-set-folder.README.md
----

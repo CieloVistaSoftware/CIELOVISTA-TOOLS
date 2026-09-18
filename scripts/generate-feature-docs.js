@@ -13,7 +13,6 @@ const path = require('path');
 
 const ROOT     = path.resolve(__dirname, '..');
 const FEATURES = path.join(ROOT, 'src', 'features');
-const TODAY    = new Date().toISOString().slice(0, 10);
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +98,7 @@ ${cmdList}
 }
 
 /** Generate the full README content */
-function generate(featureFile, relativePath) {
+function generate(featureFile) {
     const src         = fs.readFileSync(featureFile, 'utf8');
     // For subdirectory features (index.ts / feature.ts), use the directory name as the slug
     const dirName     = path.basename(path.dirname(featureFile));
@@ -107,10 +106,10 @@ function generate(featureFile, relativePath) {
     const baseName    = isSubdir ? dirName : path.basename(featureFile, '.ts');
     const featureName = extractFeatureName(src) || baseName;
     const title       = titleCase(featureName.replace(/[._]/g, '-'));
-    // Subdirectory READMEs get a '-dir' suffix on the docid to avoid colliding
+    // Subdirectory READMEs get a '-dir' suffix on the id to avoid colliding
     // with a same-named direct feature file (e.g. readme-compliance.ts vs readme-compliance/).
-    const docSlug     = isSubdir ? `${slug(baseName)}-dir` : slug(baseName);
-    const id          = `feature-${slug(baseName)}`;
+    // docs-sync.js rejects duplicate ids.
+    const id          = `feature-${slug(baseName)}${isSubdir ? '-dir' : ''}`;
     const commands    = extractCommands(src);
     const exports     = extractExports(src);
     const fns         = extractFunctions(src);
@@ -120,21 +119,14 @@ function generate(featureFile, relativePath) {
         ? commands.map(id => `| [\`${id}\`](command:${id}) | ${commandTitle(id)} |`).join('\n')
         : '_No commands registered — utility/shared module._';
 
+    // The three-field contract (#707, #708) -- the same one scripts/docs-sync.js
+    // enforces. Anything else (path, dates, category) is derivable, so it is not typed.
     return `---
-docid: auto.${docSlug}
 id: ${id}
 title: "Feature: ${title}"
-project: cielovista-tools
 description: "${title} — ${commands.length} command(s). Auto-generated stub: fill in What it does and Manual test."
-status: active
-tags: [${featureName.split(/[-.]/).slice(0, 3).join(', ')}]
-category: 150.1 — Components / Features
-created: ${TODAY}
-updated: ${TODAY}
-version: 1.0.0
-author: CieloVista Software
-relativepath: ${relativePath}
 ---
+
 # Feature: ${title}
 
 ## What it does
@@ -170,10 +162,10 @@ let generated = 0;
 let skipped   = 0;
 let errors    = 0;
 
-function processFile(tsFile, readmePath, relPath) {
+function processFile(tsFile, readmePath) {
     if (fs.existsSync(readmePath)) { skipped++; return; }
     try {
-        const content = generate(tsFile, relPath);
+        const content = generate(tsFile);
         fs.writeFileSync(readmePath, content, 'utf8');
         console.log(`  + ${path.relative(ROOT, readmePath)}`);
         generated++;
@@ -196,8 +188,7 @@ for (const file of directFiles) {
     const tsFile    = path.join(FEATURES, file);
     const base      = path.basename(file, '.ts');
     const readmePath = path.join(FEATURES, `${base}.README.md`);
-    const relPath   = `src/features/${base}.README.md`;
-    processFile(tsFile, readmePath, relPath);
+    processFile(tsFile, readmePath);
 }
 
 // Subdirectory feature files: src/features/*/index.ts
@@ -212,8 +203,7 @@ for (const dir of subdirs) {
     if (!tsFile) { continue; }
 
     const readmePath = path.join(FEATURES, dir, 'README.md');
-    const relPath    = `src/features/${dir}/README.md`;
-    processFile(tsFile, readmePath, relPath);
+    processFile(tsFile, readmePath);
 }
 
 console.log('─'.repeat(50));

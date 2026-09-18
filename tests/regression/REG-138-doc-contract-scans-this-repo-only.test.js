@@ -49,6 +49,34 @@ let failed = 0;
 const fail = (msg) => { console.error('  FAIL: ' + msg); failed++; };
 const ok   = (msg) => { console.log('  PASS: ' + msg); passed++; };
 
+/**
+ * How many .md files in this repo end in a frontmatter block — the corpus
+ * doc-contract is supposed to cover. Written independently of the check under
+ * test: directory names are skipped as whole path segments, the definition
+ * #725 settled on, so this count cannot be emptied by the substring bug.
+ */
+function countTrailerDocs(root) {
+    const SKIP = new Set(['node_modules', '.git', 'worktrees', 'bin', '.vscode-test', 'out']);
+    let n = 0;
+    (function walk(dir) {
+        let entries;
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) { if (!SKIP.has(e.name)) { walk(full); } continue; }
+            if (!e.isFile() || !e.name.endsWith('.md')) { continue; }
+            let text;
+            try { text = fs.readFileSync(full, 'utf8').trimEnd(); } catch { continue; }
+            if (!text.endsWith('---')) { continue; }
+            const close = text.lastIndexOf('\n---');
+            const open  = close > 0 ? text.lastIndexOf('\n---', close - 1) : -1;
+            if (open === -1) { continue; }
+            if (/^\w+:\s*\S/m.test(text.slice(open + 4, close))) { n++; }
+        }
+    })(root);
+    return n;
+}
+
 console.log('\nREG-138: the doc contract check scans this repository, and all of it (#725)\n');
 
 if (!fs.existsSync(TARGET)) {
@@ -93,14 +121,19 @@ if (!haveRegistry) {
     fail('doc-contract printed no "N tests:" summary — cannot tell whether it scanned anything');
 } else {
     const count = parseInt(summary[1], 10);
-    // 81 documents carry the bottom frontmatter block, 5 assertions each plus
-    // the corpus-size test. The worktree bug drove this to 16. Any collapse
-    // toward zero means the walk is being excluded out of existence again.
-    if (count < 100) {
-        fail(`doc-contract ran only ${count} assertions — the scan is being emptied, ` +
-             'as it was when every path containing "worktrees" was excluded (#725)');
+    // Each document carrying the bottom frontmatter block gets 5 assertions,
+    // plus one corpus-size test. The worktree bug scanned 3 documents where 81
+    // existed. A fixed floor ("at least 100") went stale the moment #707 moved
+    // src/ off the trailer, so count the documents independently and require
+    // the check to have seen every one of them.
+    const expectedDocs = countTrailerDocs(ROOT);
+    const expected     = expectedDocs * 5 + 1;
+    if (count !== expected) {
+        fail(`doc-contract ran ${count} assertions; ${expectedDocs} document(s) carry the bottom ` +
+             `block, which is ${expected} — the scan is not reaching every document, as when ` +
+             'every path containing "worktrees" was excluded (#725)');
     } else {
-        ok(`doc-contract ran ${count} assertions — the scan reaches the repository's docs`);
+        ok(`doc-contract ran ${count} assertions — all ${expectedDocs} documents with the bottom block`);
     }
 }
 
