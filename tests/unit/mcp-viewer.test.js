@@ -1,11 +1,18 @@
 /**
  * tests/unit/mcp-viewer.test.js
  *
- * Source-level regression tests for src/features/mcp-viewer/html.ts.
+ * Regression tests for the MCP Endpoint Viewer page, src/features/mcp-viewer/html.ts.
  * Verifies every tab has: a button, a CONTROLS entry, a render function,
  * and a runFromControls routing branch.
  *
- * Run: node tests/unit/mcp-viewer.test.js
+ * The checks run against the page the real buildViewerHtml() returns, loaded
+ * from the per-module test build (out-test/, scripts/build-test-modules.mjs).
+ * Until #819 they ran against the source text of html.ts, so the test never
+ * executed the module it is named after. Only the exported signature is still
+ * read from the source, because a signature has no runtime form. REG-179 keeps
+ * every unit test named after a module loading that module.
+ *
+ * Run: node scripts/run-unit-tests.js mcp-viewer
  */
 'use strict';
 
@@ -14,14 +21,20 @@ const fs     = require('fs');
 const path   = require('path');
 
 const SRC    = path.join(__dirname, '../../src/features/mcp-viewer/html.ts');
+const OUT    = path.join(__dirname, '../../out-test/features/mcp-viewer/html.js');
 const BUNDLE = path.join(__dirname, '../../out/extension.js');
 
 if (!fs.existsSync(SRC)) {
     console.error('FAIL: src/features/mcp-viewer/html.ts not found');
     process.exit(1);
 }
+if (!fs.existsSync(OUT)) {
+    console.error('FAIL: out-test/features/mcp-viewer/html.js not built. Run through node scripts/run-unit-tests.js, which builds it.');
+    process.exit(1);
+}
 
 const src    = fs.readFileSync(SRC, 'utf8');
+const page   = require(OUT).buildViewerHtml(3999, 7, 'test-token');
 const bundle = fs.existsSync(BUNDLE) ? fs.readFileSync(BUNDLE, 'utf8') : '';
 
 let passed = 0, failed = 0;
@@ -73,9 +86,14 @@ test('buildViewerHtml is exported', () => {
 test('buildViewerHtml accepts port, totalProjects and the server token (#780)', () => {
     assert.ok(src.includes('buildViewerHtml(port: number, totalProjects: number, token: string)'));
 });
+test('the page is built with the port, project count and token it was given', () => {
+    assert.ok(page.includes("var BASE = 'http://127.0.0.1:3999';"), 'BASE must use the given port');
+    assert.ok(page.includes("var TOKEN = 'test-token';"), 'TOKEN must be the given token');
+    assert.ok(page.includes('<b id="stat-count">7</b>'), 'the project count must be shown');
+});
 test('every request from the page carries the server token (#780)', () => {
-    assert.ok(src.includes("var MCP_URL = BASE + '/mcp?t=' + TOKEN;"), 'JSON-RPC URL must carry the token');
-    assert.ok(!src.includes("fetch(BASE + '/mcp'"), 'no fetch may bypass MCP_URL (it would be sent without the token)');
+    assert.ok(page.includes("var MCP_URL = BASE + '/mcp?t=' + TOKEN;"), 'JSON-RPC URL must carry the token');
+    assert.ok(!page.includes("fetch(BASE + '/mcp'"), 'no fetch may bypass MCP_URL (it would be sent without the token)');
 });
 
 // ── 2. Tab buttons ────────────────────────────────────────────────────────────
@@ -84,14 +102,14 @@ console.log('\n[2] Tab buttons — all ' + ALL_TABS.length + ' tabs present, no 
 for (const tab of ALL_TABS) {
     test(`tab button: ${tab}`, () => {
         assert.ok(
-            src.includes(`data-endpoint="${tab}"`),
+            page.includes(`data-endpoint="${tab}"`),
             `Missing tab button for endpoint "${tab}"`
         );
     });
 }
 for (const tab of RETIRED_TABS) {
     test(`retired tab absent: ${tab}`, () => {
-        assert.ok(!src.includes(tab), `"${tab}" is still in the viewer; it was retired with the doc-numbering system (#707)`);
+        assert.ok(!page.includes(tab), `"${tab}" is still in the viewer; it was retired with the doc-numbering system (#707)`);
     });
 }
 
@@ -101,7 +119,7 @@ console.log('\n[3] CONTROLS entries — each tab has control HTML');
 for (const tab of ALL_TABS) {
     test(`CONTROLS entry: ${tab}`, () => {
         assert.ok(
-            src.includes(`${tab}:`),
+            page.includes(`${tab}:`),
             `Missing CONTROLS entry for "${tab}"`
         );
     });
@@ -109,13 +127,13 @@ for (const tab of ALL_TABS) {
 
 // Spot-check specific control elements
 test('find_project CONTROLS has query input', () => {
-    assert.ok(src.includes("find_project: '<label for=\"q\">query</label>"), 'find_project must have a query label');
+    assert.ok(page.includes("find_project: '<label for=\"q\">query</label>"), 'find_project must have a query label');
 });
 test('list_symbols CONTROLS has exported-only checkbox', () => {
-    assert.ok(src.includes('exportedOnly'), 'list_symbols must have exportedOnly checkbox');
+    assert.ok(page.includes('exportedOnly'), 'list_symbols must have exportedOnly checkbox');
 });
 test('get_catalog CONTROLS has sort select', () => {
-    assert.ok(src.includes('sortBy'), 'get_catalog must have sortBy select');
+    assert.ok(page.includes('sortBy'), 'get_catalog must have sortBy select');
 });
 
 // ── 4. Render functions ───────────────────────────────────────────────────────
@@ -125,7 +143,7 @@ const renderFns = [...new Set(Object.values(TAB_RENDER))];
 for (const fn of renderFns) {
     test(`render function defined: ${fn}`, () => {
         assert.ok(
-            src.includes(`function ${fn}(`),
+            page.includes(`function ${fn}(`),
             `Missing render function "${fn}"`
         );
     });
@@ -137,7 +155,7 @@ console.log('\n[5] runFromControls — routing branch for every tab');
 for (const tab of ALL_TABS) {
     test(`runFromControls branch: ${tab}`, () => {
         assert.ok(
-            src.includes(`endpoint === '${tab}'`),
+            page.includes(`endpoint === '${tab}'`),
             `Missing runFromControls branch for "${tab}"`
         );
     });
@@ -150,7 +168,7 @@ for (const [tab, fn] of Object.entries(TAB_RENDER)) {
     if (tab === 'search_docs' || tab === 'find_symbol') { continue; } // shared render, checked via get_catalog / list_symbols
     test(`runEndpoint dispatches ${tab} → ${fn}`, () => {
         const pattern = `currentEndpoint === '${tab}'`;
-        assert.ok(src.includes(pattern), `runEndpoint missing branch for "${tab}"`);
+        assert.ok(page.includes(pattern), `runEndpoint missing branch for "${tab}"`);
     });
 }
 
@@ -158,82 +176,82 @@ for (const [tab, fn] of Object.entries(TAB_RENDER)) {
 console.log('\n[7] Helper functions');
 
 test('esc() XSS-escape function exists', () => {
-    assert.ok(src.includes('function esc(s)') || src.includes('function esc('), 'esc() must be defined');
+    assert.ok(page.includes('function esc(s)') || page.includes('function esc('), 'esc() must be defined');
 });
 test('esc() escapes & < > "', () => {
-    assert.ok(src.includes("replace(/&/g,'&amp;')"), 'esc must escape &');
-    assert.ok(src.includes("replace(/</g,'&lt;')"),  'esc must escape <');
-    assert.ok(src.includes("replace(/>/g,'&gt;')"),  'esc must escape >');
-    assert.ok(src.includes('replace(/"/g,\'&quot;\')'), 'esc must escape "');
+    assert.ok(page.includes("replace(/&/g,'&amp;')"), 'esc must escape &');
+    assert.ok(page.includes("replace(/</g,'&lt;')"),  'esc must escape <');
+    assert.ok(page.includes("replace(/>/g,'&gt;')"),  'esc must escape >');
+    assert.ok(page.includes('replace(/"/g,\'&quot;\')'), 'esc must escape "');
 });
 test('countSummary() exists', () => {
-    assert.ok(src.includes('function countSummary('), 'countSummary must be defined');
+    assert.ok(page.includes('function countSummary('), 'countSummary must be defined');
 });
 test('countSummary handles projectCount', () => {
-    assert.ok(src.includes("json.projectCount"), 'countSummary must check projectCount');
+    assert.ok(page.includes("json.projectCount"), 'countSummary must check projectCount');
 });
 test('sortDocs() exists with 4 modes', () => {
-    assert.ok(src.includes('function sortDocs('), 'sortDocs must be defined');
-    assert.ok(src.includes("mode === 'title'"),       "sortDocs must handle 'title' mode");
-    assert.ok(src.includes("mode === 'file'"),        "sortDocs must handle 'file' mode");
-    assert.ok(src.includes("mode === 'description'"), "sortDocs must handle 'description' mode");
+    assert.ok(page.includes('function sortDocs('), 'sortDocs must be defined');
+    assert.ok(page.includes("mode === 'title'"),       "sortDocs must handle 'title' mode");
+    assert.ok(page.includes("mode === 'file'"),        "sortDocs must handle 'file' mode");
+    assert.ok(page.includes("mode === 'description'"), "sortDocs must handle 'description' mode");
 });
 test('formatStamp() converts ISO dates', () => {
-    assert.ok(src.includes('function formatStamp('), 'formatStamp must be defined');
-    assert.ok(src.includes('new Date(iso)'), 'formatStamp must construct a Date');
+    assert.ok(page.includes('function formatStamp('), 'formatStamp must be defined');
+    assert.ok(page.includes('new Date(iso)'), 'formatStamp must construct a Date');
 });
 test('statusPill() renders lifecycle status chips', () => {
-    assert.ok(src.includes('function statusPill('), 'statusPill must be defined');
-    assert.ok(src.includes('c-status'), 'statusPill must use c-status CSS class');
+    assert.ok(page.includes('function statusPill('), 'statusPill must be defined');
+    assert.ok(page.includes('c-status'), 'statusPill must use c-status CSS class');
 });
 test('toast() shows notification messages', () => {
-    assert.ok(src.includes('function toast('), 'toast must be defined');
+    assert.ok(page.includes('function toast('), 'toast must be defined');
 });
 
 // ── 8. Render output spot-checks ──────────────────────────────────────────────
 console.log('\n[8] Render output spot-checks');
 
 test('renderProjectsTable emits c-name and c-path columns', () => {
-    const idx = src.indexOf('function renderProjectsTable(');
-    const slice = src.slice(idx, idx + 1200);
+    const idx = page.indexOf('function renderProjectsTable(');
+    const slice = page.slice(idx, idx + 1200);
     assert.ok(slice.includes('c-name'), 'renderProjectsTable must emit c-name cell');
     assert.ok(slice.includes('c-path'), 'renderProjectsTable must emit c-path cell');
 });
 test('renderSymbolsTable groups by project and shows kind/role', () => {
     // function body is long (inline regex escaping pads line 375), search full source
-    assert.ok(src.includes("esc(s.kind)"), 'renderSymbolsTable must display symbol kind');
-    assert.ok(src.includes("esc(s.role)"), 'renderSymbolsTable must display symbol role');
-    const idx = src.indexOf('function renderSymbolsTable(');
-    const slice = src.slice(idx, idx + 1500);
+    assert.ok(page.includes("esc(s.kind)"), 'renderSymbolsTable must display symbol kind');
+    assert.ok(page.includes("esc(s.role)"), 'renderSymbolsTable must display symbol role');
+    const idx = page.indexOf('function renderSymbolsTable(');
+    const slice = page.slice(idx, idx + 1500);
     assert.ok(slice.includes('group-hd'), 'renderSymbolsTable must use group headers');
 });
 test('renderCvtCommandsTable groups by group name', () => {
-    const idx = src.indexOf('function renderCvtCommandsTable(');
-    const slice = src.slice(idx, idx + 1200);
+    const idx = page.indexOf('function renderCvtCommandsTable(');
+    const slice = page.slice(idx, idx + 1200);
     assert.ok(slice.includes('group-hd'), 'renderCvtCommandsTable must use group headers');
     assert.ok(slice.includes('esc(c.id)'), 'renderCvtCommandsTable must show the command id');
 });
 test('docs table links use /md-preview with the token and ?path= for file preview (#780)', () => {
-    assert.ok(src.includes("/md-preview?t=' + TOKEN + '&path='"), 'Doc table rows must link to /md-preview, token included, for file preview');
+    assert.ok(page.includes("/md-preview?t=' + TOKEN + '&path='"), 'Doc table rows must link to /md-preview, token included, for file preview');
 });
 test('docs table links include back= return URL parameter', () => {
-    assert.ok(src.includes('&back='), 'md-preview links must include back return URL parameter');
+    assert.ok(page.includes('&back='), 'md-preview links must include back return URL parameter');
 });
 test('buildMdPreviewLink helper exists', () => {
-    assert.ok(src.includes('function buildMdPreviewLink('), 'buildMdPreviewLink helper must be defined');
+    assert.ok(page.includes('function buildMdPreviewLink('), 'buildMdPreviewLink helper must be defined');
 });
 
 // ── 9. CSS / dark theme ───────────────────────────────────────────────────────
 console.log('\n[9] CSS / dark theme');
 
 test('dark theme background #1e1e1e is set on body', () => {
-    assert.ok(src.includes('background:#1e1e1e'), 'body must use VS Code dark background');
+    assert.ok(page.includes('background:#1e1e1e'), 'body must use VS Code dark background');
 });
 test('links use yellow #FFD700 per project link-visibility rule', () => {
-    assert.ok(src.includes('#FFD700'), 'links must be yellow (#FFD700)');
+    assert.ok(page.includes('#FFD700'), 'links must be yellow (#FFD700)');
 });
 test('active tab uses blue #0078d4 accent', () => {
-    assert.ok(src.includes('#0078d4'), 'active tab must use #0078d4 accent colour');
+    assert.ok(page.includes('#0078d4'), 'active tab must use #0078d4 accent colour');
 });
 
 // ── 10. Bundle check ──────────────────────────────────────────────────────────

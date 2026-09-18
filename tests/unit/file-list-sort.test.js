@@ -28,36 +28,16 @@ function ok(v, msg)  { assert.ok(v, msg); }
 function eq(a, b, m) { assert.strictEqual(a, b, m); }
 function deepEq(a, b, m) { assert.deepStrictEqual(a, b, m); }
 
-// Inline the pure sort logic from file-list-sort.ts (esbuild bundles individual files away)
-function folderFirst(a, b) {
-    if (a.isDir && !b.isDir) { return -1; }
-    if (!a.isDir && b.isDir) { return  1; }
-    return 0;
+// The real module, from the per-module test build (scripts/build-test-modules.mjs).
+// Until #819 this file carried its own copy of the comparators, so a change to
+// src/shared/file-list-sort.ts could never turn it red. REG-179 keeps it loading
+// the module it is named after.
+const OUT = path.join(__dirname, '../../out-test/shared/file-list-sort.js');
+if (!fs.existsSync(OUT)) {
+    console.error('FAIL: out-test/shared/file-list-sort.js not built. Run through node scripts/run-unit-tests.js, which builds it.');
+    process.exit(1);
 }
-function byName(a, b) {
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
-}
-function makeComparator(column, dir) {
-    const sign = dir === 'asc' ? 1 : -1;
-    return (a, b) => {
-        const f = folderFirst(a, b);
-        if (f !== 0) { return f; }
-        let primary = 0;
-        switch (column) {
-            case 'name': primary = byName(a, b);                 break;
-            case 'date': primary = (a.mtime - b.mtime);          break;
-            case 'type': primary = a.type.localeCompare(b.type); break;
-            case 'size': primary = (a.size - b.size);            break;
-        }
-        if (primary !== 0) { return primary * sign; }
-        return byName(a, b);
-    };
-}
-function sortEntries(entries, column, dir) {
-    entries.sort(makeComparator(column, dir));
-    return entries;
-}
-const DEFAULT_EXCLUDES = new Set(['node_modules', '.git', 'out', 'dist', '.vscode-test']);
+const { makeComparator, sortEntries, DEFAULT_EXCLUDES } = require(OUT);
 
 console.log('\nfile-list-sort unit tests');
 console.log('\u2500'.repeat(50));
@@ -197,6 +177,23 @@ test('size asc within files: smallest first', () => {
     sortEntries(arr, 'size', 'asc');
     const fileSizes = arr.filter(e => !e.isDir).map(e => e.size);
     deepEq(fileSizes, [800, 1200, 5800, 12000]);
+});
+
+// ── makeComparator directly ──────────────────────────────────────────────
+console.log('\n-- makeComparator --');
+
+test('makeComparator puts a folder before a file in both directions', () => {
+    const dir  = entry('zzz', true,  0,  0, 'dir');
+    const file = entry('aaa', false, 10, 0, 'md');
+    ok(makeComparator('name', 'asc')(dir, file)  < 0);
+    ok(makeComparator('name', 'desc')(dir, file) < 0);
+    ok(makeComparator('name', 'asc')(file, dir)  > 0);
+});
+
+test('makeComparator breaks a tie on the sort column by name, ascending', () => {
+    const a = entry('a.md', false, 5, 0, 'md');
+    const b = entry('b.md', false, 5, 0, 'md');
+    ok(makeComparator('size', 'desc')(a, b) < 0);
 });
 
 // ── Stability under repeated sorts ───────────────────────────────────────

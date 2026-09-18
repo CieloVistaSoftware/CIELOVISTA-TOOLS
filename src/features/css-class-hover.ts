@@ -132,3 +132,6 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void { /* nothing to clean up */ }
+
+/** Test handle: the pure CSS lookups, so the unit test runs these rather than a copy (#819). */
+export const _test = { extractInlineCss, findCssRule };

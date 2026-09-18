@@ -33,6 +33,22 @@ function eq(a, b, m) { assert.strictEqual(a, b, m); }
 
 const SRC = path.resolve(__dirname, '../../src/features/css-class-hover.ts');
 const OUT = path.resolve(__dirname, '../../out-test/features/css-class-hover.js');
+if (!fs.existsSync(OUT)) {
+    console.error('FAIL: out-test/features/css-class-hover.js not built. Run through node scripts/run-unit-tests.js, which builds it.');
+    process.exit(1);
+}
+
+// The real module, not a copy of its regexes (#819). It imports 'vscode' at load.
+const Module   = require('module');
+const origLoad = Module._load;
+Module._load = function (req) {
+    if (req === 'vscode') {
+        return { window: { createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }) } };
+    }
+    return origLoad.apply(this, arguments);
+};
+const { extractInlineCss, findCssRule } = require(OUT)._test;
+Module._load = origLoad;
 
 console.log('\ncss-class-hover tests');
 console.log('\u2500'.repeat(50));
@@ -73,15 +89,8 @@ test('enable command only registers hover provider, no webview side-effect', () 
     ok(!/\bimport[^;]*\bshowResultWebview\b[^;]*;/.test(code), 'showResultWebview is still imported');
 });
 
-// ── findCssRule logic (pure regex, tested inline) ─────────────────────────
+// ── findCssRule logic (the real module) ─────────────────────────
 console.log('\n-- findCssRule() logic --');
-
-// Replicate the core regex from the source for pure-unit testing
-function findCssRule(css, className) {
-    const re      = new RegExp(`\\.${className}\\s*\\{[^}]*\\}`, 'g');
-    const matches = css.match(re);
-    return matches && matches.length ? matches.join('\n\n') : null;
-}
 
 test('finds simple .foo selector', () => {
     const css = '.foo { color: red; } .bar { color: blue; }';
@@ -112,28 +121,24 @@ test('returns multiple matching rules joined by newline', () => {
 // ── extractInlineCss regex ────────────────────────────────────────────────
 console.log('\n-- extractInlineCss() regex --');
 
-function extractInlineCss(html) {
-    const styleRe = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-    let css = '', m;
-    while ((m = styleRe.exec(html)) !== null) { css += m[1] + '\n'; }
-    return css;
-}
+/** The real extractInlineCss takes a TextDocument; this is one holding the given html. */
+function inlineCssOf(html) { return extractInlineCss({ getText: () => html }); }
 
 test('extracts single <style> block', () => {
     const html = '<html><head><style>.x{color:red}</style></head></html>';
-    const css  = extractInlineCss(html);
+    const css  = inlineCssOf(html);
     ok(css.includes('.x{color:red}'), 'should include inline CSS');
 });
 
 test('extracts multiple <style> blocks', () => {
     const html = '<style>.a{}</style><p></p><style>.b{}</style>';
-    const css  = extractInlineCss(html);
+    const css  = inlineCssOf(html);
     ok(css.includes('.a{}') && css.includes('.b{}'), 'should include both blocks');
 });
 
 test('returns empty string when no <style> block', () => {
     const html = '<html><body><p>hello</p></body></html>';
-    const css  = extractInlineCss(html);
+    const css  = inlineCssOf(html);
     eq(css, '', 'should return empty string');
 });
 
