@@ -478,10 +478,9 @@ if (featuresDoc) {
 // orphans, they were deleted, and packaging broke on
 // `out/features/CommandHelp/ has >= 2 files`.
 //
-// Every other scanner in this repo already skips exactly these two names —
-// doc-catalog/scanner.ts, doc-header-scan.ts, doc-intelligence/scanner.ts,
-// docs-broken-refs.ts and readme-compliance (feature + scanner). A new check
-// that contradicts five existing ones is the new check being wrong.
+// Every doc feature skips both names: they are in DOC_SKIP_DIRS in
+// src/shared/doc-collector.ts, the one walk every doc feature uses (#802). A
+// new check that contradicts it is the new check being wrong.
 // (NOT_MODULE_DOCS itself is declared above the feature list, which uses it too.)
 
 (function checkOrphanReadmes(dir) {

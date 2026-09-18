@@ -37,6 +37,7 @@ import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { esc } from '../../shared/webview-utils';
 import { readFrontmatter, contractViolations, toContract } from '../../shared/doc-frontmatter';
+import { walkDocTree } from '../../shared/doc-collector';
 
 const FEATURE       = 'doc-header';
 const GLOBAL_DOCS   = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
@@ -90,49 +91,22 @@ function toRelativePath(filePath: string, projectRoot: string): string {
 
 // ─── Scanner ──────────────────────────────────────────────────────────────────
 
-const SKIP_DIRS = new Set([
-    'node_modules', '.git', 'out', 'dist', 'reports', '.vscode',
-    '.claude', '.vscode-test',
-    'bin', 'obj', 'build', 'coverage', 'test-results', 'playwright-report',
-    '.next', '.nuxt', '.cache', 'tmp', 'temp', '.venv', 'venv', '__pycache__',
-]);
-const SKIP_FILE_SUFFIXES = ['error-context.md'];
-
 function scanDirectory(rootPath: string, projectName: string, projectRoot: string, maxDepth = 4): DocHeaderReport[] {
     const results: DocHeaderReport[] = [];
-
-    function walk(dir: string, depth: number): void {
-        if (depth > maxDepth || !fs.existsSync(dir)) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-
-        for (const entry of entries) {
-            if (SKIP_DIRS.has(entry.name)) { continue; }
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                walk(fullPath, depth + 1);
-            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-                const lowerName = entry.name.toLowerCase();
-                if (SKIP_FILE_SUFFIXES.some((suffix) => lowerName.endsWith(suffix))) { continue; }
-                try {
-                    const content   = fs.readFileSync(fullPath, 'utf8');
-                    const parsed    = readFrontmatter(content);
-                    const relPath   = toRelativePath(fullPath, projectRoot);
-
-                    results.push({
-                        filePath:       fullPath,
-                        relativePath:   relPath,
-                        projectName,
-                        hasFrontmatter: parsed.placement !== 'none',
-                        missingFields:  contractViolations(content).filter(v => v !== 'no frontmatter'),
-                        currentFm:      parsed.fields,
-                    });
-                } catch { /* skip */ }
-            }
-        }
+    for (const fullPath of walkDocTree(rootPath, { maxDepth })) {
+        try {
+            const content   = fs.readFileSync(fullPath, 'utf8');
+            const parsed    = readFrontmatter(content);
+            results.push({
+                filePath:       fullPath,
+                relativePath:   toRelativePath(fullPath, projectRoot),
+                projectName,
+                hasFrontmatter: parsed.placement !== 'none',
+                missingFields:  contractViolations(content).filter(v => v !== 'no frontmatter'),
+                currentFm:      parsed.fields,
+            });
+        } catch { /* skip */ }
     }
-
-    walk(rootPath, 0);
     return results;
 }
 

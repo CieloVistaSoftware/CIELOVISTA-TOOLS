@@ -19,7 +19,7 @@ import * as fs     from 'fs';
 import * as os     from 'os';
 import * as path   from 'path';
 import { log, logError } from '../../shared/output-channel';
-import { collectArtifactFolders, collectDocs } from './scanner';
+import { collectArtifactFolders, intelligenceDocs } from './scanner';
 import { analyze }       from './analyzer';
 import { buildDashboardHtml } from './html';
 import type {
@@ -66,13 +66,13 @@ async function runScan(): Promise<IntelligenceReport | undefined> {
             const t0 = Date.now();
 
             progress.report({ message: 'Collecting global docs…' });
-            const allDocs = collectDocs(registry.globalDocsPath, 'global');
+            const allDocs = intelligenceDocs(registry.globalDocsPath, 'global');
             const artifactFolders: ArtifactFolder[] = [];
 
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}…` });
                 if (fs.existsSync(project.path)) {
-                    allDocs.push(...collectDocs(project.path, project.name));
+                    allDocs.push(...intelligenceDocs(project.path, project.name));
                     artifactFolders.push(...collectArtifactFolders(project.path, project.name));
                 }
             }

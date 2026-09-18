@@ -3,44 +3,22 @@
 
 // component: aud
 
-import * as fs   from 'fs';
-import * as path from 'path';
+import { collectDocs } from '../../shared/doc-collector';
 import type { DocFile } from './types';
 
-const SKIP_DIRS = ['node_modules', '.git', 'out', 'dist', '.vscode', '.claude'];
-
-/** Returns all markdown docs under a directory tree (max 3 levels deep). */
-export function collectDocs(rootPath: string, projectName: string, projectStatus?: string, maxDepth = 3): DocFile[] {
-    const results: DocFile[] = [];
-
-    function walk(dir: string, depth: number): void {
-        if (depth > maxDepth || !fs.existsSync(dir)) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-        catch { return; }
-
-        for (const entry of entries) {
-            if (SKIP_DIRS.includes(entry.name)) { continue; }
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                walk(fullPath, depth + 1);
-            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-                try {
-                    const content    = fs.readFileSync(fullPath, 'utf8');
-                    const stat       = fs.statSync(fullPath);
-                    const normalized = content.toLowerCase().replace(/\s+/g, ' ').replace(/[#*`_\[\]()]/g, '').trim();
-                    results.push({ filePath: fullPath, fileName: entry.name, projectName, projectStatus,
-                                   sizeBytes: Buffer.byteLength(content, 'utf8'),
-                                   modifiedAt: stat.mtime.toISOString(),
-                                   content, normalized });
-                } catch { /* skip unreadable */ }
-            }
-        }
-    }
-
-    walk(rootPath, 0);
-    return results;
+/**
+ * The docs the Doc Auditor audits under one root: shared/doc-collector's set
+ * (the same set Doc Intelligence sees, #802) plus the auditor's own fields.
+ */
+export function auditDocs(rootPath: string, projectName: string, projectStatus?: string): DocFile[] {
+    return collectDocs(rootPath, projectName).map((doc) => ({
+        filePath:    doc.filePath,
+        fileName:    doc.fileName,
+        projectName: doc.projectName,
+        projectStatus,
+        sizeBytes:   doc.sizeBytes,
+        modifiedAt:  new Date(doc.mtimeMs).toISOString(),
+        content:     doc.content,
+        normalized:  doc.normalized,
+    }));
 }
-
-/** @internal — exported for unit testing only */
-export { SKIP_DIRS };

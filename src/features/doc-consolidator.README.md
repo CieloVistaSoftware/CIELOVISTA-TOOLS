@@ -21,7 +21,7 @@ The doc-consolidator is a robust, interactive tool for eliminating duplicate doc
 ---
 
 ## Architecture & Data Flow
-- **Discovery:** Scans all projects and the global folder for `.md` files (up to 3 levels deep), skipping build and system folders.
+- **Discovery:** Scans all projects and the global folder for `.md` files (up to 3 levels deep) through the shared collector, src/shared/doc-collector.ts, with the same skip list as every other doc feature (#802).
 - **Grouping:** Duplicates are grouped by exact filename and by content similarity (>70% word overlap, Jaccard index).
 - **User Flow:** Each group is presented in a QuickPick UI for review and action. For content matches, a diff is shown before consolidation.
 - **Actions:** The user picks the authoritative copy (the "keeper") and its home (global or project). All other copies are deleted, and all references in CLAUDE.md files are updated.
@@ -95,7 +95,7 @@ activate()
   └── registers 4 commands: run, byName, byContent, log
 
 discoverGroups(filter: 'all' | 'name' | 'content')
-  └── collectDocs(global) + collectDocs(each project)
+  └── scanDir(global) + scanDir(each project)   (shared/doc-collector.ts collectDocs)
   └── group by fileName.toLowerCase()         → name duplicates
   └── Jaccard index on word sets (>70%)        → content duplicates
   └── returns ConsolidationGroup[]

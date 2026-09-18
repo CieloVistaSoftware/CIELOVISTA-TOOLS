@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import { log }     from '../../shared/output-channel';
 import { loadRegistry } from '../../shared/registry';
-import { collectDocs }  from './scanner';
+import { auditDocs }  from './scanner';
 import { computeSimilarity, isGlobalCandidate, isOrphan, filterDuplicates, isContainerBoilerplate } from './analyzer';
 import type { DocFile, AuditResults, MoveCandidate } from './types';
 
@@ -30,7 +30,7 @@ export async function runAudit(progressReporter?: AuditProgressReporter): Promis
         async (progress) => {
             report('Collecting global docs…');
             progress.report({ message: 'Collecting global docs…' });
-            const allDocs: DocFile[] = collectDocs(registry.globalDocsPath, 'global');
+            const allDocs: DocFile[] = auditDocs(registry.globalDocsPath, 'global');
             report(`Audited ${allDocs.length} docs (global)…`);
             progress.report({ message: `Audited ${allDocs.length} docs (global)…` });
             for (const project of registry.projects) {
@@ -38,7 +38,7 @@ export async function runAudit(progressReporter?: AuditProgressReporter): Promis
                 report(scanMessage);
                 progress.report({ message: scanMessage });
                 if (fs.existsSync(project.path)) {
-                    const projectDocs = collectDocs(project.path, project.name, project.status);
+                    const projectDocs = auditDocs(project.path, project.name, project.status);
                     allDocs.push(...projectDocs);
                     const countedMessage = `Audited ${allDocs.length} docs… (${project.name})`;
                     report(countedMessage);

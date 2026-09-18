@@ -98,11 +98,27 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
-  // Standalone doc-auditor scanner — no vscode dep, consumed by unit tests
+  // The one doc collector and the two features built on it -- no vscode dep,
+  // consumed by tests/unit/doc-collector.test.js and REG-174, which checks the
+  // Doc Auditor and Doc Intelligence see the same doc set (#802).
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/doc-collector.ts'],
+    outfile:     'out/shared/doc-collector.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
   await esbuild.build({
     ...nodeBase,
     entryPoints: ['src/features/doc-auditor/scanner.ts'],
     outfile:     'out/features/doc-auditor/scanner.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/features/doc-intelligence/scanner.ts'],
+    outfile:     'out/features/doc-intelligence/scanner.js',
     format:      'cjs',
     sourcemap:   false,
   });

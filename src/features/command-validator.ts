@@ -17,6 +17,7 @@ import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
+import { walkDocTree } from '../shared/doc-collector';
 
 const FEATURE = 'command-validator';
 
@@ -111,19 +112,7 @@ function scanDirForString(dir: string, needle: string): boolean {
 
 /** Find all feature README files under src/features/. */
 function findReadmeFiles(srcDir: string): string[] {
-    const files: string[] = [];
-    function walk(dir: string) {
-        try {
-            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-                if (e.name === 'node_modules') { continue; }
-                const full = path.join(dir, e.name);
-                if (e.isDirectory()) { walk(full); }
-                else if (/\.README\.md$/i.test(e.name)) { files.push(full); }
-            }
-        } catch { /* skip */ }
-    }
-    walk(srcDir);
-    return files;
+    return walkDocTree(srcDir, { maxDepth: Infinity, match: (name) => /\.README\.md$/i.test(name) });
 }
 
 // ─── Frontmatter helpers ──────────────────────────────────────────────────────

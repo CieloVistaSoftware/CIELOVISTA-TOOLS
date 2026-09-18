@@ -23,6 +23,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 import { readFrontmatter, contractViolations, toContract, Placement } from '../shared/doc-frontmatter';
+import { walkDocTree } from '../shared/doc-collector';
 
 const FEATURE = 'doc-header-scan';
 const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
@@ -71,38 +72,24 @@ function fixToContract(r: DocHeaderReport): Omit<FixResult, 'filePath' | 'relati
 
 // ── Directory scanner ─────────────────────────────────────────────────────────
 
-const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', 'reports', '.vscode', '.vscode-test', '.claude', 'CommandHelp', 'image-reader-assets']);
-
 function toRelativePath(filePath: string, projectRoot: string): string {
     return path.relative(projectRoot, filePath).replace(/\\/g, '/');
 }
 
 function scanDirectory(rootPath: string, projectName: string, projectRoot: string, maxDepth = 4): DocHeaderReport[] {
     const results: DocHeaderReport[] = [];
-    function walk(dir: string, depth: number): void {
-        if (depth > maxDepth || !fs.existsSync(dir)) { return; }
-        let entries: fs.Dirent[];
-        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const entry of entries) {
-            if (SKIP_DIRS.has(entry.name)) { continue; }
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                walk(fullPath, depth + 1);
-            } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
-                try {
-                    const content  = fs.readFileSync(fullPath, 'utf8');
-                    results.push({
-                        filePath:     fullPath,
-                        relativePath: toRelativePath(fullPath, projectRoot),
-                        projectName,
-                        position:     readFrontmatter(content).placement,
-                        violations:   contractViolations(content),
-                    });
-                } catch { /* skip unreadable */ }
-            }
-        }
+    for (const fullPath of walkDocTree(rootPath, { maxDepth })) {
+        try {
+            const content  = fs.readFileSync(fullPath, 'utf8');
+            results.push({
+                filePath:     fullPath,
+                relativePath: toRelativePath(fullPath, projectRoot),
+                projectName,
+                position:     readFrontmatter(content).placement,
+                violations:   contractViolations(content),
+            });
+        } catch { /* skip unreadable */ }
     }
-    walk(rootPath, 0);
     return results;
 }
 
