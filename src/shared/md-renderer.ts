@@ -265,14 +265,53 @@ function esc(s: string): string {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── Inline markup ─────────────────────────────────────────────────────────────
+// CommonMark precedence (#754): code spans bind first, then links and images,
+// then emphasis. Each finished code span, image and link is swapped for a
+// placeholder token so later passes cannot reach inside it: a * in a URL is
+// not emphasis, [a](b) inside a code span is not a link, and emphasis cannot
+// leak into an href, src, title or alt attribute. Placeholders are expanded
+// back to HTML at the very end.
+
+/** A span already rendered, held out of the later passes. */
+interface Held {
+    html: string;    // what it renders as
+    source: string;  // the (esc()'d) markdown it came from, for attribute values
+    text: string;    // its plain text, for image alt text
+}
+
+const PH_OPEN  = '';
+const PH_CLOSE = '';
+const PH_TOKEN = /(\d+)/g;
+
+/** Expand every placeholder in `s` (recursively) to one form of its span. */
+function expand(s: string, held: Held[], form: keyof Held): string {
+    return s.replace(PH_TOKEN, (_, n: string) => expand(held[Number(n)][form], held, form));
+}
+
+function emphasis(s: string): string {
+    return s
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+        .replace(/~~(.+?)~~/g,     '<del>$1</del>');
+}
+
+function stripTags(s: string): string {
+    return s.replace(/<[^>]*>/g, '');
+}
+
 function inlineMarkdown(s: string): string {
-    const styled = s
-        .replace(/\*\*(.+?)\*\*/g,        '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g,            '<em>$1</em>')
-        .replace(/`([^`]+)`/g,            '<code>$1</code>')
-        .replace(/~~(.+?)~~/g,            '<del>$1</del>');
+    const held: Held[] = [];
+    const hold = (h: Held): string => `${PH_OPEN}${held.push(h) - 1}${PH_CLOSE}`;
+    // The placeholder delimiters are private-use characters; one already in
+    // the text is emitted as its numeric reference so it cannot pose as a token.
+    let t = s.replace(/[]/g, c => `&#${c.charCodeAt(0)};`);
+    t = t.replace(/`([^`]+)`/g, (source: string, code: string) =>
+        hold({ html: `<code>${code}</code>`, source, text: code }));
     // Images first, so a badge [![alt](img.svg)](url) becomes a linked image.
-    return replaceLinks(replaceLinks(styled, true), false);
+    t = replaceLinks(t, true, held, hold);
+    t = replaceLinks(t, false, held, hold);
+    return expand(emphasis(t), held, 'html');
 }
 
 // ── Inline links and images ───────────────────────────────────────────────────
@@ -372,8 +411,13 @@ function parseLinkTarget(s: string, start: number): LinkTarget | undefined {
  * Replace every ![alt](target) (images === true) or [text](target) with HTML.
  * A target that is not valid CommonMark falls back to the pre-#740 rule:
  * everything up to the first ")" is the destination.
+ *
+ * `s` may hold placeholders for code spans (and, for links, images). Each
+ * rendered image or link is itself held and replaced by a placeholder. A
+ * placeholder inside a destination or title is expanded back to its markdown
+ * source before escaping, so rendered HTML never lands in an attribute.
  */
-function replaceLinks(s: string, images: boolean): string {
+function replaceLinks(s: string, images: boolean, held: Held[], hold: (h: Held) => string): string {
     const opener = images ? /!\[([^\]]*)\]\(/g : /\[([^\]]+)\]\(/g;
     let out = '';
     let last = 0;
@@ -386,12 +430,16 @@ function replaceLinks(s: string, images: boolean): string {
             if (close <= inner) { continue; }
             target = { dest: s.slice(inner, close), title: undefined, end: close + 1 };
         }
-        const href  = escAttr(safeDest(unEsc(target.dest), images));
-        const title = target.title === undefined ? '' : ` title="${escAttr(unEsc(target.title))}"`;
+        const dest  = unEsc(expand(target.dest, held, 'source'));
+        const href  = escAttr(safeDest(dest, images));
+        const title = target.title === undefined ? '' : ` title="${escAttr(unEsc(expand(target.title, held, 'source')))}"`;
+        const source = s.slice(m.index, target.end);
+        // Alt text is the label's plain text: emphasis and code markup removed.
+        const text  = stripTags(expand(emphasis(m[1]), held, 'text'));
         out += s.slice(last, m.index);
-        out += images
-            ? `<img alt="${m[1].replace(/"/g, '&quot;')}" src="${href}"${title}>`
-            : `<a href="${href}"${title}>${m[1]}</a>`;
+        out += hold(images
+            ? { html: `<img alt="${text.replace(/"/g, '&quot;')}" src="${href}"${title}>`, source, text }
+            : { html: `<a href="${href}"${title}>${emphasis(m[1])}</a>`, source, text });
         last = target.end;
         opener.lastIndex = target.end;
     }
