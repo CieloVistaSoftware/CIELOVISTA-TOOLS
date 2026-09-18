@@ -44,7 +44,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { log, logError } from '../../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../../shared/registry';
-import { showConsolidationPlanWebview } from '../../shared/consolidation-plan-webview';
+import { showConsolidationPlanWebview } from './plan-webview';
 import { getLauncherTargetColumn } from '../../shared/panel-context';
 
 // Files that are intentionally duplicated across every project root (#508, #509).

@@ -25,8 +25,8 @@
  *      default page size), via the shared gh-CLI issue fetcher.
  *
  * Design decision (GitHub issue #650): this is a NEW dedicated feature file,
- * not an extension of the existing Issue Viewer (src/shared/github-issues-
- * view.ts, wired from home-page.ts). Reasoning:
+ * not an extension of the existing Issue Viewer (src/features/github-issues/,
+ * in shared/ until #745; opened from home-page.ts). Reasoning:
  *   - Issue Viewer's job is browsing / triaging / claiming individual issues
  *     in a big sortable table. Session Activity's job is a small at-a-glance
  *     rollup across FOUR different data sources (job-status file, git log,
@@ -34,13 +34,13 @@
  *     about. Folding those in would turn one focused file into two jobs,
  *     violating the "one job per file" rule.
  *   - No logic is duplicated to get there: repo detection and the gh-CLI
- *     issue fetch are REUSED from src/shared/github-issues-view.ts (see
+ *     issue fetch are REUSED from the github-issues feature (see
  *     `detectRepoFromWorkspace` / `fetchIssuesForRepo`, both exported from
  *     that module specifically so this feature didn't have to re-implement
  *     them). Everything else this feature needs (job-status file, git log
  *     on a deploy branch, gh run list) has no existing shared helper in this
  *     codebase to reuse, so it's implemented here, ad hoc, the same way
- *     github-issues-view.ts and mcp-viewer/index.ts already shell out to
+ *     github-issues/view.ts and mcp-viewer/index.ts already shell out to
  *     `git`/`gh` directly — there is no dedicated git/gh wrapper module in
  *     src/shared/ to route through.
  *
@@ -73,7 +73,7 @@ import {
     detectRepoFromWorkspace,
     fetchIssuesForRepo,
     type GHIssue,
-} from '../shared/github-issues-view';
+} from './github-issues';
 
 const FEATURE = 'session-activity';
 const CACHE_TTL_MS = 12000; // matches the ~12s live-read cache of the reference tool this replaces

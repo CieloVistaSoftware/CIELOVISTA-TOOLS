@@ -104,8 +104,10 @@ const vscodeMock = new Proxy({
 }, { get: (t, p) => (p in t ? t[p] : inert()) });
 
 function loadWithMock(rel) {
-    const file = path.join(OUT_TEST, rel + '.js');
-    assert(fs.existsSync(file), `out-test/${rel}.js does not exist; scripts/run-regression-tests.js builds out-test/ before running tests`);
+    // A feature is a single file (features/x.js) or a folder feature (features/x/index.js).
+    const flat = path.join(OUT_TEST, rel + '.js');
+    const file = fs.existsSync(flat) ? flat : path.join(OUT_TEST, rel, 'index.js');
+    assert(fs.existsSync(file), `neither out-test/${rel}.js nor out-test/${rel}/index.js exists; scripts/run-regression-tests.js builds out-test/ before running tests`);
     const origLoad = Module._load;
     Module._load = function (req) {
         if (req === 'vscode') { return vscodeMock; }

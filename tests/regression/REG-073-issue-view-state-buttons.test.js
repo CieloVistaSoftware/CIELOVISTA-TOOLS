@@ -8,7 +8,7 @@ const path = require('path');
 // This test was created to prevent a regression where these buttons were accidentally
 // removed during a UI refactor (commit 2a6308a0, issue #23).
 
-const SRC = path.join(__dirname, '..', '..', 'src', 'shared', 'github-issues-view.ts');
+const SRC = path.join(__dirname, '..', '..', 'src', 'features', 'github-issues', 'view.ts');
 
 let pass = 0;
 let fail = 0;

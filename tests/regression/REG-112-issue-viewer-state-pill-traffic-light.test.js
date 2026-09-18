@@ -19,7 +19,7 @@ const assert = require('assert');
 
 const ROOT = path.join(__dirname, '..', '..');
 const SRC  = fs.readFileSync(
-    path.join(ROOT, 'src', 'shared', 'github-issues-view.ts'), 'utf8');
+    path.join(ROOT, 'src', 'features', 'github-issues', 'view.ts'), 'utf8');
 
 let passed = 0;
 let failed = 0;

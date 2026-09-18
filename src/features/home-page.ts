@@ -35,7 +35,7 @@ import {
     offMcpServerStatusChange
 } from './mcp-server-status';
 import { openDocPreview } from '../shared/doc-preview';
-import { showGithubIssues } from '../shared/github-issues-view';
+import { showGithubIssues } from './github-issues';
 import {
     loadRegistry,
     registryPathSet,

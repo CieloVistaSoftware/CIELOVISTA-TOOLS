@@ -12,7 +12,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const SRC = path.join(__dirname, '../../src/shared/github-issues-view.ts');
+const SRC = path.join(__dirname, '../../src/features/github-issues/view.ts');
 const src = fs.readFileSync(SRC, 'utf8');
 
 let passed = 0;

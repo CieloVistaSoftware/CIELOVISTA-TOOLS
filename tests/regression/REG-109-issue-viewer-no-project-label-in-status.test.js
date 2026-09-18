@@ -18,7 +18,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../..');
-const SRC  = path.join(ROOT, 'src', 'shared', 'github-issues-view.ts');
+const SRC  = path.join(ROOT, 'src', 'features', 'github-issues', 'view.ts');
 const src  = fs.readFileSync(SRC, 'utf8');
 
 let passed = 0, failed = 0;

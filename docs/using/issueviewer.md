@@ -8,10 +8,10 @@ description: Browse, filter and act on GitHub issues without leaving the editor.
 
 ## How It Works
 
-1. The VS Code extension registers the command `cvs.issues.openViewer` in `src/features/github-issues.ts`.
-2. When this command is triggered (e.g., from a menu or button), it calls `showGithubIssues()` from `src/shared/github-issues-view.ts`.
+1. The VS Code extension registers the command `cvs.issues.openViewer` in `src/features/github-issues/feature.ts`.
+2. When this command is triggered (e.g., from a menu or button), it calls `showGithubIssues()` from `src/features/github-issues/view.ts`.
 3. The `showGithubIssues()` function is responsible for rendering the Issue Viewer UI, including the reload button.
-4. The reload button’s click handler is implemented in `github-issues-view.ts`. When clicked, it triggers the reload logic for the Issue Viewer.
+4. The reload button’s click handler is implemented in `github-issues/view.ts`. When clicked, it triggers the reload logic for the Issue Viewer.
 
 ## Two-Way Priority Sync (Planned)
 
@@ -23,4 +23,4 @@ This ensures that changes to the priority field are always kept in sync between 
 
 ---
 
-If you need to add custom sync logic, update the reload handler in `github-issues-view.ts` as described above.
+If you need to add custom sync logic, update the reload handler in `github-issues/view.ts` as described above.

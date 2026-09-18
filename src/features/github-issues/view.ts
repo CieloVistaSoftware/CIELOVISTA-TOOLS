@@ -4,7 +4,7 @@
 // component: issv
 
 /**
- * github-issues-view.ts
+ * github-issues/view.ts
  *
  * Webview that lists open GitHub Issues for the cielovista-tools repo.
  * Wired to the "TODO List" button on the CVT Home dashboard.
@@ -23,10 +23,10 @@ import * as https  from 'https';
 import { execFile, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getChannel } from './output-channel';
-import { resolveNodeLauncher } from './node-launcher';
-import { getRecentProjects } from '../features/cvs-command-launcher/recent-projects';
-import { loadRegistry } from './registry';
+import { getChannel } from '../../shared/output-channel';
+import { resolveNodeLauncher } from '../../shared/node-launcher';
+import { getRecentProjects } from '../cvs-command-launcher/recent-projects';
+import { loadRegistry } from '../../shared/registry';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';

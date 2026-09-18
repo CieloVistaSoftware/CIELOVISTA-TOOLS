@@ -10,7 +10,7 @@
  *     (3 and 4 were registered in extension.ts until #738)
  *  5. Doc Catalog toolbar contains a Report Issue button wired to new-issue message
  *  6. new-issue message handler exists in doc-catalog/commands.ts
- *  7. newIssueForProject is exported from github-issues-view.ts
+ *  7. newIssueForProject is exported from github-issues/view.ts
  */
 
 import { strict as assert } from 'assert';
@@ -23,8 +23,8 @@ const root = path.resolve(__dirname, '../../');
 
 const pkgJson    = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const extensionSrc = fs.readFileSync(path.join(root, 'src/extension.ts'), 'utf8');
-const featureSrc   = fs.readFileSync(path.join(root, 'src/features/github-issues.ts'), 'utf8');
-const issuesViewSrc = fs.readFileSync(path.join(root, 'src/shared/github-issues-view.ts'), 'utf8');
+const featureSrc   = fs.readFileSync(path.join(root, 'src/features/github-issues/feature.ts'), 'utf8');
+const issuesViewSrc = fs.readFileSync(path.join(root, 'src/features/github-issues/view.ts'), 'utf8');
 const catalogSrc    = fs.readFileSync(path.join(root, 'src/features/doc-catalog/catalog.html'), 'utf8');
 const catalogCmdSrc = fs.readFileSync(path.join(root, 'src/features/doc-catalog/commands.ts'), 'utf8');
 
@@ -70,11 +70,11 @@ assert.ok(
 );
 console.log("PASS 6: 'new-issue' case in doc-catalog/commands.ts");
 
-// 7. newIssueForProject exported from github-issues-view.ts
+// 7. newIssueForProject exported from github-issues/view.ts
 assert.ok(
     issuesViewSrc.includes('export function newIssueForProject'),
-    'github-issues-view.ts must export newIssueForProject'
+    'github-issues/view.ts must export newIssueForProject'
 );
-console.log('PASS 7: newIssueForProject exported from github-issues-view.ts');
+console.log('PASS 7: newIssueForProject exported from github-issues/view.ts');
 
 console.log('\nAll REG-070 checks passed.');

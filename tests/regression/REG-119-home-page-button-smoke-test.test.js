@@ -84,7 +84,7 @@ function loadHomePageModule() {
       };
     }
     if (request === '../shared/doc-preview') { return { openDocPreview() {} }; }
-    if (request === '../shared/github-issues-view') { return { showGithubIssues() {} }; }
+    if (request === './github-issues') { return { showGithubIssues() {} }; }
     if (request === '../shared/extension-package') {
       // Mirrors src/shared/extension-package.ts against this checkout's real
       // package.json, so the smoke test still exercises the actual command list.

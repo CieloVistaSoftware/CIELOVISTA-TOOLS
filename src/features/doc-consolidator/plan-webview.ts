@@ -1,6 +1,17 @@
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
+// Unauthorized copying or distribution of this file is strictly prohibited.
+
+/**
+ * doc-consolidator/plan-webview.ts
+ *
+ * The Doc Consolidator's plan preview panel. Only this feature uses it, so it
+ * lives here; until #750 it sat in shared/ and imported its type back from
+ * features/.
+ */
+
 import * as vscode from 'vscode';
 
-import type { ConsolidationAction } from '../features/doc-consolidator/feature';
+import type { ConsolidationAction } from './feature';
 
 /**
  * Opens a webview to preview and confirm a consolidation plan.

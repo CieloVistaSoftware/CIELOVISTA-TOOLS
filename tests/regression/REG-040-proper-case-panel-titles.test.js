@@ -23,10 +23,10 @@ function test(name, fn) {
 console.log('REG-040: UI-visible titles use proper case (no lowercase repo slug) (#350)');
 console.log('─'.repeat(70));
 
-// ── github-issues-view.ts ────────────────────────────────────────────────────
+// ── github-issues/view.ts ────────────────────────────────────────────────────
 
 const issuesSrc = fs.readFileSync(
-    path.join(ROOT, 'src', 'shared', 'github-issues-view.ts'), 'utf8');
+    path.join(ROOT, 'src', 'features', 'github-issues', 'view.ts'), 'utf8');
 
 test('Issues viewer panel creation title uses "CieloVista Tools"', () => {
     // The createWebviewPanel call must use the proper name, not the slug

@@ -335,7 +335,7 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 break;
             }
             case 'new-issue': {
-                const { newIssueForProject } = await import('../../shared/github-issues-view');
+                const { newIssueForProject } = await import('../github-issues');
                 newIssueForProject(msg.project as string | undefined);
                 break;
             }

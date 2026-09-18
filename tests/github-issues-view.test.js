@@ -13,7 +13,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const SRC  = path.join(ROOT, 'src', 'shared', 'github-issues-view.ts');
+const SRC  = path.join(ROOT, 'src', 'features', 'github-issues', 'view.ts');
 const BUNDLE = path.join(ROOT, 'out', 'extension.js');
 
 const src    = fs.readFileSync(SRC, 'utf8');
@@ -27,7 +27,7 @@ function fail(label, detail) {
 
 // ── Source checks ────────────────────────────────────────────────────────────
 if (!src.includes('export function showGithubIssues')) {
-    fail('source export', 'showGithubIssues not exported from github-issues-view.ts');
+    fail('source export', 'showGithubIssues not exported from github-issues/view.ts');
 }
 pass('source exports showGithubIssues');
 
