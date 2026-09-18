@@ -28,7 +28,7 @@ npm run audit:coverage:json
 
 # Run with detailed analysis
 npm run audit:coverage:detailed
-```text
+```
 ### Output
 
 - **Console:** Colored summary with tier breakdown and gap analysis
@@ -73,7 +73,7 @@ If a `bug-registry.json` exists in the project root, the audit checks:
   "regressionTests": ["tests/regression/regression-tests.spec.ts"],
   "testCases": ["Email validator rejects missing TLD"]
 }
-```text
+```
 ### 4. Metrics Calculation
 
 - **Total Test Files:** Count across all tiers
@@ -108,7 +108,7 @@ Example:
    ❌ Integration Tests — 0 files
    ❌ Functional Tests — 0 files
    ❌ Regression Tests — 0 files
-```text
+```
 ### Markdown Report
 
 Full report saved to `docs/_today/test-coverage-audit-YYYY-MM-DD.md`:
@@ -170,7 +170,7 @@ tests/
 │   └── user-flows.spec.ts
 └── regression/          # Tier 5
     └── regression-tests.spec.ts
-```text
+```
 ### Step 2: Add Tier 2 (Unit) Tests for Each Feature
 
 Example for `doc-catalog` feature:
@@ -186,7 +186,7 @@ describe('doc-catalog', () => {
     // Test error case
   });
 });
-```text
+```
 ### Step 3: Add Tier 5 (Regression) Tests for Bugs
 
 ```typescript
@@ -196,12 +196,12 @@ describe('BUG-2024-12-19-001: Email validation', () => {
     expect(validateEmail('test@domain')).toBe(false);
   });
 });
-```text
+```
 ### Step 4: Re-run Audit
 
 ```bash
 npm run audit:coverage
-```text
+```
 ---
 
 ## CLI Options
@@ -215,7 +215,7 @@ node scripts/audit-test-coverage.js --json
 
 # Detailed analysis (reserved for future expansion)
 node scripts/audit-test-coverage.js --detailed
-```text
+```
 ---
 
 ## Integration with CI/CD
@@ -234,7 +234,7 @@ node scripts/audit-test-coverage.js --detailed
   with:
     name: test-coverage-audit
     path: docs/_today/test-coverage-audit-*.md
-```text
+```
 ---
 
 ## FAQ
@@ -257,7 +257,7 @@ A: Add `bugId` references to your test names:
 it('BUG-2024-12-19-001: Email validator rejects invalid format', () => {
   // test
 });
-```text
+```
 ---
 
 ## Testing the Tool
@@ -269,7 +269,7 @@ npm run audit:coverage
 # JSON output
 npm run audit:coverage:json > report.json
 cat report.json
-```text
+```
 Check the output in `docs/_today/test-coverage-audit-YYYY-MM-DD.md` for the full markdown report.
 
 ---
@@ -293,7 +293,7 @@ _TODO: one paragraph describing the single responsibility of this file._
 ```text
 activate()
   └── TODO: describe call flow
-```text
+```
 ---
 
 ## Manual test

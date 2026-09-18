@@ -31,6 +31,8 @@
  * Pure functions only — no vscode, no fs.
  */
 
+import { fencedLineMask } from './md-fence';
+
 export const CONTRACT_FIELDS = ['id', 'title', 'description'] as const;
 
 export type Placement = 'top' | 'bottom' | 'none';
@@ -138,11 +140,11 @@ export function titleFromBody(body: string, fileName: string): string {
 /** The first prose paragraph, trimmed to about a sentence. */
 export function descriptionFromBody(body: string): string {
     const text: string[] = [];
-    let inFence = false;
-    for (const raw of body.split(/\r?\n/)) {
-        const t = raw.trim();
-        if (t.startsWith('```')) { inFence = !inFence; continue; }
-        if (inFence) { continue; }
+    const lines = body.split(/\r?\n/);
+    const fenced = fencedLineMask(lines);   // CommonMark fences, shared rule (#799)
+    for (let n = 0; n < lines.length; n++) {
+        if (fenced[n]) { continue; }
+        const t = lines[n].trim();
         if (!t) { if (text.length) { break; } continue; }
         if (/^(#|>|<!--|\||---|[-*]\s|\d+\.\s)/.test(t)) { if (text.length) { break; } continue; }
         text.push(t.replace(/\*\*|__|`/g, ''));

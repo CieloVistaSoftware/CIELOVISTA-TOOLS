@@ -194,7 +194,15 @@ for (const c of STARTS) {
 
 // ── Part 2: every markdown document in the repo ──────────────────────────────
 
-const FENCE   = /^(`{3,}|~{3,})/;
+// Which lines are fenced code is the shared CommonMark rule (#799); REG-172
+// checks that rule against markdown-it over this same corpus.
+let fencedLineMask;
+try {
+    ({ fencedLineMask } = require(path.join(ROOT, 'out-test', 'shared', 'md-fence.js')));
+} catch (err) {
+    console.error(`FAIL: cannot load the fence scanner: ${err.message}`);
+    process.exit(1);
+}
 const COMMENT = /^\s*<!--[\s\S]*?-->\s*$/;
 
 /**
@@ -205,19 +213,15 @@ const COMMENT = /^\s*<!--[\s\S]*?-->\s*$/;
 function proseLines(src) {
     const lines = src.split('\n').map(l => l.replace(/\r$/, ''));
     const out = [];
-    let i = 0;
+    let start = 0;
     if (lines[0] !== undefined && lines[0].trim() === '---') {
         const end = lines.findIndex((l, idx) => idx > 0 && l.trim() === '---');
-        if (end > 0) { i = end + 1; }
+        if (end > 0) { start = end + 1; }
     }
-    for (; i < lines.length; i++) {
+    const fenced = [...new Array(start).fill(false), ...fencedLineMask(lines.slice(start))];
+    for (let i = start; i < lines.length; i++) {
         const line = lines[i];
-        const fence = FENCE.exec(line);
-        if (fence) {
-            i++;
-            while (i < lines.length && !lines[i].startsWith(fence[1])) { i++; }
-            continue;
-        }
+        if (fenced[i]) { continue; }
         if (COMMENT.test(line) || line.trim() === '') { continue; }
         // A numbered list's "1." is list syntax; the renderer emits it as <ol>.
         out.push({ n: i + 1, text: line.replace(/^\d+\. /, '') });

@@ -114,7 +114,7 @@ runConsolidationWizard(filter)
 
 updateReferences(oldPath, newPath)
   └── forEach project CLAUDE.md: replace(oldPath, newPath) both slash styles
-```text
+```
 
 ---
 

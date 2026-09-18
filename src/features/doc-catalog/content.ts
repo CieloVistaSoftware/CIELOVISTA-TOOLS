@@ -5,6 +5,8 @@
 
 /** Text extraction and HTML conversion utilities for doc-catalog. */
 
+import { fencedLineMask } from '../../shared/md-fence';
+
 export function esc(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -46,6 +48,9 @@ export function extractDescription(content: string): string {
     let frontmatterDelimsSeen = 0;
     const inFrontmatterMode = lines[0]?.trim() === '---';
     let inBottomFrontmatter = false;
+    // Code is never a description, and a "#" line inside a fence is not a
+    // heading: fenced lines are skipped whole, by the shared rule (#799).
+    const fenced = fencedLineMask(lines);
 
     for (let idx = 0; idx < lines.length; idx++) {
         const line = lines[idx];
@@ -53,6 +58,7 @@ export function extractDescription(content: string): string {
             if (line.trim() === '---') { frontmatterDelimsSeen += 1; }
             continue;
         }
+        if (fenced[idx]) { continue; }
 
         const trimmed = line.trim();
         if (!trimmed) { continue; }
@@ -70,8 +76,7 @@ export function extractDescription(content: string): string {
             continue;
         }
         if (trimmed.startsWith('>') || trimmed.startsWith('<!--') ||
-            trimmed.startsWith('|') ||
-            trimmed.startsWith('```') || metadataLine.test(trimmed) ||
+            trimmed.startsWith('|') || metadataLine.test(trimmed) ||
             fmKeyValue.test(trimmed)) { continue; }
         textLines.push(trimmed.replace(/\*\*|__|\*|_|`/g, ''));
         if (textLines.join(' ').length > 160) { break; }

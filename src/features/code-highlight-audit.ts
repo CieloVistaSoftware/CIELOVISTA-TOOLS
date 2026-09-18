@@ -22,6 +22,7 @@ import * as path   from 'path';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry }  from '../shared/registry';
 import { esc }           from '../shared/webview-utils';
+import { scanFences, withFenceInfo } from '../shared/md-fence';
 
 const FEATURE = 'code-highlight-audit';
 
@@ -65,62 +66,20 @@ export function scanFile(filePath: string, project: string): UntaggedBlock[] {
     // ^([`~]{3,})(.*)$ pattern (`.`/`$` don't cover `\r`) and no blocks are
     // detected — making the audit silently under-report on CRLF docs (#610).
     const lines = content.split(/\r?\n/);
-    let insideBlock = false;
-    let blockStartLine = 0;
-    let blockLang = '';
-    let blockPreview = '';
-    let blockFenceOpen = '```';
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const fenceMatch = line.match(/^([`~]{3,})(.*)$/);
-        if (fenceMatch) {
-            if (!insideBlock) {
-                // Opening fence
-                insideBlock = true;
-                blockStartLine = i + 1;
-                blockFenceOpen = fenceMatch[1];
-                blockLang = fenceMatch[2].trim();
-                blockPreview = '';
-            } else {
-                const closingFence = fenceMatch[1];
-                const sameFenceChar  = closingFence[0] === blockFenceOpen[0];
-                const enoughFenceLen = closingFence.length >= blockFenceOpen.length;
-                // Closing fences must have NO non-space content after the fence chars.
-                // A line like "```typescript" inside a block is a nested opening example,
-                // NOT a closing fence — treating it as one causes false positives (#495).
-                const hasNoContent = fenceMatch[2].trim() === '';
-                if (!sameFenceChar || !enoughFenceLen || !hasNoContent) {
-                    continue;
-                }
-                // Closing fence
-                if (blockLang === '') {
-                    // Only flag blocks missing a language tag
-                    results.push({
-                        filePath,
-                        project,
-                        lineNumber: blockStartLine,
-                        preview: blockPreview.trim().slice(0, 80),
-                        fenceOpen: blockFenceOpen,
-                    });
-                }
-                insideBlock = false;
-                blockLang = '';
-                blockPreview = '';
-                blockFenceOpen = '```';
-            }
-        } else if (insideBlock && blockPreview === '') {
-            // First line inside the code block
-            blockPreview = line;
-        }
-    }
-    // If file ends with an unclosed block
-    if (insideBlock && blockLang === '') {
+    // Pairing is the shared CommonMark rule (#799): fences indented 0 to 3
+    // spaces, a closer of the same character, at least as long, with nothing
+    // after it ("```typescript" inside a block is content, #495). An unclosed
+    // block runs to the end of the file and is still reported.
+    for (const block of scanFences(lines)) {
+        if (block.open.info !== '') { continue; }   // only untagged blocks
+        const end = block.closeLine === -1 ? lines.length : block.closeLine;
+        const preview = lines.slice(block.openLine + 1, end).find(l => l.trim() !== '') ?? '';
         results.push({
             filePath,
             project,
-            lineNumber: blockStartLine,
-            preview: blockPreview.trim().slice(0, 80),
-            fenceOpen: blockFenceOpen,
+            lineNumber: block.openLine + 1,
+            preview: preview.trim().slice(0, 80),
+            fenceOpen: block.open.marker,
         });
     }
     return results;
@@ -360,10 +319,9 @@ async function fixAllBlocks(blocks: UntaggedBlock[]): Promise<{ fixed: number; s
             for (const block of sorted) {
                 const idx = block.lineNumber - 1;
                 if (idx < 0 || idx >= lines.length) { skipped++; continue; }
-                const openFencePattern = new RegExp('^' + block.fenceOpen.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + '\\s*$');
-                if (!lines[idx].match(openFencePattern)) { skipped++; continue; }
-                const lang = guessLanguage(block.preview) || 'text';
-                lines[idx] = block.fenceOpen + lang;
+                const tagged = withFenceInfo(lines[idx], block.fenceOpen, guessLanguage(block.preview) || 'text');
+                if (tagged === undefined) { skipped++; continue; }
+                lines[idx] = tagged;
                 fixed++;
             }
             fs.writeFileSync(fp, lines.join('\n'), 'utf8');
@@ -380,9 +338,9 @@ function fixSingleBlock(filePath: string, lineNumber: number, lang: string, fenc
         const lines   = content.split('\n');
         const idx     = lineNumber - 1;
         if (idx < 0 || idx >= lines.length) { return false; }
-        const openFencePattern = new RegExp('^' + fenceOpen.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$');
-        if (!lines[idx].match(openFencePattern)) { return false; }
-        lines[idx] = fenceOpen + lang;
+        const tagged = withFenceInfo(lines[idx], fenceOpen, lang);
+        if (tagged === undefined) { return false; }
+        lines[idx] = tagged;
         fs.writeFileSync(filePath, lines.join('\n'), 'utf8');
         return true;
     } catch {

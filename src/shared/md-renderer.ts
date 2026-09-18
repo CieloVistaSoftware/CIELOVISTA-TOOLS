@@ -14,6 +14,7 @@ import css        from 'highlight.js/lib/languages/css';
 import xml        from 'highlight.js/lib/languages/xml';
 import markdown   from 'highlight.js/lib/languages/markdown';
 import plaintext  from 'highlight.js/lib/languages/plaintext';
+import { parseFenceOpen, isFenceClose, stripFenceIndent } from './md-fence';
 
 hljs.registerLanguage('typescript',  typescript);
 hljs.registerLanguage('ts',          typescript);
@@ -115,14 +116,15 @@ function renderBlocks(lines: string[], headingIds: Map<string, number>): { block
         if (/^\s*<!--[\s\S]*?-->\s*$/.test(line)) { i++; openParagraph = false; continue; }
 
         // ── Fenced code blocks ────────────────────────────────────────────────
-        const fenceMatch = line.match(/^(`{3,}|~{3,})(\w*).*$/);
-        if (fenceMatch) {
-            const fence = fenceMatch[1];
-            const lang  = fenceMatch[2] || '';
+        // CommonMark: the opener and closer may each be indented 0 to 3
+        // spaces, and content lines lose up to the opener's indent (#799).
+        const fence = parseFenceOpen(line);
+        if (fence) {
+            const lang  = /^\w*/.exec(fence.info)?.[0] ?? '';
             const codeLines: string[] = [];
             i++;
-            while (i < lines.length && !lines[i].startsWith(fence)) {
-                codeLines.push(lines[i]);
+            while (i < lines.length && !isFenceClose(lines[i], fence)) {
+                codeLines.push(stripFenceIndent(lines[i], fence));
                 i++;
             }
             const rawCode    = codeLines.join('\n');
@@ -274,7 +276,7 @@ function tableCells(row: string): string[] {
 function startsBlock(line: string): boolean {
     const t = line.trim();
     return /^\s*<!--[\s\S]*?-->\s*$/.test(line)
-        || /^(`{3,}|~{3,})/.test(line)
+        || parseFenceOpen(line) !== undefined
         || /^\|.+\|$/.test(t)
         || HEADING.test(line)
         || /^---+$/.test(t)

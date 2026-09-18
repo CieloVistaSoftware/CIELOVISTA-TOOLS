@@ -20,6 +20,7 @@
  */
 
 import { esc, CVS_CSS } from './webview-utils';
+import { parseFenceOpen, isFenceClose, stripFenceIndent, type FenceOpen } from './md-fence';
 
 export interface HelpCmdEntry {
     id:          string;
@@ -73,26 +74,30 @@ function readmeToHtml(md: string): string {
     // Escape HTML entities first (careful — do code blocks separately)
     const lines = md.split('\n');
     const htmlLines: string[] = [];
-    let inCode = false;
+    let fence: FenceOpen | undefined;   // the open code fence, if inside one
     let inTable = false;
     let tableRows: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
         const raw = lines[i];
 
-        // Fenced code block toggle
-        if (/^```/.test(raw)) {
-            if (!inCode) {
-                inCode = true;
-                const lang = raw.slice(3).trim();
-                htmlLines.push(`<pre><code class="lang-${esc(lang)}">`);
-            } else {
-                inCode = false;
+        // Fenced code blocks: the shared CommonMark rule (#799), so an opener
+        // or closer indented 1 to 3 spaces pairs correctly.
+        if (fence) {
+            if (isFenceClose(raw, fence)) {
+                fence = undefined;
                 htmlLines.push('</code></pre>');
+            } else {
+                htmlLines.push(escRaw(stripFenceIndent(raw, fence)));
             }
             continue;
         }
-        if (inCode) { htmlLines.push(escRaw(raw)); continue; }
+        const opener = parseFenceOpen(raw);
+        if (opener) {
+            fence = opener;
+            htmlLines.push(`<pre><code class="lang-${esc(opener.info)}">`);
+            continue;
+        }
 
         // Table rows
         if (/^\|/.test(raw)) {

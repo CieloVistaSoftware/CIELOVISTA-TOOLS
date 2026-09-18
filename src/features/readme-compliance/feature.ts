@@ -42,6 +42,7 @@ import { callClaude } from '../../shared/anthropic-client';
 import { loadRegistry } from '../../shared/registry';
 import { esc } from '../../shared/webview-utils';
 import { showFileReview, disposeFileReview, ReviewItem } from '../../shared/file-review';
+import { scanFences, withFenceInfo } from '../../shared/md-fence';
 
 const FEATURE     = 'readme-compliance';
 const GLOBAL_DOCS = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards');
@@ -206,7 +207,9 @@ function checkCompliance(filePath: string, projectName: string, projectRoot: str
     for (const h of headings) { if (seen.has(h)) { dupes.push(h); } else { seen.add(h); } }
     if (dupes.length) { issues.push({ severity: 'warning', message: `Duplicate headings: ${dupes.join(', ')}`, fixable: false, fixKey: 'dupe-headings' }); }
 
-    const bareCodeBlocks = (content.match(/^```\s*$/gm) ?? []).length;
+    // Untagged openers only, paired by the shared CommonMark rule (#799): the
+    // old count matched every bare fence line, so each closer counted too.
+    const bareCodeBlocks = scanFences(content.split('\n')).filter(b => b.open.info === '').length;
     if (bareCodeBlocks > 0) { issues.push({ severity: 'warning', message: `${bareCodeBlocks} code block(s) missing language tag`, fixable: true, fixKey: 'code-block-lang' }); }
 
     let prevLevel = 0;
@@ -291,23 +294,16 @@ function applyFix(report: ReadmeReport): string {
             if (stub && !content.toLowerCase().includes(`## ${sec}`)) { content = content.trimEnd() + '\n\n---\n\n' + stub; }
         }
         if (issue.fixKey === 'code-block-lang') {
+            // Tag each untagged opener, found by the shared fence rule (#799),
+            // keeping its indentation; closers and tagged blocks are untouched.
             const lines = content.split('\n');
-            const result: string[] = [];
-            let inBlock = false;
-            for (let i = 0; i < lines.length; i++) {
-                const isFence = /^```\s*$/.test(lines[i]);
-                if (isFence && !inBlock) {
-                    inBlock = true;
-                    const blockLines: string[] = [];
-                    let j = i + 1;
-                    while (j < lines.length && !/^```/.test(lines[j])) { blockLines.push(lines[j]); j++; }
-                    result.push(`\`\`\`${guessLanguage(blockLines)}`);
-                } else {
-                    if (isFence) { inBlock = false; }
-                    result.push(lines[i]);
-                }
+            for (const block of scanFences(lines)) {
+                if (block.open.info !== '') { continue; }
+                const end = block.closeLine === -1 ? lines.length : block.closeLine;
+                const lang = guessLanguage(lines.slice(block.openLine + 1, end));
+                lines[block.openLine] = withFenceInfo(lines[block.openLine], block.open.marker, lang) ?? lines[block.openLine];
             }
-            content = result.join('\n');
+            content = lines.join('\n');
         }
         if (issue.fixKey === 'feature-prefix')      { content = content.replace(/^(#\s+)(.+)$/m, (_, hash, title) => title.toLowerCase().startsWith('feature:') ? `${hash}${title}` : `${hash}feature: ${title}`); }
         if (issue.fixKey === 'standard-blockquote') { content = content.replace(/^(#\s+.+)$/m, (_, heading) => `${heading}\n\n> _TODO: one-line summary of what this standard covers._`); }
