@@ -12,7 +12,7 @@
 'use strict';
 
 /** Output meaning "my input was not built", however a given test words it. */
-const MISSING_ARTIFACT = /skip\w*\b[^\n]*(not compiled|not found|compiled output|npm run compile)/i;
+const MISSING_ARTIFACT = /skip\w*\b[^\n]*(not compiled|not found|not built|compiled output|npm run compile)/i;
 
 /** True when a test that exited 0 actually skipped for a missing build artifact. */
 function skippedForMissingArtifact(output) {

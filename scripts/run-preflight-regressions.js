@@ -5,6 +5,7 @@
 
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { skippedForMissingArtifact } = require('./lib/missing-artifact');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -27,14 +28,20 @@ let failed = 0;
 function run(testPath) {
     const abs = path.join(ROOT, testPath);
     console.log(`\n[preflight] ${testPath}`);
+    // Output is captured so the shared missing-artifact rule can read it (#748).
     const res = spawnSync(process.execPath, [abs], {
         cwd: ROOT,
-        stdio: 'inherit',
+        encoding: 'utf8',
         env: process.env,
     });
+    process.stdout.write(res.stdout || '');
+    process.stderr.write(res.stderr || '');
     if (res.status !== 0) {
         failed += 1;
         console.error(`[preflight] FAIL: ${testPath}`);
+    } else if (skippedForMissingArtifact((res.stdout || '') + (res.stderr || ''))) {
+        failed += 1;
+        console.error(`[preflight] FAIL: ${testPath} SKIPPED for a missing build artifact — counts as a failure (#734, #748)`);
     } else {
         console.log(`[preflight] PASS: ${testPath}`);
     }

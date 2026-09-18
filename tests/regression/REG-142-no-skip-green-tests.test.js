@@ -45,6 +45,7 @@ const SKIPS = [
     'SKIP: no thin features compiled — run npm run compile',
     '  (runtime tests skipped — compiled output not found)',
     'SKIP: compiled output not found at C:\\repo\\out\\shared\\md-renderer.js',
+    '  SKIP bundle checks — out/extension.js not built',   // mcp-viewer.test.js (#748)
 ];
 const NOT_SKIPS = [
     '  ✓ skips node_modules and .git',
