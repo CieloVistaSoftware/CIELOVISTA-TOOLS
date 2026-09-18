@@ -19,6 +19,7 @@ import { loadRegistry } from '../../shared/registry';
 import { getErrors } from '../../shared/error-log-adapter';
 import { setLauncherTargetColumn } from '../../shared/panel-context';
 import { registerLaunchedTerminal } from '../../shared/terminal-utils';
+import { showQuickRun } from './quick-run';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -646,7 +647,7 @@ export function activate(context: vscode.ExtensionContext): void {
     log(FEATURE, 'Activating');
     context.subscriptions.push(
         vscode.commands.registerCommand(LAUNCHER_COMMAND_ID,          showLauncherPanel),
-        vscode.commands.registerCommand(QUICKRUN_COMMAND_ID,          showLauncherPanel),
+        vscode.commands.registerCommand(QUICKRUN_COMMAND_ID,          () => showQuickRun(CATALOG)),
         vscode.commands.registerCommand('cvs.launcher.refresh',       refreshLauncherPanel),
         vscode.commands.registerCommand('cvs.launcher.runWithOutput', (id: string) => runWithOutput(id)),
         vscode.commands.registerCommand('cvs.mcp.startServer', async () => {

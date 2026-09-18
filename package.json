@@ -539,7 +539,7 @@
         "command": "cvs.readme.fillTodos",
         "title": "README: Fill README TODO Stubs (AI)",
         "category": "CieloVista README",
-        "description": "Scan all READMEs for _TODO: stubs and replace with AI-generated content."
+        "description": "Scan all READMEs for _TODO: stubs and fill them with AI-generated content; you approve each diff before anything is written."
       },
       {
         "command": "cvs.marketplace.scan",
