@@ -38,6 +38,8 @@ inventory is reviewed.
 - doc-auditor no longer flags 21 of 22 projects' `CLAUDE.md` as drift against cielovista-tools' own, nor container-project boilerplate as duplicates (#667)
 - Regression suite isolation: tests no longer mutate the shared source tree mid-run (#697, #700), the hourly scheduler only arms from a source checkout (#698), and bg-health skips the run from build-output-only copies (#684)
 - 4 `.README.md` files documenting deleted features removed
+- README Generator wrote AI-generated READMEs with no review and could overwrite a README created after the scan; every generated README now goes through the shared review panel (`src/shared/file-review.ts`, moved from README Compliance), and is created only if it still does not exist (#798)
+- README Generator attached a new message listener on every scan, so one click generated once per scan so far (#807)
 
 ---
 

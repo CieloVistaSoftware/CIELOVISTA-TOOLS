@@ -11,7 +11,13 @@
  *   - Project name, type, and description from the registry
  *
  * The generated README follows the CieloVista README Standard (Project type).
- * After generation, triggers a catalog rebuild so the new files appear.
+ * Every generated README is shown for review first (src/shared/file-review),
+ * as a new file, and nothing is written until the user approves it (#798).
+ * The generator never overwrites a README: existence is re-checked before the
+ * AI is called and again when it returns (a README that appeared after the
+ * scan is skipped and reported), and an approved file is created with 'wx',
+ * so one that appears while the review is open is not replaced either.
+ * After an approved write, the catalog is rebuilt.
  *
  * Commands registered:
  *   cvs.readme.generate.scan    — scan for missing READMEs and report
@@ -24,6 +30,7 @@ import * as path from 'path';
 import { log, logError } from '../shared/output-channel';
 import { callClaude } from '../shared/anthropic-client';
 import { REGISTRY_PATH, loadRegistry, ProjectRegistry, ProjectEntry } from '../shared/registry';
+import { showFileReview, disposeFileReview, buildNewFileReviewItem, ReviewItem } from '../shared/file-review';
 
 const FEATURE  = 'readme-generator';
 
@@ -322,6 +329,8 @@ let _panel: vscode.WebviewPanel | undefined;
 let _missingCache: MissingReadme[] = [];
 let _registryCache: ProjectRegistry | undefined;
 
+const REVIEW_VIEW_TYPE = 'readmeGeneratorReview';
+
 async function runScan(): Promise<void> {
     const registry = loadRegistry();
     if (!registry) { return; }
@@ -341,18 +350,19 @@ async function runScan(): Promise<void> {
         );
         _panel.webview.html = html;
         _panel.onDidDispose(() => { _panel = undefined; });
+        // Attached once per panel, not once per scan: every rescan reuses the
+        // panel, and a second listener made one click generate twice (#807).
+        _panel.webview.onDidReceiveMessage(async msg => {
+            switch (msg.command) {
+                case 'generateAll':
+                    await generateAllMissing();
+                    break;
+                case 'generateOne':
+                    await generateSingleByName(msg.project);
+                    break;
+            }
+        });
     }
-
-    _panel.webview.onDidReceiveMessage(async msg => {
-        switch (msg.command) {
-            case 'generateAll':
-                await generateAllMissing();
-                break;
-            case 'generateOne':
-                await generateSingleByName(msg.project);
-                break;
-        }
-    });
 
     if (_missingCache.length === 0) {
         vscode.window.showInformationMessage('All registered projects already have README files. ✅');
@@ -378,6 +388,96 @@ function postError(text: string): void {
     _panel?.webview.postMessage({ type: 'error', text });
 }
 
+function readmePathOf(project: ProjectEntry): string {
+    return path.join(project.path, 'README.md');
+}
+
+/**
+ * True if the project has a README.md now. The missing list is made at scan
+ * time; a README can appear after that (by hand, git pull, README
+ * Compliance's New README), and the generator never replaces one (#798).
+ */
+function readmeExistsNow(project: ProjectEntry): boolean {
+    return fs.existsSync(readmePathOf(project));
+}
+
+/**
+ * Shows the generated READMEs for review, each as a new file. Nothing is
+ * written until the user approves a file there, and then only that file, with
+ * the text shown, created with 'wx' so an existing README is never replaced.
+ * `skipped` names projects whose README appeared after the scan; they were
+ * not generated and the user is told so.
+ */
+function reviewGenerated(items: ReviewItem[], skipped: string[] = []): void {
+    if (skipped.length) {
+        const list = skipped.join(', ');
+        const msg  = `README.md appeared after the scan, not generated (an existing README is never overwritten): ${list}`;
+        log(FEATURE, msg);
+        vscode.window.showWarningMessage(msg);
+    }
+    if (!items.length) {
+        postDone('Nothing to review: every README in the list exists now.');
+        if (_panel) { void runScan(); }
+        return;
+    }
+
+    showFileReview(items, {
+        title:    'Generated README Review',
+        viewType: REVIEW_VIEW_TYPE,
+        onApplied: async (result) => {
+            for (const p of result.ignored) { log(FEATURE, `Review: ignored a path it was not given: ${p}`); }
+            for (const r of result.refused) {
+                const err = r.error ?? r.detail;
+                if (r.reason === 'error') { logError(`Failed to write ${r.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
+                else { log(FEATURE, `Not written, ${r.detail}: ${r.filePath}`); }
+            }
+            for (const p of result.written) { log(FEATURE, `Generated README: ${p}`); }
+
+            const n = result.written.length;
+            let msg = `✅ Wrote ${n} README${n !== 1 ? 's' : ''}.`;
+            const kept = result.refused.filter(r => r.reason === 'exists').map(r => r.filePath);
+            if (kept.length) { msg += ` ${kept.length} not written because README.md was created while the review was open: ${kept.join(', ')}`; }
+            const errors = result.refused.filter(r => r.reason === 'error').length;
+            if (errors) { msg += ` ${errors} failed — see the output channel.`; }
+            postDone(msg);
+
+            if (kept.length || errors) {
+                vscode.window.showWarningMessage(msg);
+            } else if (n === 1) {
+                const written = result.written[0];
+                vscode.window.showInformationMessage(msg, 'Open It').then(async c => {
+                    if (c === 'Open It') {
+                        const doc = await vscode.workspace.openTextDocument(written);
+                        await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+                    }
+                });
+            } else {
+                vscode.window.showInformationMessage(msg);
+            }
+
+            if (n) {
+                try { await vscode.commands.executeCommand('cvs.catalog.rebuild'); } catch { /* catalog may not be open */ }
+            }
+            if (_panel) { await runScan(); }
+        },
+    });
+
+    const plural = items.length !== 1 ? 's' : '';
+    postDone(`Review ${items.length} generated README${plural} in the side panel — nothing is written until you approve.`);
+}
+
+/**
+ * Calls the AI for one project and returns its review item, or undefined if
+ * the project has a README now (checked before the call and again after it).
+ */
+async function generateForReview(item: MissingReadme, generate: () => Promise<string>): Promise<ReviewItem | undefined> {
+    if (readmeExistsNow(item.project)) { return undefined; }
+    const readme = await generate();
+    if (!readme || !readme.trim()) { throw new Error('Empty AI response'); }
+    if (readmeExistsNow(item.project)) { return undefined; }
+    return buildNewFileReviewItem(readmePathOf(item.project), `${item.project.name}/README.md`, readme, 'generated (AI)');
+}
+
 async function generateAllMissing(): Promise<void> {
     // Freshen the cache if it's empty — don't force user to run scan first
     if (!_missingCache.length) {
@@ -392,35 +492,29 @@ async function generateAllMissing(): Promise<void> {
     }
 
     const total = _missingCache.length;
-    let generated = 0;
-    let failed    = 0;
+    const items: ReviewItem[] = [];
+    const skipped: string[] = [];
+    let failed = 0;
 
-    for (const item of _missingCache) {
-        postProgress(`🤖 Generating ${item.project.name} (${generated + 1} of ${total})…`);
-
+    for (const [i, item] of [..._missingCache].entries()) {
+        postProgress(`🤖 Generating ${item.project.name} (${i + 1} of ${total})…`);
         try {
-            const readme = await generateReadme(item.project, item.context);
-            const outPath = path.join(item.project.path, 'README.md');
-            fs.writeFileSync(outPath, readme, 'utf8');
-            log(FEATURE, `Generated README: ${outPath}`);
-            generated++;
+            const reviewItem = await generateForReview(item, () => generateReadme(item.project, item.context));
+            if (reviewItem) { items.push(reviewItem); } else { skipped.push(item.project.name); }
         } catch (err) {
             logError(`Failed for ${item.project.name}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
             failed++;
         }
     }
 
-    const msg = `✅ Generated ${generated} README(s)${failed ? `, ${failed} failed` : ''}. Refreshing catalog…`;
-    postDone(msg);
-    vscode.window.showInformationMessage(msg);
-
-    // Rebuild catalog so new READMEs appear
-    try {
-        await vscode.commands.executeCommand('cvs.catalog.rebuild');
-    } catch { /* catalog may not be open */ }
-
-    // Refresh panel
-    await runScan();
+    if (!items.length && failed) {
+        const msg = `❌ README generation failed for ${failed} of ${total} project(s) — see the output channel.`;
+        postError(msg);
+        vscode.window.showErrorMessage(msg);
+        return;
+    }
+    if (failed) { log(FEATURE, `${failed} of ${total} README(s) failed to generate`); }
+    reviewGenerated(items, skipped);
 }
 
 async function generateSingleByName(projectName: string): Promise<void> {
@@ -432,28 +526,8 @@ async function generateSingleByName(projectName: string): Promise<void> {
 
     try {
         postProgress(`🤖 Calling AI for ${item.project.name}…`);
-        const readme = await generateReadme(item.project, item.context);
-        const outPath = path.join(item.project.path, 'README.md');
-        fs.writeFileSync(outPath, readme, 'utf8');
-        log(FEATURE, `Generated README: ${outPath}`);
-
-        postDone(`✅ README generated for ${item.project.name} → ${outPath}`);
-        vscode.window.showInformationMessage(
-            `README generated for ${item.project.name}`,
-            'Open It'
-        ).then(async c => {
-            if (c === 'Open It') {
-                const doc = await vscode.workspace.openTextDocument(outPath);
-                await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-            }
-        });
-
-        // Rebuild catalog
-        try { await vscode.commands.executeCommand('cvs.catalog.rebuild'); } catch { /* ignore */ }
-
-        // Refresh panel after short delay
-        setTimeout(() => runScan(), 1500);
-
+        const reviewItem = await generateForReview(item, () => generateReadme(item.project, item.context));
+        reviewGenerated(reviewItem ? [reviewItem] : [], reviewItem ? [] : [item.project.name]);
     } catch (err) {
         logError(`Failed for ${item.project.name}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
         postError(`❌ Failed for ${item.project.name}: ${err}`);
@@ -483,28 +557,16 @@ async function generateSingleInteractive(): Promise<void> {
     );
     if (!picked) { return; }
 
-    await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Generating README for ${picked.item.project.name}…` },
-        async () => {
-            const readme = await generateReadme(picked.item.project, picked.item.context);
-            const outPath = path.join(picked.item.project.path, 'README.md');
-            fs.writeFileSync(outPath, readme, 'utf8');
-            log(FEATURE, `Generated: ${outPath}`);
-        }
-    );
-
-    const outPath = path.join(picked.item.project.path, 'README.md');
-    vscode.window.showInformationMessage(
-        `README generated for ${picked.item.project.name}`,
-        'Open It'
-    ).then(async c => {
-        if (c === 'Open It') {
-            const doc = await vscode.workspace.openTextDocument(outPath);
-            await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-        }
-    });
-
-    try { await vscode.commands.executeCommand('cvs.catalog.rebuild'); } catch { /* ignore */ }
+    try {
+        const reviewItem = await generateForReview(picked.item, () => Promise.resolve(vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title: `Generating README for ${picked.item.project.name}…` },
+            () => generateReadme(picked.item.project, picked.item.context)
+        )));
+        reviewGenerated(reviewItem ? [reviewItem] : [], reviewItem ? [] : [picked.item.project.name]);
+    } catch (err) {
+        logError(`Failed for ${picked.item.project.name}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        vscode.window.showErrorMessage(`README generation failed for ${picked.item.project.name}: ${err}`);
+    }
 }
 
 // ─── Activate / Deactivate ────────────────────────────────────────────────────
@@ -525,6 +587,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
+    disposeFileReview(REVIEW_VIEW_TYPE);
     _panel?.dispose();
     _panel         = undefined;
     _missingCache  = [];

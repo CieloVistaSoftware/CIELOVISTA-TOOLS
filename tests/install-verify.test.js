@@ -266,6 +266,12 @@ const readmeFeatureSrc = (() => {
     const p = path.join(__dirname, '..', 'src', 'features', 'readme-compliance', 'feature.ts');
     try { return fs.readFileSync(p, 'utf8'); } catch { return ''; }
 })();
+// The batch review panel moved to src/shared/file-review.ts so the README
+// Generator can use it too (#798).
+const fileReviewSrc = (() => {
+    const p = path.join(__dirname, '..', 'src', 'shared', 'file-review.ts');
+    try { return fs.readFileSync(p, 'utf8'); } catch { return ''; }
+})();
 ok('#302 Smart fixer frontmatterEnd helper exists in source',
     readmeFeatureSrc.includes('frontmatterEnd'),
     'src/features/readme-compliance/feature.ts must define frontmatterEnd()');
@@ -287,17 +293,19 @@ ok('#305 README Compliance AI Fix button removed',
 
 // #307 — README Compliance Fix All: AI batch fix with per-file review
 ok('#307 fixAllNonCompliant uses AI batch review (not blind write)',
-    readmeFeatureSrc.includes('buildBatchReviewHtml') &&
-    readmeFeatureSrc.includes("applyBatch") &&
+    readmeFeatureSrc.includes("from '../../shared/file-review'") &&
+    readmeFeatureSrc.includes('showBatchReview(items)') &&
+    fileReviewSrc.includes('export function buildFileReviewHtml') &&
+    fileReviewSrc.includes("applyBatch") &&
     !readmeFeatureSrc.includes("'Write All'"),
     'Fix All must use AI batch review panel, not blind stub write');
 ok('#307 fixAllNonCompliant confirmation says Run AI Fix',
     readmeFeatureSrc.includes("'Run AI Fix'"),
     'Confirmation dialog must say Run AI Fix so user understands AI is running');
 ok('#307 batch review panel disposed on deactivate',
-    readmeFeatureSrc.includes('_batchPanel') &&
-    readmeFeatureSrc.includes('_batchPanel?.dispose()'),
-    '_batchPanel must exist and be disposed in deactivate()');
+    /export function deactivate\(\): void \{[^}]*disposeFileReview\(BATCH_VIEW_TYPE\)/.test(readmeFeatureSrc) &&
+    fileReviewSrc.includes('export function disposeFileReview'),
+    'the batch review panel (shared/file-review) must be disposed in deactivate()');
 
 // ── Installed HTML files — webview panels that are NOT bundled into extension.js ──
 // These files must be physically present in out/ of the INSTALLED extension.

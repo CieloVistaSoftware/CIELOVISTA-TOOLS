@@ -10,6 +10,9 @@
 //   1. cvs.readme.fillTodos command is registered in the extension
 //   2. cvs.readme.fillTodos entry exists in the command catalog
 //
+// The review panel itself moved to src/shared/file-review.ts (#798) so the
+// README Generator can use it too; the #307 checks read it there.
+//
 // These checks only prove the command is wired. Until #776 its handler was a
 // "not yet implemented" message and this test passed anyway; REG-166 runs the
 // handler and checks that it fills the stubs and writes only after approval.
@@ -22,6 +25,7 @@ const assert = require('assert');
 
 const ROOT        = path.resolve(__dirname, '..', '..');
 const FEATURE_SRC = fs.readFileSync(path.join(ROOT, 'src/features/readme-compliance/feature.ts'), 'utf8');
+const REVIEW_SRC  = fs.readFileSync(path.join(ROOT, 'src/shared/file-review.ts'), 'utf8');
 const CATALOG_SRC = fs.readFileSync(path.join(ROOT, 'src/features/cvs-command-launcher/catalog.ts'), 'utf8');
 const PKG         = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
@@ -36,16 +40,18 @@ function test(name, fn) {
 // #307 — AI Batch Fix
 // ═══════════════════════════════════════════════════════════
 
-test('buildBatchReviewHtml() function is defined (#307)', () => {
+test('the batch review panel is built by shared/file-review, which README Compliance uses (#307, #798)', () => {
     assert(
-        FEATURE_SRC.includes('function buildBatchReviewHtml'),
-        'feature.ts does not define buildBatchReviewHtml() — batch review panel cannot be built'
+        REVIEW_SRC.includes('export function buildFileReviewHtml') &&
+        /import \{[^}]*\bshowFileReview\b[^}]*\} from '\.\.\/\.\.\/shared\/file-review'/.test(FEATURE_SRC),
+        'the batch review panel cannot be built: shared/file-review.ts does not export buildFileReviewHtml, or feature.ts does not import showFileReview from it'
     );
 });
 
-test('buildBatchReviewHtml renders Approve and Skip buttons (#307)', () => {
-    const fnIdx  = FEATURE_SRC.indexOf('function buildBatchReviewHtml');
-    const fnBody = FEATURE_SRC.slice(fnIdx, fnIdx + 3000);
+test('buildFileReviewHtml renders Approve and Skip buttons (#307)', () => {
+    const fnIdx  = REVIEW_SRC.indexOf('export function buildFileReviewHtml');
+    assert(fnIdx !== -1, 'buildFileReviewHtml not found');
+    const fnBody = REVIEW_SRC.slice(fnIdx, fnIdx + 3000);
     assert(
         (fnBody.includes('Approve') || fnBody.includes('approve')) &&
         (fnBody.includes('Skip')    || fnBody.includes('skip')),
@@ -55,9 +61,9 @@ test('buildBatchReviewHtml renders Approve and Skip buttons (#307)', () => {
 
 test('applyBatch message handler writes only approved files (#307)', () => {
     assert(
-        FEATURE_SRC.includes("msg.command !== 'applyBatch'") ||
-        FEATURE_SRC.includes("msg.command === 'applyBatch'"),
-        'feature.ts does not handle applyBatch webview message — approved fixes will never be written'
+        REVIEW_SRC.includes("msg.command !== 'applyBatch'") ||
+        REVIEW_SRC.includes("msg.command === 'applyBatch'"),
+        'shared/file-review.ts does not handle applyBatch webview message — approved fixes will never be written'
     );
 });
 
@@ -71,10 +77,11 @@ test('fixAllNonCompliant calls callClaude per README (#307)', () => {
     );
 });
 
-test('batch fix opens _batchPanel webview panel (#307)', () => {
+test('batch fix opens the review webview panel (#307)', () => {
     assert(
-        FEATURE_SRC.includes('_batchPanel'),
-        'feature.ts does not use a _batchPanel — batch review results have nowhere to display'
+        REVIEW_SRC.includes('vscode.window.createWebviewPanel') && FEATURE_SRC.includes("BATCH_VIEW_TYPE = 'readmeBatchFix'")
+            && /showFileReview\(items, \{[\s\S]*?viewType: BATCH_VIEW_TYPE/.test(FEATURE_SRC),
+        'README Compliance does not open the shared review panel — batch review results have nowhere to display'
     );
 });
 
