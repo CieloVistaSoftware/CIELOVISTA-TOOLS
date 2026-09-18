@@ -16,6 +16,7 @@ const fs     = require('fs');
 const path   = require('path');
 const assert = require('assert');
 const Module = require('module');
+const { useOwnDataDir } = require('../../scripts/lib/test-data-dir');
 
 // ── vscode mock ───────────────────────────────────────────────────────────────
 const vscodeMock = {
@@ -55,6 +56,10 @@ if (!fs.existsSync(OUT)) {
     process.exit(0);
 }
 
+// bg-health.json and the error log this module writes are this process's own
+// (#825). Without CVT_DATA_DIR they land in out/data/, which every test
+// process shares, and this test deletes that directory outright below.
+const DATA_DIR = useOwnDataDir('bg-health-runner');
 const bgHealth = require(OUT);
 const t = bgHealth._test; // internal test handle
 
@@ -70,8 +75,8 @@ function ok(val, msg) { assert.ok(val, msg); }
 function eq(a, b, msg) { assert.strictEqual(a, b, msg); }
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
-// Compiled standalone module: __dirname = out/features/, so data dir = out/data/
-const DATA_FILE = path.join(__dirname, '../../out/data/bg-health.json');
+// The module's data dir is DATA_DIR (CVT_DATA_DIR), set before it loaded.
+const DATA_FILE = path.join(DATA_DIR, 'bg-health.json');
 
 const sampleBug = {
     id: 'bug-test', checkId: 'chk-test', title: 'Test Bug',
@@ -158,7 +163,6 @@ test('saveState persists fixed:true correctly', () => {
 });
 
 // ── #651: hardened write path ────────────────────────────────────────────────
-const DATA_DIR = path.dirname(DATA_FILE);
 
 test('saveState recreates the data directory when it does not exist (#651)', () => {
     reset();

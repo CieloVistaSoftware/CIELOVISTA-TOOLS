@@ -7,13 +7,14 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { log, logError } from '../shared/output-channel';
 import { loadRegistry } from '../shared/registry';
+import { dataDir } from '../shared/data-dir';
 
 const FEATURE = 'playwright-runner';
 let pwProcess: ChildProcessWithoutNullStreams | null = null;
 let pwOutput = '';
 let _panel: vscode.WebviewPanel | undefined;
 
-const PW_MD_PATH = path.join(__dirname, '../data/playwright-run-result.md');
+const PW_MD_PATH = path.join(dataDir(path.join(__dirname, '..', 'data')), 'playwright-run-result.md');
 
 export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(

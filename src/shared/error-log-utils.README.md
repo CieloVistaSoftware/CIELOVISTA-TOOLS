@@ -22,7 +22,7 @@ This consolidates the error-tracking code that was previously duplicated inside 
 4. If the entry has `solved: true`, the solution string is returned.
 5. New errors are appended to the log file.
 
-The log file lives at `{workspace}/.vscode/logs/cielovista-errors.json`.
+The log file lives at `data/cielovista-errors.json` in the extension's own data directory (see "Log file location").
 
  
 
@@ -88,11 +88,12 @@ interface ErrorEntry {
 
 ## Log file location
 
-`{workspaceRoot}/.vscode/logs/cielovista-errors.json`
+`data/cielovista-errors.json`, one level above the compiled module (`path.join(__dirname, '..', 'data')`), so errors logged from any open project show in the Error Log viewer.
 
-The `.vscode/logs` directory is created automatically. The file is standard JSON — you can open and edit it directly in VS Code to add solutions or clear old entries.
+When the `CVT_DATA_DIR` environment variable is set, the log goes to that directory instead (`src/shared/data-dir.ts`). The unit and regression runners set it to a temp directory of their own for every test process ([#825](https://github.com/CieloVistaSoftware/cielovista-tools/issues/825)), so tests running in parallel never share one log file.
 
-If no workspace is open, `logError` does nothing and returns `undefined`.
+The directory is created automatically. The file is standard JSON — you can open and edit it directly in VS Code to add solutions or clear old entries.
+
 
  
 

@@ -24,6 +24,7 @@ import * as fs      from 'fs';
 import * as path    from 'path';
 import * as vscode  from 'vscode';
 import { getChannel } from './output-channel';
+import { dataDir } from './data-dir';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ export interface ErrorLog {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TOOLS_ROOT = path.join(__dirname, '..');
-const LOG_PATH   = path.join(TOOLS_ROOT, 'data', 'tools-errors.json');
+const LOG_PATH   = path.join(dataDir(path.join(TOOLS_ROOT, 'data')), 'tools-errors.json');
 const MAX_ERRORS = 100;
 
 // Track whether we've shown the "errors occurred" notification this session

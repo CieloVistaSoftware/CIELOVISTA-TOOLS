@@ -27,11 +27,12 @@ import * as vscode from 'vscode';
 import { getErrors as getLegacyErrors, getLogPath as getLegacyLogPath, clearErrors as clearLegacyErrors, ensureLogFile as ensureLegacyLogFile } from './error-log';
 import type { ErrorEntry as LegacyErrorEntry, ErrorType } from './error-log';
 import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
+import { dataDir } from './data-dir';
 
 // Re-export the legacy shape so the viewer's existing HTML keeps working.
 export type { ErrorEntry } from './error-log';
 
-const DATA_UTILS_LOG_PATH      = path.join(__dirname, '..', 'data', 'cielovista-errors.json');
+const DATA_UTILS_LOG_PATH      = path.join(dataDir(path.join(__dirname, '..', 'data')), 'cielovista-errors.json');
 
 function getWorkspaceUtilsLogPaths(): string[] {
     const roots = (vscode.workspace.workspaceFolders ?? []).map(wf => wf.uri.fsPath);

@@ -18,9 +18,10 @@ import type { RegressionEntry }  from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
 import { esc } from '../shared/webview-utils';
 import { getLauncherTargetColumn } from '../shared/panel-context';
+import { dataDir } from '../shared/data-dir';
 
 const FEATURE    = 'regression-log-viewer';
-const DATA_PATH  = path.join(__dirname, '..', 'data', 'regressions.json');
+const DATA_PATH  = path.join(dataDir(path.join(__dirname, '..', 'data')), 'regressions.json');
 
 let _panel: vscode.WebviewPanel | undefined;
 

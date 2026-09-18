@@ -20,6 +20,7 @@ const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
 const Module = require('module');
+const { useOwnDataDir } = require('../../scripts/lib/test-data-dir');
 
 // ── Temp workspace (kept for vscode mock but log now uses fixed path) ─────────
 const TMP_WS = path.join(os.tmpdir(), `cvt-elutils-${Date.now()}`);
@@ -58,6 +59,13 @@ for (const p of [OUT_CHANNEL, OUT]) {
     }
 }
 
+// This test clears and rewrites the error log, so the log must be its own
+// (#825). The module writes to path.join(__dirname, '..', 'data') unless
+// CVT_DATA_DIR says otherwise, and for every test process that default is the
+// same out-test/data/cielovista-errors.json. The runner starts tests in
+// parallel, and any of them that logged an error rewrote that file while this
+// one was reading or deleting it: EPERM on Windows.
+const DATA_DIR = useOwnDataDir('error-log-utils');
 const elu = require(OUT);
 
 // ── Runner ────────────────────────────────────────────────────────────────────
@@ -70,16 +78,9 @@ function test(name, fn) {
 function eq(a, b, msg)  { assert.strictEqual(a, b, msg); }
 function ok(v, msg)     { assert.ok(v, msg); }
 
-// Helper: wipe the log file between tests.
-// error-log-utils writes to path.join(__dirname, '..', 'data', ...) -- one level
-// up from ITS OWN compiled location. For the module under test that is
-// out-test/data/, which belongs to this test build and nobody else (#734).
-// This used to point at <repo>/data/, a file the module never wrote: clearLog()
-// cleared the wrong log, entries piled up across cases, and the dedupe tests
-// failed the moment the suite actually ran.
-const LOG_FILE = path.join(path.dirname(OUT), '..', 'data', 'cielovista-errors.json');
-let _savedLog = null;
-if (fs.existsSync(LOG_FILE)) { _savedLog = fs.readFileSync(LOG_FILE, 'utf8'); }
+// Helper: wipe the log file between tests. The log lives in this process's
+// own data directory (DATA_DIR above), so nothing needs saving or restoring.
+const LOG_FILE = path.join(DATA_DIR, 'cielovista-errors.json');
 function clearLog() {
     if (fs.existsSync(LOG_FILE)) { fs.unlinkSync(LOG_FILE); }
 }
@@ -257,9 +258,7 @@ test('getAllErrors returns [] when workspaceFolders is empty', () => {
     ok(true, 'No-workspace path handled gracefully');
 });
 
-// Cleanup: restore real log, remove temp workspace
-clearLog();
-if (_savedLog !== null) { fs.writeFileSync(LOG_FILE, _savedLog); }
+// Cleanup: remove temp workspace (the data directory goes when the process exits)
 fs.rmSync(TMP_WS, { recursive: true, force: true });
 
 console.log('\n' + '\u2500'.repeat(50));
