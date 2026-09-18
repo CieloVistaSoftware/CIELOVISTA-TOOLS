@@ -38,3 +38,8 @@ activate(context)
 3. Put a `_TODO:` stub line in any registered project's README and run **README: Fill README TODO Stubs (AI)**.
    Confirm the prompt, then check that the AI Batch Fix Review panel shows a diff for that README only.
    The file must be unchanged on disk until you approve it and press **Apply Approved** (#776).
+4. Run **README: Scan README Compliance**, then press **Fix All in Project** on a project with non-compliant READMEs.
+   A Fix Review panel shows one diff per README. Nothing changes on disk until you approve files and press
+   **Apply Approved**, and only the approved files are written (#794).
+5. Run **README: New Compliant README from Template** and pick a folder that already has a README.md. The review panel shows the
+   existing file against the template; the file is replaced only if you approve it there (#794).

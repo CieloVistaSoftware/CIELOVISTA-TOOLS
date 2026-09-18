@@ -29,6 +29,7 @@
  *   cvs.readme.fixAll      — auto-fix all non-compliant READMEs (with confirmation)
  *   cvs.readme.viewStandard — open the README standard doc
  *   cvs.readme.new         — create a new compliant README from template
+ *                            (an existing file is shown as a diff first, #794)
  *   cvs.readme.fillTodos   — AI-fill every _TODO: stub, reviewed per file (#776)
  */
 import * as vscode from 'vscode';
@@ -758,8 +759,8 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 await aiFixReadme(msg.data, msg.readmeType as ReadmeType);
                 break;
             case 'fixProject':
+                // Opens the batch review; the rescan runs after the user applies (#794).
                 await fixProjectReadmes(msg.project);
-                await runScan();
                 break;
             case 'copy':
                 await vscode.env.clipboard.writeText(msg.text || '');
@@ -807,7 +808,7 @@ interface BatchItem {
     unifiedDiff: string;
 }
 
-function buildBatchReviewHtml(items: BatchItem[]): string {
+function buildBatchReviewHtml(items: BatchItem[], title: string): string {
     const itemsData = items.map((item, i) => ({
         i,
         fileName:    item.fileName,
@@ -876,7 +877,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 </head>
 <body>
 <div id="toolbar">
-  <h1>📝 AI Batch Fix Review — ${items.length} file${items.length !== 1 ? 's' : ''}</h1>
+  <h1>📝 ${esc(title)} — ${items.length} file${items.length !== 1 ? 's' : ''}</h1>
   <button class="btn-primary" id="btn-apply" disabled>✅ Apply Approved (0)</button>
   <button class="btn-sec" id="btn-approve-all">✓ Approve All</button>
   <button class="btn-sec" id="btn-skip-all">✕ Skip All</button>
@@ -1029,18 +1030,21 @@ Rules:
 
 /**
  * Opens the batch review panel: one diff per item, each approved or skipped by
- * the user. Only the files the user approves are written (applyBatch).
+ * the user. Only the files the user approves are written (applyBatch), and
+ * only with the content this side proposed: a path the review was not given
+ * is never written, whatever the webview message says (#794).
  */
-function showBatchReview(items: BatchItem[]): void {
-    const batchHtml = buildBatchReviewHtml(items);
+function showBatchReview(items: BatchItem[], title = 'AI Batch Fix Review'): void {
+    const batchHtml = buildBatchReviewHtml(items, title);
+    const byPath    = new Map(items.map(item => [item.filePath, item]));
     if (_batchPanel) {
-        _batchPanel.title        = '📝 AI Batch Fix Review';
+        _batchPanel.title        = `📝 ${title}`;
         _batchPanel.webview.html = batchHtml;
         _batchPanel.reveal(vscode.ViewColumn.Beside);
     } else {
         _batchPanel = vscode.window.createWebviewPanel(
             'readmeBatchFix',
-            '📝 AI Batch Fix Review',
+            `📝 ${title}`,
             vscode.ViewColumn.Beside,
             { enableScripts: true, retainContextWhenHidden: true }
         );
@@ -1051,18 +1055,21 @@ function showBatchReview(items: BatchItem[]): void {
     _batchPanelMessageDisposable?.dispose();
     _batchPanelMessageDisposable = _batchPanel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command !== 'applyBatch') { return; }
-        const approved: Array<{ filePath: string; content: string }> = msg.approved;
+        const approved: Array<{ filePath: string }> = Array.isArray(msg.approved) ? msg.approved : [];
+        const approvedPaths = new Set(approved.map(a => a && a.filePath));
         let written = 0;
-        for (const item of approved) {
-            try { fs.writeFileSync(item.filePath, item.content, 'utf8'); written++; }
+        for (const filePath of approvedPaths) {
+            const item = byPath.get(filePath);
+            if (!item) { log(FEATURE, `Batch review: ignored a path it was not given: ${filePath}`); continue; }
+            try { fs.writeFileSync(item.filePath, item.aiContent, 'utf8'); written++; }
             catch (err) { logError(`Failed to write ${item.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
         }
         _batchPanel?.dispose();
-        _panel?.webview.postMessage({ type: 'done', text: `Applied ${written} AI fix${written !== 1 ? 'es' : ''}. Rescanning…` });
+        _panel?.webview.postMessage({ type: 'done', text: `Applied ${written} fix${written !== 1 ? 'es' : ''}. Rescanning…` });
         await runScan();
     });
 
-    _panel?.webview.postMessage({ type: 'done', text: `Review ${items.length} AI fix${items.length !== 1 ? 'es' : ''} in the side panel` });
+    _panel?.webview.postMessage({ type: 'done', text: `Review ${items.length} fix${items.length !== 1 ? 'es' : ''} in the side panel` });
 }
 
 /**
@@ -1174,16 +1181,28 @@ Rules:
     }
 }
 
+/**
+ * "Fix All in Project" — applies the structural fix to every non-compliant
+ * README in one project and shows each result as a diff in the batch review.
+ * Nothing is written until the user approves a file there (#794).
+ */
 async function fixProjectReadmes(projectName: string): Promise<void> {
     const targets = _lastReports.filter(r => r.projectName === projectName && r.score < 80 && r.issues.some(i => i.fixable));
     if (!targets.length) { _panel?.webview.postMessage({ type: 'done', text: `No fixable issues in ${projectName}` }); return; }
-    let fixed = 0;
+    const items: BatchItem[] = [];
     for (const report of targets) {
-        try { const content = applyFix(report); fs.writeFileSync(report.filePath, content, 'utf8'); fixed++; }
-        catch (err) { logError(`Failed to fix ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE); }
+        try {
+            const before = fs.readFileSync(report.filePath, 'utf8');
+            const after  = applyFix(report);
+            if (after === before) { continue; }
+            const unifiedDiff = jsdiff.createPatch(report.fileName, before, after, 'before', 'after (fix)', { context: 4 });
+            items.push({ fileName: report.fileName, filePath: report.filePath, score: report.score, issues: report.issues, aiContent: after, unifiedDiff });
+        } catch (err) {
+            logError(`Failed to build a fix for ${report.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        }
     }
-    _panel?.webview.postMessage({ type: 'done', text: `Fixed ${fixed} READMEs in ${projectName}. Rescanning…` });
-    await runScan();
+    if (!items.length) { _panel?.webview.postMessage({ type: 'done', text: `No changes needed in ${projectName}` }); return; }
+    showBatchReview(items, `Fix Review — ${projectName}`);
 }
 
 async function createNewReadme(): Promise<void> {
@@ -1206,7 +1225,36 @@ async function createNewReadme(): Promise<void> {
     const fileName    = await vscode.window.showInputBox({ prompt: 'Filename', value: defaultName });
     if (!fileName?.trim()) { return; }
     const filePath = path.join(destPick[0].fsPath, fileName.trim());
-    fs.writeFileSync(filePath, templates[typePick.type], 'utf8');
+    const template = templates[typePick.type];
+
+    // An existing file is never replaced silently: show it against the template
+    // in the batch review, and write only if the user approves there (#794).
+    if (fs.existsSync(filePath)) {
+        let existing = '';
+        try { existing = fs.readFileSync(filePath, 'utf8'); }
+        catch (err) {
+            logError(`Could not read existing ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+            vscode.window.showErrorMessage(`${path.basename(filePath)} already exists and could not be read — nothing was written.`);
+            return;
+        }
+        if (existing === template) {
+            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(filePath));
+            return;
+        }
+        const unifiedDiff = jsdiff.createPatch(path.basename(filePath), existing, template, 'existing', 'template', { context: 4 });
+        showBatchReview([{ fileName: path.basename(filePath), filePath, score: 0, issues: [], aiContent: template, unifiedDiff }], 'Replace existing README?');
+        vscode.window.showWarningMessage(`${path.basename(filePath)} already exists — review the diff against the template. Nothing is written unless you approve it.`);
+        log(FEATURE, `New README: ${filePath} exists; showing the diff instead of overwriting`);
+        return;
+    }
+
+    // 'wx' fails rather than overwrite a file created since the check above.
+    try { fs.writeFileSync(filePath, template, { encoding: 'utf8', flag: 'wx' }); }
+    catch (err) {
+        logError(`Failed to create ${filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
+        vscode.window.showErrorMessage(`Could not create ${path.basename(filePath)} — nothing was overwritten.`);
+        return;
+    }
     const doc = await vscode.workspace.openTextDocument(filePath);
     await vscode.window.showTextDocument(doc);
     log(FEATURE, `Created new README: ${filePath}`);
