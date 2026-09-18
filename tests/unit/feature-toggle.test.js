@@ -53,9 +53,9 @@ require.cache['__vs_ft__'] = {
 };
 
 // ── Load compiled module ──────────────────────────────────────────────────────
-const OUT_CHANNEL = path.join(__dirname, '../../out/shared/output-channel.js');
-const OUT_WEBVIEW = path.join(__dirname, '../../out/shared/webview-utils.js');
-const OUT         = path.join(__dirname, '../../out/features/feature-toggle.js');
+const OUT_CHANNEL = path.join(__dirname, '../../out-test/shared/output-channel.js');
+const OUT_WEBVIEW = path.join(__dirname, '../../out-test/shared/webview-utils.js');
+const OUT         = path.join(__dirname, '../../out-test/features/feature-toggle.js');
 const SRC         = path.join(__dirname, '../../src/features/feature-toggle.ts');
 
 for (const p of [OUT_CHANNEL, OUT_WEBVIEW, OUT]) {

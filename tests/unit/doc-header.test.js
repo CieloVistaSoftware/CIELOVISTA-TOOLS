@@ -50,11 +50,11 @@ require.cache['__vs_dh__'] = {
 };
 
 // ── Load module ───────────────────────────────────────────────────────────────
-const OUT_CHANNEL = path.join(__dirname, '../../out/shared/output-channel.js');
-const OUT         = path.join(__dirname, '../../out/features/doc-header.js');
+const OUT_CHANNEL = path.join(__dirname, '../../out-test/shared/output-channel.js');
+const OUT         = path.join(__dirname, '../../out-test/features/doc-header/index.js');
 
 // Pre-load show-result-webview stub to avoid missing module errors
-const showResultPath = path.join(__dirname, '../../out/shared/show-result-webview.js');
+const showResultPath = path.join(__dirname, '../../out-test/shared/show-result-webview.js');
 if (fs.existsSync(showResultPath)) { require(showResultPath); }
 
 for (const p of [OUT_CHANNEL, OUT]) {
@@ -332,10 +332,10 @@ test('unknown filename → Project Docs fallback', () => {
 console.log('\n-- toRelativePath() --');
 
 test('returns forward-slash path on Windows', () => {
-    const result = t.toRelativePath(
-        'C:\\Users\\john\\project\\src\\features\\doc-header.ts',
-        'C:\\Users\\john\\project'
-    );
+    // Built with path.join so the input is a native path on the host OS; on
+    // Windows it carries backslashes, which is what the conversion is for.
+    const root = path.join(path.sep === '\\' ? 'C:\\' : '/', 'Users', 'john', 'project');
+    const result = t.toRelativePath(path.join(root, 'src', 'features', 'doc-header.ts'), root);
     ok(!result.includes('\\'), 'Must use forward slashes');
     eq(result, 'src/features/doc-header.ts');
 });
@@ -346,7 +346,8 @@ test('handles Unix-style paths', () => {
 });
 
 test('returns just filename when file is at project root', () => {
-    const result = t.toRelativePath('C:\\proj\\README.md', 'C:\\proj');
+    const root = path.join(path.sep === '\\' ? 'C:\\' : '/', 'proj');
+    const result = t.toRelativePath(path.join(root, 'README.md'), root);
     eq(result, 'README.md');
 });
 

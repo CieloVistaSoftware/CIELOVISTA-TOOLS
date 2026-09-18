@@ -6,7 +6,10 @@ const fs     = require('fs');
 
 // Stub vscode.workspace.workspaceFolders to point at the cielovista-tools
 // repo, since that's where .vscode/logs/cielovista-errors.json lives.
-const fakePath = path.resolve(__dirname, '.fake-vscode-adapter.js');
+// Stubs are written to a private temp dir, never into tests/ (#734): copies of
+// them had been committed, so every run of this test deleted tracked files.
+const STUB_DIR = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cvt-adapter-'));
+const fakePath = path.join(STUB_DIR, 'fake-vscode-adapter.js');
 fs.writeFileSync(
     fakePath,
     `const path = require('path');
@@ -24,10 +27,10 @@ Module._resolveFilename = function (request, parent, ...rest) {
 };
 
 // Stub the output-channel module (legacy error-log.ts pulls it in)
-const ocPath = path.resolve(__dirname, '.fake-output-channel.js');
+const ocPath = path.join(STUB_DIR, 'fake-output-channel.js');
 fs.writeFileSync(ocPath, `module.exports = { getChannel: () => ({ appendLine: () => {} }), log: () => {} };`, 'utf8');
 
-const adapterPath = path.resolve(__dirname, '..', 'out', 'shared', 'error-log-adapter.js');
+const adapterPath = path.resolve(__dirname, '..', 'out-test', 'shared', 'error-log-adapter.js');
 const adapter = require(adapterPath);
 
 console.log('=== Adapter integration test ===');

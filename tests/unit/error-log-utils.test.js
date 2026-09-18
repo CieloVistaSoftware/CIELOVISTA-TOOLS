@@ -47,8 +47,8 @@ require.cache['__vs_elutils__'] = {
 };
 
 // ── Load modules ──────────────────────────────────────────────────────────────
-const OUT_CHANNEL = path.join(__dirname, '../../out/shared/output-channel.js');
-const OUT         = path.join(__dirname, '../../out/shared/error-log-utils.js');
+const OUT_CHANNEL = path.join(__dirname, '../../out-test/shared/output-channel.js');
+const OUT         = path.join(__dirname, '../../out-test/shared/error-log-utils.js');
 
 for (const p of [OUT_CHANNEL, OUT]) {
     if (!fs.existsSync(p)) {
@@ -71,10 +71,13 @@ function eq(a, b, msg)  { assert.strictEqual(a, b, msg); }
 function ok(v, msg)     { assert.ok(v, msg); }
 
 // Helper: wipe the log file between tests.
-// error-log-utils now uses a fixed extension-directory path (not workspace-dependent).
-// The compiled out/shared/error-log-utils.js resolves __dirname to <project>/out/shared,
-// so the log lands at <project>/data/cielovista-errors.json.
-const LOG_FILE = path.join(__dirname, '../../data/cielovista-errors.json');
+// error-log-utils writes to path.join(__dirname, '..', 'data', ...) -- one level
+// up from ITS OWN compiled location. For the module under test that is
+// out-test/data/, which belongs to this test build and nobody else (#734).
+// This used to point at <repo>/data/, a file the module never wrote: clearLog()
+// cleared the wrong log, entries piled up across cases, and the dedupe tests
+// failed the moment the suite actually ran.
+const LOG_FILE = path.join(path.dirname(OUT), '..', 'data', 'cielovista-errors.json');
 let _savedLog = null;
 if (fs.existsSync(LOG_FILE)) { _savedLog = fs.readFileSync(LOG_FILE, 'utf8'); }
 function clearLog() {

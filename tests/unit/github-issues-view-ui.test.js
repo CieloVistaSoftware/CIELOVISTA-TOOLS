@@ -39,7 +39,7 @@ require.cache.__vs_issues_ui__ = {
     paths: [],
 };
 
-const outPath = path.join(__dirname, '../../out/shared/github-issues-view.js');
+const outPath = path.join(__dirname, '../../out-test/shared/github-issues-view.js');
 if (!fs.existsSync(outPath)) {
     console.error('SKIP: not compiled');
     process.exit(0);

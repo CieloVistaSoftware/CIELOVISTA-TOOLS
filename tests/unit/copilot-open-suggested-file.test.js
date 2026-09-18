@@ -9,7 +9,7 @@ const fs     = require('fs');
 const path   = require('path');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/copilot-open-suggested-file.js');
+const OUT = path.join(__dirname, '../../out-test/features/copilot-open-suggested-file.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const registered = new Map();
@@ -25,7 +25,7 @@ Module._load = function(req, parent, isMain) {
     }
     return origLoad.apply(this, arguments);
 };
-const sharedOC = path.join(__dirname, '../../out/shared/output-channel.js');
+const sharedOC = path.join(__dirname, '../../out-test/shared/output-channel.js');
 if (fs.existsSync(sharedOC)) { try { require(sharedOC); } catch {} }
 
 const mod = require(OUT);

@@ -1,7 +1,7 @@
 ﻿// Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 /**
- * extension.ts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â CieloVista Tools root entry point.
+ * extension.ts — CieloVista Tools root entry point.
  * Imports every feature activate() and calls it via activateIfEnabled().
  */
 import * as vscode from 'vscode';
@@ -68,7 +68,7 @@ import { initMcpServerPath }                                                    
 import { runLicenseSync     } from './features/license-sync';
 import { runCodebaseAudit   } from './features/codebase-auditor';
 import { openErrorLogViewer }      from './features/error-log-viewer';
-import { openRegressionLogViewer } from './features/regression-log-viewer';
+import { activate as regressionLogViewerActivate, deactivate as regressionLogViewerDeactivate } from './features/regression-log-viewer';
 import { activate as activateFileListViewer, deactivate as deactivateFileListViewer } from './features/file-list-viewer';
 import { showGithubIssues, newIssueForProject } from './shared/github-issues-view';
 import { loadRegistry } from './features/doc-catalog/registry';
@@ -167,12 +167,12 @@ export function activate(context: vscode.ExtensionContext): void {
     activateIfEnabled('tagsEnrichment',         'Tags Enrichment',                     tagsEnrichmentActivate,           context);
     activateIfEnabled('sessionActivity',        'Session Activity Dashboard',          sessionActivity,                  context);
     worktreeCleanerActivate(context);
+    regressionLogViewerActivate(context);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('cvs.license.sync',   runLicenseSync),
         vscode.commands.registerCommand('cvs.audit.codebase', runCodebaseAudit),
         vscode.commands.registerCommand('cvs.tools.errorLog', openErrorLogViewer),
-        vscode.commands.registerCommand('cvs.tools.regressionLog', openRegressionLogViewer),
         vscode.commands.registerCommand('cvs.tools.results',  () => { /* placeholder */ }),
         vscode.commands.registerCommand('cvs.issues.openViewer', () => showGithubIssues()),
         vscode.commands.registerCommand('cvs.issues.newIssue', () => {
@@ -187,6 +187,7 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
     deactivateHomePage();
     deactivateJsErrorAudit();
+    regressionLogViewerDeactivate();
 
     deactivateBgHealthRunner();
     deactivateCodeHighlightAudit();

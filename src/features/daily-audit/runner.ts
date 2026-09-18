@@ -54,6 +54,18 @@ export interface RunAuditResult {
 
 export type AuditProgressFn = (message: string, increment: number) => void;
 
+/**
+ * The projects the daily audit holds to its checks: products and workbench
+ * projects, minus any the registry marks `auditExcluded`. Generated and
+ * archived projects are never audited. A missing status counts as product.
+ */
+export function getDailyAuditProjects<T extends Pick<ProjectEntry, 'status' | 'auditExcluded'>>(projects: T[]): T[] {
+    return projects.filter(p => {
+        const status = p.status ?? 'product';
+        return !p.auditExcluded && (status === 'product' || status === 'workbench');
+    });
+}
+
 /** Run all checks and write the report to AUDIT_REPORT_PATH. */
 export async function runDailyAudit(onProgress?: AuditProgressFn): Promise<RunAuditResult> {
     const t0 = Date.now();
@@ -80,9 +92,7 @@ export async function runDailyAudit(onProgress?: AuditProgressFn): Promise<RunAu
     }
 
     const projects = registry.projects;
-    const strictProjects = projects.filter(
-        p => !p.auditExcluded && ((p.status ?? 'product') === 'product' || (p.status ?? 'product') === 'workbench')
-    );
+    const strictProjects = getDailyAuditProjects(projects);
 
     // Run checks sequentially so progress messages are accurate and a hang in
     // one check doesn't silently block all others.

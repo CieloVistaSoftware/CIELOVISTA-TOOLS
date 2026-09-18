@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 
-const OUT = path.join(__dirname, '../../out/features/open-folder-as-root.js');
+const OUT = path.join(__dirname, '../../out-test/features/open-folder-as-root.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found - run npm run compile`);
     process.exit(0);
@@ -20,12 +20,19 @@ if (!fs.existsSync(OUT)) {
 
 const registered = new Map();
 const commandCalls = [];
-const resultCalls = [];
+const dialogCalls = [];
+let dialogAnswer = undefined;   // what the next showOpenDialog resolves to
 
 const origLoad = Module._load;
 Module._load = function patchedLoad(request, parent, isMain) {
     if (request === 'vscode') {
         return {
+            window: {
+                showOpenDialog(options) {
+                    dialogCalls.push(options);
+                    return Promise.resolve(dialogAnswer);
+                }
+            },
             commands: {
                 registerCommand(name, handler) {
                     registered.set(name, handler);
@@ -40,13 +47,6 @@ Module._load = function patchedLoad(request, parent, isMain) {
     }
     if (request.includes('shared/output-channel')) {
         return { log() {} };
-    }
-    if (request.includes('shared/show-result-webview')) {
-        return {
-            showResultWebview(title, action, duration, html) {
-                resultCalls.push({ title, action, duration, html });
-            }
-        };
     }
     return origLoad.call(this, request, parent, isMain);
 };
@@ -90,13 +90,30 @@ async function testAsync(name, fn) {
         assert.strictEqual(subscriptions.length, 1);
     });
 
-    test('missing uri shows result webview instead of opening folder', () => {
+    // Some VS Code versions invoke explorer/context commands without a URI.
+    // Since e29f04c the command asks for a folder instead of giving up.
+    await testAsync('missing uri asks for a folder; cancelling opens nothing', async () => {
         const handler = registered.get('cvs.explorer.openFolderAsRoot');
-        handler();
+        dialogAnswer = undefined;
+        await handler();
 
-        assert.strictEqual(resultCalls.length, 1);
-        assert.strictEqual(resultCalls[0].title, 'No Folder Selected');
+        assert.strictEqual(dialogCalls.length, 1);
+        assert.strictEqual(dialogCalls[0].canSelectFolders, true);
+        assert.strictEqual(dialogCalls[0].canSelectFiles, false);
         assert.strictEqual(commandCalls.length, 0);
+    });
+
+    await testAsync('missing uri opens the folder picked in the dialog', async () => {
+        const handler = registered.get('cvs.explorer.openFolderAsRoot');
+        const picked = { fsPath: 'C:\\repo\\picked' };
+        dialogAnswer = [picked];
+        await handler();
+
+        assert.strictEqual(commandCalls.length, 1);
+        assert.strictEqual(commandCalls[0].name, 'vscode.openFolder');
+        assert.strictEqual(commandCalls[0].args[0], picked);
+        assert.deepStrictEqual(commandCalls[0].args[1], { forceNewWindow: false });
+        commandCalls.length = 0;
     });
 
     await testAsync('uri calls vscode.openFolder with forceNewWindow false', async () => {

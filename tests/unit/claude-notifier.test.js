@@ -15,7 +15,7 @@ const os     = require('os');
 const assert = require('assert');
 
 // ── Load compiled module ──────────────────────────────────────────────────────
-const OUT = path.join(__dirname, '../../out/shared/claude-notifier.js');
+const OUT = path.join(__dirname, '../../out-test/shared/claude-notifier.js');
 
 if (!fs.existsSync(OUT)) {
     console.error(`\n  SKIP: Compiled output not found at:\n  ${OUT}`);
@@ -187,8 +187,14 @@ test('markProcessed is safe when the queue file does not exist', () => {
 });
 
 test('enqueueIssue returns ok:false on unwritable path', () => {
+    // A path whose parent is a regular FILE cannot be created on any OS
+    // (ENOTDIR). 'Z:\\...' was only unwritable on Windows; on Linux it is a
+    // valid relative file name.
+    const blocker = path.join(require('os').tmpdir(), `cvt-notifier-blocker-${process.pid}`);
+    fs.writeFileSync(blocker, 'x');
     const r = enqueueIssue(sampleBug, 42, 'https://github.com/o/r/issues/42',
-        'Z:\\does\\not\\exist\\queue.json');
+        path.join(blocker, 'sub', 'queue.json'));
+    fs.rmSync(blocker, { force: true });
     eq(r.ok, false, 'must return ok:false for bad path');
     ok(typeof r.error === 'string', 'must include an error message');
 });

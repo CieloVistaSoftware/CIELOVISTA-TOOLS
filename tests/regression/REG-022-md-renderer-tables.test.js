@@ -9,7 +9,7 @@ const path   = require('path');
 const fs     = require('fs');
 
 // ── Locate compiled output ───────────────────────────────────────────────────
-const outFile = path.join(__dirname, '../../out/shared/md-renderer.js');
+const outFile = path.join(__dirname, '../../out-test/shared/md-renderer.js');
 if (!fs.existsSync(outFile)) {
     console.error(`SKIP: compiled output not found at ${outFile} — run tsc first`);
     process.exit(0);

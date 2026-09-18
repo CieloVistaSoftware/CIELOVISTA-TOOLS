@@ -12,7 +12,7 @@ const Module = require('module');
 const ROOT    = path.resolve(__dirname, '..', '..');
 const SRC     = fs.readFileSync(path.join(ROOT, 'src', 'features', 'test-coverage-auditor.ts'), 'utf8');
 const LAUNCHER = fs.readFileSync(path.join(ROOT, 'src', 'features', 'cvs-command-launcher', 'index.ts'), 'utf8');
-const OUT     = path.join(ROOT, 'out', 'features', 'test-coverage-auditor.js');
+const OUT     = path.join(ROOT, 'out-test', 'features', 'test-coverage-auditor.js');
 
 let passed = 0;
 let failed = 0;

@@ -23,8 +23,7 @@ export function esc(s: string): string {
 // Markdown rendering now handled by md-renderer.ts (markdown-it + highlight.js)
 
 // ── Breadcrumb ────────────────────────────────────────────────────────────────
-// â”€â”€ Breadcrumb â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Only show the current document name â€” no history trail
+// Only show the current document name — no history trail
 function buildBreadcrumbHtml(history: Crumb[], currentTitle: string): string {
     return `<span class="bc-item bc-current">${esc(currentTitle)}</span>`;
 }
@@ -44,7 +43,7 @@ function buildFolderPathHtml(filePath: string): string {
 }
 
 // ── Preview HTML ──────────────────────────────────────────────────────────────
-function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[]): string {
+function buildPreviewHtml(title: string, filePath: string, renderedHtml: string, history: Crumb[], hasSource: boolean): string {
     const nonce = getNonce();
     const jsPath = filePath.replace(/\\/g, '\\\\');
     const jsDir  = path.dirname(filePath).replace(/\\/g, '\\\\');
@@ -105,6 +104,7 @@ img{max-width:100%;height:auto}
 <div id="topbar">
   <div id="topbar-row1">
     <span id="topbar-title">&#128196; ${esc(title)}</span>
+        ${hasSource ? '<button class="btn-action" id="btn-back-source" data-toolbar-action="navigate-source" title="Back to where this doc was opened from">&larr; Back</button>' : ''}
         <button class="btn-action" id="btn-vscode" data-toolbar-action="open-in-vscode">&#128195; Open in VS Code</button>
         <button class="btn-action" id="btn-terminal" data-toolbar-action="open-terminal">&#8250;_ Change Working Directory</button>
         <button class="btn-action" id="btn-explorer" data-toolbar-action="reveal-folder-os">&#128193; Explorer</button>
@@ -143,6 +143,10 @@ let _pendingScrollY = 0;
             const btn = e.target.closest('[data-toolbar-action]');
             if (!btn) { return; }
             const action = btn.dataset.toolbarAction;
+            if (action === 'navigate-source') {
+                vscode.postMessage({ command: 'navigate-source' });
+                return;
+            }
             if (action === 'edit-file') {
                 vscode.postMessage({ command: 'edit-file', path: '${jsPath}' });
                 return;
@@ -254,7 +258,7 @@ export function openDocPreview(
 
     if (_previewPanel) {
         _previewPanel.title            = `\u{1F4C4} ${title}`;
-        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history);
+        _previewPanel.webview.html     = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
         // preserveFocus=true keeps the catalog panel active so it doesn't scroll
         _previewPanel.reveal(vscode.ViewColumn.Beside, true);
         return;
@@ -265,7 +269,7 @@ export function openDocPreview(
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true }
     );
-    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history);
+    _previewPanel.webview.html = buildPreviewHtml(title, filePath, rendered, _history, Boolean(_currentSourceCmdId));
     _previewPanel.onDidDispose(() => {
         _previewPanel = _currentFilePath = _currentTitle = _currentSourceCmdId = undefined;
         _history = [];

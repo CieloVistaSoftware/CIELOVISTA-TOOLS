@@ -46,16 +46,16 @@ require.cache['__vs_thin__'] = {
 
 // ── Load deps ─────────────────────────────────────────────────────────────────
 for (const dep of ['output-channel']) {
-    const p = path.join(__dirname, `../../out/shared/${dep}.js`);
+    const p = path.join(__dirname, `../../out-test/shared/${dep}.js`);
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
 // Need terminal-utils too
-const tuPath = path.join(__dirname, '../../out/shared/terminal-utils.js');
+const tuPath = path.join(__dirname, '../../out-test/shared/terminal-utils.js');
 if (fs.existsSync(tuPath)) { try { require(tuPath); } catch { /* optional */ } }
 
 // ── Load modules ──────────────────────────────────────────────────────────────
-const BASE = path.join(__dirname, '../../out/features');
+const BASE = path.join(__dirname, '../../out-test/features');
 
 function loadFeature(name) {
     const p = path.join(BASE, `${name}.js`);

@@ -64,6 +64,10 @@ function loadMod() {
     Module._load = function(req, parent, isMain) {
         if (req === 'vscode')                     { return vscode; }
         if (req === '../shared/output-channel')   { return { log() {}, logError() {} }; }
+        // file-list-viewer calls ensureHomeIsLeftmost() when it opens a panel; the
+        // real home-page module pulls in the whole dashboard, which this test of
+        // the file list's webview has no use for.
+        if (req === './home-page')                { return { ensureHomeIsLeftmost() { return Promise.resolve(); } }; }
         if (req === '../shared/file-list-sort') {
             return {
                 DEFAULT_EXCLUDES: new Set(['node_modules', '.git', 'out', 'dist']),

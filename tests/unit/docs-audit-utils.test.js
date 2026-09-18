@@ -23,7 +23,7 @@ const path   = require('path');
 const fs     = require('fs');
 const os     = require('os');
 
-const OUT = path.join(__dirname, '../../out/shared/docs-audit-utils.js');
+const OUT = path.join(__dirname, '../../out-test/shared/docs-audit-utils.js');
 if (!fs.existsSync(OUT)) {
     console.error(`SKIP: ${OUT} not found — run npm run compile`);
     process.exit(0);

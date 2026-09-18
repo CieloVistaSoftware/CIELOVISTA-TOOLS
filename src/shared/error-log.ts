@@ -81,7 +81,7 @@ function parseStack(stack: string): { filename: string; lineno: number; colno: n
     // Match:  at SomeFn (C:\path\to\file.ts:42:7)  or  at C:\path\to\file.ts:42:7
     const match = stack.match(/(?:at\s+(?:\S+\s+)?)\(?(.+?):(\d+):(\d+)\)?/);
     return match
-        ? { filename: path.basename(match[1]), lineno: parseInt(match[2], 10), colno: parseInt(match[3], 10) }
+        ? { filename: match[1].split(/[\\/]/).pop() ?? '', lineno: parseInt(match[2], 10), colno: parseInt(match[3], 10) }
         : { filename: '', lineno: 0, colno: 0 };
 }
 

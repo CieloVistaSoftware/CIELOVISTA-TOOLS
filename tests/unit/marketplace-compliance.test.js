@@ -32,12 +32,12 @@ require.cache['__vs_mc__'] = { id: '__vs_mc__', filename: '__vs_mc__', loaded: t
 
 // ── Load modules ──────────────────────────────────────────────────────────────
 for (const dep of ['output-channel']) {
-    const p = path.join(__dirname, `../../out/shared/${dep}.js`);
+    const p = path.join(__dirname, `../../out-test/shared/${dep}.js`);
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
-const CHECKER_OUT = path.join(__dirname, '../../out/features/marketplace-compliance/checker.js');
-const FIXER_OUT   = path.join(__dirname, '../../out/features/marketplace-compliance/fixer.js');
+const CHECKER_OUT = path.join(__dirname, '../../out-test/features/marketplace-compliance/checker.js');
+const FIXER_OUT   = path.join(__dirname, '../../out-test/features/marketplace-compliance/fixer.js');
 
 for (const p of [CHECKER_OUT, FIXER_OUT]) {
     if (!fs.existsSync(p)) { console.error(`SKIP: ${p} not found — run npm run compile`); process.exit(0); }
@@ -165,8 +165,8 @@ test('PROPRIETARY license → no license error', () => {
 });
 
 test('missing icon field → warning with fixKey=pkg:icon', () => {
-    const proj = makeProject('no-icon-field');
-    writePkg(proj.path, { name: 'test', description: 'Test', version: '1.0.0', license: 'PROPRIETARY' });
+    const proj = makeProject('no-icon-field', { type: 'vscode-extension' });
+    writePkg(proj.path, { name: 'test', description: 'Test', version: '1.0.0', license: 'PROPRIETARY', publisher: 'test', categories: ['Other'] });
     writeReadme(proj.path); writeLicense(proj.path); writeChangelog(proj.path); writeIcon(proj.path);
     const r = checkProject(proj);
     ok(r.issues.some(i => i.fixKey === 'pkg:icon' && i.severity === 'warning'));
@@ -233,11 +233,21 @@ test('missing LICENSE file → fixable error', () => {
 });
 
 test('missing icon.png → fixable warning', () => {
-    const proj = makeProject('no-icon-file');
-    writePkg(proj.path, { name: 'test', description: 'Test', version: '1.0.0', license: 'PROPRIETARY', icon: 'icon.png' });
+    const proj = makeProject('no-icon-file', { type: 'vscode-extension' });
+    writePkg(proj.path, { name: 'test', description: 'Test', version: '1.0.0', license: 'PROPRIETARY', icon: 'icon.png', publisher: 'test', categories: ['Other'] });
     writeReadme(proj.path); writeLicense(proj.path); writeChangelog(proj.path);
     const r = checkProject(proj);
     ok(r.issues.some(i => i.fixKey === 'create:icon' && i.fixable));
+});
+
+// #561: only a VS Code extension has a marketplace icon. Asking a node app or a
+// web site for icon.png was noise, so neither icon check applies to them.
+test('non-extension project is not asked for an icon (#561)', () => {
+    const proj = makeProject('node-no-icon');
+    writePkg(proj.path, { name: 'test', description: 'Test', version: '1.0.0', license: 'PROPRIETARY' });
+    writeReadme(proj.path); writeLicense(proj.path); writeChangelog(proj.path);
+    const r = checkProject(proj);
+    ok(!r.issues.some(i => i.fixKey === 'pkg:icon' || i.fixKey === 'create:icon'));
 });
 
 // ═══════════════════════════════════════════════════════════

@@ -4,22 +4,21 @@ const fs   = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const SRC      = path.resolve(__dirname, '..', '..', 'package.json');
-const BACKUP   = SRC + '.bak.test';
+// Every case validates a COPY in a private temp dir. This test used to write
+// corrupted content into the repo's real package.json and restore it after
+// each case: a killed run left the repo broken, and any test running alongside
+// read garbage (#734).
+const REAL      = path.resolve(__dirname, '..', '..', 'package.json');
+const TMP_DIR   = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cvt-validate-pkg-'));
+const SRC       = path.join(TMP_DIR, 'package.json');
 const VALIDATOR = path.resolve(__dirname, '..', '..', 'scripts', 'validate-package-json.js');
 
-let originalContent;
-try {
-    originalContent = fs.readFileSync(SRC, 'utf8');
-    fs.copyFileSync(SRC, BACKUP);
-} catch (err) {
-    console.error('Setup failed:', err.message);
-    process.exit(1);
-}
+const originalContent = fs.readFileSync(REAL, 'utf8');
+fs.writeFileSync(SRC, originalContent, 'utf8');
 
 function runValidator() {
     try {
-        const out = execFileSync('node', [VALIDATOR], { encoding: 'utf8', stdio: 'pipe' });
+        const out = execFileSync(process.execPath, [VALIDATOR, SRC], { encoding: 'utf8', stdio: 'pipe' });
         return { code: 0, stdout: out, stderr: '' };
     } catch (err) {
         return { code: err.status, stdout: err.stdout || '', stderr: err.stderr || '' };
@@ -118,7 +117,7 @@ test('command id violating cvs.* / workbench.* convention fails (exit 1)', () =>
 });
 
 // ── Cleanup backup ───────────────────────────────────────────────────────
-try { fs.unlinkSync(BACKUP); } catch { /* ok */ }
+fs.rmSync(TMP_DIR, { recursive: true, force: true });
 
 console.log('\n' + '─'.repeat(60));
 console.log(`${passed} passed, ${failed} failed`);

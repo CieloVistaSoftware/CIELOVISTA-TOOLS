@@ -54,7 +54,7 @@ require.cache['__vs_shared__'] = {
 
 // ── Load compiled modules ─────────────────────────────────────────────────────
 const ROOT    = path.join(__dirname, '../..');
-const OUT_DIR = path.join(ROOT, 'out', 'shared');
+const OUT_DIR = path.join(ROOT, 'out-test', 'shared');
 const SRC_DIR = path.join(ROOT, 'src', 'shared');
 
 function requireOut(name) {

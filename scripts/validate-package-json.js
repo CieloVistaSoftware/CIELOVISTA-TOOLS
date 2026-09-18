@@ -33,7 +33,9 @@
 const fs   = require('fs');
 const path = require('path');
 
-const PKG_PATH      = path.resolve(__dirname, '..', 'package.json');
+// Optional path argument: the unit test validates corrupted COPIES, never the
+// real file (#734). With no argument this checks the repo's package.json.
+const PKG_PATH      = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(__dirname, '..', 'package.json');
 const MIN_COMMANDS  = 50;       // sentinel for accidental wholesale deletion
 const ID_PATTERN    = /^(cvs\.|workbench\.)[\w.]+$/;
 

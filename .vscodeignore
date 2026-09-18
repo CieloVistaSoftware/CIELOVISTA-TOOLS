@@ -54,3 +54,6 @@ docs/**
 TEST-VIEW-A-DOC.md
 ViewADoc.md
 copilot-rules.md
+
+# Per-module test build (#734)
+out-test/**
