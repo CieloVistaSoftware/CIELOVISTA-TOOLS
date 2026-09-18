@@ -92,7 +92,10 @@ exact('consecutive > lines are one quote', '> one\n> two', '<blockquote>one<br>t
 exact('mixed spacing lines are one quote', '> one\n>two', '<blockquote>one<br>two</blockquote>');
 exact('leading and trailing lone > are dropped', '>\n> text\n>', '<blockquote>text</blockquote>');
 exact('a blank line ends the quote', '> a\n\n> b', '<blockquote>a</blockquote>\n<blockquote>b</blockquote>');
-exact('text after a quote is a paragraph', '> a\nafter', '<blockquote>a</blockquote>\n<p>after</p>');
+// Since #785 a plain line right after quoted text is a lazy continuation line
+// of the quote (CommonMark); after a blank line it is a paragraph again.
+exact('text after a quote continues it (lazy, #785)', '> a\nafter', '<blockquote>a<br>after</blockquote>');
+exact('text after a quote and a blank line is a paragraph', '> a\n\nafter', '<blockquote>a</blockquote>\n<p>after</p>');
 exact('>x ends a paragraph', 'para\n>quote', '<p>para</p>\n<blockquote>quote</blockquote>');
 exact('lone > ends a paragraph', 'para\n>', '<p>para</p>\n<blockquote></blockquote>');
 exact('quote text is escaped', '><b>x</b> & y', '<blockquote>&lt;b&gt;x&lt;/b&gt; &amp; y</blockquote>');
@@ -148,7 +151,8 @@ exact('unicode letter after', '_x_été', '<p>_x_été</p>');
 exact('space inside the opener', '_ a _', '<p>_ a _</p>');
 exact('space inside the strong opener', '__ a __', '<p>__ a __</p>');
 exact('a lone underscore', 'a _ b', '<p>a _ b</p>');
-exact('backslash-escaped underscores are not emphasis', BS + '_not' + BS + '_', '<p>' + BS + '_not' + BS + '_</p>');
+// Since #785 the escape also hides its backslash, as CommonMark specifies.
+exact('backslash-escaped underscores are not emphasis', BS + '_not' + BS + '_', '<p>_not_</p>');
 exact('underscores in a code span', BT + '_a_ __b__ snake_case' + BT, '<p><code>_a_ __b__ snake_case</code></p>');
 exact('underscores in a URL', '[x](path/_a_/__b__/c_d.md)', '<p><a href="path/_a_/__b__/c_d.md">x</a></p>');
 exact('underscores in a link title', '[x](u "_t_")', '<p><a href="u" title="_t_">x</a></p>');
