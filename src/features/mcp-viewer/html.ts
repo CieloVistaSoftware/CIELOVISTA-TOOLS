@@ -428,11 +428,10 @@ function renderCvtCommandsTable(data){
     html += '<div class="group-hd"><span>' + esc(grp) + '</span><span class="count">' + gs.length + ' cmd' + (gs.length === 1 ? '' : 's') + '</span></div>';
     var _cc = (_sortState[currentEndpoint] || {}).col;
     var gsToRender = _sortBy(gs, _cc);
-    html += '<table><thead><tr>' + _th('Dewey','dewey') + _th('ID','id') + _th('Title','title') + _th('Scope','scope') + _th('Tags','tags') + _th('Description','description') + '</tr></thead><tbody>';
+    html += '<table><thead><tr>' + _th('ID','id') + _th('Title','title') + _th('Scope','scope') + _th('Tags','tags') + _th('Description','description') + '</tr></thead><tbody>';
     for (var j = 0; j < gsToRender.length; j++) {
       var c = gsToRender[j];
       html += '<tr>' +
-        '<td class="c-idx">' + esc(c.dewey) + '</td>' +
         '<td class="c-name" title="' + esc(buildCmdTip(c)) + '">' + esc(c.id) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
         '<td class="c-title">' + esc(c.title) + '</td>' +
         '<td><span class="c-type">' + esc(c.scope) + '</span></td>' +
@@ -549,7 +548,6 @@ var _SORT_KEY = {
   exported:    function(x){ return x.exported ? 'yes' : 'no'; },
   signature:   function(x){ return x.signature || ''; },
   source:      function(x){ return x.source || x.sourceFile || ''; },
-  dewey:       function(x){ return x.dewey || ''; },
   id:          function(x){ return x.id; },
   scope:       function(x){ return x.scope; },
   group:       function(x){ return x.group; },

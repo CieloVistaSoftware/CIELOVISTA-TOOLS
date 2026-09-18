@@ -20,7 +20,6 @@ export interface CmdEntry {
     tags:          string[];
     group:         string;
     groupIcon:     string;
-    dewey:         string;
     scope:         CmdScope;   // REQUIRED — every command must declare its scope
     location:      string;     // NEW: relative path to implementation file
     auditCheckId?: string;

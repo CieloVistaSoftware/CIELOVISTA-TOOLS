@@ -41,14 +41,14 @@ const ALL_TABS = [
     'list_cvt_commands',
 ];
 
-// Retired with the Dewey docid system (#707 stage 3). None may come back.
+// Retired with the doc-numbering system (#707 stage 3). None may come back.
+// Two more retired tabs had the retired system's name in theirs; REG-159
+// fails on that name anywhere in src/, so it keeps them out.
 const RETIRED_TABS = [
     'list_doc_violations',
     'validate_doc',
     'normalize_doc',
     'get_doc_by_identity',
-    'list_old_dewey',
-    'lookup_dewey',
 ];
 
 // Render function names expected for each tab
@@ -91,7 +91,7 @@ for (const tab of ALL_TABS) {
 }
 for (const tab of RETIRED_TABS) {
     test(`retired tab absent: ${tab}`, () => {
-        assert.ok(!src.includes(tab), `"${tab}" is still in the viewer; it was retired with the Dewey docid system (#707)`);
+        assert.ok(!src.includes(tab), `"${tab}" is still in the viewer; it was retired with the doc-numbering system (#707)`);
     });
 }
 
@@ -211,7 +211,7 @@ test('renderCvtCommandsTable groups by group name', () => {
     const idx = src.indexOf('function renderCvtCommandsTable(');
     const slice = src.slice(idx, idx + 1200);
     assert.ok(slice.includes('group-hd'), 'renderCvtCommandsTable must use group headers');
-    assert.ok(slice.includes('c.dewey'), 'renderCvtCommandsTable must show Dewey column');
+    assert.ok(slice.includes('esc(c.id)'), 'renderCvtCommandsTable must show the command id');
 });
 test('docs table links use /md-preview with the token and ?path= for file preview (#780)', () => {
     assert.ok(src.includes("/md-preview?t=' + TOKEN + '&path='"), 'Doc table rows must link to /md-preview, token included, for file preview');

@@ -4,7 +4,6 @@
 // Real rules enforced here:
 //   1. shared/ files must NOT call vscode.commands.registerCommand — only feature files register commands
 //   2. No duplicate command IDs across all feature files
-//   3. No duplicate Dewey numbers in catalog.ts
 //
 // NOT enforced (intentional design choices, not violations):
 //   - extension.ts wires everything — it is allowed to call registerCommand if needed
@@ -70,28 +69,10 @@ function checkNoDuplicateCommandIds() {
     }
 }
 
-// ── Check 3: No duplicate Dewey numbers in catalog.ts ────────────────────────
-
-function checkNoDuplicateDeweyNumbers() {
-    const catalogPath = path.join(FEATURE_DIR, 'cvs-command-launcher', 'catalog.ts');
-    if (!fs.existsSync(catalogPath)) { return; }
-    const src  = fs.readFileSync(catalogPath, 'utf8');
-    const seen = new Map();
-    for (const m of src.matchAll(/dewey\s*:\s*['"](\d{3}\.[0-9]{3})['"]/g)) {
-        const dewey = m[1];
-        if (seen.has(dewey)) {
-            errors.push(`Duplicate Dewey number ${dewey} in catalog.ts`);
-        } else {
-            seen.set(dewey, true);
-        }
-    }
-}
-
 // ── Run ───────────────────────────────────────────────────────────────────────
 
 checkNoRegisterCommandInShared();
 checkNoDuplicateCommandIds();
-checkNoDuplicateDeweyNumbers();
 
 if (errors.length === 0) {
     console.log('✅ Architecture checks passed.');

@@ -23,7 +23,7 @@ export function openHelpPanel(docPath: string, launcherPanel: vscode.WebviewPane
     const cmdEntries  = cmdIds
         .map(id => CATALOG.find(c => c.id === id))
         .filter((c): c is CmdEntry => !!c)
-        .map(c => ({ id: c.id, title: c.title, description: c.description, dewey: c.dewey }));
+        .map(c => ({ id: c.id, title: c.title, description: c.description }));
 
     const h1Match    = markdown.match(/^#\s+(.+)$/m);
     const featureName = h1Match ? h1Match[1].replace(/^feature:\s*/i, '') : path.basename(docPath, '.README.md');

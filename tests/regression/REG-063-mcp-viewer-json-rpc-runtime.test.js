@@ -76,7 +76,7 @@ function flush() {
             totalCommands: 1,
             matchCount: 1,
             commands: [
-              { id: 'cvs.mcp.viewer.open', title: 'Mcp: Viewer: Open', description: 'Open the viewer', tags: [], group: 'MCP', dewey: '', scope: 'global' },
+              { id: 'cvs.mcp.viewer.open', title: 'Mcp: Viewer: Open', description: 'Open the viewer', tags: [], group: 'MCP', scope: 'global' },
             ],
           };
         }

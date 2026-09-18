@@ -74,7 +74,6 @@ function buildCard(
         desc:  cmd.description,
         scope: scopeMeta.title,
         tags:  cmd.tags.join(', '),
-        dewey: cmd.dewey,
         group,
     }));
     // In-depth, actionable tooltip for run button
@@ -99,7 +98,7 @@ function buildCard(
         `- If the result is not as expected, check the log for error details and next steps.`,
         '',
         `Scope: ${scopeMeta.label} — ${scopeMeta.title}`,
-        `Group: ${group}${cmd.dewey ? `\nDewey: ${cmd.dewey}` : ''}`
+        `Group: ${group}`
       ].join('\n');
     }
     return `<div class="cmd-card" data-id="${esc(cmd.id)}" data-group="${esc(group)}" data-tags="${esc(cmd.tags.join(' '))}" data-scope="${esc(cmd.scope)}" tabindex="0" role="article" aria-label="${esc(cmd.title)}">
@@ -107,7 +106,6 @@ function buildCard(
   ${breadcrumb}
   <div class="cmd-header">
     <h1 class="cmd-title">${esc(cmd.title)}</h1>
-    <span class="cmd-dewey" title="Dewey catalogue number: ${esc(cmd.dewey)}">${esc(cmd.dewey)}</span>
   </div>
   <p class="cmd-desc">${esc(liveSummary)}</p>
   <div class="cmd-status">
@@ -302,7 +300,6 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .bc-s{color:rgba(255,255,255,0.3);flex-shrink:0;margin:0 1px}
 .cmd-header{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
 .cmd-title{font-weight:700;font-size:0.92em;flex:1;margin:0;line-height:1.3}
-.cmd-dewey{font-family:var(--vscode-editor-font-family,'monospace');font-size:9px;color:var(--vscode-descriptionForeground);background:var(--vscode-editor-background);border:1px solid var(--vscode-panel-border);border-radius:3px;padding:1px 5px;white-space:nowrap;opacity:0.75;letter-spacing:0.03em}
 .cmd-desc{font-size:11px;line-height:1.5;opacity:0.85;flex:1}
 .cmd-status{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .cmd-status-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--vscode-descriptionForeground)}
@@ -1098,8 +1095,6 @@ function showF1Modal(jsonStr) {
       '<div class="f1-section"><div class="f1-label">Group</div>' +
         '<div class="f1-value">' + (d.group||'').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div></div>' +
       (tagsHtml ? '<div class="f1-section"><div class="f1-label">Tags</div><div class="f1-tags">' + tagsHtml + '</div></div>' : '') +
-      '<div class="f1-section"><div class="f1-label">Catalogue number</div>' +
-        '<div class="f1-value" style="font-family:monospace">' + (d.dewey||'') + '</div></div>' +
       '<div class="f1-actions">' +
         '<button class="f1-run-btn" data-action="f1-run" data-id="' + (d.id||'').replace(/"/g,'&quot;') + '" title="Run this command now">Run now</button>' +
         '<button class="f1-dismiss" data-action="close-f1">Close</button>' +

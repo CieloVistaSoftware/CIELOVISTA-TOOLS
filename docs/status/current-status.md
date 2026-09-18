@@ -8,34 +8,29 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
-**Task:** #707 stage 3, the last stage: delete what was left of the Dewey docid system.
-Branch `feat/707-stage3-delete-dewey`, PR closes #707.
+**Task:** #787: retire the command launcher's per-command Dewey numbers (the follow-up
+to #707). Branch `feat/787-retire-command-dewey`, PR closes #787.
 
-**Deleted:**
-- 8 MCP tools: lookup_dewey, migrate_dewey, list_old_dewey, refresh_doc_ledger,
-  validate_doc, list_doc_violations, normalize_doc, get_doc_by_identity, with their
-  schemas and every helper only they used (catalog-helpers.ts 1567 to ~660 lines).
-- The MCP Endpoint Viewer's six matching tabs, their HTTP/JSON-RPC handlers, and
-  active_markdown / list_markdown_paths (only the validate/normalize forms used them).
-- CatalogCard.dewey and the scanner code that filled it; help-utils now returns help
-  markdown only.
-- Doc Intelligence's subject/category mismatch check (it compared the Dewey subject
-  number with the category number; nothing else).
-- tests/unit/doc-contract.test.ts (+ its rebuild step), REG-138, REG-027 (docid
-  collisions), REG-111 (bottom frontmatter), tests/dewey-lookup-mcp.test.js,
-  scripts/backfill-doc-contract.mjs, fix-docid-collisions.js, migrate-docid.js,
-  build-frontmatter-viewer.js.
-- The 13-field trailer on CLAUDE.md, copilot-rules.md and
-  scripts/audit-test-coverage.README.md (now the three-field top block) and on
-  CHANGELOG.md (no frontmatter: the marketplace renders any block as an H2).
+**Removed:**
+- The `dewey` field on all 130 catalog.ts entries and on `CmdEntry`.
+- Every display: the launcher card badge (.cmd-dewey) and its CSS, the card tooltip
+  and tooltip-builder lines, the F1 "Catalogue number" row, the help panel badge
+  (.qa-dewey) and its CSS, the `dewey` field in `list_cvt_commands` and its
+  description, and the MCP Endpoint Viewer's number column and sort key.
+- The checks that only enforced the numbers: required field + duplicates in
+  tests/command-validation.test.js and tests/catalog-integrity.test.js,
+  tests/catalog-dewey-uniqueness.test.js (deleted), check-architecture.js check 3,
+  verify-symbol-index.mjs SYM-036/037 (SYM-032 keeps id/title/group).
+- REG-033 (fully covered by REG-159) and the dead scripts patch-help-docs.js,
+  print-npm-deweys.js and the one-shot create-github-issues.ps1.
+- Nothing sorted by the numbers: the launcher shows catalog order within each group;
+  the viewer column was only a click-to-sort option.
 
-**Guard:** REG-159 starts the real MCP server in a sandbox and checks tools/list, and
-fails on any dewey/docid in src/ or mcp-server/src outside the command launcher.
+**Guard:** REG-159 has no allowances left. src/ and mcp-server/src may not mention
+dewey or docid at all; tests/ and scripts/ may not mention dewey outside REG-159's
+own history note.
 
-**Open question, filed:** #787, whether the command launcher's per-command Dewey
-numbers go too. They are display-only; REG-159 caps the files that show them.
-
-**Next step:** confirm the PR merged and `npm run rebuild` ran. Then #787.
+**Next step:** confirm the PR merged and `npm run rebuild` ran.
 
 **Watch out for:**
 - A Python patch script must use `newline=''` on **both** read and write, or it

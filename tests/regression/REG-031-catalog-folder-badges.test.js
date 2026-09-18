@@ -1,8 +1,8 @@
 // Copyright (c) CieloVista Software. All rights reserved.
-// REG-031: Doc Catalog cards carry a clickable FOLDER badge, not a Dewey number
+// REG-031: Doc Catalog cards carry a clickable FOLDER badge, not a doc number
 //
-// History: REG-031 was written for #330 ("dewey badges must be clickable").
-// #707 retired the Dewey system; stage 2 regrouped the catalog by project and
+// History: REG-031 was written for #330 (the number badges must be clickable).
+// #707 retired the doc-numbering system; stage 2 regrouped the catalog by project and
 // folder, the rule docs/ already follows ("the folder is the category"). The
 // badge a user clicks is now the doc's folder, and clicking it narrows the
 // catalog to that project's folder, through the same toolbar filters.
@@ -71,12 +71,12 @@ const byTitle = t => cards.find(c => c.title === t);
 check('scanner records each doc\'s folder relative to its project',
     byTitle('Alpha Setup') && byTitle('Alpha Setup').folder === 'docs/using' && byTitle('Alpha Readme').folder === '',
     cards.map(c => `${c.title}=${JSON.stringify(c.folder)}`).join(', '));
-check('scanner no longer assigns a Dewey category number', cards.every(c => !('categoryNum' in c)));
+check('scanner no longer assigns a category number', cards.every(c => !('categoryNum' in c)));
 
 const payload = buildCatalogInitPayload(cards);
 const html = payload.html;
 
-check('no Dewey numbers are rendered', !/\b\d{3}\.\d{3}\b/.test(html) && !/card-dewey|cat-dewey|data-dewey-prefix/.test(html),
+check('no doc numbers are rendered', !/\b\d{3}\.\d{3}\b/.test(html),
     (html.match(/\b\d{3}\.\d{3}\b/) || [])[0]);
 const sectionOrder = [...html.matchAll(/<section class="cat-section" data-category="([^"]+)"/g)].map(m => m[1]);
 check('projects are ordered by name, not by any docid number', sectionOrder.join(',') === 'alpha,zeta', sectionOrder.join(','));
@@ -116,8 +116,8 @@ if (!setupBadge) {
     check('…and that folder in the section filter', d.getElementById('section-filter').value === 'docs', d.getElementById('section-filter').value);
     check('…and only that project\'s folder stays visible', visible.length === 1 && visible[0] === 'alpha:docs', visible.join(', '));
 }
-const page = shell;
-check('catalog.html has no Dewey handling left', !/dewey/i.test(page));
+// catalog.html, like everything in src/, may not mention the retired system
+// at all; REG-159 checks that.
 
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log('─'.repeat(60));
