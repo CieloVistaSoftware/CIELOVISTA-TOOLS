@@ -40,6 +40,7 @@ inventory is reviewed.
 - 4 `.README.md` files documenting deleted features removed
 - README Generator wrote AI-generated READMEs with no review and could overwrite a README created after the scan; every generated README now goes through the shared review panel (`src/shared/file-review.ts`, moved from README Compliance), and is created only if it still does not exist (#798)
 - README Generator attached a new message listener on every scan, so one click generated once per scan so far (#807)
+- `npm run test:watch` ran 17 of 280 test files from its own hand-kept list and counted a "not compiled" skip as a pass; it now runs `scripts/run-unit-tests.js` and `scripts/run-regression-tests.js` and records their per-result lines (#816)
 
 ---
 
