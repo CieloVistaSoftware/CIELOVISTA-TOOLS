@@ -1,19 +1,3 @@
-/**
- * Pure function: executes all accepted findings in the given array.
- * Returns the number of findings executed.
- * This is testable outside VS Code extension host.
- */
-export async function executeAcceptedFindings(findings: Finding[]): Promise<number> {
-    let done = 0;
-    for (const finding of findings) {
-        if (finding.decision === 'accepted') {
-            const ok = await executeFinding(finding);
-            finding.decision = ok ? 'accepted' : 'pending';
-            done++;
-        }
-    }
-    return done;
-}
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 

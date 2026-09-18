@@ -46,6 +46,9 @@
 //   6. The #768 specifics: the two deleted modules stay deleted,
 //      cvs.config.edit is not contributed, and playwright-check.ts is wired
 //      and registers cvs.audit.playwrightSetup.
+//   7. Every .ts file under mcp-server/src/ is reachable from the MCP
+//      server's entry points (the dist/*.js files its package.json names).
+//      #775 found mcp-server/src/types/index.ts imported by nothing.
 //
 // Every allow-list entry that no longer applies (the file became reachable or
 // was deleted) fails the test, so the lists only shrink.
@@ -85,25 +88,11 @@ const HELPER_MODULES = new Map([
     ['src/features/readme-compliance.ts', 'compatibility shim for tests'],
 ]);
 
-// Rule 2. Files under src/ that nothing reachable imports. Wire or delete each
-// one under #775, and remove its entry in the same change.
+// Rule 2. Files under src/ that nothing reachable imports, each under the
+// issue that will wire or delete it. #775 emptied it: all 16 files it listed
+// were dead copies, TODO stubs or never-imported helpers, and were deleted.
+// Keep it empty. A new entry needs an open issue number beside it.
 const DEAD_FILES_ALLOWED = new Set([
-    'src/features/doc-auditor/audit.ts',               // #775
-    'src/features/doc-auditor/collector.ts',           // #775
-    'src/features/doc-auditor/commands.ts',            // #775
-    'src/features/doc-auditor/registry.ts',            // #775
-    'src/features/doc-intelligence/engine.ts',         // #775
-    'src/features/readme-compliance/checker.ts',       // #775
-    'src/features/readme-compliance/fixer.ts',         // #775
-    'src/features/readme-compliance/registry.ts',      // #775
-    'src/features/readme-compliance/scanner.ts',       // #775
-    'src/features/readme-compliance/sections.ts',      // #775
-    'src/features/readme-compliance/types.ts',         // #775
-    'src/shared/content-viewer-catalog.ts',            // #775
-    'src/shared/docs-audit-utils.ts',                  // #775
-    'src/shared/priority-sync.ts',                     // #775
-    'src/shared/status-indicator.ts',                  // #775
-    'src/shared/webview-template-engine.ts',           // #775
 ]);
 
 // ── Import graph ─────────────────────────────────────────────────────────────
@@ -134,20 +123,26 @@ function importsOf(file) {
     return specs;
 }
 
-const reachable = new Set();
-const queue = [EXTENSION];
-while (queue.length) {
-    const file = queue.pop();
-    if (reachable.has(file)) { continue; }
-    reachable.add(file);
-    for (const spec of importsOf(file)) {
-        const target = resolveImport(file, spec);
-        // Specifiers that resolve to nothing are text inside generated-code
-        // templates (mcp-server-scaffolder, codebase-auditor); tsc owns real
-        // broken imports (REG-003).
-        if (target && target.startsWith(SRC + path.sep)) { queue.push(target); }
+/** Every .ts file under root that the entry files reach through relative imports. */
+function reachableFrom(entries, root) {
+    const seen = new Set();
+    const queue = [...entries];
+    while (queue.length) {
+        const file = queue.pop();
+        if (seen.has(file)) { continue; }
+        seen.add(file);
+        for (const spec of importsOf(file)) {
+            const target = resolveImport(file, spec);
+            // Specifiers that resolve to nothing are text inside generated-code
+            // templates (mcp-server-scaffolder, codebase-auditor); tsc owns real
+            // broken imports (REG-003).
+            if (target && target.startsWith(root + path.sep)) { queue.push(target); }
+        }
     }
+    return seen;
 }
+
+const reachable = reachableFrom([EXTENSION], SRC);
 
 const allSrc = walkFiles(SRC, { extensions: ['.ts'] }).filter(f => !f.endsWith('.d.ts'));
 const isReachable = file => reachable.has(path.resolve(file));
@@ -186,7 +181,7 @@ check('rule 1 allow-list is current (every helper exists and is still unreachabl
 
 const deadFiles = allSrc.filter(f => !isReachable(f)).map(rel)
     .filter(r => !DEAD_FILES_ALLOWED.has(r) && !HELPER_MODULES.has(r));
-check(`rule 2: every src/ file is reachable from extension.ts (${DEAD_FILES_ALLOWED.size} allow-listed under #775)`,
+check(`rule 2: every src/ file is reachable from extension.ts (${DEAD_FILES_ALLOWED.size} allow-listed)`,
     deadFiles.length === 0, `imported by nothing extension.ts reaches: ${list(deadFiles)}`);
 const staleDead = [...DEAD_FILES_ALLOWED].filter(r => !fs.existsSync(path.join(ROOT, r)) || isReachable(path.join(ROOT, r)));
 check('rule 2 allow-list is current (every entry exists and is still unreachable)',
@@ -276,6 +271,23 @@ check('#768: playwright-check.ts is reachable and registers cvs.audit.playwright
 check('#768: the Playwright Test Setup audit check sends "Fix Now" to cvs.audit.playwrightSetup',
     auditActions.some(([file, id]) => file.endsWith('checks/test-coverage.ts') && id === 'cvs.audit.playwrightSetup'),
     list(auditActions.filter(([file]) => file.endsWith('checks/test-coverage.ts')).map(([, id]) => id)));
+
+// ── 7. Every .ts file under mcp-server/src/ is reachable (#775) ──────────────
+
+// The MCP server's entry points are the dist/*.js files its package.json names
+// (main, bin, and the start scripts). Each maps to the src/*.ts it compiles from.
+const MCP_ROOT = path.join(ROOT, 'mcp-server');
+const MCP_SRC  = path.join(MCP_ROOT, 'src');
+const mcpPkgText = fs.readFileSync(path.join(MCP_ROOT, 'package.json'), 'utf8');
+const mcpEntries = [...new Set([...mcpPkgText.matchAll(/dist[/]([A-Za-z0-9_./-]+)[.]js/g)].map(m => m[1]))]
+    .map(name => path.join(MCP_SRC, name + '.ts'))
+    .filter(f => fs.existsSync(f));
+const mcpReachable = reachableFrom(mcpEntries, MCP_SRC);
+const mcpAll  = walkFiles(MCP_SRC, { extensions: ['.ts'] }).filter(f => !f.endsWith('.d.ts'));
+const mcpDead = mcpAll.filter(f => !mcpReachable.has(path.resolve(f))).map(rel);
+check(`rule 7: every mcp-server/src file is reachable from its entry points (${mcpEntries.map(rel).join(', ')}; ${mcpReachable.size} of ${mcpAll.length})`,
+    mcpEntries.length >= 2 && mcpReachable.size > mcpEntries.length && mcpDead.length === 0,
+    mcpDead.length ? `imported by nothing the MCP server reaches: ${list(mcpDead)}` : 'found too few entry points or reachable files; the patterns no longer match');
 
 console.log('-'.repeat(64));
 console.log(`${passed} passed, ${failed} failed`);

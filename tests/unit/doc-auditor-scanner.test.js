@@ -2,10 +2,9 @@
  * tests/unit/doc-auditor-scanner.test.js
  *
  * Unit tests for src/features/doc-auditor/scanner.ts
- * Tests collectDocs() — the doc-auditor's own scanner (separate from shared/docs-audit-utils.ts).
- *
- * The doc-auditor scanner has a slightly different SKIP_DIRS list and is the
- * one used by the actual audit runner, so it gets its own test suite.
+ * Tests collectDocs(), the scanner the doc-auditor's runner and commands use.
+ * (An older copy in shared/docs-audit-utils.ts had a test of its own but no
+ * caller; #775 deleted both.)
  *
  * Covers:
  *   collectDocs()  — recursive markdown collection

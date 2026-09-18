@@ -33,7 +33,6 @@ const ALL_TESTS = [
     'tests/launcher-test-coverage.test.js',
     'tests/unit/background-health-runner.test.js',
     'tests/unit/webview-utils.test.js',
-    'tests/unit/docs-audit-utils.test.js',
     'tests/unit/error-log.test.js',
     'tests/unit/error-log-utils.test.js',
     'tests/unit/shared-source.test.js',
