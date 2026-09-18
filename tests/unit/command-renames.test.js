@@ -98,38 +98,45 @@ test('all command IDs use cvs. prefix or standard vscode prefix', () => {
 // ── buildGroupedCommands grouping logic ──────────────────────────────────
 console.log('\n-- Browse All: buildGroupedCommands grouping logic --');
 
-// Replicate the grouping logic from home-page.ts for pure unit testing.
-function buildGroupedCommands(commands, registered) {
-    const visible  = commands.filter(cmd => registered.has(cmd.command));
-    const grouped  = {};
-    for (const cmd of visible) {
-        if (!cmd.title || typeof cmd.title !== 'string') { continue; }
-        const match  = cmd.title.match(/^([\w\s\-]+:)/);
-        const prefix = match ? match[1].trim() : 'Other';
-        if (!grouped[prefix]) { grouped[prefix] = []; }
-        grouped[prefix].push(cmd);
-    }
-    return grouped;
+// The real buildGroupedCommands from home-page.ts, loaded from the per-module
+// test build. Until #819 this section ran a copy written here. The real one
+// reads the contributed commands from package.json itself.
+const HOME_OUT = path.resolve(__dirname, '../../out-test/features/home-page.js');
+if (!fs.existsSync(HOME_OUT)) {
+    console.error('FAIL: out-test/features/home-page.js not built. Run through node scripts/run-unit-tests.js, which builds it.');
+    process.exit(1);
 }
+const Module   = require('module');
+const origLoad = Module._load;
+Module._load = function (req) { return req === 'vscode' ? {} : origLoad.apply(this, arguments); };
+const { buildGroupedCommands } = require(HOME_OUT);
+Module._load = origLoad;
 
 const ALL_CMD_IDS = new Set(cmds.map(c => c.command));
 
 test('buildGroupedCommands groups by category prefix', () => {
-    const grouped = buildGroupedCommands(cmds, ALL_CMD_IDS);
-    ok(Object.keys(grouped).length > 0, 'no groups produced');
+    const grouped = buildGroupedCommands(ALL_CMD_IDS);
+    ok(Object.keys(grouped).length > 1, 'no prefix groups produced');
+    const total = Object.values(grouped).reduce((n, a) => n + a.length, 0);
+    eq(total, cmds.length, 'every registered command must land in exactly one group');
+    for (const [prefix, list] of Object.entries(grouped)) {
+        if (prefix === 'Other') { continue; }
+        ok(list.every(c => c.title.startsWith(prefix)), `a command in group "${prefix}" does not carry that prefix`);
+    }
 });
 
 test('buildGroupedCommands only includes registered commands', () => {
     const partial = new Set(['cvs.tools.home']);
-    const grouped = buildGroupedCommands(cmds, partial);
+    const grouped = buildGroupedCommands(partial);
     const total   = Object.values(grouped).reduce((n, a) => n + a.length, 0);
     eq(total, 1, `expected 1 command, got ${total}`);
 });
 
-test('buildGroupedCommands strips "Other" label for unmatched prefixes', () => {
-    const noPrefix = [{ command: 'cvs.noop', title: 'NoPrefix' }];
-    const grouped  = buildGroupedCommands(noPrefix, new Set(['cvs.noop']));
-    ok(grouped['Other'], 'unmatched title should land in Other group');
+test('buildGroupedCommands puts a title with no prefix in the "Other" group', () => {
+    const unprefixed = cmds.find(c => !/^[\w\s\-]+:/.test(c.title));
+    ok(unprefixed, 'package.json has no command title without a prefix to check with');
+    const grouped = buildGroupedCommands(new Set([unprefixed.command]));
+    ok(grouped['Other'] && grouped['Other'][0].command === unprefixed.command, 'unmatched title should land in Other group');
 });
 
 // ── Result ────────────────────────────────────────────────────────────────
