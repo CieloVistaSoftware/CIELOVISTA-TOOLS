@@ -14,7 +14,6 @@ optional.
 
 - **[Cutting a release](release-guide.md)** — Version bump, changelog, packaging and install verification.
 - **[Opening an issue](opening-issues.md)** — The required first step for every fix, and what a good issue contains.
-- **[Priority sync](priority-sync.md)** — How issue priority is mirrored between GitHub and the extension.
 - **[Regression log](regression-log.md)** — What each REG-NNN test guards, and the bug that caused it to exist.
 - **[The issue closure gate](issue-closure-gate.md)** — What must be true before an issue is allowed to close.
 
