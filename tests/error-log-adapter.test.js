@@ -1,21 +1,46 @@
 // Stub vscode (we're outside the extension host) and exercise the adapter.
+//
+// The test owns its environment (#736). It used to point the adapter at the
+// repo checkout and require 50+ entries in the developer's real
+// .vscode/logs/cielovista-errors.json, so it failed on every clean checkout
+// and on CI. It now writes its own utils-style log into a temp workspace and
+// runs with that workspace as both the VS Code workspace folder and cwd.
 'use strict';
 const Module = require('module');
 const path   = require('path');
 const fs     = require('fs');
+const os     = require('os');
 
-// Stub vscode.workspace.workspaceFolders to point at the cielovista-tools
-// repo, since that's where .vscode/logs/cielovista-errors.json lives.
 // Stubs are written to a private temp dir, never into tests/ (#734): copies of
 // them had been committed, so every run of this test deleted tracked files.
-const STUB_DIR = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cvt-adapter-'));
+const STUB_DIR  = fs.mkdtempSync(path.join(os.tmpdir(), 'cvt-adapter-'));
+const WORKSPACE = path.join(STUB_DIR, 'workspace');
+const LOG_DIR   = path.join(WORKSPACE, '.vscode', 'logs');
+fs.mkdirSync(LOG_DIR, { recursive: true });
+
+// Utils-style entries (shared/error-log-utils.ts ErrorEntry), as the
+// extension writes them to .vscode/logs/cielovista-errors.json.
+const FIXTURE = [
+    {
+        id: 'err_1a2b', timestamp: '2026-01-01T10:00:00.000Z', lastOccurred: '2026-01-01T10:05:00.000Z',
+        count: 3, message: 'Unexpected token < in JSON at position 0',
+        stacktrace: 'SyntaxError: Unexpected token\n    at parse (C:\\repo\\out\\shared\\reader.js:12:34)',
+        context: 'doc-catalog', solved: false,
+    },
+    {
+        id: 'err_3c4d', timestamp: '2026-01-02T09:00:00.000Z', lastOccurred: '2026-01-02T09:00:00.000Z',
+        count: 1, message: 'ENOENT: no such file or directory, open missing.md',
+        stacktrace: 'Error: ENOENT\n    at readFileSync (/repo/out/shared/files.js:7:9)',
+        context: 'doc-preview', solved: false,
+    },
+];
+fs.writeFileSync(path.join(LOG_DIR, 'cielovista-errors.json'), JSON.stringify(FIXTURE, null, 2), 'utf8');
+
 const fakePath = path.join(STUB_DIR, 'fake-vscode-adapter.js');
 fs.writeFileSync(
     fakePath,
-    `const path = require('path');
-     const repoRoot = ${JSON.stringify(path.resolve(__dirname, '..'))};
-     module.exports = {
-         workspace: { workspaceFolders: [{ uri: { fsPath: repoRoot }, name: 'cielovista-tools' }] },
+    `module.exports = {
+         workspace: { workspaceFolders: [{ uri: { fsPath: ${JSON.stringify(WORKSPACE)} }, name: 'fixture' }] },
          window: {}, ViewColumn: { One: 1 }, Uri: { parse: s => ({ toString: () => s }) }, env: {}
      };`,
     'utf8'
@@ -26,51 +51,55 @@ Module._resolveFilename = function (request, parent, ...rest) {
     return realResolve.call(this, request, parent, ...rest);
 };
 
-// Stub the output-channel module (legacy error-log.ts pulls it in)
-const ocPath = path.join(STUB_DIR, 'fake-output-channel.js');
-fs.writeFileSync(ocPath, `module.exports = { getChannel: () => ({ appendLine: () => {} }), log: () => {} };`, 'utf8');
+// The adapter also reads <cwd>/.vscode/logs; run from the fixture workspace so
+// the developer's real log is never read.
+const ROOT = path.resolve(__dirname, '..');
+process.chdir(WORKSPACE);
 
-const adapterPath = path.resolve(__dirname, '..', 'out-test', 'shared', 'error-log-adapter.js');
+const adapterPath = path.join(ROOT, 'out-test', 'shared', 'error-log-adapter.js');
 const adapter = require(adapterPath);
+
+let failed = 0;
+function check(label, cond, detail) {
+    if (cond) { console.log('  PASS - ' + label); }
+    else      { console.log('  FAIL - ' + label + (detail ? ': ' + detail : '')); failed++; }
+}
 
 console.log('=== Adapter integration test ===');
 
 const errors = adapter.getErrors();
 console.log(`getErrors() returned ${errors.length} entries`);
 
-if (errors.length === 0) {
-    console.log('FAIL — expected errors from cielovista-errors.json (which has ~50+ entries on disk)');
-    fs.unlinkSync(fakePath); fs.unlinkSync(ocPath);
-    process.exit(1);
-}
-
-console.log('First entry shape:');
-const e = errors[0];
 const expectedFields = ['id','timestamp','type','prefix','context','command','message','stack','filename','lineno','colno','raw'];
-for (const f of expectedFields) {
-    const v = e[f];
-    const display = (typeof v === 'string' ? v.slice(0, 60) : String(v));
-    console.log(`  ${f.padEnd(10)} ${typeof v} : ${display}`);
+const json = errors.find(e => e.raw === FIXTURE[0].message);
+const io   = errors.find(e => e.raw === FIXTURE[1].message);
+
+check('both fixture entries are returned', !!json && !!io);
+if (json && io) {
+    const missing = expectedFields.filter(f => !(f in json));
+    check('entry has every field the viewer expects', missing.length === 0, missing.join(', '));
+    check('timestamp is lastOccurred', json.timestamp === FIXTURE[0].lastOccurred, json.timestamp);
+    check('type inferred from message (JSON)', json.type === 'JSON_PARSE_ERROR', json.type);
+    check('type inferred from message (file I/O)', io.type === 'FILE_IO_ERROR', io.type);
+    check('prefix built from context', json.prefix === '[doc-catalog]', json.prefix);
+    check('repeat count shown in message', json.message.includes('3'), json.message);
+    check('single occurrence message unchanged', io.message === FIXTURE[1].message, io.message);
+    check('stack top parsed (filename)', io.filename === 'files.js', io.filename);
+    check('stack top parsed (line/col)', io.lineno === 7 && io.colno === 9, `${io.lineno}:${io.colno}`);
+    check('sorted by timestamp ascending', errors.indexOf(json) < errors.indexOf(io));
 }
 
-// Validate shape — the viewer expects all these fields
-const missing = expectedFields.filter(f => !(f in e));
-if (missing.length > 0) {
-    console.log(`FAIL — missing fields: ${missing.join(', ')}`);
-    fs.unlinkSync(fakePath); fs.unlinkSync(ocPath);
+const again = adapter.getErrors();
+check('reading twice returns the same count (no duplication)', again.length === errors.length);
+
+check('getLogSourceSummary counts the workspace log',
+    /workspace: 2\b/.test(adapter.getLogSourceSummary()), adapter.getLogSourceSummary());
+
+process.chdir(ROOT);
+fs.rmSync(STUB_DIR, { recursive: true, force: true });
+
+if (failed) {
+    console.log(`\nFAIL — ${failed} check(s) failed`);
     process.exit(1);
 }
-
-console.log('');
-console.log(`Sample of last 3 entries (newest):`);
-errors.slice(-3).forEach(e => console.log(`  [${e.timestamp.slice(0,19)}] ${e.prefix} ${e.message.slice(0,80)}`));
-
-console.log('');
-console.log('=== getLogPath ===');
-console.log(`  ${adapter.getLogPath()}`);
-
-console.log('');
-console.log('PASS — adapter returns', errors.length, 'unified entries with the viewer-expected shape');
-
-// Cleanup
-fs.unlinkSync(fakePath); fs.unlinkSync(ocPath);
+console.log('\nPASS — adapter returns unified entries with the viewer-expected shape');

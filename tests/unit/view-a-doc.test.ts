@@ -108,12 +108,16 @@ test('buildViewDocBrowserHtml function present', () => {
 test('Script extracts successfully', () => {
     assert.ok(scriptContent && scriptContent.length > 200, 'script extraction failed');
 });
+// /openfolder is an action route: it passes the token + registered-project
+// gate, then runViewServerAction() opens the folder (#752).
 test('Source has /openfolder HTTP route', () => {
-    assert.ok(src.includes("pathname === '/openfolder'"), '/openfolder route missing');
+    const m = src.match(/const ACTION_ROUTES = new Set\(\[([^\]]*)\]\)/);
+    assert.ok(m && m[1].includes("'/openfolder'"), '/openfolder route missing');
 });
 test('Source /openfolder calls openProjectFolderSmart (opens folder in new window)', () => {
-    const idx = src.indexOf("pathname === '/openfolder'");
-    const region = src.slice(idx, idx + 600);
+    const idx = src.indexOf('function runViewServerAction(');
+    const region = src.slice(idx, idx + 400);
+  assert.ok(region.includes("route === '/openfolder'"), '/openfolder not dispatched');
   assert.ok(region.includes('openProjectFolderSmart'), 'openProjectFolderSmart not called in /openfolder handler');
 });
 test('Source openProjectFolderSmart calls vscode.openFolder with forceNewWindow:true', () => {
@@ -141,6 +145,10 @@ test('Clicking folder button calls fetch with /openfolder URL', () => {
     btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     assert.ok(fetchCalls.length >= 1, 'fetch not called after folder-btn click');
     assert.ok(fetchCalls[0].includes('openfolder'), `URL should contain "openfolder". Got: "${fetchCalls[0]}"`);
+});
+test('Folder button fetch URL carries the server token (#752)', () => {
+    const { fetchCalls } = ctx;
+    assert.ok(fetchCalls[0] && /&(t|\$\{SERVER_TOKEN_PARAM\})=/.test(fetchCalls[0]), `URL must send the token. Got: "${fetchCalls[0]}"`);
 });
 test('Folder button fetch URL encodes the folder path', () => {
     const { fetchCalls } = ctx;

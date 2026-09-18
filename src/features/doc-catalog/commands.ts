@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { log } from '../../shared/output-channel';
 import { loadRegistry } from './registry';
-import { loadArchiveEntries, restoreDoc } from './archive';
+import { loadArchivedPaths, loadArchiveEntries, archiveDoc, restoreDoc } from './archive';
 import { loadFinishedEntries, markAsFinished, restoreFromFinished } from './finished';
 import { scanForCards, resetCardCounter } from './scanner';
 import { buildProjectDeweyMap, lookupDewey } from './categories';
@@ -18,8 +18,8 @@ import { buildCatalogHtml, buildCatalogInitPayload } from './html';
 import { openDocPreview } from '../../shared/doc-preview';
 import { mdToHtml } from '../../shared/md-renderer';
 import { getNonce } from '../../shared/webview-utils';
-import { IMAGE_ROUTE, rewriteImagesToRoute, serveImageRequest } from '../../shared/local-image-route';
-import { createServerToken } from '../../shared/server-token';
+import { IMAGE_ROUTE, rewriteImagesToRoute, serveImageRequest, resolveAllowedPath } from '../../shared/local-image-route';
+import { createServerToken, requestHasToken, isOwnHost, SERVER_TOKEN_PARAM } from '../../shared/server-token';
 import type { CatalogCard } from './types';
 
 const FEATURE = 'doc-catalog';
@@ -101,15 +101,18 @@ export async function buildCatalog(forceRebuild = false): Promise<CatalogCard[] 
         { location: vscode.ProgressLocation.Notification, title: 'Building doc catalog\u2026', cancellable: false },
         async (progress) => {
             const deweyMap = buildProjectDeweyMap(registry.projects.map(p => p.name));
+            // Archived docs stay out of the catalog. e29f04c dropped this
+            // argument, so an archived doc came back on the next rebuild (#736).
+            const archivedPaths = loadArchivedPaths();
             const cards: CatalogCard[] = scanForCards(
                 registry.globalDocsPath, 'global', registry.globalDocsPath,
-                lookupDewey(deweyMap, 'global').num
+                lookupDewey(deweyMap, 'global').num, 3, archivedPaths
             );
             for (const project of registry.projects) {
                 progress.report({ message: `Scanning ${project.name}\u2026` });
                 if (fs.existsSync(project.path)) {
                     const dewey = lookupDewey(deweyMap, project.name);
-                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num));
+                    cards.push(...scanForCards(project.path, project.name, project.path, dewey.num, 3, archivedPaths));
                 }
             }
             cards.sort((a, b) => {
@@ -341,6 +344,27 @@ function attachMessageHandler(panel: vscode.WebviewPanel): void {
                 newIssueForProject(msg.project as string | undefined);
                 break;
             }
+            // Posted by the catalog's Archive button (#238, #239): the host
+            // asks, because confirm() always returns false inside a webview.
+            // e29f04c deleted this case, so Archive silently did nothing (#736).
+            case 'archive-doc-confirm': {
+                const filePath = msg.data as string;
+                const docTitle = msg.title as string;
+                const projName = msg.project as string;
+                if (!filePath) { break; }
+                const label = docTitle || filePath;
+                const choice = await vscode.window.showWarningMessage(
+                    `Archive "${label}"?\n\nIt will be hidden from the catalog. Restore via Catalog: View Archived Docs.`,
+                    { modal: true },
+                    'Archive'
+                );
+                if (choice !== 'Archive') { break; }
+                archiveDoc(filePath, docTitle, projName);
+                clearCachedCards();
+                log(FEATURE, `Archived: ${filePath}`);
+                void panel.webview.postMessage({ command: 'remove-card', filePath });
+                break;
+            }
             case 'finish-doc-confirm': {
                 const fp      = msg.data as string;
                 const title   = msg.title as string;
@@ -428,7 +452,7 @@ function _escV(s: string): string {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function rewriteDocLinks(html: string, filePath: string, port: number, backQ = ''): string {
+function rewriteDocLinks(html: string, filePath: string, port: number, token: string, backQ = ''): string {
     const dir = path.dirname(filePath);
     return html.replace(/href="([^"]*)"/g, (match, href) => {
         if (!href || href.startsWith('#') || /^(https?|vscode|mailto|data|ftp):/i.test(href)) {
@@ -436,7 +460,7 @@ function rewriteDocLinks(html: string, filePath: string, port: number, backQ = '
         }
         const resolved = path.resolve(dir, href);
         const qParam   = backQ ? `&q=${encodeURIComponent(backQ)}` : '';
-        return `href="http://127.0.0.1:${port}/doc?path=${encodeURIComponent(resolved)}${qParam}"`;
+        return `href="http://127.0.0.1:${port}/doc?path=${encodeURIComponent(resolved)}&${SERVER_TOKEN_PARAM}=${token}${qParam}"`;
     });
 }
 
@@ -506,7 +530,7 @@ document.getElementById('copy-path').addEventListener('click',function(){
 </html>`;
 }
 
-function buildViewDocBrowserHtml(cards: CatalogCard[], port: number): string {
+function buildViewDocBrowserHtml(cards: CatalogCard[], port: number, token: string): string {
     const byProject = new Map<string, CatalogCard[]>();
     for (const card of cards) {
         if (!byProject.has(card.projectName)) { byProject.set(card.projectName, []); }
@@ -600,8 +624,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 #viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
 #viewer-path{font-family:monospace;font-size:10px;color:#858585;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#btn-copy-path{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
-#btn-copy-path:hover{border-color:#0078d4;color:#d4d4d4}
+#btn-copy-path,#btn-open-vscode,#btn-set-cwd,#btn-explorer{background:#2d2d2d;color:#858585;border:1px solid #444;border-radius:3px;padding:2px 8px;cursor:pointer;font-size:10px;white-space:nowrap}
+#btn-copy-path:hover,#btn-open-vscode:hover,#btn-set-cwd:hover,#btn-explorer:hover{border-color:#0078d4;color:#d4d4d4}
 #doc-frame{flex:1;border:none;background:#1e1e1e;}
 #welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;gap:8px;}
 #welcome svg{opacity:.25}
@@ -638,7 +662,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
   <div id="viewer">
     <div id="viewer-bar">
       <span id="viewer-path">Select a document from the index</span>
-      <button id="btn-copy-path" style="display:none" title="Copy file path">&#128203; Copy Path</button>
+      <button id="btn-open-vscode" style="display:none" title="Open folder in VS Code">&#128193; VS Code</button>
+      <button id="btn-set-cwd"     style="display:none" title="Set terminal CWD to this folder">&#128196; Set CWD</button>
+      <button id="btn-explorer"    style="display:none" title="Reveal file in Explorer">&#128269; Explorer</button>
+      <button id="btn-copy-path"   style="display:none" title="Copy file path">&#128203; Copy Path</button>
     </div>
     <div id="welcome">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#888" stroke-width="2"/><line x1="11" y1="12" x2="29" y2="12" stroke="#888" stroke-width="1.5"/><line x1="11" y1="17" x2="29" y2="17" stroke="#888" stroke-width="1.5"/><line x1="11" y1="22" x2="22" y2="22" stroke="#888" stroke-width="1.5"/></svg>
@@ -654,6 +681,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 <script>
 (function(){
 var BASE='http://127.0.0.1:${port}';
+// Every action request carries this server's token (#752); the server
+// refuses one without it, so another web page cannot drive it.
+var TOKEN_Q='&${SERVER_TOKEN_PARAM}=${token}';
 var searchEl  = document.getElementById('search');
 var statEl    = document.getElementById('stat');
 var idxEl     = document.getElementById('index');
@@ -662,6 +692,9 @@ var frame     = document.getElementById('doc-frame');
 var welcome   = document.getElementById('welcome');
 var viewerPath= document.getElementById('viewer-path');
 var btnCopy   = document.getElementById('btn-copy-path');
+var btnVSCode   = document.getElementById('btn-open-vscode');
+var btnCwd      = document.getElementById('btn-set-cwd');
+var btnExplorer = document.getElementById('btn-explorer');
 var TOTAL     = ${totalDocs};
 var _currentPath = '';
 
@@ -714,9 +747,12 @@ function openDoc(docPath, linkEl) {
   // Update viewer bar
   viewerPath.textContent = docPath;
   btnCopy.style.display = '';
+  if (btnVSCode) { btnVSCode.style.display = ''; }
+  if (btnCwd)    { btnCwd.style.display = ''; }
+  if (btnExplorer) { btnExplorer.style.display = ''; }
 
   // Load in iframe
-  var docUrl = BASE + '/doc?path=' + encodeURIComponent(docPath);
+  var docUrl = BASE + '/doc?path=' + encodeURIComponent(docPath) + TOKEN_Q;
   frame.src = docUrl;
   frame.style.display = 'block';
   welcome.style.display = 'none';
@@ -735,10 +771,27 @@ document.addEventListener('click', function(e) {
   var lnk = e.target.closest('.doc-link');
   if (lnk) { e.preventDefault(); openDoc(lnk.dataset.path, lnk); return; }
   var btn = e.target.closest('.folder-btn');
-  if (btn) { e.preventDefault(); fetch(BASE + '/openfolder?path=' + encodeURIComponent(btn.dataset.folder)).catch(function(){}); return; }
+  if (btn) { e.preventDefault(); fetch(BASE + '/openfolder?path=' + encodeURIComponent(btn.dataset.folder) + TOKEN_Q).catch(function(){}); return; }
 });
 
 // \u2500\u2500 Copy path \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Toolbar actions (#261). e29f04c removed these buttons and their routes
+// without saying so; restored in #736.
+if (btnVSCode) { btnVSCode.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/open-in-vscode?path=' + encodeURIComponent(_currentPath) + TOKEN_Q).catch(function(){});
+  toast('Opening folder in VS Code…');
+}); }
+if (btnCwd) { btnCwd.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/set-cwd?path=' + encodeURIComponent(_currentPath) + TOKEN_Q).catch(function(){});
+  toast('Setting terminal CWD…');
+}); }
+if (btnExplorer) { btnExplorer.addEventListener('click', function() {
+  if (!_currentPath) { return; }
+  fetch(BASE + '/reveal?path=' + encodeURIComponent(_currentPath) + TOKEN_Q).catch(function(){});
+  toast('Revealing in Explorer…');
+}); }
 btnCopy.addEventListener('click', function() {
   if (!_currentPath) { return; }
   navigator.clipboard.writeText(_currentPath).then(function() {
@@ -800,6 +853,64 @@ searchEl.focus();
 </html>`;
 }
 
+/**
+ * Routes that act on the machine: open a folder, open a terminal, reveal a
+ * file. Each one goes through authorizeViewServerRequest() and nothing else.
+ */
+const ACTION_ROUTES = new Set(['/openfolder', '/open-in-vscode', '/set-cwd', '/reveal']);
+
+/**
+ * Folders the View-a-Doc server may act on or serve from: every registered
+ * project root plus the registry's global docs folder. The server decides
+ * them from the registry; a request never does.
+ */
+function viewServerRoots(): string[] {
+    const registry = loadRegistry();
+    if (!registry) { return []; }
+    return [registry.globalDocsPath, ...registry.projects.map(p => p.path)].filter(Boolean);
+}
+
+/**
+ * The one gate for /doc and every action route (#752, #758). The request
+ * must carry this server's token (shared/server-token.ts), and its ?path=
+ * must resolve, after following symlinks, to something inside a registered
+ * root (shared/local-image-route.ts resolveAllowedPath):
+ *
+ *   /doc              an .md file (decoded once, by URL parsing)
+ *   /openfolder       a folder
+ *   /open-in-vscode   the folder of a file   /set-cwd  likewise
+ *   /reveal           a file or folder
+ */
+function authorizeViewServerRequest(url: URL, token: string): { ok: true; path: string } | { ok: false; status: number } {
+    if (!requestHasToken(url, token)) { return { ok: false, status: 403 }; }
+    const raw = url.searchParams.get('path');
+    const route = url.pathname;
+    const requested = raw && (route === '/open-in-vscode' || route === '/set-cwd') ? path.dirname(raw) : raw;
+    const result = resolveAllowedPath(requested, viewServerRoots(),
+        route === '/doc'                                   ? { kind: 'file', extensions: ['.md'] } :
+        route === '/reveal'                                ? { kind: 'any' } :
+                                                             { kind: 'directory' });
+    if (!result.ok) {
+        log(FEATURE, `View Doc server refused ${route} (${result.reason}): ${requested ?? ''}`);
+        return { ok: false, status: result.status };
+    }
+    return { ok: true, path: result.path };
+}
+
+/** Perform an action the gate has already approved. */
+function runViewServerAction(route: string, target: string): void {
+    if (route === '/openfolder' || route === '/open-in-vscode') {
+        void openProjectFolderSmart(target);
+    } else if (route === '/set-cwd') {
+        // A new terminal started in the folder. Nothing from the request is
+        // ever typed into a shell (#752: a quote in the path used to run
+        // whatever followed it).
+        vscode.window.createTerminal({ name: 'CieloVista', cwd: target }).show();
+    } else if (route === '/reveal') {
+        void vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(target));
+    }
+}
+
 export async function viewSpecificDoc(): Promise<void> {
     const cards = await buildCatalog();
     if (!cards?.length) { return; }
@@ -810,56 +921,58 @@ export async function viewSpecificDoc(): Promise<void> {
         return;
     }
 
-    // Folders the /img route may serve images from (#741): every catalog
-    // project root (the global docs folder is the "global" project's root).
-    // Fixed here, from the catalog, never taken from the request.
-    const imageRoots = [...new Set(cards.map(c => c.projectPath).filter(Boolean))];
-    // Per-server secret: only pages this server renders carry it (#741, #752).
-    const serverToken = createServerToken();
-
-    // Start a fresh server
+    // Start a fresh server. Its token lives as long as it does (#741, #752):
+    // only pages this server renders carry it.
+    const token = createServerToken();
     _viewServer = http.createServer((req, res) => {
-        const url = new URL(req.url || '/', 'http://localhost');
+        const url  = new URL(req.url || '/', 'http://localhost');
+        const port = (_viewServer!.address() as { port: number }).port;
 
-        // Images next to a document. Routed before the CORS header below, so
-        // another origin can display them but never read their bytes.
-        if (url.pathname === IMAGE_ROUTE) {
-            serveImageRequest(req, res, url, imageRoots, serverToken);
-            return;
+        // Only this server's own pages may read its responses: it sends no
+        // CORS header (#758 removed Access-Control-Allow-Origin: *, which let
+        // any web page read any file through /doc and the token out of any
+        // page). A request whose Host is not this server's own address (DNS
+        // rebinding) is refused before any route runs (#752).
+        if (!isOwnHost(req.headers.host, port)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' }); res.end('Forbidden'); return;
         }
 
-        // CORS so browser fetch() works
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        // Images next to a document (#741): token, image type and
+        // registered-root checks live in serveImageRequest().
+        if (url.pathname === IMAGE_ROUTE) {
+            serveImageRequest(req, res, url, viewServerRoots(), token);
+            return;
+        }
 
         if (url.pathname === '/favicon.ico') {
             res.writeHead(204); res.end(); return;
         }
 
         if (url.pathname === '/') {
-            const port = (_viewServer!.address() as { port: number }).port;
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(buildViewDocBrowserHtml(cards!, port));
+            res.end(buildViewDocBrowserHtml(cards!, port, token));
 
         } else if (url.pathname === '/doc') {
-            const filePath = decodeURIComponent(url.searchParams.get('path') || '');
-            const backQ    = url.searchParams.get('q') || '';
-            if (!filePath || !fs.existsSync(filePath)) {
-                res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('File not found'); return;
+            const allowed = authorizeViewServerRequest(url, token);
+            if (!allowed.ok) {
+                res.writeHead(allowed.status, { 'Content-Type': 'text/plain' }); res.end(allowed.status === 404 ? 'File not found' : 'Forbidden'); return;
             }
+            const filePath = allowed.path;
+            const backQ    = url.searchParams.get('q') || '';
             const rawMd  = fs.readFileSync(filePath, 'utf8');
-            const port = (_viewServer!.address() as { port: number }).port;
-            const withLinks = rewriteDocLinks(mdToHtml(rawMd), filePath, port, backQ);
-            const rendered  = rewriteImagesToRoute(withLinks, path.dirname(filePath), `http://127.0.0.1:${port}`, serverToken);
+            const withLinks = rewriteDocLinks(mdToHtml(rawMd), filePath, port, token, backQ);
+            const rendered  = rewriteImagesToRoute(withLinks, path.dirname(filePath), `http://127.0.0.1:${port}`, token);
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(buildDocPageHtml(filePath, rendered, port, backQ));
 
-        } else if (url.pathname === '/openfolder') {
-            const folderPath = decodeURIComponent(url.searchParams.get('path') || '');
+        } else if (ACTION_ROUTES.has(url.pathname)) {
+            const allowed = authorizeViewServerRequest(url, token);
+            if (!allowed.ok) {
+                res.writeHead(403, { 'Content-Type': 'text/plain' }); res.end('Forbidden'); return;
+            }
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('OK');
-            if (folderPath) {
-                void openProjectFolderSmart(folderPath);
-            }
+            runViewServerAction(url.pathname, allowed.path);
 
         } else {
             res.writeHead(404); res.end('Not found');

@@ -34,6 +34,18 @@ export function tokenMatches(expected: string, supplied: string | null | undefin
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/**
+ * True when a request's Host header names the server's own loopback address.
+ * A DNS-rebinding page (evil.example resolving to 127.0.0.1) reaches the
+ * server as a same-origin request and could read its pages, token included;
+ * its Host header still says evil.example, so it is refused (#752).
+ */
+export function isOwnHost(hostHeader: string | undefined, port: number): boolean {
+    if (!hostHeader) { return false; }
+    const host = hostHeader.trim().toLowerCase();
+    return host === `127.0.0.1:${port}` || host === `localhost:${port}`;
+}
+
 /** True when the request URL carries the server's token. */
 export function requestHasToken(url: URL, expected: string): boolean {
     return tokenMatches(expected, url.searchParams.get(SERVER_TOKEN_PARAM));

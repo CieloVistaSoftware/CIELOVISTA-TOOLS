@@ -101,22 +101,48 @@ function realOrSelf(p: string): string {
     try { return fs.realpathSync.native(p); } catch { return path.resolve(p); }
 }
 
+/** What resolveAllowedPath() will accept. */
+export interface AllowedPathOptions {
+    /** 'file', 'directory', or 'any' existing entry. */
+    kind: 'file' | 'directory' | 'any';
+    /** When set, the path AND its symlink target must have one of these extensions (lower-case, with dot). */
+    extensions?: readonly string[];
+}
+
+/** Outcome of checking one requested path against the allowed roots. */
+export type AllowedPathResolution =
+    | { ok: true;  path: string }
+    | { ok: false; status: 400 | 403 | 404; reason: string };
+
 /**
- * Decide whether an /img request may be served.
+ * The one path check for every route of a local server that reads or acts on
+ * a path from a request (#741 /img, #752 actions, #758 /doc). The roots come
+ * from the server, never from the request.
+ *
+ *   - present, absolute, no NUL byte
+ *   - extension allowed (when options.extensions is set)
+ *   - inside a root on a path boundary (proj-evil is not inside proj)
+ *   - exists, and is the kind asked for
+ *   - after following symlinks (realpath) the real entry is STILL inside a
+ *     root and STILL has an allowed extension
+ *
+ * Returns the real path, which is what the caller must read or act on.
  *
  * @param requestedPath the ?path= value, already URL-decoded once by URL parsing
- * @param allowedRoots  folders the server is willing to serve images from
  */
-export function resolveServableImage(
+export function resolveAllowedPath(
     requestedPath: string | null | undefined,
-    allowedRoots: readonly string[]
-): ImageResolution {
+    allowedRoots: readonly string[],
+    options: AllowedPathOptions
+): AllowedPathResolution {
     if (!requestedPath) { return { ok: false, status: 400, reason: 'missing path' }; }
     if (requestedPath.includes('\0')) { return { ok: false, status: 400, reason: 'NUL byte in path' }; }
     if (!path.isAbsolute(requestedPath)) { return { ok: false, status: 400, reason: 'path is not absolute' }; }
 
     const absPath = path.resolve(requestedPath);
-    if (!contentTypeOf(absPath)) { return { ok: false, status: 403, reason: 'not an image type' }; }
+    const extOk = (p: string): boolean =>
+        !options.extensions || options.extensions.includes(path.extname(p).toLowerCase());
+    if (!extOk(absPath)) { return { ok: false, status: 403, reason: 'file type not allowed' }; }
 
     const roots = allowedRoots.filter(Boolean).map(r => path.resolve(r));
     if (!roots.some(r => isInsideRoot(absPath, r))) {
@@ -125,17 +151,33 @@ export function resolveServableImage(
 
     let stat: fs.Stats;
     try { stat = fs.statSync(absPath); } catch { return { ok: false, status: 404, reason: 'not found' }; }
-    if (!stat.isFile()) { return { ok: false, status: 404, reason: 'not a file' }; }
+    if (options.kind === 'file' && !stat.isFile())           { return { ok: false, status: 404, reason: 'not a file' }; }
+    if (options.kind === 'directory' && !stat.isDirectory()) { return { ok: false, status: 404, reason: 'not a folder' }; }
 
-    // Symlinks: the file actually read must pass the same two checks.
+    // Symlinks: the entry actually used must pass the same checks.
     const realPath = realOrSelf(absPath);
-    const realType = contentTypeOf(realPath);
-    if (!realType) { return { ok: false, status: 403, reason: 'link target is not an image type' }; }
+    if (!extOk(realPath)) { return { ok: false, status: 403, reason: 'link target type not allowed' }; }
     if (!roots.some(r => isInsideRoot(realPath, realOrSelf(r)))) {
         return { ok: false, status: 403, reason: 'link target is outside the allowed folders' };
     }
 
-    return { ok: true, absPath: realPath, contentType: realType };
+    return { ok: true, path: realPath };
+}
+
+/**
+ * Decide whether an /img request may be served: resolveAllowedPath() limited
+ * to image files.
+ *
+ * @param requestedPath the ?path= value, already URL-decoded once by URL parsing
+ * @param allowedRoots  folders the server is willing to serve images from
+ */
+export function resolveServableImage(
+    requestedPath: string | null | undefined,
+    allowedRoots: readonly string[]
+): ImageResolution {
+    const r = resolveAllowedPath(requestedPath, allowedRoots, { kind: 'file', extensions: Object.keys(IMAGE_CONTENT_TYPES) });
+    if (!r.ok) { return r; }
+    return { ok: true, absPath: r.path, contentType: contentTypeOf(r.path) as string };
 }
 
 /**

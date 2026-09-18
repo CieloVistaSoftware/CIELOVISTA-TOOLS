@@ -7,15 +7,18 @@
  * Regression tests for three original bugs, updated for current
  * implementation after multiple refactors (issue #256).
  *
- * BUG-A: Open project folder opens the project in the current VS Code window
- *   - openProjectFolderSmart uses vscode.openFolder with forceNewWindow false
+ * BUG-A: Open project folder opens the project in VS Code without replacing
+ *   the current workspace
+ *   - openProjectFolderSmart uses vscode.openFolder with forceNewWindow true.
+ *     This was "forceNewWindow false" until #261 (bebb9aa) changed it on
+ *     purpose; REG-029 (#76) locks the new-window behaviour (#736).
  *   - HTTP /openfolder endpoint calls openProjectFolderSmart
  *   - attachMessageHandler openFolder case calls openProjectFolderSmart
  *
- * BUG-B: NPM output has a Copy to Chat button (btn-chat / copy-to-chat)
- *   - btn-chat class in npm-command-launcher.ts
- *   - Clicking posts { command:'copy-to-chat' } to extension host
- *   - Extension host calls sendToCopilotChat + showInformationMessage
+ * BUG-B (NPM output Copy to Chat button) is no longer tested here: e29f04c
+ *   (#453) deliberately replaced npm-command-launcher.ts and its output
+ *   webview with npm-scripts-tree.ts, which runs each script in a real VS Code
+ *   terminal (#293). There is no output panel to put the button on (#736).
  *
  * BUG-C: View-a-doc search highlights matching links with #ffe066 yellow
  *   - CSS uses .hi class and .index-searching (not old .search-match / .searching)
@@ -31,21 +34,14 @@ const path   = require('path');
 const { JSDOM } = require('jsdom');
 
 const SOURCE_CMDS = path.join(__dirname, '..', 'src', 'features', 'doc-catalog', 'commands.ts');
-const SOURCE_NPM  = path.join(__dirname, '..', 'src', 'features', 'npm-command-launcher.ts');
-
-// Resolve installed extension dynamically
-const extDir       = path.join(process.env.USERPROFILE || 'C:\\Users\\jwpmi', '.vscode-insiders', 'extensions');
-const installedExt = fs.existsSync(extDir)
-    ? fs.readdirSync(extDir).find(d => d.startsWith('cielovistasoftware.cielovista-tools-'))
-    : null;
-function installedFilePath(...parts) {
-    return installedExt ? path.join(extDir, installedExt, ...parts) : null;
-}
-const instCmdsPath = installedFilePath('out', 'features', 'doc-catalog', 'commands.js');
-const instCmds     = (instCmdsPath && fs.existsSync(instCmdsPath)) ? fs.readFileSync(instCmdsPath, 'utf8') : '';
+// The compiled checks read the build this checkout produces (esbuild.mjs ->
+// out/), never the copy installed on the developer's machine: that made the
+// result depend on whatever version happened to be installed, and on a clean
+// machine the checks silently skipped (#736). The unit runner builds out/.
+const BUILT_CMDS = path.join(__dirname, '..', 'out', 'features', 'doc-catalog', 'commands.js');
+const builtCmds  = fs.existsSync(BUILT_CMDS) ? fs.readFileSync(BUILT_CMDS, 'utf8') : '';
 
 const srcCmds = fs.readFileSync(SOURCE_CMDS, 'utf8').replace(/\r\n/g, '\n');
-const srcNpm  = fs.readFileSync(SOURCE_NPM,  'utf8').replace(/\r\n/g, '\n');
 
 let passed = 0, failed = 0;
 const results = [];
@@ -55,19 +51,19 @@ function test(name, fn) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// BUG-A: Open project folder → current VS Code window
+// BUG-A: Open project folder → VS Code, current workspace kept
 // ═════════════════════════════════════════════════════════════════════════════
 
 test('BUG-A SOURCE: openProjectFolderSmart function exists', () => {
     assert.ok(srcCmds.includes('async function openProjectFolderSmart('));
 });
 
-test('BUG-A SOURCE: openProjectFolderSmart uses vscode.openFolder with forceNewWindow false', () => {
+test('BUG-A SOURCE: openProjectFolderSmart uses vscode.openFolder with forceNewWindow true', () => {
     const idx = srcCmds.indexOf('async function openProjectFolderSmart(');
     assert.ok(idx !== -1, 'function not found');
     const slice = srcCmds.slice(idx, idx + 500);
     assert.ok(slice.includes("'vscode.openFolder'"), 'must call vscode.openFolder');
-    assert.ok(slice.includes('forceNewWindow: false'), 'must reuse current window');
+    assert.ok(slice.includes('forceNewWindow: true'), 'must open in a new window, never replace the current workspace (REG-029)');
 });
 
 test('BUG-A SOURCE: attachMessageHandler openFolder calls openProjectFolderSmart', () => {
@@ -78,50 +74,19 @@ test('BUG-A SOURCE: attachMessageHandler openFolder calls openProjectFolderSmart
     assert.ok(slice.includes('openProjectFolderSmart'), 'openFolder must delegate to openProjectFolderSmart');
 });
 
+// /openfolder now passes the token + registered-project gate first and is
+// dispatched by runViewServerAction() (#752).
 test('BUG-A SOURCE: HTTP openfolder endpoint calls openProjectFolderSmart', () => {
-    const idx = srcCmds.indexOf("pathname === '/openfolder'");
-    assert.ok(idx !== -1, "pathname === '/openfolder' missing from HTTP server");
+    const idx = srcCmds.indexOf('function runViewServerAction(');
+    assert.ok(idx !== -1, 'runViewServerAction missing from HTTP server');
     const slice = srcCmds.slice(idx, idx + 400);
+    assert.ok(slice.includes("route === '/openfolder'"), '/openfolder not dispatched');
     assert.ok(slice.includes('openProjectFolderSmart'), '/openfolder must call openProjectFolderSmart');
 });
 
-test('BUG-A INSTALLED: compiled commands.js has openProjectFolderSmart', () => {
-    if (!instCmds) { console.log('    (SKIP: not installed)'); return; }
-    assert.ok(instCmds.includes('openProjectFolderSmart'));
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// BUG-B: NPM Copy to Chat button
-// ═════════════════════════════════════════════════════════════════════════════
-
-test('BUG-B SOURCE: btn-chat class present (replaces old btn-copy / btn-ask)', () => {
-    assert.ok(srcNpm.includes('btn-chat'), 'btn-chat missing from source');
-    assert.ok(!srcNpm.includes('btn-copy'), 'old btn-copy still present');
-});
-
-test('BUG-B SOURCE: copy-to-chat command posted on click', () => {
-    assert.ok(
-        srcNpm.includes("command:'copy-to-chat'") || srcNpm.includes("command: 'copy-to-chat'"),
-        'copy-to-chat command missing'
-    );
-});
-
-test('BUG-B SOURCE: extension host handles copy-to-chat', () => {
-    assert.ok(
-        srcNpm.includes("msg.command === 'copy-to-chat'") || srcNpm.includes("'copy-to-chat'"),
-        'copy-to-chat handler missing from extension host'
-    );
-});
-
-test('BUG-B SOURCE: handler calls sendToCopilotChat (clipboard + chat integration)', () => {
-    assert.ok(
-        srcNpm.includes('sendToCopilotChat') || srcNpm.includes('clipboard.writeText'),
-        'handler must call sendToCopilotChat or clipboard.writeText'
-    );
-});
-
-test('BUG-B SOURCE: btn-chat gets .show class after job done', () => {
-    assert.ok(srcNpm.includes("classList.add('show')"), 'btn-chat must get .show on done');
+test('BUG-A COMPILED: out/features/doc-catalog/commands.js has openProjectFolderSmart', () => {
+    assert.ok(builtCmds, BUILT_CMDS + ' was not built');
+    assert.ok(builtCmds.includes('openProjectFolderSmart'));
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -149,10 +114,10 @@ test('BUG-C SOURCE: .index-searching used (not old .searching)', () => {
     );
 });
 
-test('BUG-C INSTALLED: compiled commands.js has ffe066 and index-searching', () => {
-    if (!instCmds) { console.log('    (SKIP: not installed)'); return; }
-    assert.ok(instCmds.includes('ffe066') || instCmds.includes('FFE066'), '#ffe066 missing from compiled');
-    assert.ok(instCmds.includes('index-searching'), 'index-searching missing from compiled');
+test('BUG-C COMPILED: out/features/doc-catalog/commands.js has ffe066 and index-searching', () => {
+    assert.ok(builtCmds, BUILT_CMDS + ' was not built');
+    assert.ok(builtCmds.includes('ffe066') || builtCmds.includes('FFE066'), '#ffe066 missing from compiled');
+    assert.ok(builtCmds.includes('index-searching'), 'index-searching missing from compiled');
 });
 
 // BUG-C DOM: search adds .hi to matching links

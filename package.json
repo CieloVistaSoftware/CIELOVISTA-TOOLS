@@ -43,7 +43,7 @@
     "validate:package-json": "node scripts/validate-package-json.js",
     "test:catalog": "node tests/catalog-integrity.test.js",
     "test:catalog:no-mutate": "node scripts/test-catalog-no-mutate.js",
-    "test:commands": "node tests/command-validation.test.js",
+    "test:commands": "node tests/command-validation.test.js --repair",
     "test:preflight": "node scripts/run-preflight-regressions.js",
     "test:regression": "node scripts/run-regression-tests.js",
     "test:activation": "node tests/vscode/runActivationTest.js",
