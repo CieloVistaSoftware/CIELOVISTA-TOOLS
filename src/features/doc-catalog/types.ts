@@ -41,13 +41,6 @@ export interface CatalogCard {
     sizeBytes: number;
     lastModified: string;
     tags: string[];
-    /**
-     * The doc's frontmatter docid, if it declares one. The catalog itself no
-     * longer groups, sorts or badges by it (#707 stage 2). Only the MCP
-     * Endpoint Viewer's Dewey tools still read it, and #707 stage 3 deletes
-     * those tools and this field together.
-     */
-    dewey?: string;
     helpDoc?: string;
     helpMarkdown?: string;
     /** Type extracted from frontmatter `type:` or stripped from title prefix (e.g. "Feature") */

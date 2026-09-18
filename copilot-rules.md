@@ -1,3 +1,9 @@
+---
+id: cielovista-code-suggestion-guidelines
+title: CieloVista Code Suggestion Guidelines
+description: Rules for how code suggestions are formatted, reviewed and applied in CieloVista projects.
+---
+
 # CieloVista Code Suggestion Guidelines
 
 ## Rules for Code Suggestions
@@ -12,19 +18,3 @@
 8. **Minimal diffs**: AI fixes should only change the lines directly related to the bug or issue. Avoid replacing or reformatting unrelated code.
 9. **Review before apply**: Always show a clear diff and summary of what will change, highlighting any lines that are not strictly part of the fix.
 10. **Explicit prompt for removals**: Only remove comments, headers, or documentation if the user prompt specifically requests it.
-
----
-docid: 150.5.cielovista-tools-copilot-rules
-id: cielovista-code-suggestion-guidelines
-title: CieloVista Code Suggestion Guidelines
-project: cielovista-tools
-description: 1. Always include the full file path in every suggestion. 2. Format suggestions as JSON objects with line numbers. 3. Be friendly, concise, and foc…
-status: active
-tags: [copilot, rules, cielovista]
-category: 150.5 — AI Coordination
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: copilot-rules.md
----

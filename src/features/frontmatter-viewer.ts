@@ -8,13 +8,13 @@
  *
  * Inline port of:
  *   scripts/audit-frontmatter-by-filename.js
- *   scripts/build-frontmatter-viewer.js
+ *   scripts/build-frontmatter-viewer.js (deleted in #707: it still demanded the retired numbered doc id)
  *
  * Command: cvs.headers.frontmatterViewer
  *
  * Judges every doc by the three-field contract (#707, #708, #730): id, title,
  * description at the TOP. Until #730 it flagged a top block as a violation,
- * required a docid, and generated fix tests that demanded a bottom block --
+ * required a numbered doc id, and generated fix tests that demanded a bottom block --
  * the retired rules. Reading and judging go through src/shared/doc-frontmatter.ts.
  */
 
@@ -255,7 +255,7 @@ function proposedFixes(violationList: string[]): string[] {
         fixes.push('Fill in every one of id, title and description.');
     }
     if (has('fields beyond the contract')) {
-        fixes.push('Remove every header field except id, title and description. Anything derivable (path, dates, category, tags, docid) is not hand-written.');
+        fixes.push('Remove every header field except id, title and description. Anything derivable (path, dates, category, tags, numbered ids) is not hand-written.');
     }
     if (has('duplicate filename')) {
         fixes.push('Rename the file to a unique markdown filename and update links/references.');

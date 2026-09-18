@@ -290,7 +290,7 @@ function buildViewerHtml(findings: Finding[], totalDocsScanned: number, rollups:
     .sort((a, b) => b[1].length - a[1].length)
     .map(([projectName, items]) => {
       const rows = items.map((item, idx) => {
-        const kindClass = item.kind === 'image' ? 'kind-image' : item.kind === 'link' ? 'kind-link' : 'kind-docid';
+        const kindClass = item.kind === 'image' ? 'kind-image' : item.kind === 'link' ? 'kind-link' : 'kind-doc-id';
         const candidates = item.candidates.length
           ? item.candidates.map((cand, cidx) => `<button class="cand" data-path="${esc(cand)}" data-id="${projectName}-${idx}-${cidx}">${esc(cand)}</button>`).join('')
           : '<span class="none">No candidates found</span>';
@@ -385,7 +385,7 @@ th{font-size:12px;color:var(--vscode-descriptionForeground)}
 .kind{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
 .kind-image{background:#3b1f1f;color:#ffb3b3}
 .kind-link{background:#1b2d4a;color:#b5d6ff}
-.kind-docid{background:#3a2f14;color:#ffdf8a}
+.kind-doc-id{background:#3a2f14;color:#ffdf8a}
 button.src,button.cand{display:block;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border);border-radius:4px;padding:4px 7px;cursor:pointer;margin-bottom:4px;text-align:left}
 button.src:hover,button.cand:hover{background:var(--vscode-button-secondaryHoverBackground);border-color:var(--vscode-focusBorder)}
 td.cands{min-width:320px}

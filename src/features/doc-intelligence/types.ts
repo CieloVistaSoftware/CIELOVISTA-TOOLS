@@ -15,7 +15,6 @@ export type FindingKind =
     | 'missing-readme'
     | 'missing-claude'
     | 'missing-changelog'
-    | 'subject-mismatch'  // subject: hundreds digit ≠ project's Dewey prefix
     | 'test-artifact'     // test-results / playwright-report folder — safe to delete
     | 'stale-doc'         // status:active, not modified in 90+ days
     | 'draft-rot'         // status:draft, not updated in 30+ days
@@ -82,7 +81,6 @@ export interface ProjectEntry {
     path:        string;
     type:        string;
     description: string;
-    dewey?:      number;
 }
 
 export interface ArtifactFolder {
@@ -111,7 +109,5 @@ export interface DocFile {
     // parsed from frontmatter
     fmStatus?:      string;
     fmDescription?: string;
-    fmDewey?:       string;
     fmTitle?:       string;
-    fmCategory?:    string;
 }

@@ -386,45 +386,6 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
         });
     }
 
-    // ── 9. Subject/category misalignment ─────────────────────────────────────
-    // category: "700 — Project Docs" → leading number 700
-    // subject:  "300.9"              → integer part 300
-    // Rule: the integer part of the Dewey must equal the category's leading number.
-    // e.g. subject 150.6 + category "150 — Meta" → 150 === 150 → OK (no mismatch)
-    //      subject 300.9 + category "700 — Project Docs" → 300 !== 700 → mismatch
-
-    const mismatches: Array<{ filePath: string; fileName: string; projectName: string; dewey: string; category: string; proposed: string }> = [];
-
-    for (const doc of allDocs) {
-        if (!doc.fmDewey || !doc.fmCategory) { continue; }
-        const subjectNum = parseFloat(doc.fmDewey);
-        if (isNaN(subjectNum)) { continue; }
-        const subjectBase = Math.floor(subjectNum);   // integer part: 150.6 → 150
-        const catMatch = doc.fmCategory.match(/^(\d+)/);
-        if (!catMatch) { continue; }
-        const categoryNum = parseInt(catMatch[1], 10);
-        if (subjectBase === categoryNum) { continue; }
-        const label    = doc.fmCategory.replace(/^\d+\s*[—\-]\s*/, '');
-        const proposed = `${subjectBase} — ${label}`;
-        mismatches.push({ filePath: doc.filePath, fileName: doc.fileName, projectName: doc.projectName, dewey: doc.fmDewey, category: doc.fmCategory, proposed });
-    }
-
-    if (mismatches.length > 0) {
-        findings.push({
-            id:             nextId(),
-            kind:           'subject-mismatch',
-            severity:       'red',
-            title:          `Subject/category mismatch — ${mismatches.length} doc${mismatches.length !== 1 ? 's' : ''}`,
-            reason:         `${mismatches.length} doc${mismatches.length !== 1 ? 's have' : ' has'} a category number that doesn't match the subject prefix`,
-            recommendation: `Update each doc's Dewey subject so its integer part matches the category's leading number.`,
-            action:         'none',
-            paths:          mismatches.map(m => m.filePath),
-            projects:       [...new Set(mismatches.map(m => m.projectName))],
-            priority:       80,
-            meta:           { count: mismatches.length, mismatches: JSON.stringify(mismatches) },
-        });
-    }
-
     // ── 10. Stale docs (status:active, untouched 90+ days) ───────────────────
     const STALE_MS  = 90 * 24 * 60 * 60 * 1000;
     const DRAFT_MS  = 30 * 24 * 60 * 60 * 1000;

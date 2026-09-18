@@ -208,8 +208,9 @@ const rpc = (method, params) => ({ jsonrpc: '2.0', id: 1, method, params: params
         ['GET',  '/api/find_project?query=alpha'],
         ['GET',  '/api/search_docs?query=guide'],
         ['GET',  '/api/get_catalog'],
-        ['GET',  '/api/active_markdown'],
-        ['GET',  '/api/list_markdown_paths'],
+        // /api/active_markdown and /api/list_markdown_paths were deleted with the
+        // Dewey forms that used them (#707 stage 3); /no-such-route below still
+        // proves an unknown path is refused before routing.
         ['GET',  '/api/list_symbols'],
         ['GET',  '/api/list_cvt_commands'],
         ['GET',  `/api/reveal?path=${encodeURIComponent(guide)}`],

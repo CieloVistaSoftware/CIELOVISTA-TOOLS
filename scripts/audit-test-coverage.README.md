@@ -1,3 +1,9 @@
+---
+id: feature-test-coverage-audit-tool
+title: Test Coverage Audit Tool
+description: How scripts/audit-test-coverage.js scores the test suite against the tiered testing strategy.
+---
+
 # feature: Test Coverage Audit Tool
 
 ## Overview
@@ -295,19 +301,3 @@ activate()
 1. TODO: step one
 2. TODO: step two
 3. TODO: expected result
-
----
-docid: 150.3.audit-test-coverage-readme
-id: feature-test-coverage-audit-tool
-title: "feature: Test Coverage Audit Tool"
-project: cielovista-tools
-description: The audit-test-coverage.js script analyzes your test suite against the tiered testing strategy defined in the CieloVista Standards (testing-strateg…
-status: active
-tags: [audit, test, coverage]
-category: 150.3 — Testing
-created: 2026-04-22
-updated: 2026-04-27
-version: 1.0.0
-author: CieloVista Software
-relativepath: scripts/audit-test-coverage.README.md
----

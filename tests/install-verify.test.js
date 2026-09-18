@@ -273,46 +273,6 @@ ok('#302 Smart fixer guessLanguage + LANG_HINTS exist in source',
     readmeFeatureSrc.includes('guessLanguage') && readmeFeatureSrc.includes('LANG_HINTS'),
     'src/features/readme-compliance/feature.ts must define guessLanguage() and LANG_HINTS');
 
-// #304 — Zero docid collisions across registry (structural: REG-027 inline)
-// project-registry.json is the developer's own personal project list -- it
-// only ever exists on their machine, never on a CI runner. Skip under CI
-// rather than failing on every single run.
-(function checkDocidCollisions() {
-    if (process.env.CI) {
-        console.log('  SKIP: #304 Zero docid collisions (personal registry file, not present on CI runners)');
-        return;
-    }
-    const REGISTRY_PATH = path.join(os.homedir(), 'Downloads', 'CieloVistaStandards', 'project-registry.json');
-    const SKIP_DIRS = new Set(['node_modules', '.git', 'bin', 'out', 'dist', '.vscode', '.vscode-test', '.claude', 'reports', 'CommandHelp', 'image-reader-assets']);
-    let reg;
-    try { reg = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8')); } catch { ok('#304 Zero docid collisions (registry loads)', false, 'Could not read registry'); return; }
-    const docIdMap = new Map();
-    function walkMd(dir, depth) {
-        if (depth > 4 || !fs.existsSync(dir)) { return; }
-        let entries; try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of entries) {
-            if (SKIP_DIRS.has(e.name)) { continue; }
-            const full = path.join(dir, e.name);
-            if (e.isDirectory()) { walkMd(full, depth + 1); }
-            else if (e.isFile() && /\.md$/i.test(e.name)) {
-                let c; try { c = fs.readFileSync(full, 'utf8'); } catch { return; }
-                const lines = c.split('\n');
-                if (!lines[0] || lines[0].trim() !== '---') { return; }
-                for (let i = 1; i < lines.length; i++) {
-                    if (lines[i].trim() === '---') { break; }
-                    const m = lines[i].trim().match(/^docid\s*:\s*(.+?)\s*$/i);
-                    if (m) { const k = m[1].trim().toLowerCase(); if (!docIdMap.has(k)) { docIdMap.set(k, 0); } docIdMap.set(k, docIdMap.get(k) + 1); break; }
-                }
-            }
-        }
-    }
-    for (const proj of reg.projects) { if (proj.path && fs.existsSync(proj.path)) { walkMd(proj.path, 0); } }
-    const collisions = [...docIdMap.values()].filter(c => c > 1).length;
-    ok(`#304 Zero docid collisions across registry (${docIdMap.size} docids scanned)`,
-        collisions === 0,
-        collisions === 0 ? 'All docids unique' : `${collisions} collision group(s) found — run scripts/fix-docid-collisions.js`);
-})();
-
 // #305 — README Compliance Copy button routes through vscode.env.clipboard (not navigator.clipboard)
 ok('#305 README Compliance Copy button uses vscode.env.clipboard (not navigator.clipboard)',
     readmeFeatureSrc.includes('vscode.env.clipboard.writeText') &&

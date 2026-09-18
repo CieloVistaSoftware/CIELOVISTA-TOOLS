@@ -16,7 +16,6 @@ const KIND_ICON: Record<string, string> = {
     'missing-readme':     '📝',
     'missing-claude':     '🤖',
     'missing-changelog':  '📋',
-    'subject-mismatch':   '🔢',
     'test-artifact':      '🧪',
     'stale-doc':          '🕰',
     'draft-rot':          '🪣',
@@ -60,8 +59,6 @@ function avoidNextRun(kind: string): string {
       return 'Store cross-project standards in global docs and keep project docs focused on local implementation.';
     case 'orphan':
       return 'Link every important doc from README.md, CLAUDE.md, or docs index files.';
-    case 'subject-mismatch':
-      return 'Always use the project\'s assigned Dewey hundreds prefix when writing the subject field.';
     case 'test-artifact':
       return 'Delete test-results and playwright-report folders after reviewing failures — never commit them.';
     case 'stale-doc':
@@ -314,18 +311,6 @@ body{
 }
 #di-status-strip.visible{display:flex}
 
-/* subject-mismatch table */
-.sm-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px}
-.sm-table th{text-align:left;padding:4px 8px;color:var(--vscode-descriptionForeground);font-weight:700;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--vscode-panel-border)}
-.sm-table td{padding:5px 8px;border-bottom:1px solid var(--vscode-panel-border);vertical-align:middle}
-.sm-table tr:last-child td{border-bottom:none}
-.sm-table tr:hover td{background:var(--vscode-list-hoverBackground)}
-.sm-proj{color:var(--vscode-descriptionForeground);white-space:nowrap}
-.sm-file{font-family:var(--vscode-editor-font-family);font-weight:600;white-space:nowrap}
-.sm-cur{color:#f85149;font-family:var(--vscode-editor-font-family)}
-.sm-prop{color:#3fb950;font-family:var(--vscode-editor-font-family);font-weight:600}
-.sm-cat{font-family:var(--vscode-editor-font-family);color:var(--vscode-descriptionForeground)}
-.sm-act{white-space:nowrap}
 /* savings banner */
 .di-savings{background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.3);border-radius:4px;padding:6px 12px;font-size:12px;margin-bottom:6px}
 /* exact-duplicate cluster card */
@@ -528,24 +513,6 @@ document.querySelectorAll('[data-di-action]').forEach(function(btn) {
     try { paths = JSON.parse(pathsRaw); } catch { paths = [pathsRaw]; }
 
     // ── Cluster card actions ───────────────────────────────────────────────
-    if (action === 'fix-mismatches') {
-      var fmp;
-      try { fmp = JSON.parse(btn.dataset.payload); } catch { return; }
-      btn.disabled = true;
-      btn.textContent = '\\u23F3 Fixing…';
-      showStrip('Updating fields…');
-      vscode.postMessage({ command: 'fixMismatches', findingId: fmp.findingId, fixes: fmp.fixes });
-      return;
-    }
-    if (action === 'fix-one-mismatch') {
-      var fop;
-      try { fop = JSON.parse(btn.dataset.payload); } catch { return; }
-      btn.disabled = true;
-      btn.textContent = '\\u23F3';
-      showStrip('Updating field…');
-      vscode.postMessage({ command: 'fixMismatches', findingId: fop.findingId, fixes: [{ filePath: fop.filePath, field: fop.field, value: fop.value }] });
-      return;
-    }
     if (action === 'keep-and-delete-rest') {
       var payload;
       try { payload = JSON.parse(btn.dataset.payload); } catch { return; }
@@ -804,66 +771,10 @@ function buildFolderDuplicateCard(f: Finding): string {
         + '</div></div></div>';
 }
 
-function buildSubjectMismatchCard(f: Finding): string {
-    const decClass = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';
-    let rows: Array<{ filePath: string; fileName: string; projectName: string; dewey: string; category: string; proposed: string }> = [];
-    try { rows = JSON.parse(String(f.meta?.mismatches ?? '[]')); } catch { rows = []; }
-
-    const tableRows = rows.map(r => {
-        const catNum     = (r.category.match(/^(\d+)/) ?? ['','0'])[1];
-        const subDecimal = r.dewey.includes('.') ? r.dewey.split('.').slice(1).join('.') : '1';
-        const fixedSubj  = `${catNum}.${subDecimal}`;
-        const fixJson    = esc(JSON.stringify({ findingId: f.id, filePath: r.filePath, field: 'subject', value: fixedSubj }));
-
-        return `<tr data-sm-path="${esc(r.filePath)}">
-  <td class="sm-proj">${esc(r.projectName)}</td>
-  <td class="sm-file" title="${esc(r.filePath)}">${esc(r.fileName)}</td>
-  <td class="sm-cur">${esc(r.dewey)}</td>
-  <td class="sm-prop">${esc(fixedSubj)}</td>
-  <td class="sm-act">
-    <button class="di-dup-btn" data-di-action="fix-one-mismatch" data-payload="${fixJson}" title="Fix subject to ${esc(fixedSubj)}">✓ Fix</button>
-    <button class="di-dup-btn" data-di-action="open-file" data-paths="${esc(JSON.stringify([r.filePath]))}" title="Open file">↗</button>
-  </td>
-</tr>`;
-    }).join('');
-
-    const fixAllJson = esc(JSON.stringify({ findingId: f.id, fixes: rows.map(r => {
-        const catNum     = (r.category.match(/^(\d+)/) ?? ['','0'])[1];
-        const subDecimal = r.dewey.includes('.') ? r.dewey.split('.').slice(1).join('.') : '1';
-        return { filePath: r.filePath, field: 'subject', value: `${catNum}.${subDecimal}` };
-    })}));
-
-    return `<div class="di-cluster${decClass}" data-id="${esc(f.id)}" data-severity="${esc(f.severity)}" data-kind="subject-mismatch">
-  <div class="di-cluster-hd">
-    <span class="di-cluster-badge" style="background:#cf222e">🔢 Subject Mismatch</span>
-    <span class="di-cluster-title">${esc(f.title)}</span>
-    ${f.decision === 'accepted' ? '<span style="font-size:11px;color:#3fb950;font-weight:700">✅ Fixed</span>' : ''}
-    ${f.decision === 'skipped'  ? '<span style="font-size:11px;color:var(--vscode-descriptionForeground)">⏭ Skipped</span>' : ''}
-  </div>
-  <div class="di-cluster-body">
-    <p style="font-size:12px;margin-bottom:10px;color:var(--vscode-descriptionForeground)">
-      The subject number must fall inside the category's assigned range. Each row shows the current mismatch and the proposed fix.
-    </p>
-    <table class="sm-table">
-      <thead><tr>
-        <th>Project</th><th>File</th><th>Current Dewey</th><th>Correct Dewey</th><th></th>
-      </tr></thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-    <div class="di-cluster-cta" style="margin-top:12px">
-      <button class="di-cta-primary" data-di-action="fix-mismatches" data-payload="${fixAllJson}">✓ Fix All ${rows.length} Subjects</button>
-      <button class="di-cta-skip" data-di-action="skip">⏭ Skip</button>
-      ${f.decision && f.decision !== 'pending' ? '<button class="di-dup-btn" data-di-action="undo">↩ Undo</button>' : ''}
-    </div>
-  </div>
-</div>`;
-}
-
 function buildCard(f: Finding, scanDate: string): string {
     // Route cluster-style cards to dedicated builders
     if (f.kind === 'exact-duplicate')  { return buildExactDuplicateCard(f); }
     if (f.kind === 'folder-duplicate') { return buildFolderDuplicateCard(f); }
-    if (f.kind === 'subject-mismatch') { return buildSubjectMismatchCard(f); }
 
     const pathsJson     = esc(JSON.stringify(f.paths));
     const decisionClass = f.decision === 'accepted' ? ' accepted' : f.decision === 'skipped' ? ' skipped' : '';

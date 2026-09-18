@@ -466,37 +466,6 @@ function showPanel(report: IntelligenceReport): void {
                 break;
             }
 
-            case 'fixMismatches': {
-                const { findingId: fmid, fixes } = msg as { findingId: string; fixes: Array<{ filePath: string; field: 'subject' | 'category'; value: string }> };
-                if (!fixes?.length) { _panel?.webview.postMessage({ type: 'done' }); break; }
-                let fixed = 0;
-                for (const fix of fixes) {
-                    try {
-                        if (!fs.existsSync(fix.filePath)) { continue; }
-                        const original = fs.readFileSync(fix.filePath, 'utf8');
-                        // support both dewey: (new) and subject: (old) field names
-                        const fieldName = fix.field === 'subject'
-                            ? (original.match(/^dewey:/m) ? 'dewey' : 'subject')
-                            : fix.field;
-                        const pattern  = new RegExp(`^(${fieldName}:\\s*).*$`, 'm');
-                        const updated  = original.replace(pattern, `$1${fix.value}`);
-                        if (updated !== original) {
-                            fs.writeFileSync(fix.filePath, updated, 'utf8');
-                            log(FEATURE, `Fixed ${fix.field} in: ${fix.filePath} → ${fix.value}`);
-                            fixed++;
-                        }
-                    } catch (err) {
-                        logError(`Failed to fix ${fix.field} in ${fix.filePath}`, err instanceof Error ? err.stack || String(err) : String(err), FEATURE);
-                    }
-                }
-                const finding = _report?.findings.find(f => f.id === fmid);
-                if (finding) { finding.decision = 'accepted'; }
-                _panel?.webview.postMessage({ type: 'decision', id: fmid, decision: 'accepted' });
-                _panel?.webview.postMessage({ type: 'done' });
-                vscode.window.showInformationMessage(`Updated ${fixed} doc${fixed !== 1 ? 's' : ''}.`);
-                break;
-            }
-
             case 'deleteOneFile': {
                 const { filePath: delPath, findingId: fid } = msg as { filePath: string; findingId: string };
                 if (!delPath) { _panel?.webview.postMessage({ type: 'done' }); break; }

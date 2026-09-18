@@ -70,20 +70,13 @@ function flush() {
             docCount: 0,
             docs: [],
           };
-        } else if (rpcMethod === 'active_markdown') {
+        } else if (rpcMethod === 'list_cvt_commands') {
           result = {
-            hasActiveMarkdown: true,
-            filePath: 'C:/docs/README.md',
-          };
-        } else if (rpcMethod === 'list_markdown_paths') {
-          result = {
-            paths: [
-              {
-                projectName: 'cielovista-tools',
-                fileName: 'README.md',
-                filePath: 'C:/docs/README.md',
-                lastModified: '2026-05-15T00:00:00.000Z',
-              },
+            group: '(all)',
+            totalCommands: 1,
+            matchCount: 1,
+            commands: [
+              { id: 'cvs.mcp.viewer.open', title: 'Mcp: Viewer: Open', description: 'Open the viewer', tags: [], group: 'MCP', dewey: '', scope: 'global' },
             ],
           };
         }
@@ -127,25 +120,14 @@ function flush() {
 
   assert.ok(requests.some((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'get_catalog' && r.params && r.params.projectName === 'DiskCleanUp'), 'get_catalog project selection must use JSON-RPC POST /mcp');
 
-  const validateTab = doc.querySelector('.tab[data-endpoint="validate_doc"]');
-  assert.ok(validateTab, 'validate_doc tab button not found');
-  validateTab.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
-  await flush();
-  await flush();
-  await flush();
-
-  const activeFileButton = doc.getElementById('btn-active-file');
-  const filePathInput = doc.getElementById('filePath');
-  assert.ok(activeFileButton, 'Use Active .md button not found');
-  assert.ok(filePathInput, 'file path input not found');
-  activeFileButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+  const cmdTab = doc.querySelector('.tab[data-endpoint="list_cvt_commands"]');
+  assert.ok(cmdTab, 'list_cvt_commands tab button not found');
+  cmdTab.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
   await flush();
   await flush();
 
-  assert.strictEqual(filePathInput.value, 'C:/docs/README.md', 'active markdown helper should populate the file path from JSON-RPC result');
-  assert.ok(requests.some((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'active_markdown'), 'active markdown helper must use JSON-RPC POST /mcp');
+  assert.ok(requests.some((r) => r.url.endsWith('/mcp?t=' + TOKEN) && r.method === 'list_cvt_commands'), 'list_cvt_commands must use JSON-RPC POST /mcp');
 
   const badApiCalls = requests.filter((r) => r.url.includes('/api/'));
   assert.strictEqual(badApiCalls.length, 0, 'no tested MCP viewer flow should call legacy /api endpoints');

@@ -327,7 +327,7 @@ function formatAuditReport(metricsJson: any): AuditReport {
     TIER_5: 'Fixed bugs can regress — without regression tests the same bug returns',
   };
   const TIER_WHERE: Record<string, string> = {
-    TIER_1: 'Add tests/unit/doc-contract.test.ts or TypeScript strict-mode CI gate',
+    TIER_1: 'Add a TypeScript strict-mode CI gate',
     TIER_2: 'Create tests/unit/<feature>.test.ts for each feature file in src/features/',
     TIER_3: 'Create tests/integration/ with tests that cross module boundaries',
     TIER_4: 'Create tests/functional/ with UI workflow tests (Playwright/JSDOM)',

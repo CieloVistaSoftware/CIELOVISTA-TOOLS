@@ -10,7 +10,7 @@ description: "Interactive table of every doc header in the project, judged by th
 
 Scans the markdown files in the cielovista-tools project and shows every doc header in a sortable, filterable table. Each file is judged by the doc header contract: **id, title and description, at the top, and nothing else** (#707, #708). Violations include no header, a header at the bottom, a missing field, fields beyond the contract, and duplicate file names. Each flagged row has a Fix button that writes a failing regression test for that file and files a GitHub issue to track the repair. The generated test passes once the file's header meets the contract.
 
-Before #730 the viewer enforced the retired rules. It flagged a header at the top, demanded a docid, and generated tests that required the header at the bottom.
+Before #730 the viewer enforced the retired rules. It flagged a header at the top, demanded a numbered doc id, and generated tests that required the header at the bottom.
 
 ---
 

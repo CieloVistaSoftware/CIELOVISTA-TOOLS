@@ -13,20 +13,12 @@ import {
   FindProjectToolSchema,
   GetCatalogToolSchema,
   SearchDocsToolSchema,
-  ListDocViolationsToolSchema,
-  ValidateDocToolSchema,
-  LookupDeweyToolSchema,
   ListBrokenRefsToolSchema,
   RepairBrokenRefsToolSchema,
   ListSymbolsToolSchema,
   FindSymbolToolSchema,
   ListCvtCommandsToolSchema,
   AuditDuplicationToolSchema,
-  NormalizeDocToolSchema,
-  GetDocByIdentityToolSchema,
-  RefreshDocLedgerToolSchema,
-  ListOldDeweyToolSchema,
-  MigrateDeweyToolSchema,
   RegistryPromoteToolSchema,
   RegistrySetStatusToolSchema,
 } from "./definitions.js";
@@ -35,16 +27,8 @@ import {
   findProjects,
   scanAllDocs,
   searchDocs,
-  listDocViolations,
-  validateDoc,
-  lookupDocsByDewey,
   listBrokenRefs,
   repairBrokenRefs,
-  normalizeDoc,
-  getDocByIdentity,
-  buildDocLedger,
-  listOldDewey,
-  migrateDewey,
 } from "./catalog-helpers.js";
 import {
   getSymbolIndex,
@@ -374,7 +358,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "get_catalog",
-    "Scans every project in the registry for .md docs and returns a flat catalog. Each entry includes title/description plus Dewey identity, project metadata, tags, size, and last-modified date. Optionally filter by projectName to scan just one project. This does a live disk scan — call once per session and reuse the result.",
+    "Scans every project in the registry for .md docs and returns a flat catalog. Each entry includes title, description, frontmatter id, project metadata, tags, size, and last-modified date. Optionally filter by projectName to scan just one project. This does a live disk scan — call once per session and reuse the result.",
     GetCatalogToolSchema.shape,
     async ({ projectName }) => {
       try {
@@ -399,7 +383,7 @@ export function registerTools(server: McpServer): void {
 
   server.tool(
     "search_docs",
-    "Case-insensitive search across all .md docs in the registry. Matches against title, description, filename, and extracted tags. Optionally restrict to a single project with projectName. Returns matching DocEntry records with Dewey and project metadata.",
+    "Case-insensitive search across all .md docs in the registry. Matches against title, description, filename, and extracted tags. Optionally restrict to a single project with projectName. Returns matching DocEntry records with project metadata.",
     SearchDocsToolSchema.shape,
     async ({ query, projectName }) => {
       try {
@@ -419,116 +403,6 @@ export function registerTools(server: McpServer): void {
         const msg: string = error instanceof Error ? error.message : String(error);
         return {
           content: [{ type: "text" as const, text: `Error searching docs: ${msg}` }],
-        };
-      }
-    }
-  );
-
-  server.tool(
-    "list_doc_violations",
-    "Scans markdown docs for Doc Contract front-matter violations (docid, id, title, project, description, status), validates docid prefix against project Dewey, and detects identity collisions ({docid}.{id}). Optionally limit to one project.",
-    ListDocViolationsToolSchema.shape,
-    async ({ projectName }) => {
-      try {
-        const registry = loadRegistry();
-        const report = listDocViolations(registry, projectName);
-        const payload = {
-          projectName: projectName ?? "(all)",
-          ...report,
-        };
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-        };
-      } catch (error: unknown) {
-        const msg: string = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{ type: "text" as const, text: `Error listing doc violations: ${msg}` }],
-        };
-      }
-    }
-  );
-
-  server.tool(
-    "validate_doc",
-    "Validates one markdown file against the Doc Contract front-matter rules and returns detailed violations.",
-    ValidateDocToolSchema.shape,
-    async ({ filePath }) => {
-      try {
-        const registry = loadRegistry();
-        const result = validateDoc(registry, filePath);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error: unknown) {
-        const msg: string = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{ type: "text" as const, text: `Error validating doc: ${msg}` }],
-        };
-      }
-    }
-  );
-
-  server.tool(
-    "lookup_dewey",
-    "Finds locations by full or partial Dewey ID. Matches catalog docs and, optionally, CVT command catalog entries. Use when you only have a Dewey number and need file/command location quickly.",
-    LookupDeweyToolSchema.shape,
-    async ({ query, projectName, includeCommands, limit }) => {
-      try {
-        const max = limit ?? 25;
-        const registry = loadRegistry();
-        const docs = scanAllDocs(registry, projectName);
-        const docMatches = lookupDocsByDewey(docs, query, max);
-
-        const allCommands = includeCommands === false ? [] : loadCvtCommands();
-        const normalizedRaw = query.trim().toLowerCase();
-        const normalizedDigits = normalizedRaw.replace(/\D+/g, "");
-        const rankedCommands = allCommands
-          .map((cmd) => {
-            const raw = (cmd.dewey ?? "").trim().toLowerCase();
-            const digits = raw.replace(/\D+/g, "");
-            if (!normalizedRaw) {
-              return { cmd, score: 0 };
-            }
-            const score =
-              raw === normalizedRaw || (normalizedDigits && digits === normalizedDigits)
-                ? 300
-                : raw.startsWith(normalizedRaw) || (normalizedDigits && digits.startsWith(normalizedDigits))
-                  ? 200
-                  : raw.includes(normalizedRaw) || (normalizedDigits && digits.includes(normalizedDigits))
-                    ? 100
-                    : 0;
-            return { cmd, score };
-          })
-          .filter((row) => row.score > 0)
-          .sort((a, b) => {
-            if (b.score !== a.score) {
-              return b.score - a.score;
-            }
-            return a.cmd.dewey.localeCompare(b.cmd.dewey);
-          })
-          .slice(0, max)
-          .map((row) => row.cmd);
-
-        const payload = {
-          query,
-          normalized: {
-            raw: normalizedRaw,
-            digits: normalizedDigits,
-          },
-          projectName: projectName ?? "(all)",
-          includeCommands: includeCommands !== false,
-          docMatchCount: docMatches.length,
-          commandMatchCount: rankedCommands.length,
-          docs: docMatches,
-          commands: rankedCommands,
-        };
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-        };
-      } catch (error: unknown) {
-        const msg: string = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{ type: "text" as const, text: `Error looking up Dewey: ${msg}` }],
         };
       }
     }
@@ -706,99 +580,6 @@ export function registerTools(server: McpServer): void {
         return {
           content: [{ type: "text" as const, text: `Error running duplication audit: ${msg}` }],
         };
-      }
-    }
-  );
-
-  // ── Phase 3: normalize_doc ────────────────────────────────────────────────
-  server.tool(
-    "normalize_doc",
-    "Non-destructive doc contract normalizer. Reads a .md file, identifies missing required front-matter fields (subject, id, title, project, description, status), and returns proposed values. Never writes to disk — caller must approve and apply.",
-    NormalizeDocToolSchema.shape,
-    async ({ filePath }) => {
-      try {
-        const registry = loadRegistry();
-        const result = normalizeDoc(registry, filePath);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
-      }
-    }
-  );
-
-  // ── Phase 4: get_doc_by_identity ──────────────────────────────────────────
-  server.tool(
-    "get_doc_by_identity",
-    "Resolve a stable doc identity string (e.g. '150.3.testing-strategy') to its current filesystem path. Checks dewey-aliases.json first so old identities keep resolving after migration.",
-    GetDocByIdentityToolSchema.shape,
-    async ({ identity }) => {
-      try {
-        const registry = loadRegistry();
-        const entry = getDocByIdentity(registry, identity);
-        if (!entry) {
-          return { content: [{ type: "text" as const, text: JSON.stringify({ found: false, identity }) }] };
-        }
-        return { content: [{ type: "text" as const, text: JSON.stringify({ found: true, ...entry }) }] };
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
-      }
-    }
-  );
-
-  // ── Phase 4: refresh_doc_ledger ───────────────────────────────────────────
-  server.tool(
-    "refresh_doc_ledger",
-    "Rebuild the in-memory doc identity index by scanning all registered projects. Returns counts of docs scanned, identities indexed, and any duplicates found.",
-    RefreshDocLedgerToolSchema.shape,
-    async ({ projectName }) => {
-      try {
-        const registry = loadRegistry();
-        const result = buildDocLedger(registry, projectName);
-        const summary = {
-          docsScanned: result.docsScanned,
-          identitiesIndexed: result.identitiesIndexed,
-          duplicates: result.duplicates,
-        };
-        return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
-      }
-    }
-  );
-
-  // ── Phase 4: list_old_dewey ───────────────────────────────────────────────
-  server.tool(
-    "list_old_dewey",
-    "Scan all registered projects for docs using the old Dewey numbering scheme (NNN.NNN filename pattern or category/dewey front-matter field). Returns a migration worklist.",
-    ListOldDeweyToolSchema.shape,
-    async ({ projectName }) => {
-      try {
-        const registry = loadRegistry();
-        const result = listOldDewey(registry, projectName);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
-      }
-    }
-  );
-
-  // ── Phase 4: migrate_dewey ────────────────────────────────────────────────
-  server.tool(
-    "migrate_dewey",
-    "Propose a new doc-contract identity (docid + id) for a doc using the old Dewey scheme. Returns a proposal with suggested front-matter additions and an alias entry for dewey-aliases.json. Does not write anything — caller must approve and apply.",
-    MigrateDeweyToolSchema.shape,
-    async ({ filePath, proposedDocId, proposedId }) => {
-      try {
-        const registry = loadRegistry();
-        const result = migrateDewey(registry, filePath, proposedDocId, proposedId);
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: "text" as const, text: `Error: ${msg}` }] };
       }
     }
   );
