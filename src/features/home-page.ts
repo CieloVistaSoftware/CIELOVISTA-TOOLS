@@ -102,7 +102,7 @@ function buildBrowseAllHtml(
 ): string {
     const browseHtml = Object.entries(grouped).map(([prefix, cmds]) => {
         const items = cmds.map(cmd => {
-            const label = cmd.title.includes(':') ? cmd.title.slice(cmd.title.indexOf(':') + 1).trim() : cmd.title;
+            const label = commandLabel(cmd.title);
             const desc  = cmd.description ? `<span class="browse-desc">${esc(cmd.description)}</span>` : '';
             return `<div class="browse-item"><button class="browse-link" data-cmd="${esc(cmd.command)}">${esc(label)}</button>${desc}</div>`;
         }).join('');
@@ -173,6 +173,16 @@ window.addEventListener('message', function(e) {
 })();
 </script>
 </body></html>`;
+}
+
+/**
+ * The label a command shows under its group heading: the title less its
+ * "Group:" prefix, which the heading already shows. One rule for Browse All,
+ * the dashboard's Browse All and the home search list (#823).
+ */
+export function commandLabel(title: string): string {
+    const colon = title.indexOf(':');
+    return colon === -1 ? title : title.slice(colon + 1).trim();
 }
 
 export function buildGroupedCommands(registered: Set<string>): Record<string, Array<{title:string;command:string;description?:string}>> {
@@ -627,7 +637,7 @@ export function buildDashboardHtml(
     // ── Browse All (collapsible) ──────────────────────────────────────────────
     const browseHtml = Object.entries(grouped).map(([prefix, cmds]) => {
         const items = cmds.map(cmd => {
-            const label = cmd.title.includes(':') ? cmd.title.slice(cmd.title.indexOf(':') + 1).trim() : cmd.title;
+            const label = commandLabel(cmd.title);
             const desc  = cmd.description ? `<span class="browse-desc">${esc(cmd.description)}</span>` : '';
             return `<div class="browse-item"><button class="browse-link" data-cmd="${esc(cmd.command)}">${esc(label)}</button>${desc}</div>`;
         }).join('');
@@ -643,7 +653,7 @@ export function buildDashboardHtml(
     const allCmdsJson = JSON.stringify(
         Object.entries(grouped).flatMap(([prefix, cmds]) =>
             cmds.map(cmd => ({
-                label: cmd.title.includes(':') ? cmd.title.slice(cmd.title.indexOf(':') + 1).trim() : cmd.title,
+                label: commandLabel(cmd.title),
                 group: prefix.replace(/:$/, ''),
                 desc:  cmd.description ?? '',
                 cmd:   cmd.command,

@@ -1,166 +1,100 @@
+// Copyright (c) CieloVista Software. All rights reserved.
 /**
  * launcher-test-coverage.test.js
- * 
- * Tests that the cvs-command-launcher properly includes and searches 
- * test coverage commands with 'playwright' tags.
- * 
+ *
+ * The command launcher lists the three test coverage commands, tagged 'test'
+ * and 'playwright', and its search box finds them.
+ *
+ * Runs the real code (#823): CATALOG from the out-test build of
+ * src/features/cvs-command-launcher/catalog.ts, and the launcher page that
+ * buildLauncherHtml() renders, with its own search script, in jsdom. Until
+ * #823 this test held a hand-written 3-entry catalog and its own search
+ * function; the real catalog had since moved the commands to another group
+ * and the test never noticed.
+ *
  * Run: node tests/launcher-test-coverage.test.js
  */
+'use strict';
 
-const assert = require('assert');
+const assert    = require('assert');
+const fs        = require('fs');
+const path      = require('path');
+const { JSDOM } = require('jsdom');
 
-// Simulate the CATALOG from the compiled launcher
-const CATALOG = [
-    { id: 'cvs.audit.testCoverage', title: 'Audit: Test Coverage Dashboard', description: 'Interactive dashboard showing test coverage by tier with one-click unit test generation.', tags: ['test', 'audit', 'coverage', 'dashboard', 'unit tests', 'playwright', 'jest'], group: 'Doc Audit', groupIcon: '🔍', auditCheckId: 'testCoverage' },
-    { id: 'cvs.audit.testCoverage.refresh', title: 'Audit: Refresh Test Coverage', description: 'Re-run the test coverage audit and update metrics.', tags: ['test', 'refresh', 'coverage', 'playwright'], group: 'Doc Audit', groupIcon: '🔍' },
-    { id: 'cvs.audit.testCoverage.export', title: 'Audit: Export Coverage Report', description: 'Save and open the test coverage report as markdown.', tags: ['test', 'export', 'report', 'playwright'], group: 'Doc Audit', groupIcon: '🔍' },
-];
-
-/**
- * Search function that mimics the launcher's search logic
- * Matches against: id, title, description, and tags
- */
-function searchCatalog(query) {
-    if (!query || query.trim() === '') return CATALOG;
-    
-    const lower = query.toLowerCase();
-    return CATALOG.filter(cmd => {
-        // Search in id
-        if (cmd.id.toLowerCase().includes(lower)) return true;
-        // Search in title
-        if (cmd.title.toLowerCase().includes(lower)) return true;
-        // Search in description
-        if (cmd.description.toLowerCase().includes(lower)) return true;
-        // Search in tags
-        if (cmd.tags && cmd.tags.some(tag => tag.toLowerCase().includes(lower))) return true;
-        return false;
-    });
+const LAUNCHER = path.join(__dirname, '..', 'out-test', 'features', 'cvs-command-launcher');
+const CATALOG_JS = path.join(LAUNCHER, 'catalog.js');
+const HTML_JS    = path.join(LAUNCHER, 'html.js');
+for (const f of [CATALOG_JS, HTML_JS]) {
+    if (!fs.existsSync(f)) {
+        // Not a skip: the runners build out-test/ first, so this is a real failure.
+        console.error(`FAIL: out-test build missing: ${f}. Run through node scripts/run-unit-tests.js, which builds it.`);
+        process.exit(1);
+    }
 }
+const { CATALOG }           = require(CATALOG_JS);
+const { buildLauncherHtml } = require(HTML_JS);
 
-// ─── Test Suite ─────────────────────────────────────────────────────────────
+const COVERAGE_IDS = ['cvs.audit.testCoverage', 'cvs.audit.testCoverage.refresh', 'cvs.audit.testCoverage.export'];
 
 let testsPassed = 0;
 let testsFailed = 0;
-
 function test(name, fn) {
-    try {
-        fn();
-        console.log(`  ✓ ${name}`);
-        testsPassed++;
-    } catch (err) {
-        console.log(`  ✗ ${name}`);
-        console.log(`    Error: ${err.message}`);
-        testsFailed++;
-    }
+    try { fn(); console.log(`  ✓ ${name}`); testsPassed++; }
+    catch (err) { console.log(`  ✗ ${name}\n    Error: ${err.message}`); testsFailed++; }
 }
+
+// ── The real launcher page, every catalog command registered ────────────────
+const html = buildLauncherHtml(null, undefined, [], [], new Set(CATALOG.map(c => c.id)));
+const dom  = new JSDOM(html, {
+    runScripts: 'dangerously',
+    beforeParse(window) { window.acquireVsCodeApi = () => ({ postMessage() {}, getState() { return undefined; }, setState() {} }); },
+});
+const doc = dom.window.document;
+
+/** Ids of the cards the page shows after typing `query` into its search box. */
+function search(query) {
+    const box = doc.getElementById('search');
+    box.value = query;
+    box.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    return [...doc.querySelectorAll('.cmd-card:not(.hidden)')].map(c => c.dataset.id);
+}
+const coverageShown = ids => COVERAGE_IDS.filter(id => ids.includes(id));
 
 console.log('\n📋 Test Coverage Launcher Commands\n');
 
-test('CATALOG should have 3 test coverage commands', () => {
-    const testCovCmds = CATALOG.filter(c => c.id.includes('testCoverage'));
-    assert.strictEqual(testCovCmds.length, 3, `Expected 3 test coverage commands, got ${testCovCmds.length}`);
-});
-
-test('Primary test coverage command should exist', () => {
-    const cmd = CATALOG.find(c => c.id === 'cvs.audit.testCoverage');
-    assert.ok(cmd, 'cvs.audit.testCoverage not found in CATALOG');
-});
-
-test('Refresh test coverage command should exist', () => {
-    const cmd = CATALOG.find(c => c.id === 'cvs.audit.testCoverage.refresh');
-    assert.ok(cmd, 'cvs.audit.testCoverage.refresh not found in CATALOG');
-});
-
-test('Export test coverage command should exist', () => {
-    const cmd = CATALOG.find(c => c.id === 'cvs.audit.testCoverage.export');
-    assert.ok(cmd, 'cvs.audit.testCoverage.export not found in CATALOG');
-});
-
-test('All test coverage commands should have "test" tag', () => {
-    const testCovCmds = CATALOG.filter(c => c.id.includes('testCoverage'));
-    testCovCmds.forEach(cmd => {
-        assert.ok(
-            cmd.tags.includes('test'),
-            `Command ${cmd.id} missing "test" tag. Tags: ${cmd.tags.join(', ')}`
-        );
+for (const id of COVERAGE_IDS) {
+    test(`CATALOG has ${id}, tagged 'test' and 'playwright'`, () => {
+        const cmd = CATALOG.find(c => c.id === id);
+        assert.ok(cmd, `${id} not found in CATALOG`);
+        assert.ok(cmd.tags.includes('test'), `${id} tags: ${cmd.tags.join(', ')}`);
+        assert.ok(cmd.tags.includes('playwright'), `${id} tags: ${cmd.tags.join(', ')}`);
     });
+}
+
+test('the three test coverage commands share one group', () => {
+    const groups = new Set(COVERAGE_IDS.map(id => (CATALOG.find(c => c.id === id) || {}).group));
+    assert.strictEqual(groups.size, 1, `groups: ${[...groups].join(', ')}`);
 });
 
-test('Primary test coverage command should have "playwright" tag', () => {
-    const cmd = CATALOG.find(c => c.id === 'cvs.audit.testCoverage');
-    assert.ok(
-        cmd.tags.includes('playwright'),
-        `Command ${cmd.id} missing "playwright" tag. Tags: ${cmd.tags.join(', ')}`
-    );
+test('the launcher page renders a card for each test coverage command', () => {
+    const cards = [...doc.querySelectorAll('.cmd-card')].map(c => c.dataset.id);
+    assert.deepStrictEqual(coverageShown(cards), COVERAGE_IDS);
 });
 
-test('Refresh test coverage command should have "playwright" tag', () => {
-    const cmd = CATALOG.find(c => c.id === 'cvs.audit.testCoverage.refresh');
-    assert.ok(
-        cmd.tags.includes('playwright'),
-        `Command ${cmd.id} missing "playwright" tag. Tags: ${cmd.tags.join(', ')}`
-    );
-});
-
-test('Export test coverage command should have "playwright" tag', () => {
-    const cmd = CATALOG.find(c => c.id === 'cvs.audit.testCoverage.export');
-    assert.ok(
-        cmd.tags.includes('playwright'),
-        `Command ${cmd.id} missing "playwright" tag. Tags: ${cmd.tags.join(', ')}`
-    );
-});
-
-test('Search "playwright" should find all 3 test coverage commands', () => {
-    const results = searchCatalog('playwright');
-    const testCovCmds = results.filter(c => c.id.includes('testCoverage'));
-    assert.strictEqual(testCovCmds.length, 3, `Expected 3 results for "playwright", got ${testCovCmds.length}: ${results.map(r => r.id).join(', ')}`);
-});
-
-test('Search "test coverage" should find all 3 test coverage commands', () => {
-    const results = searchCatalog('test coverage');
-    const testCovCmds = results.filter(c => c.id.includes('testCoverage'));
-    assert.strictEqual(testCovCmds.length, 3, `Expected 3 results for "test coverage", got ${testCovCmds.length}`);
-});
-
-test('Search "test" should find all 3 test coverage commands', () => {
-    const results = searchCatalog('test');
-    const testCovCmds = results.filter(c => c.id.includes('testCoverage'));
-    assert.strictEqual(testCovCmds.length, 3, `Expected 3 results for "test", got ${testCovCmds.length}`);
-});
-
-test('Search "dashboard" should find primary test coverage command', () => {
-    const results = searchCatalog('dashboard');
-    const testCovCmds = results.filter(c => c.id === 'cvs.audit.testCoverage');
-    assert.strictEqual(testCovCmds.length, 1, `Expected 1 result for "dashboard", got ${results.length}`);
-});
-
-test('All test coverage commands should have proper group', () => {
-    const testCovCmds = CATALOG.filter(c => c.id.includes('testCoverage'));
-    testCovCmds.forEach(cmd => {
-        assert.strictEqual(cmd.group, 'Doc Audit', `Command ${cmd.id} has wrong group: ${cmd.group}`);
+for (const q of ['playwright', 'test coverage', 'test']) {
+    test(`searching "${q}" shows all 3 test coverage commands`, () => {
+        assert.deepStrictEqual(coverageShown(search(q)), COVERAGE_IDS);
     });
+}
+
+test('searching "dashboard" shows the primary test coverage command', () => {
+    assert.ok(search('dashboard').includes('cvs.audit.testCoverage'));
 });
 
-// ─── Summary ────────────────────────────────────────────────────────────────
+test('searching for text no command has hides them all', () => {
+    assert.deepStrictEqual(search('zq-no-command-has-this-xj'), []);
+});
 
 console.log(`\n📊 Results: ${testsPassed} passed, ${testsFailed} failed\n`);
-
-console.log('✅ CATALOG entries for test coverage commands:\n');
-CATALOG.filter(c => c.id.includes('testCoverage')).forEach(cmd => {
-    console.log(`  ${cmd.id}`);
-    console.log(`    Title: ${cmd.title}`);
-    console.log(`    Tags: ${cmd.tags.join(', ')}`);
-    console.log(`    Has 'playwright': ${cmd.tags.includes('playwright') ? '✓ YES' : '✗ NO'}`);
-    console.log();
-});
-
-console.log('🔍 Search Test Results:\n');
-console.log(`  Search "playwright": ${searchCatalog('playwright').filter(c => c.id.includes('testCoverage')).length} results`);
-console.log(`  Search "test": ${searchCatalog('test').filter(c => c.id.includes('testCoverage')).length} results`);
-console.log(`  Search "dashboard": ${searchCatalog('dashboard').filter(c => c.id.includes('testCoverage')).length} results\n`);
-
-if (testsFailed > 0) {
-    process.exit(1);
-} else {
-    console.log('✨ All tests passed!\n');
-}
+dom.window.close();
+process.exit(testsFailed ? 1 : 0);

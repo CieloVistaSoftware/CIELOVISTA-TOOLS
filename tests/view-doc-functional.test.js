@@ -1,243 +1,158 @@
 #!/usr/bin/env node
-
+// Copyright (c) CieloVista Software. All rights reserved.
 /**
- * View a Doc Server Functional Test
- * 
- * This test starts an HTTP server like the extension does and verifies:
- * - Server starts on localhost
- * - Catalog homepage is served
- * - Individual markdown files can be requested
- * - HTML output is valid
- * - Links are properly rewritten
+ * View a Doc Server — functional test
+ *
+ * Drives the REAL View a Doc server: viewSpecificDoc() from the out-test build
+ * of src/features/doc-catalog/commands.ts, on an ephemeral port, over a temp
+ * registry naming one temp project. Verifies:
+ *   - the server starts on 127.0.0.1 and opens its page
+ *   - the home page lists every doc in the project
+ *   - each listed doc opens, rendered from its markdown
+ *   - a path with spaces resolves
+ *   - a relative link in a doc is rewritten to a working /doc link
+ *   - a missing doc returns 404
+ *
+ * Until #823 this test built its own http.createServer with its own catalog
+ * page and escapeHtml() and tested that, so no code from src/ ran; and it
+ * printed a cross for a failure but still exited 0. REG-152 covers the same
+ * server's refusals (token, host, paths outside every project).
+ *
+ * Run: node tests/view-doc-functional.test.js
  */
+'use strict';
 
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+const fs     = require('fs');
+const os     = require('os');
+const path   = require('path');
+const http   = require('http');
+const Module = require('module');
+
+const COMMANDS_JS = path.join(__dirname, '..', 'out-test', 'features', 'doc-catalog', 'commands.js');
+
+let passed = 0, failed = 0;
+function check(name, ok, detail) {
+    if (ok) { console.log(`  ✓ ${name}`); passed++; }
+    else    { console.error(`  ✗ ${name}${detail ? `\n    ${detail}` : ''}`); failed++; }
+}
 
 console.log('\n📄 View a Doc Server — Functional Test');
 console.log('═'.repeat(70));
 
-const workspaceRoot = path.join(__dirname, '..');
-
-// Check that key files exist
-const keyFiles = [
-    'CHANGELOG.md',
-    'README.md',
-    'ViewADoc.md',
-];
-
-console.log('\n1. Workspace Documentation Files');
-let filesOk = true;
-keyFiles.forEach(file => {
-    const fullPath = path.join(workspaceRoot, file);
-    if (fs.existsSync(fullPath)) {
-        const size = fs.statSync(fullPath).size;
-        console.log(`   ✓ ${file} (${size} bytes)`);
-    } else {
-        console.log(`   ✗ ${file} NOT FOUND`);
-        filesOk = false;
-    }
-});
-
-if (!filesOk) {
-    console.log('\n✗ Required files missing\n');
+if (!fs.existsSync(COMMANDS_JS)) {
+    // Not a skip: the runners build out-test/ first, so this is a real failure.
+    console.error(`  ✗ out-test build missing: ${COMMANDS_JS}`);
     process.exit(1);
 }
 
-// Simulate the View Doc server
-console.log('\n2. Starting HTTP Server');
+// ── Temp home: a registry naming one project with three docs ────────────────
+const TMP     = fs.mkdtempSync(path.join(os.tmpdir(), 'cvt-viewdoc-'));
+const HOME    = path.join(TMP, 'home');
+const PROJECT = path.join(TMP, 'proj-view');
+const SPACED  = path.join(PROJECT, 'docs with spaces');
+const GLOBAL  = path.join(TMP, 'global-docs');
+for (const d of [HOME, SPACED, GLOBAL]) { fs.mkdirSync(d, { recursive: true }); }
+const DOCS = {
+    readme:    [path.join(PROJECT, 'README.md'),    '# Proj View\n\nThe readme body. See [the changelog](CHANGELOG.md).\n'],
+    changelog: [path.join(PROJECT, 'CHANGELOG.md'), '# Changelog\n\n## 1.0.0\n\n- First release entry.\n'],
+    spaced:    [path.join(SPACED, 'view a doc.md'),  '# View a Doc Guide\n\nGuide text from a spaced path.\n'],
+};
+for (const [file, text] of Object.values(DOCS)) { fs.writeFileSync(file, text, 'utf8'); }
+const REG_DIR = path.join(HOME, 'Downloads', 'CieloVistaStandards');
+fs.mkdirSync(REG_DIR, { recursive: true });
+fs.writeFileSync(path.join(REG_DIR, 'project-registry.json'), JSON.stringify({
+    globalDocsPath: GLOBAL,
+    projects: [{ name: 'proj-view', path: PROJECT, type: 'app', description: 'fixture' }],
+}, null, 2), 'utf8');
+process.env.USERPROFILE = HOME;
+process.env.HOME        = HOME;
 
-const testServerPort = 0; // Let OS choose
-const testServer = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+// ── vscode mock: records the page the server opens; the rest is inert ──────
+const opened = [];
+function anyObject() {
+    return new Proxy(function () { return anyObject(); }, {
+        get: (_t, k) => (k === 'then' ? undefined : anyObject()),
+        apply: () => anyObject(),
+    });
+}
+const vscodeMock = new Proxy({
+    env:       { openExternal: (uri) => { opened.push(String(uri)); return Promise.resolve(true); } },
+    Uri:       { parse: (s) => ({ toString: () => s, fsPath: s }), file: (p) => ({ fsPath: p, toString: () => 'file://' + p }) },
+    window:    {
+        withProgress: (_o, fn) => Promise.resolve(fn({ report() {} }, { isCancellationRequested: false })),
+        showErrorMessage() {}, showInformationMessage() {}, showWarningMessage() {},
+        createOutputChannel: () => ({ appendLine() {}, append() {}, show() {}, dispose() {}, clear() {} }),
+    },
+    workspace: { workspaceFolders: [], getConfiguration: () => ({ get: (_k, d) => d, update: () => Promise.resolve() }) },
+    ProgressLocation: { Notification: 15 },
+    ViewColumn: { One: 1, Two: 2, Beside: -2, Active: -1 },
+},{ get: (t, k) => (k in t ? t[k] : anyObject()) });
+const origLoad = Module._load;
+Module._load = function (req) { return req === 'vscode' ? vscodeMock : origLoad.apply(this, arguments); };
 
-    if (req.url === '/favicon.ico') {
-        res.writeHead(204);
-        res.end();
-        return;
-    }
-
-    if (req.url === '/') {
-        // Homepage: list available docs
-        const catalogHtml = `
-            <html>
-            <head><title>View a Doc</title></head>
-            <body>
-                <h1>Documentation</h1>
-                <ul>
-                    <li><a href="/doc?path=${encodeURIComponent(path.join(workspaceRoot, 'CHANGELOG.md'))}">CHANGELOG</a></li>
-                    <li><a href="/doc?path=${encodeURIComponent(path.join(workspaceRoot, 'README.md'))}">README</a></li>
-                    <li><a href="/doc?path=${encodeURIComponent(path.join(workspaceRoot, 'ViewADoc.md'))}">View a Doc Guide</a></li>
-                </ul>
-            </body>
-            </html>
-        `;
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(catalogHtml);
-        return;
-    }
-
-    if (req.url.startsWith('/doc?path=')) {
-        const filePath = decodeURIComponent(new URL(req.url, 'http://localhost').searchParams.get('path') || '');
-        
-        if (!filePath || !fs.existsSync(filePath)) {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            res.end('File not found: ' + filePath);
-            return;
-        }
-
-        try {
-            const content = fs.readFileSync(filePath, 'utf8');
-            const html = `
-                <html>
-                <head>
-                    <title>${path.basename(filePath)}</title>
-                    <meta charset="utf-8">
-                </head>
-                <body>
-                    <h1>${path.basename(filePath)}</h1>
-                    <pre>${escapeHtml(content.substring(0, 500))}</pre>
-                    <p>Document loaded successfully (${content.length} bytes)</p>
-                    <a href="/">Back to Catalog</a>
-                </body>
-                </html>
-            `;
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(html);
-        } catch (err) {
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end('Error reading file: ' + err.message);
-        }
-        return;
-    }
-
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('Not found');
-});
-
-testServer.listen(testServerPort, '127.0.0.1', async () => {
-    const addr = testServer.address();
-    const port = addr.port;
-    const url = `http://127.0.0.1:${port}`;
-
-    console.log(`   ✓ Server started on ${url}`);
-
-    try {
-        // Test 1: Homepage
-        console.log('\n3. Testing Homepage');
-        let html = await request(port, '/');
-        if (html.includes('Documentation') && html.includes('CHANGELOG') && html.includes('README')) {
-            console.log(`   ✓ Homepage loads with 3 doc links`);
-        } else {
-            console.log(`   ✗ Homepage missing expected content`);
-        }
-
-        // Test 2: CHANGELOG.md
-        console.log('\n4. Testing Individual Documents');
-        const changelogPath = path.join(workspaceRoot, 'CHANGELOG.md');
-        html = await request(port, `/doc?path=${encodeURIComponent(changelogPath)}`);
-        if (html.includes('CHANGELOG') && html.includes('bytes') && !html.includes('Error')) {
-            console.log(`   ✓ CHANGELOG.md loads successfully`);
-        } else {
-            console.log(`   ✗ CHANGELOG.md failed to load`);
-        }
-
-        // Test 3: README.md
-        const readmePath = path.join(workspaceRoot, 'README.md');
-        html = await request(port, `/doc?path=${encodeURIComponent(readmePath)}`);
-        if (html.includes('README') && html.includes('bytes') && !html.includes('Error')) {
-            console.log(`   ✓ README.md loads successfully`);
-        } else {
-            console.log(`   ✗ README.md failed to load`);
-        }
-
-        // Test 4: Non-existent file returns 404
-        console.log('\n5. Testing Error Cases');
-        try {
-            await request(port, `/doc?path=${encodeURIComponent('/nonexistent/file.md')}`);
-            console.log(`   ✗ Should have returned 404 for missing file`);
-        } catch (err) {
-            if (err.statusCode === 404) {
-                console.log(`   ✓ Non-existent file returns 404`);
-            } else {
-                console.log(`   ✗ Unexpected status: ${err.statusCode}`);
-            }
-        }
-
-        // Test 5: URL encoding works
-        console.log('\n6. Testing URL Encoding');
-        const specialPath = path.join(workspaceRoot, 'ViewADoc.md'); // Has spaces handling
-        html = await request(port, `/doc?path=${encodeURIComponent(specialPath)}`);
-        if (!html.includes('Error') && html.includes('ViewADoc')) {
-            console.log(`   ✓ URL-encoded paths resolve correctly`);
-        } else {
-            console.log(`   ✗ URL encoding failed`);
-        }
-
-        // Summary
-        console.log('\n' + '═'.repeat(70));
-        console.log('✅ View a Doc Server functional test PASSED');
-        console.log('\nServer can:');
-        console.log('  • Start on localhost (127.0.0.1)');
-        console.log('  • Serve homepage with document list');
-        console.log('  • Load individual markdown files');
-        console.log('  • Handle URL-encoded file paths');
-        console.log('  • Return 404 for missing files');
-        console.log('  • Generate valid HTML responses');
-        console.log('\nWhen you run the extension:');
-        console.log('  1. Click "View a Doc" in the Doc Catalog');
-        console.log('  2. Browser will open to http://127.0.0.1:<port>');
-        console.log('  3. All links will work natively in the browser');
-        console.log('═'.repeat(70) + '\n');
-
-    } catch (err) {
-        console.log(`\n✗ Test error: ${err.message}`);
-        testServer.close();
-        process.exit(1);
-    } finally {
-        testServer.close();
-        process.exit(0);
-    }
-});
-
-function request(port, urlPath) {
-    return new Promise((resolve, reject) => {
-        const options = {
-            hostname: '127.0.0.1',
-            port: port,
-            path: urlPath,
-            method: 'GET',
-            timeout: 5000,
-        };
-
-        const req = http.request(options, (res) => {
-            let data = '';
-            res.on('data', chunk => { data += chunk; });
-            res.on('end', () => {
-                if (res.statusCode >= 400) {
-                    const err = new Error(`HTTP ${res.statusCode}`);
-                    err.statusCode = res.statusCode;
-                    reject(err);
-                } else {
-                    resolve(data);
-                }
-            });
+function get(port, pathAndQuery) {
+    return new Promise((resolve) => {
+        const req = http.request({ host: '127.0.0.1', port, path: pathAndQuery, method: 'GET', timeout: 5000 }, (res) => {
+            let body = '';
+            res.setEncoding('utf8');
+            res.on('data', (c) => { body += c; });
+            res.on('end', () => resolve({ status: res.statusCode, body }));
         });
-
-        req.on('error', reject);
-        req.on('timeout', () => {
-            req.abort();
-            reject(new Error('Request timeout'));
-        });
+        req.on('timeout', () => req.destroy(new Error('timeout')));
+        req.on('error', (e) => resolve({ status: 0, body: String(e) }));
         req.end();
     });
 }
+const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
-function escapeHtml(text) {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
+let mod;
+(async () => {
+    mod = require(COMMANDS_JS);
+    await mod.viewSpecificDoc();
+    for (let i = 0; i < 100 && !opened.length; i++) { await new Promise(r => setTimeout(r, 50)); }
+    const port = Number(((opened[0] || '').match(/^http:\/\/127\.0\.0\.1:(\d+)/) || [])[1]);
+    check('the server starts on 127.0.0.1 and opens its page', port > 0, `openExternal calls: ${JSON.stringify(opened)}`);
+    if (!(port > 0)) { return; }
+
+    const home = await get(port, '/');
+    check('the home page is served', home.status === 200, `status ${home.status}`);
+    const token  = (home.body.match(/[?&]t=([0-9a-f]{64})/) || [])[1] || '';
+    const listed = [...home.body.matchAll(/class="doc-link[^"]*"[^>]*data-path="([^"]*)"/g)].map(m => path.resolve(unesc(m[1])));
+    for (const [key, [file]] of Object.entries(DOCS)) {
+        check(`the home page lists ${key} (${path.relative(TMP, file)})`, listed.includes(path.resolve(file)),
+            `listed: ${JSON.stringify(listed)}`);
+    }
+
+    // Open each doc the way the page does: BASE + /doc?path=<encoded> + token.
+    const open = (file) => get(port, `/doc?path=${encodeURIComponent(file)}&t=${token}`);
+    const readme = await open(DOCS.readme[0]);
+    check('README.md opens, rendered from its markdown',
+        readme.status === 200 && /<h1[^>]*>\s*Proj View\s*<\/h1>/.test(readme.body) && readme.body.includes('The readme body.'),
+        `status ${readme.status}: ${readme.body.slice(0, 200)}`);
+    const changelog = await open(DOCS.changelog[0]);
+    check('CHANGELOG.md opens, rendered from its markdown',
+        changelog.status === 200 && changelog.body.includes('First release entry.') && /<h2[^>]*>\s*1\.0\.0/.test(changelog.body),
+        `status ${changelog.status}`);
+    const spaced = await open(DOCS.spaced[0]);
+    check('a doc under a folder with spaces opens',
+        spaced.status === 200 && spaced.body.includes('Guide text from a spaced path.'), `status ${spaced.status}`);
+
+    const link = (readme.body.match(/href="(http:\/\/127\.0\.0\.1:\d+\/doc\?[^"]*)"/) || [])[1];
+    check('a relative link in a doc is rewritten to a /doc link on this server', !!link, 'no /doc link in README.md');
+    if (link) {
+        const followed = await get(port, unesc(link).replace(/^http:\/\/127\.0\.0\.1:\d+/, ''));
+        check('following the rewritten link opens the linked doc',
+            followed.status === 200 && followed.body.includes('First release entry.'), `status ${followed.status}`);
+    }
+
+    const missing = await open(path.join(PROJECT, 'no-such-doc.md'));
+    check('a missing doc returns 404', missing.status === 404, `status ${missing.status}`);
+})().catch((e) => check('the test ran to completion', false, (e && e.stack) || String(e)))
+    .finally(() => {
+        Module._load = origLoad;
+        try { mod && mod.disposeViewServer && mod.disposeViewServer(); } catch { /* ignore */ }
+        try { fs.rmSync(TMP, { recursive: true, force: true }); } catch { /* ignore */ }
+        console.log('═'.repeat(70));
+        console.log(`${passed} passed, ${failed} failed\n`);
+        process.exit(failed ? 1 : 0);
+    });
