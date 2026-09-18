@@ -628,7 +628,7 @@
       },
       {
         "command": "cvs.launch.snapit.stop",
-        "title": "SnapIt — Stop (kill port 5200)",
+        "title": "SnapIt — Stop Service",
         "category": "CieloVista Launch",
         "description": "Stop the SnapIt service and free port 5200."
       },
@@ -652,7 +652,7 @@
       },
       {
         "command": "cvs.launch.diskcleanup.stop",
-        "title": "DiskCleanUp — Stop (kill port 5100)",
+        "title": "DiskCleanUp — Stop Service",
         "category": "CieloVista Launch",
         "description": "Stop the DiskCleanUp service and free port 5100."
       },
@@ -824,13 +824,13 @@
       },
       {
         "command": "cvs.tools.fileList",
-        "title": "Tools: FileList",
+        "title": "Tools: File List",
         "category": "CieloVista",
         "description": "Open the FileList viewer — a sortable, table-based alternative to the Explorer tree (Name, Date modified, Type, Size)."
       },
       {
         "command": "cvs.tools.fileList.navigateTo",
-        "title": "FileList: Open folder here",
+        "title": "FileList: Open Folder Here",
         "category": "CieloVista",
         "description": "Navigate the open FileList panel to this folder (or open FileList at this folder)."
       },
@@ -890,15 +890,15 @@
       },
       {
         "command": "cvs.corequisites.check",
-        "title": "Check Corequisite Extensions",
+        "title": "Corequisites: Check Extensions",
         "category": "CieloVista Marketplace",
         "description": "Check that all corequisite VS Code extensions are installed"
       },
       {
         "command": "cvs.corequisites.install",
-        "title": "Install Missing Corequisite Extensions",
+        "title": "Corequisites: Install Missing or Outdated Extensions",
         "category": "CieloVista Marketplace",
-        "description": "Install any missing corequisite VS Code extensions"
+        "description": "Install or upgrade any missing or outdated corequisite VS Code extensions"
       }
     ],
     "menus": {
