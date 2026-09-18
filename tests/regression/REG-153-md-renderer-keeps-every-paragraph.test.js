@@ -108,10 +108,13 @@ const STARTS = [
     { name: 'italic with _',          md: '_italic_ start of a sentence' },
     { name: 'code span',              md: '`npm run compile` builds the extension' },
     { name: 'literal #word',          md: '#hashtag is not a heading' },
-    { name: 'five hashes',            md: '##### deeper than the renderer supports' },
+    // Six hashes is h6 since #773; seven is still text in CommonMark.
+    { name: 'seven hashes',           md: '####### deeper than any heading level' },
     { name: 'strikethrough ~~',       md: '~~old~~ text that was replaced' },
     { name: 'single ~',               md: '~approximately ten files' },
-    { name: '> with no space',        md: '>not a blockquote without a space' },
+    // ">text" is a blockquote since #773 (the space is optional); see the
+    // paragraph-stop cases below. "+text" with no space is still text.
+    { name: '+ with no space',        md: '+plus sign glued to a word' },
     { name: '- with no space',        md: '-flag style option text' },
     { name: '* with no space',        md: '*star without a closing mate' },
     { name: 'link',                   md: '[the guide](docs/guide.md) explains setup' },
@@ -170,6 +173,12 @@ for (const c of STARTS) {
     const blocks = [
         { name: 'bullet list',   next: '- item one',        want: /<p><strong>Note:<\/strong> text<\/p>\n<ul><li>item one<\/li><\/ul>/ },
         { name: 'star list',     next: '* item one',        want: /<p><strong>Note:<\/strong> text<\/p>\n<ul><li>item one<\/li><\/ul>/ },
+        { name: 'plus list (#773)', next: '+ item one',     want: /<p><strong>Note:<\/strong> text<\/p>\n<ul><li>item one<\/li><\/ul>/ },
+        { name: 'list numbered from 3 (#773)', next: '3. item three', want: /<p><strong>Note:<\/strong> text<\/p>\n<ol start="3"><li>item three<\/li><\/ol>/ },
+        { name: 'h5 heading (#773)', next: '##### Deep',    want: /<p><strong>Note:<\/strong> text<\/p>\n<h5 id="deep">Deep<\/h5>/ },
+        { name: 'h6 heading (#773)', next: '###### Deeper', want: /<p><strong>Note:<\/strong> text<\/p>\n<h6 id="deeper">Deeper<\/h6>/ },
+        { name: 'blockquote with no space (#773)', next: '>quoted words', want: /<p><strong>Note:<\/strong> text<\/p>\n<blockquote>quoted words<\/blockquote>/ },
+        { name: 'lone > line (#773)', next: '>',            want: /<p><strong>Note:<\/strong> text<\/p>\n<blockquote><\/blockquote>/ },
         { name: 'numbered list', next: '1. item one',       want: /<p><strong>Note:<\/strong> text<\/p>\n<ol><li>item one<\/li><\/ol>/ },
         { name: 'heading',       next: '## Next section',   want: /<p><strong>Note:<\/strong> text<\/p>\n<h2 id="next-section">Next section<\/h2>/ },
         { name: 'blockquote',    next: '> quoted words',    want: /<p><strong>Note:<\/strong> text<\/p>\n<blockquote>quoted words<\/blockquote>/ },
