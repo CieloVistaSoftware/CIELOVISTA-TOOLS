@@ -122,16 +122,6 @@
       ]
     },
     {
-      "id": "priority-sync",
-      "title": "Priority sync",
-      "description": "How issue priority is mirrored between GitHub and the extension.",
-      "path": "docs/working/priority-sync.md",
-      "section": "working",
-      "placement": "top",
-      "refs": [],
-      "backlinks": []
-    },
-    {
       "id": "regression-log",
       "title": "Regression log",
       "description": "What each REG-NNN test guards, and the bug that caused it to exist.",

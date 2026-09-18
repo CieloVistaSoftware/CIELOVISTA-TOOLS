@@ -6,7 +6,7 @@
  * Behavior:
  *   - Watches tests/unit/, tests/regression/, tests/ for .test.js changes
  *   - When a file changes: runs JUST that file immediately (fast feedback)
- *   - Every 60 seconds: runs the full test:all suite
+ *   - Every 60 seconds: runs every file in ALL_TESTS below
  *   - Writes live status to data/test-watch.json
  *   - Prints a compact pass/fail summary after every run
  *   - Never exits — runs until killed
@@ -24,7 +24,7 @@ const ROOT      = path.resolve(__dirname, '..');
 const DATA_FILE = path.join(ROOT, 'data', 'test-watch.json');
 const FULL_SUITE_INTERVAL_MS = 60_000; // run all tests every 60s
 
-// ── All individual test files (same order as test:all) ─────────────────────────
+// ── All individual test files (its own list; the full gate is scripts/run-unit-tests.js) ─────────────────────────
 const ALL_TESTS = [
     'tests/catalog-integrity.test.js',
     'tests/command-validation.test.js',
