@@ -117,11 +117,22 @@ test('a README-only match finds feature READMEs', () => {
     assert.deepStrictEqual(rel(walkDocTree(TMP, { match: (n) => /\.README\.md$/i.test(n) })), ['src/features/foo.README.md']);
 });
 
+// Judge each path relative to the fixture root: the root itself may sit under
+// a skipped name (on Linux os.tmpdir() is /tmp, and "tmp" is in the list), and
+// only directories BELOW the root are skipped.
 for (const dir of DOC_SKIP_DIRS) {
     test(`skips ${dir}/`, () => {
-        ok(!walkDocTree(TMP, { maxDepth: Infinity }).some((p) => p.includes(`${path.sep}${dir}${path.sep}`)));
+        const hits = rel(walkDocTree(TMP, { maxDepth: Infinity })).filter((p) => p.split('/').includes(dir));
+        eq(hits.length, 0, hits.join(', '));
     });
 }
+
+test('a root that sits inside a skipped directory name is still walked', () => {
+    const inner = path.join(TMP, 'tmp', 'project');
+    fs.mkdirSync(inner, { recursive: true });
+    fs.writeFileSync(path.join(inner, 'doc.md'), '# Inside tmp/');
+    assert.deepStrictEqual(walkDocTree(inner).map((p) => path.basename(p)), ['doc.md']);
+});
 
 // ── collectDocs() ─────────────────────────────────────────────────────────────
 console.log('\n-- collectDocs() --');
