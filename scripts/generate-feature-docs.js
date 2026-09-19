@@ -107,7 +107,7 @@ function generate(featureFile) {
     const featureName = extractFeatureName(src) || baseName;
     const title       = titleCase(featureName.replace(/[._]/g, '-'));
     // Subdirectory READMEs get a '-dir' suffix on the id to avoid colliding
-    // with a same-named direct feature file (e.g. readme-compliance.ts vs readme-compliance/).
+    // with a same-named direct feature file (e.g. a <name>.ts beside a <name>/ folder).
     // docs-sync.js rejects duplicate ids.
     const id          = `feature-${slug(baseName)}${isSubdir ? '-dir' : ''}`;
     const commands    = extractCommands(src);

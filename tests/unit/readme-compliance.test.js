@@ -1,7 +1,7 @@
 /**
  * tests/unit/readme-compliance.test.js
  *
- * Unit tests for src/features/readme-compliance.ts pure logic.
+ * Unit tests for src/features/readme-compliance/feature.ts pure logic.
  * Uses the _test export handle — no VS Code required.
  *
  * Covers:
@@ -53,7 +53,7 @@ for (const d of DEPS) {
     if (fs.existsSync(p)) { try { require(p); } catch { /* optional */ } }
 }
 
-const OUT = path.join(__dirname, '../../out-test/features/readme-compliance.js');
+const OUT = path.join(__dirname, '../../out-test/features/readme-compliance/feature.js');
 if (!fs.existsSync(OUT)) { console.error('SKIP: not compiled'); process.exit(0); }
 
 const rc = require(OUT);

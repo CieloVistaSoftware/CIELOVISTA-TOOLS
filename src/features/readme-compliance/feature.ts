@@ -1,7 +1,7 @@
 // Copyright (c) 2025 CieloVista Software. All rights reserved.
 // Unauthorized copying or distribution of this file is strictly prohibited.
 /**
- * readme-compliance.ts
+ * readme-compliance/feature.ts
  *
  * Scans every README.md and *.README.md across all registered projects,
  * scores them against the CieloVista README Standard, and provides
