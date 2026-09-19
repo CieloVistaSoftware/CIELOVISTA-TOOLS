@@ -79,13 +79,10 @@ console.log('-'.repeat(64));
 
 // Rule 1. Top-level modules under src/features/ that are not features, read
 // and confirmed one by one. Each must be unreachable from extension.ts; if it
-// becomes reachable or is deleted, remove it here.
+// becomes reachable or is deleted, remove it here. #839 emptied it: its one
+// entry, a readme-compliance.ts re-export kept only for tests, was deleted and
+// the tests load readme-compliance/feature.js instead. Keep it empty.
 const HELPER_MODULES = new Map([
-    // A two-line re-export of readme-compliance/feature.ts, kept "so existing
-    // imports and tests continue to resolve" (tests/unit/readme-compliance.test.js
-    // loads out-test/features/readme-compliance.js; REG-157 uses it as its
-    // file-plus-folder fixture). extension.ts imports readme-compliance/index.
-    ['src/features/readme-compliance.ts', 'compatibility shim for tests'],
 ]);
 
 // Rule 2. Files under src/ that nothing reachable imports, each under the

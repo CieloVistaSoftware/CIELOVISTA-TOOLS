@@ -386,8 +386,8 @@ const NOT_MODULE_DOCS = new Set(['CommandHelp', 'image-reader-assets']);
  * (src/features/<id>/ with index.ts). The id is the first path segment after
  * ./features/, so './features/doc-catalog/index' and
  * './features/cvs-command-launcher/command-history' both mean one feature each,
- * and readme-compliance -- which has both readme-compliance.ts (a shim) and
- * readme-compliance/ -- is listed once.
+ * and a feature with both <id>.ts and <id>/ is listed once, at the folder
+ * (REG-157 check 4 builds that case; readme-compliance had it until #839).
  *
  * Deriving the list from the directory instead is how it went wrong twice:
  * listing only flat *.ts left out every folder feature (doc-catalog, doc-header,

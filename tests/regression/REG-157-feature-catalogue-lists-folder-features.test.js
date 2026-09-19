@@ -23,9 +23,10 @@
  *   3. that line links to the feature's own README (src/features/<id>/README.md
  *      for a folder feature, src/features/<id>.README.md for a file feature),
  *      and the link resolves to a file that exists
- *   4. readme-compliance, which has both readme-compliance.ts and
- *      readme-compliance/, is listed once, pointing at the folder extension.ts
- *      imports
+ *   4. a feature with both <id>.ts and <id>/ is listed once, pointing at the
+ *      folder extension.ts imports. The repo no longer has one (#839 deleted
+ *      readme-compliance.ts), so a scratch copy gets a readme-compliance.ts
+ *      beside readme-compliance/ and docs-sync --check must still pass there
  *   5. every link in the generated block resolves, and none lists a module
  *      extension.ts does not import (REG-158 keeps every src/features/
  *      module wired or deleted, so none is left to list by mistake)
@@ -35,7 +36,7 @@
  *   8. --check FAILS, naming the feature, when a folder feature's line is
  *      removed from the catalogue (run on a scratch copy of the repo)
  *
- * Read-only against the repo: check 8 works on a copy under the OS temp dir.
+ * Read-only against the repo: checks 4 and 8 work on a copy under the OS temp dir.
  *
  * Run: node tests/regression/REG-157-feature-catalogue-lists-folder-features.test.js
  */
@@ -162,14 +163,43 @@ test('3. each line links to that feature\'s own README, and the link resolves', 
     assert(!bad.length, `no resolving link to the feature's README: ${bad.join('; ')}`);
 });
 
-test('4. readme-compliance (both .ts and folder) is listed once, at the folder it is imported from', () => {
-    assert(fs.existsSync(path.join(FEATURES, 'readme-compliance.ts')), 'fixture changed: readme-compliance.ts is gone');
-    assert(fs.existsSync(path.join(FEATURES, 'readme-compliance', 'index.ts')), 'fixture changed: readme-compliance/ is gone');
+/**
+ * Copy what docs-sync.js reads into a fresh temp dir, let `edit` change the
+ * copy, run docs-sync --check there, and hand the result to `inspect`.
+ */
+function syncCheckOnCopy(edit, inspect) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reg157-'));
+    try {
+        // mcp-server/src/shared holds the one doc walk docs-sync.js loads (#812).
+        for (const dir of ['src', 'docs', 'scripts', 'mcp-server/src/shared']) {
+            fs.cpSync(path.join(ROOT, dir), path.join(tmp, dir), { recursive: true });
+        }
+        edit(tmp);
+        const r = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'docs-sync.js'), '--check'],
+            // esbuild, which scripts/lib/doc-walk.js loads, is in the repo's node_modules, not the copy's.
+            { cwd: tmp, encoding: 'utf8', env: { ...process.env, NODE_PATH: path.join(ROOT, 'node_modules') } });
+        inspect(r.status, (r.stdout || '') + (r.stderr || ''));
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+}
+
+test('4. a feature with both <id>.ts and <id>/ is listed once, at the folder it is imported from', () => {
     const list = byId.get('readme-compliance') || [];
     const all  = entries.filter(e => /src\/features\/readme-compliance[./]/.test(e.href));
     assert(all.length === 1, `readme-compliance appears ${all.length} times`);
     assert(list.length === 1 && list[0].kind === 'folder',
         `readme-compliance links ${all.map(e => e.href).join(', ')}, expected ../../src/features/readme-compliance/README.md`);
+    // The file-plus-folder case, built in a scratch copy: a readme-compliance.ts
+    // beside readme-compliance/ must not add a line or move the link.
+    assert(fs.existsSync(path.join(FEATURES, 'readme-compliance', 'index.ts')), 'fixture: readme-compliance/index.ts is gone');
+    syncCheckOnCopy(tmp => {
+        const shim = path.join(tmp, 'src', 'features', 'readme-compliance.ts');
+        assert(!fs.existsSync(shim), 'fixture: the copy already has src/features/readme-compliance.ts');
+        fs.writeFileSync(shim, "export { activate, deactivate, _test } from './readme-compliance/feature';\n");
+    }, (status, out) => {
+        assert(status === 0, `with readme-compliance.ts beside readme-compliance/, docs-sync --check exited ${status}:\n${out}`);
+    });
 });
 
 test('5. every link resolves, and nothing unwired is listed as a feature', () => {
@@ -194,27 +224,17 @@ test('7. docs-sync --check passes: the committed catalogue is what the generator
 });
 
 test('8. docs-sync --check fails, naming it, when a folder feature is missing from the catalogue', () => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'reg157-'));
-    try {
-        // mcp-server/src/shared holds the one doc walk docs-sync.js loads (#812).
-        for (const dir of ['src', 'docs', 'scripts', 'mcp-server/src/shared']) {
-            fs.cpSync(path.join(ROOT, dir), path.join(tmp, dir), { recursive: true });
-        }
+    syncCheckOnCopy(tmp => {
         const copy = path.join(tmp, 'docs', 'using', 'features.md');
         const text = fs.readFileSync(copy, 'utf8');
         const cut  = text.split('\n').filter(l => !l.includes('src/features/doc-header/README.md')).join('\n');
         assert(cut !== text, 'fixture: the catalogue has no doc-header/README.md line to remove');
         fs.writeFileSync(copy, cut);
-        const r   = spawnSync(process.execPath, [path.join(tmp, 'scripts', 'docs-sync.js'), '--check'],
-            // esbuild, which scripts/lib/doc-walk.js loads, is in the repo's node_modules, not the copy's.
-            { cwd: tmp, encoding: 'utf8', env: { ...process.env, NODE_PATH: path.join(ROOT, 'node_modules') } });
-        const out = (r.stdout || '') + (r.stderr || '');
-        assert(r.status !== 0, 'docs-sync --check passed with doc-header removed from the catalogue');
+    }, (status, out) => {
+        assert(status !== 0, 'docs-sync --check passed with doc-header removed from the catalogue');
         assert(/not in the catalogue[^\n]*(?:— |, )doc-header(?:,|\s*$)/m.test(out),
             `--check failed but did not name doc-header as missing:\n${out}`);
-    } finally {
-        fs.rmSync(tmp, { recursive: true, force: true });
-    }
+    });
 });
 
 console.log('-'.repeat(72));
