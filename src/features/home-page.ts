@@ -96,22 +96,8 @@ async function showBrowseAllPanel(): Promise<void> {
     browsePanel.onDidDispose(() => { browsePanel = undefined; });
 }
 
-function buildBrowseAllHtml(
-    grouped: Record<string, Array<{title:string;command:string;description?:string}>>,
-    totalCmds: number,
-): string {
-    const browseHtml = Object.entries(grouped).map(([prefix, cmds]) => {
-        const items = cmds.map(cmd => {
-            const label = commandLabel(cmd.title);
-            const desc  = cmd.description ? `<span class="browse-desc">${esc(cmd.description)}</span>` : '';
-            return `<div class="browse-item"><button class="browse-link" data-cmd="${esc(cmd.command)}">${esc(label)}</button>${desc}</div>`;
-        }).join('');
-        return `<div class="browse-group">
-  <div class="browse-group-hd">${esc(prefix.replace(/:$/, ''))}</div>
-  <div class="browse-items">${items}</div>
-</div>`;
-    }).join('');
-
+/** The separate Browse All panel: a sticky filter over the command directory. */
+export function buildBrowseAllHtml(grouped: CommandGroups, totalCmds: number): string {
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
 <style>
@@ -120,49 +106,19 @@ function buildBrowseAllHtml(
 .cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px}
 h1{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--vscode-editor-foreground)}
-#filter-wrap{position:sticky;top:0;background:var(--vscode-editor-background);padding:0 0 10px;z-index:10}
-#filter{width:100%;padding:5px 10px;border:1px solid var(--vscode-input-border);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:4px;font-size:12px;outline:none}
-#filter:focus{border-color:var(--vscode-focusBorder)}
-#total{font-size:11px;color:var(--vscode-descriptionForeground);margin-top:4px}
-.browse-group{margin-bottom:16px}
-.browse-group-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--vscode-descriptionForeground);margin-bottom:6px;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:3px}
-.browse-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 12px}
-.browse-item{display:flex;flex-direction:column;gap:2px}
-.browse-link{background:none;border:none;color:var(--vscode-textLink-foreground);cursor:pointer;text-align:left;padding:2px 0;font-size:12px;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.browse-link:hover{text-decoration:underline;color:var(--vscode-textLink-activeForeground)}
-.browse-desc{font-size:10px;color:var(--vscode-descriptionForeground);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hidden{display:none}
+${browseDirectoryCss('panel')}
 </style>
 </head><body>
 <div id="filter-wrap">
   <input id="filter" type="text" placeholder="Filter commands… (e.g. FileList, Audit)" autocomplete="off" spellcheck="false">
   <div id="total">${totalCmds} commands registered</div>
 </div>
-<div id="browse-body">${browseHtml}</div>
+<div id="browse-body">${buildBrowseDirectoryHtml(grouped)}</div>
 <script>
 (function(){
 'use strict';
 const vscode = acquireVsCodeApi();
-document.getElementById('browse-body').addEventListener('click', function(e) {
-    var btn = e.target.closest('.browse-link');
-    if (btn && btn.dataset.cmd) {
-        vscode.postMessage({ type: 'run', cmd: btn.dataset.cmd });
-    }
-});
-var filterEl = document.getElementById('filter');
-filterEl.addEventListener('input', function() {
-    var q = filterEl.value.trim().toLowerCase();
-    document.querySelectorAll('.browse-group').forEach(function(grp) {
-        var any = false;
-        grp.querySelectorAll('.browse-item').forEach(function(item) {
-            var text = item.textContent.toLowerCase();
-            var show = !q || text.includes(q);
-            item.classList.toggle('hidden', !show);
-            if (show) { any = true; }
-        });
-        grp.classList.toggle('hidden', !any);
-    });
-});
+${browseDirectoryScript('filter', "function(cmd){ vscode.postMessage({ type: 'run', cmd: cmd }); }")}
 window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'flash') {
         document.body.classList.remove('cvs-flash');
@@ -185,7 +141,130 @@ export function commandLabel(title: string): string {
     return colon === -1 ? title : title.slice(colon + 1).trim();
 }
 
-export function buildGroupedCommands(registered: Set<string>): Record<string, Array<{title:string;command:string;description?:string}>> {
+/** Registered commands keyed by their "Group:" title prefix (buildGroupedCommands). */
+export type CommandGroups = Record<string, Array<{title:string;command:string;description?:string}>>;
+
+/** The heading a group shows: its prefix less the trailing colon. */
+export function groupLabel(prefix: string): string {
+    return prefix.replace(/:$/, '');
+}
+
+// ─── Browse All command directory ─────────────────────────────────────────────
+// The one home of the command directory (#831). The Browse All panel and the
+// dashboard's collapsible Browse All section both render it with these three:
+// the markup, its CSS and its script. Neither view builds any of them itself.
+
+/** The command directory: one .browse-group per prefix, one .browse-item per command. */
+export function buildBrowseDirectoryHtml(grouped: CommandGroups): string {
+    return Object.entries(grouped).map(([prefix, cmds]) => {
+        const items = cmds.map(cmd => {
+            const desc = cmd.description ? `<span class="browse-desc">${esc(cmd.description)}</span>` : '';
+            return `<div class="browse-item"><button class="browse-link" data-cmd="${esc(cmd.command)}">${esc(commandLabel(cmd.title))}</button>${desc}</div>`;
+        }).join('');
+        return `<div class="browse-group">
+  <div class="browse-group-hd">${esc(groupLabel(prefix))}</div>
+  <div class="browse-items">${items}</div>
+</div>`;
+    }).join('');
+}
+
+/**
+ * The directory's CSS. The rules both views share come first; then the layout
+ * each view gives it: a grid under a sticky filter in the panel, a collapsible
+ * three-column section in the dashboard.
+ */
+export function browseDirectoryCss(view: 'panel' | 'dashboard'): string {
+    const shared = `.browse-group-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);margin-bottom:5px;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:3px}
+.browse-item{display:flex}
+.browse-link{background:none;border:none;color:var(--vscode-textLink-foreground);cursor:pointer;text-align:left;font-size:12px;font-family:inherit}
+.browse-link:hover{text-decoration:underline}
+.browse-desc{font-size:10px;color:var(--vscode-descriptionForeground)}
+.browse-group.hidden,.browse-item.hidden{display:none}`;
+
+    if (view === 'panel') {
+        return `#filter-wrap{position:sticky;top:0;background:var(--vscode-editor-background);padding:0 0 10px;z-index:10}
+#filter{width:100%;padding:5px 10px;border:1px solid var(--vscode-input-border);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:4px;font-size:12px;outline:none}
+#filter:focus{border-color:var(--vscode-focusBorder)}
+#total{font-size:11px;color:var(--vscode-descriptionForeground);margin-top:4px}
+${shared}
+.browse-group{margin-bottom:16px}
+.browse-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 12px}
+.browse-item{flex-direction:column;gap:2px}
+.browse-link{padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.browse-link:hover{color:var(--vscode-textLink-activeForeground)}
+.browse-desc{line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}`;
+    }
+
+    return `#panel-browse{grid-column:1/-1}
+#browse-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground)}
+#browse-toggle:hover{color:var(--vscode-editor-foreground)}
+#browse-arrow{font-size:10px;transition:transform .15s}
+#browse-arrow.open{transform:rotate(90deg)}
+#browse-body{display:none;margin-top:12px;columns:3;column-gap:20px}
+#browse-body.open{display:block}
+#browse-search-wrap{margin-top:8px;display:none}
+#browse-search-wrap.open{display:block}
+#browse-search{width:100%;padding:5px 10px;border:1px solid var(--vscode-panel-border);border-radius:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);font-family:inherit;font-size:12px;outline:none;box-sizing:border-box}
+#browse-search:focus{border-color:var(--vscode-focusBorder)}
+#browse-search::placeholder{color:var(--vscode-input-placeholderForeground)}
+#browse-no-match{display:none;font-size:12px;color:var(--vscode-descriptionForeground);padding:8px 0}
+${shared}
+.browse-group{break-inside:avoid;margin-bottom:14px}
+.browse-item{align-items:baseline;gap:6px;margin-bottom:3px;flex-wrap:wrap}
+.browse-link{padding:0}`;
+}
+
+/**
+ * The directory's script, for inlining inside a view's own script: a click on
+ * a command posts it through post (a JS function expression taking the
+ * command id, so each view keeps its own message), typing in the input with
+ * id searchId filters by label or description, and #browse-no-match, when the
+ * view has one, says when nothing matches. When the view has a #browse-toggle,
+ * it opens and closes the directory and its search box.
+ */
+export function browseDirectoryScript(searchId: string, post: string): string {
+    return `// Browse All command directory (browseDirectoryScript)
+(function(post){
+var browseBody = document.getElementById('browse-body');
+browseBody.addEventListener('click', function(e) {
+  var btn = e.target.closest('.browse-link');
+  if (btn && btn.dataset.cmd) { post(btn.dataset.cmd); }
+});
+var browseToggle = document.getElementById('browse-toggle');
+var browseArrow  = document.getElementById('browse-arrow');
+if (browseToggle) {
+  browseToggle.addEventListener('click', function() {
+    var open = browseBody.classList.toggle('open');
+    if (browseArrow) { browseArrow.classList.toggle('open', open); }
+    var swrap = document.getElementById('browse-search-wrap');
+    if (swrap) { swrap.classList.toggle('open', open); }
+    if (open) { var si = document.getElementById(${JSON.stringify(searchId)}); if (si) { si.focus(); } }
+  });
+}
+var browseSearch  = document.getElementById(${JSON.stringify(searchId)});
+var browseNoMatch = document.getElementById('browse-no-match');
+browseSearch.addEventListener('input', function() {
+  var q = browseSearch.value.trim().toLowerCase();
+  var anyVis = false;
+  document.querySelectorAll('.browse-group').forEach(function(grp) {
+    var grpVis = false;
+    grp.querySelectorAll('.browse-item').forEach(function(item) {
+      var link = item.querySelector('.browse-link');
+      var desc = item.querySelector('.browse-desc');
+      var show = !q
+        || (link ? link.textContent.toLowerCase().includes(q) : false)
+        || (desc ? desc.textContent.toLowerCase().includes(q) : false);
+      item.classList.toggle('hidden', !show);
+      if (show) { grpVis = true; anyVis = true; }
+    });
+    grp.classList.toggle('hidden', !grpVis);
+  });
+  if (browseNoMatch) { browseNoMatch.style.display = anyVis || !q ? 'none' : 'block'; }
+});
+})(${post});`;
+}
+
+export function buildGroupedCommands(registered: Set<string>): CommandGroups {
   // Depth-independent: home-page.ts is emitted both inside out/extension.js and
   // standalone as out/features/home-page.js, so a fixed '..' cannot suit both (#677).
   const commands = getContributedCommands() as Array<{title:string; command:string; description?:string}>;
@@ -554,7 +633,7 @@ export function buildDashboardHtml(
     mcpRunning: boolean,
     history:   ReturnType<typeof getHistory>,
     recents:   ReturnType<typeof getDisplayProjects>,
-    grouped:   Record<string, Array<{title:string;command:string;description?:string}>>,
+    grouped:   CommandGroups,
   cvtPaths:  Set<string>,
   registered: Set<string>,
   hasStartScript: boolean = false,
@@ -635,18 +714,6 @@ export function buildDashboardHtml(
         }).join('');
 
     // ── Browse All (collapsible) ──────────────────────────────────────────────
-    const browseHtml = Object.entries(grouped).map(([prefix, cmds]) => {
-        const items = cmds.map(cmd => {
-            const label = commandLabel(cmd.title);
-            const desc  = cmd.description ? `<span class="browse-desc">${esc(cmd.description)}</span>` : '';
-            return `<div class="browse-item"><button class="browse-link" data-cmd="${esc(cmd.command)}">${esc(label)}</button>${desc}</div>`;
-        }).join('');
-        return `<div class="browse-group">
-  <div class="browse-group-hd">${esc(prefix.replace(/:$/,''))}</div>
-  <div class="browse-items">${items}</div>
-</div>`;
-    }).join('');
-
     const totalCmds = Object.values(grouped).reduce((n, a) => n + a.length, 0);
 
     // Flat list for home search — every command with its group label
@@ -654,7 +721,7 @@ export function buildDashboardHtml(
         Object.entries(grouped).flatMap(([prefix, cmds]) =>
             cmds.map(cmd => ({
                 label: commandLabel(cmd.title),
-                group: prefix.replace(/:$/, ''),
+                group: groupLabel(prefix),
                 desc:  cmd.description ?? '',
                 cmd:   cmd.command,
             }))
@@ -793,25 +860,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 #panel-recents.edit-mode .rec-add-tile,#panel-recents.is-empty .rec-add-tile{display:block}
 
 /* Browse All */
-#panel-browse{grid-column:1/-1}
-#browse-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground)}
-#browse-toggle:hover{color:var(--vscode-editor-foreground)}
-#browse-arrow{font-size:10px;transition:transform .15s}
-#browse-arrow.open{transform:rotate(90deg)}
-#browse-body{display:none;margin-top:12px;columns:3;column-gap:20px}
-#browse-body.open{display:block}
-#browse-search-wrap{margin-top:8px;display:none}
-#browse-search-wrap.open{display:block}
-#browse-search{width:100%;padding:5px 10px;border:1px solid var(--vscode-panel-border);border-radius:4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);font-family:inherit;font-size:12px;outline:none;box-sizing:border-box}
-#browse-search:focus{border-color:var(--vscode-focusBorder)}
-#browse-search::placeholder{color:var(--vscode-input-placeholderForeground)}
-#browse-no-match{display:none;font-size:12px;color:var(--vscode-descriptionForeground);padding:8px 0}
-.browse-group{break-inside:avoid;margin-bottom:14px}
-.browse-group-hd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--vscode-descriptionForeground);margin-bottom:5px;border-bottom:1px solid var(--vscode-panel-border);padding-bottom:3px}
-.browse-item{display:flex;align-items:baseline;gap:6px;margin-bottom:3px;flex-wrap:wrap}
-.browse-link{background:none;border:none;color:var(--vscode-textLink-foreground);cursor:pointer;font-size:12px;font-family:inherit;padding:0;text-align:left}
-.browse-link:hover{text-decoration:underline}
-.browse-desc{font-size:10px;color:var(--vscode-descriptionForeground)}
+${browseDirectoryCss('dashboard')}
 
 /* Home search bar */
 #home-search-wrap{padding:10px 20px 0;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border)}
@@ -1086,7 +1135,7 @@ if (wsPathBtn) {
   });
 }
 
-// Browse All toggle
+// Browse All: open the directory in its own panel
 var browseOpenPanel = document.getElementById('browse-open-panel');
 if (browseOpenPanel) {
   browseOpenPanel.addEventListener('click', function(e) {
@@ -1095,43 +1144,7 @@ if (browseOpenPanel) {
   });
 }
 
-var browseToggle = document.getElementById('browse-toggle');
-var browseBody   = document.getElementById('browse-body');
-var browseArrow  = document.getElementById('browse-arrow');
-browseToggle.addEventListener('click',function(){
-  var open = browseBody.classList.toggle('open');
-  browseArrow.classList.toggle('open', open);
-  var swrap = document.getElementById('browse-search-wrap');
-  if (swrap) { swrap.classList.toggle('open', open); }
-  if (open) { var si = document.getElementById('browse-search'); if (si) { si.focus(); } }
-});
-
-// Browse All search/filter
-var browseSearch  = document.getElementById('browse-search');
-var browseNoMatch = document.getElementById('browse-no-match');
-if (browseSearch) {
-  browseSearch.addEventListener('input', function() {
-    var q = browseSearch.value.toLowerCase().trim();
-    var anyVis = false;
-    document.querySelectorAll('.browse-group').forEach(function(grp) {
-      var grpVis = false;
-      grp.querySelectorAll('.browse-item').forEach(function(item) {
-        var lbl  = item.querySelector('.browse-link')  ? item.querySelector('.browse-link').textContent.toLowerCase()  : '';
-        var desc = item.querySelector('.browse-desc') ? item.querySelector('.browse-desc').textContent.toLowerCase() : '';
-        var show = !q || lbl.includes(q) || desc.includes(q);
-        item.style.display = show ? '' : 'none';
-        if (show) { grpVis = true; anyVis = true; }
-      });
-      grp.style.display = grpVis ? '' : 'none';
-    });
-    if (browseNoMatch) { browseNoMatch.style.display = anyVis || !q ? 'none' : 'block'; }
-  });
-}
-
-// Browse command links
-document.querySelectorAll('.browse-link').forEach(function(b){
-  b.addEventListener('click',function(){ vsc.postMessage({ type:'runCommand', command:b.dataset.cmd }); });
-});
+${browseDirectoryScript('browse-search', "function(cmd){ vsc.postMessage({ type:'runCommand', command:cmd }); }")}
 
 // Configure overlay — toggles persist via localStorage
 var overlay  = document.getElementById('cfg-overlay');
@@ -1289,7 +1302,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
       <div id="browse-search-wrap">
         <input id="browse-search" type="text" placeholder="Filter commands\u2026" autocomplete="off" spellcheck="false">
       </div>
-    <div id="browse-body">${browseHtml}</div>
+    <div id="browse-body">${buildBrowseDirectoryHtml(grouped)}</div>
       <div id="browse-no-match">No commands match your filter.</div>
   </div>
 
