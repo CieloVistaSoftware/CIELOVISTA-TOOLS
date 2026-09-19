@@ -194,6 +194,16 @@ export const CATALOG: CmdEntry[] = RAW_CATALOG.map((cmd) => ({
 
 // ── Derived helpers ──────────────────────────────────────────────────────────
 
+/**
+ * The commands the Guided Launcher lists: the catalog entries that are
+ * registered right now, or the whole catalog when no registered set is
+ * given. The launcher renders these, and the Home page's launcher tile
+ * counts them, so the tile's "all N commands" is the launcher's own N (#836).
+ */
+export function launcherCommands(registered?: Set<string>): CmdEntry[] {
+    return registered ? CATALOG.filter(c => registered.has(c.id)) : CATALOG;
+}
+
 export function allGroups(): string[] {
     return [...new Set(CATALOG.map(c => c.group))];
 }

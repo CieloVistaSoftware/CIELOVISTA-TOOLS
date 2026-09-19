@@ -20,9 +20,8 @@ import * as fs     from 'fs';
 import * as path   from 'path';
 import { getContributedCommands } from '../shared/extension-package';
 import * as os     from 'os';
-import * as net    from 'net';
 import { getHistory }        from './cvs-command-launcher/command-history';
-import { CATALOG }          from './cvs-command-launcher/catalog';
+import { CATALOG, launcherCommands } from './cvs-command-launcher/catalog';
 import {
     getDisplayProjects,
     addPinnedProject,
@@ -44,7 +43,7 @@ import {
 } from '../shared/cvt-registry';
 import { esc } from '../shared/webview-utils';
 import { getDevServerConfig, buildPreviewUrl, waitForPort } from '../shared/dev-server-config';
-import { isPortOpen } from '../shared/port-check';
+import { isPortOpen, watchPort, PortStatus } from '../shared/port-check';
 
 let homePanel: vscode.WebviewPanel | undefined;
 
@@ -98,17 +97,9 @@ async function showBrowseAllPanel(): Promise<void> {
 
 /** The separate Browse All panel: a sticky filter over the command directory. */
 export function buildBrowseAllHtml(grouped: CommandGroups, totalCmds: number): string {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
-.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
-body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);padding:16px 20px}
-h1{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--vscode-editor-foreground)}
-${browseDirectoryCss('panel')}
-</style>
-</head><body>
+    const css = `h1{font-size:14px;font-weight:700;margin-bottom:12px;color:var(--vscode-editor-foreground)}
+${browseDirectoryCss('panel')}`;
+    return `${homePageHead('padding:16px 20px', css)}<body>
 <div id="filter-wrap">
   <input id="filter" type="text" placeholder="Filter commands… (e.g. FileList, Audit)" autocomplete="off" spellcheck="false">
   <div id="total">${totalCmds} commands registered</div>
@@ -119,16 +110,40 @@ ${browseDirectoryCss('panel')}
 'use strict';
 const vscode = acquireVsCodeApi();
 ${browseDirectoryScript('filter', "function(cmd){ vscode.postMessage({ type: 'run', cmd: cmd }); }")}
-window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'flash') {
-        document.body.classList.remove('cvs-flash');
-        void document.body.offsetWidth;
-        document.body.classList.add('cvs-flash');
-    }
-});
+${flashScript()}
 })();
 </script>
 </body></html>`;
+}
+
+// ─── Page setup ──────────────────────────────────────────────────────────────
+// The one home of what both Home views start with (#836): the head (charset,
+// CSP), the CSS reset, the flash animation and the body font, and the script
+// that flashes the page when the extension posts {type:'flash'}.
+
+/** Everything up to </head>: the shared setup, then the view's own body layout and CSS. */
+export function homePageHead(bodyLayout: string, css: string): string {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
+.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
+body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);${bodyLayout}}
+${css.trim()}
+</style>
+</head>`;
+}
+
+/** The flash listener, for inlining inside a view's own script. */
+export function flashScript(): string {
+    return `window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'flash') {
+    document.body.classList.remove('cvs-flash');
+    void document.body.offsetWidth;
+    document.body.classList.add('cvs-flash');
+  }
+});`;
 }
 
 /**
@@ -283,54 +298,21 @@ export function buildGroupedCommands(registered: Set<string>): CommandGroups {
   return grouped;
 }
 
-function _startDcPoller(panel: vscode.WebviewPanel): () => void {
-  const DC_PORT = 5000;
-  let lastStatus: 'up' | 'down' | null = null;
-
-  const check = () => {
-    if (!panel.visible) { return; }
-    const socket = net.createConnection({ port: DC_PORT, host: '127.0.0.1' });
-    socket.setTimeout(800);
-    const done = (status: 'up' | 'down') => {
-      socket.destroy();
-      if (status !== lastStatus) {
-        lastStatus = status;
-        void panel.webview.postMessage({ type: 'dcStatus', status });
-      }
-    };
-    socket.once('connect',  () => done('up'));
-    socket.once('error',    () => done('down'));
-    socket.once('timeout',  () => done('down'));
-  };
-
-  check(); // immediate first check
-  const id = setInterval(check, 12000);
-  return () => clearInterval(id);
-}
-
-/** Mirrors _startDcPoller, but against the CURRENT workspace's own dev-server port (.claude/launch.json, default 4000) instead of the DiskCleanUp backend's fixed port 5000. */
-function _startDevServerPoller(panel: vscode.WebviewPanel, port: number): () => void {
-  let lastStatus: 'up' | 'down' | null = null;
-
-  const check = () => {
-    if (!panel.visible) { return; }
-    const socket = net.createConnection({ port, host: '127.0.0.1' });
-    socket.setTimeout(800);
-    const done = (status: 'up' | 'down') => {
-      socket.destroy();
-      if (status !== lastStatus) {
-        lastStatus = status;
-        void panel.webview.postMessage({ type: 'devServerStatus', status });
-      }
-    };
-    socket.once('connect',  () => done('up'));
-    socket.once('error',    () => done('down'));
-    socket.once('timeout',  () => done('down'));
-  };
-
-  check(); // immediate first check
-  const id = setInterval(check, 8000);
-  return () => clearInterval(id);
+/**
+ * The one status-badge poller (#834): posts {type, status} to the panel when
+ * the port goes up or down, checking only while the panel is visible. It asks
+ * the shared isPortOpen() through watchPort(), the same check the Start button
+ * uses, so a badge and the button beside it cannot disagree.
+ */
+function _startPortBadgePoller(
+  panel: vscode.WebviewPanel,
+  port: number,
+  type: 'dcStatus' | 'devServerStatus',
+  intervalMs: number,
+): () => void {
+  return watchPort(port, intervalMs,
+    (status: PortStatus) => { void panel.webview.postMessage({ type, status }); },
+    () => panel.visible);
 }
 
 function _startMetricsSampler(panel: vscode.WebviewPanel): () => void {
@@ -426,8 +408,10 @@ function showHomePage(context: vscode.ExtensionContext): void {
   };
   onMcpServerStatusChange(mcpStatusHandler);
   const stopMetrics = _startMetricsSampler(panel);
-  const stopDcPoller = _startDcPoller(panel);
-  const stopDevServerPoller = _startDevServerPoller(panel, devServerConfig.port);
+  // DiskCleanUp backend: fixed port 5000. Dev server: this workspace's own
+  // port (.claude/launch.json, default 4000).
+  const stopDcPoller = _startPortBadgePoller(panel, 5000, 'dcStatus', 12000);
+  const stopDevServerPoller = _startPortBadgePoller(panel, devServerConfig.port, 'devServerStatus', 8000);
   panel.onDidDispose(() => {
     if (homePanel === panel) {
       homePanel = undefined;
@@ -440,16 +424,11 @@ function showHomePage(context: vscode.ExtensionContext): void {
 
   panel.webview.onDidReceiveMessage(async msg => {
     if (!msg?.type) { return; }
-    if (msg.type === 'npmStart') {
-      const terminal = vscode.window.createTerminal({ name: `npm start — ${wsName}`, cwd: wsPath });
-      terminal.show();
-      terminal.sendText('npm start');
-      return;
-    }
     if (msg.type === 'devServerAction') {
       // The single "Start" button: if the workspace's own dev server is
       // already up, just open it (to its default landing page); otherwise
-      // launch it the same way npmStart does.
+      // run npm start in a terminal. This is the one handler that starts
+      // the dev server (#836).
       const up = await isPortOpen(devServerConfig.port);
       if (up) {
         // #642: always cache-bust so a repeat click forces a hard reload
@@ -627,6 +606,16 @@ function showHomePage(context: vscode.ExtensionContext): void {
 
 // ─── HTML ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The dashboard sections the Configure dialog can show or hide: the one list
+ * (#836). The dialog's checkboxes and the saved toggles are built from it.
+ */
+export const DASHBOARD_SECTIONS: ReadonlyArray<{ key: string; panelId: string; label: string }> = [
+    { key: 'history', panelId: 'panel-history', label: 'Recent Runs' },
+    { key: 'recents', panelId: 'panel-recents', label: 'Recent Projects' },
+    { key: 'browse',  panelId: 'panel-browse',  label: 'Browse All Commands' },
+];
+
 export function buildDashboardHtml(
     wsName:    string,
     wsPath:    string,
@@ -643,7 +632,7 @@ export function buildDashboardHtml(
     // ── Quick Launch buttons ──────────────────────────────────────────────────
     const quickLaunch = [
       { icon: '\uD83D\uDCCB', label: 'Issue Viewer',    desc: 'Live GitHub issues for CieloVista Tools', cmd: '__openIssues__',                      primary: true },
-      { icon: '\u26a1', label: 'Guided Launcher', desc: 'Search & run all 81 commands', cmd: 'cvs.commands.showAll',        primary: false  },
+      { icon: '\u26a1', label: 'Guided Launcher', desc: `Search & run all ${launcherCommands(registered).length} commands`, cmd: 'cvs.commands.showAll', primary: false },
         { icon: '\uD83D\uDCDA', label: 'Doc Catalog',     desc: 'Browse project documentation',    cmd: 'cvs.catalog.open',           primary: false },
         { icon: '\uD83D\uDCE6', label: 'NPM Scripts',     desc: 'All workspace scripts \u2014 grouped by package.json, click to run', cmd: 'cvs.npm.tree', primary: false },
       { icon: '\uD83D\uDCE4', label: 'Last Cmd to Chat', desc: 'Send the latest terminal command to Copilot Chat', cmd: 'cvs.terminal.pasteLastCommandToChat', primary: false },
@@ -728,12 +717,13 @@ export function buildDashboardHtml(
         )
     );
 
+    // Configure dialog: section key -> its panel and label, from DASHBOARD_SECTIONS
+    const sectionsJson = JSON.stringify(Object.fromEntries(
+        DASHBOARD_SECTIONS.map(sec => [sec.key, { panelId: sec.panelId, label: sec.label }])
+    ));
+
     // ── CSS ───────────────────────────────────────────────────────────────────
     const css = `
-*{box-sizing:border-box;margin:0;padding:0}
-@keyframes cvs-flash-anim{0%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}60%{outline:2px solid var(--vscode-focusBorder);outline-offset:0}100%{outline:2px solid transparent;outline-offset:0}}
-.cvs-flash{animation:cvs-flash-anim 0.5s ease-out}
-body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);min-height:100vh}
 
 /* Header */
 #hd{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);flex-wrap:wrap}
@@ -1014,12 +1004,9 @@ window.addEventListener('message', function(e) {
     if (memVal) { memVal.textContent = msg.memPct + '%'; }
     if (cpuBar) { cpuBar.style.width = msg.cpuPct + '%'; }
     if (cpuVal) { cpuVal.textContent = msg.cpuPct + '%'; }
-  } else if (msg.type === 'flash') {
-    document.body.classList.remove('cvs-flash');
-    void document.body.offsetWidth;
-    document.body.classList.add('cvs-flash');
   }
 });
+${flashScript()}
 var vsc = acquireVsCodeApi();
 
 // MCP badge click — start server when stopped
@@ -1150,11 +1137,7 @@ ${browseDirectoryScript('browse-search', "function(cmd){ vsc.postMessage({ type:
 var overlay  = document.getElementById('cfg-overlay');
 var cfgClose = document.getElementById('cfg-close');
 
-var SECTIONS = {
-  history:  { panelId: 'panel-history',  label: 'Recent Runs'        },
-  recents:  { panelId: 'panel-recents',  label: 'Recent Projects'    },
-  browse:   { panelId: 'panel-browse',   label: 'Browse All Commands' },
-};
+var SECTIONS = ${sectionsJson};
 
 function loadToggles() {
   var t = {};
@@ -1218,18 +1201,7 @@ overlay.addEventListener('click', function(e) { if (e.target === overlay) overla
 })();
 `;
 
-    // ── Config checkboxes ─────────────────────────────────────────────────────
-    const cfgItems = [
-        { key: 'history',  label: 'Recent Runs'        },
-        { key: 'recents',  label: 'Recent Projects'     },
-        { key: 'browse',   label: 'Browse All Commands' },
-    ].map(item => `<label class="cfg-item"><input type="checkbox" checked> ${item.label}</label>`).join('');
-
-    return `<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
-<style>${css}</style>
-</head><body>
+    return `${homePageHead('min-height:100vh', css)}<body>
 
 <div id="hd">
   <div id="ws-meta">

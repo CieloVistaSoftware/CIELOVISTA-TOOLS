@@ -20,7 +20,7 @@
 import * as vscode from 'vscode';
 import * as fs     from 'fs';
 import * as https  from 'https';
-import * as net    from 'net';
+import { isPortOpen } from '../shared/port-check';
 import * as path   from 'path';
 import { spawn }   from 'child_process';
 import { log, logError } from '../shared/output-channel';
@@ -50,17 +50,6 @@ const FEATURE_GATED_CMDS: Record<string, string[]> = {
     cssClassHover:           ['cvs.cssClassHover.enable'],
     htmlTemplateDownloader:  ['cvs.html.downloadTemplate'],
 };
-
-function isPortOpen(port: number): Promise<boolean> {
-    return new Promise(resolve => {
-        const socket = new net.Socket();
-        socket.setTimeout(400);
-        socket.once('connect', () => { socket.destroy(); resolve(true); });
-        socket.once('error',   () => { socket.destroy(); resolve(false); });
-        socket.once('timeout', () => { socket.destroy(); resolve(false); });
-        socket.connect(port, '127.0.0.1');
-    });
-}
 
 const FEATURE    = 'bg-health-runner';
 // One-time-one-place: data dir resolves to the workspace's data/ folder so
@@ -1446,7 +1435,7 @@ export async function showFixBugsPanel(): Promise<void> {
                     void vscode.env.openExternal(vscode.Uri.parse(url));
                 }
                 if (msg.command === 'checkMcpPort') {
-                    const open = await isPortOpen(3000);
+                    const open = await isPortOpen(3000, 400);
                     _panel?.webview.postMessage({ type: 'mcpPortStatus', open });
                 }
             } catch (e) {

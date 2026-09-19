@@ -4,7 +4,7 @@
 import type { DailyAuditReport, AuditStatus } from '../../shared/audit-schema';
 import type { HistoryEntry } from './command-history';
 import type { RecentProject } from './recent-projects';
-import { CATALOG, esc } from './catalog';
+import { launcherCommands, esc } from './catalog';
 import type { CmdEntry } from './types';
 
 type CardStatusTone = 'good' | 'warn' | 'bad' | 'neutral';
@@ -182,12 +182,7 @@ export function buildLauncherHtml(
     // is undefined (e.g. legacy callers or deserialization racing the registry),
     // we fall through to the full catalog rather than rendering nothing.
     const isRegistered = (c: CmdEntry): boolean => registeredCommands ? registeredCommands.has(c.id) : false;
-    const registeredLookup: Record<string, true> | undefined = registeredCommands
-      ? Object.fromEntries(Array.from(registeredCommands, id => [id, true] as const))
-      : undefined;
-    const visibleCatalog = registeredCommands
-      ? CATALOG.filter(c => registeredLookup && registeredLookup[c.id])
-      : CATALOG;
+    const visibleCatalog = launcherCommands(registeredCommands);
     const visibleGroups = [...new Set(visibleCatalog.map(c => c.group))];
     const visibleTags   = [...new Set(visibleCatalog.flatMap(c => c.tags))].sort();
 

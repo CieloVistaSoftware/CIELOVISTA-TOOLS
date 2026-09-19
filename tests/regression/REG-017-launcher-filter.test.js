@@ -31,12 +31,13 @@ const path = require('path');
 const ROOT      = path.resolve(__dirname, '..', '..');
 const INDEX_TS  = path.join(ROOT, 'src', 'features', 'cvs-command-launcher', 'index.ts');
 const HTML_TS   = path.join(ROOT, 'src', 'features', 'cvs-command-launcher', 'html.ts');
+const CATALOG_TS = path.join(ROOT, 'src', 'features', 'cvs-command-launcher', 'catalog.ts');
 
 let failed = 0;
 const fail = (msg) => { console.error('FAIL: ' + msg); failed++; };
 const ok   = (msg) => { console.log('PASS: ' + msg); };
 
-for (const p of [INDEX_TS, HTML_TS]) {
+for (const p of [INDEX_TS, HTML_TS, CATALOG_TS]) {
     if (!fs.existsSync(p)) {
         console.error('FATAL: required source file missing: ' + p);
         process.exit(1);
@@ -44,6 +45,10 @@ for (const p of [INDEX_TS, HTML_TS]) {
 }
 const indexSrc = fs.readFileSync(INDEX_TS, 'utf8');
 const htmlSrc  = fs.readFileSync(HTML_TS,  'utf8');
+const catalogSrc = fs.readFileSync(CATALOG_TS, 'utf8');
+// The filter itself lives in catalog.ts launcherCommands() since #836, so the
+// Home page's launcher tile counts the same list the launcher renders.
+const FILTER_FN = /export function launcherCommands\(registered\?: Set<string>\)[^{]*\{\s*return registered \? CATALOG\.filter\(c => registered\.has\(c\.id\)\) : CATALOG;/;
 
 // ─── Check 1: getRegisteredCommandSet helper exists in index.ts ───────────
 
@@ -147,12 +152,12 @@ const htmlSrc  = fs.readFileSync(HTML_TS,  'utf8');
     // The body of buildLauncherHtml must contain the filter line and use
     // the result (visibleCatalog) for ALL downstream catalog consumers
     // (byGroup, groupSections, groupBtns, topicCheckboxes, catalogJson, total).
-    if (!/const\s+visibleCatalog\s*=\s*registeredCommands\s*\?\s*CATALOG\.filter/.test(htmlSrc)) {
-        fail('buildLauncherHtml does not produce visibleCatalog from CATALOG.filter(...) — runtime filter is missing');
+    if (!/const\s+visibleCatalog\s*=\s*launcherCommands\(\s*registeredCommands\s*\)/.test(htmlSrc)) {
+        fail('buildLauncherHtml does not produce visibleCatalog from launcherCommands(registeredCommands) — runtime filter is missing');
         return;
     }
-    if (!/registeredCommands\.has\s*\(\s*c\.id\s*\)/.test(htmlSrc)) {
-        fail('visibleCatalog filter does not check registeredCommands.has(c.id) — wrong filter predicate');
+    if (!FILTER_FN.test(catalogSrc)) {
+        fail('launcherCommands() in catalog.ts does not filter CATALOG by registered.has(c.id) — wrong filter predicate');
         return;
     }
 
@@ -191,7 +196,7 @@ const htmlSrc  = fs.readFileSync(HTML_TS,  'utf8');
     // When called without registeredCommands (e.g. legacy callers, or a
     // race during deserialization), the launcher should render the full
     // catalog rather than nothing — empty UI is worse than stale entries.
-    if (!/registeredCommands\s*\?\s*CATALOG\.filter\([^)]+\)\s*:\s*CATALOG/.test(htmlSrc)) {
+    if (!FILTER_FN.test(catalogSrc)) {
         fail('buildLauncherHtml does not fall back to full CATALOG when registeredCommands is undefined — empty launcher possible');
         return;
     }
