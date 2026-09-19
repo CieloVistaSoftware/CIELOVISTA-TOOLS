@@ -319,7 +319,7 @@ function buildHtml(initialState: FileListViewState | undefined): string {
   const upDisabled = initialState?.canGoUp ? '' : 'disabled';
   const hiddenClass = initialState?.showHidden ?? true ? 'toggle-btn on' : 'toggle-btn';
   const excludesClass = initialState?.showExcludes ? 'toggle-btn on' : 'toggle-btn';
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    return String.raw`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'nonce-${nonce}';">
 
 <style>
@@ -352,8 +352,8 @@ td.col-type{color:#a0a0a0;text-transform:uppercase;font-size:11px}
 tr{cursor:pointer}
 tr:hover{background:rgba(255,255,255,.04)}
 tr.dir td.col-name{color:#9cdcfe;font-weight:600}
-tr.dir td.col-name::before{content:'\u{1F4C1}';margin-right:6px}
-tr.file td.col-name::before{content:'\u{1F4C4}';margin-right:6px;opacity:.5}
+tr.dir td.col-name::before{content:'📁';margin-right:6px}
+tr.file td.col-name::before{content:'📄';margin-right:6px;opacity:.5}
 tr.hidden td.col-name{opacity:.55}
 tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important;color:var(--vscode-list-activeSelectionForeground)!important}
 .empty{padding:30px;text-align:center;color:#858585}
@@ -370,7 +370,7 @@ tr.selected td{background:var(--vscode-list-activeSelectionBackground)!important
 tr.search-hidden{display:none}
 </style></head><body>
 <div id="hdr">
-  <button id="up-btn" title="Go to parent folder" ${upDisabled}>\u2191 Up</button>
+  <button id="up-btn" title="Go to parent folder" ${upDisabled}>↑ Up</button>
   <span id="path-display" title="${esc(initialDir)}">${esc(initialDir || '(no workspace folder open)')}</span>
   <button id="new-folder-btn" title="Create a new folder here and navigate into it">+ New Folder</button>
   <div class="toggle-row">
@@ -521,7 +521,7 @@ function selectRange(toName) {
 }
 
 function isRunnableTestFile(name) {
-  const inTestsDir = state.dir.split('\\\\').join('/').includes('/tests');
+  const inTestsDir = state.dir.split('\\').join('/').includes('/tests');
   return inTestsDir && /\.(js|ts)$/i.test(name || '');
 }
 

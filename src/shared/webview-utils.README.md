@@ -86,9 +86,9 @@ interface WebviewOptions {
 
 ---
 
-### `buildMarkdownPage(title, markdown, scripts?): string`
+### `buildMarkdownPage(title, markdown, scripts?, toolbarHtml?): string`
 
-Convenience wrapper that converts a Markdown string and wraps it in a full page. Use for simple read-only content panels.
+Convenience wrapper that converts a Markdown string and wraps it in a full page. Use for simple content panels. `toolbarHtml` (for example from `cvsToolbar()`) goes above the heading; any control the `scripts` look up must be in it, or the script throws when the page loads.
 
 ```typescript
 import { buildMarkdownPage } from '../shared/webview-utils';

@@ -66,7 +66,7 @@ function parseProgress(text: string): { passed: number; failed: number; skipped:
 }
 
 function buildPanelHtml(): string {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    return String.raw`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--vscode-font-family);font-size:12px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);display:flex;flex-direction:column;height:100vh}
@@ -104,10 +104,10 @@ var counterEl = document.getElementById('counter');
 
 function classify(line) {
     var l = line.toLowerCase();
-    if (/✓|✔|passed|\\bpass\\b/.test(l)) { return 'line-pass'; }
-    if (/✗|×|failed|\\bfail\\b|error/.test(l))  { return 'line-fail'; }
+    if (/✓|✔|passed|\bpass\b/.test(l)) { return 'line-pass'; }
+    if (/✗|×|failed|\bfail\b|error/.test(l))  { return 'line-fail'; }
     if (/skipped|pending/.test(l)) { return 'line-skip'; }
-    if (/running|playwright|\\btest\\b/.test(l)) { return 'line-head'; }
+    if (/running|playwright|\btest\b/.test(l)) { return 'line-head'; }
     return '';
 }
 
@@ -125,7 +125,7 @@ window.addEventListener('message', function(e) {
         var span = document.createElement('span');
         var cls = classify(msg.text);
         if (cls) { span.className = cls; }
-        span.textContent = msg.text + '\\n';
+        span.textContent = msg.text + '\n';
         outputEl.appendChild(span);
         outputEl.scrollTop = outputEl.scrollHeight;
     }
@@ -164,7 +164,7 @@ window.addEventListener('message', function(e) {
         pillEl.textContent = '❌ Error';
         var errSpan = document.createElement('span');
         errSpan.className = 'line-fail';
-        errSpan.textContent = '\\nERROR: ' + msg.text + '\\n';
+        errSpan.textContent = '\nERROR: ' + msg.text + '\n';
         outputEl.appendChild(errSpan);
         outputEl.scrollTop = outputEl.scrollHeight;
     }

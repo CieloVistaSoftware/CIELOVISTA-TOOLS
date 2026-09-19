@@ -4,66 +4,89 @@
 /**
  * tests/unit/md-preview-no-cdn.test.js
  *
- * Regression for #326 — md-preview must not load marked.js from a CDN.
- * The VS Code webview CSP (default-src 'none') and Edge Tracking Prevention
- * both block external script sources. Markdown must be rendered server-side
- * using src/shared/md-renderer.ts before being injected into the webview.
+ * Regression for #326: md-preview must not load marked.js from a CDN. The
+ * VS Code webview CSP (default-src 'none') and Edge Tracking Prevention both
+ * block external script sources. Markdown is rendered on the server with
+ * src/shared/md-renderer.ts before the page is sent.
  *
- * Run: node tests/unit/md-preview-no-cdn.test.js
+ * Runs the delivered page (#846): the mcp-viewer feature from out-test/, the
+ * real server its cvs.mcp.viewer.open command starts over a temp registry,
+ * and the /md-preview page it serves, in jsdom with its script running
+ * (tests/utils/webview-harness.js). Until #846 this test searched index.ts
+ * for strings.
+ *
+ * Run: node scripts/run-unit-tests.js md-preview-no-cdn
  */
 
 const assert = require('assert');
 const fs     = require('fs');
 const path   = require('path');
+const { createWebviewHarness, loadServedPage } = require('../utils/webview-harness');
+const { useRegistryHome }                      = require('../utils/registry-fixture');
 
-const SRC = path.join(__dirname, '..', '..', 'src', 'features', 'mcp-viewer', 'index.ts');
-const src  = fs.readFileSync(SRC, 'utf8');
-
-let passed = 0, failed = 0;
-function test(name, fn) {
-    try   { fn(); passed++; console.log('  PASS', name); }
-    catch (e) { failed++; console.log('  FAIL', name); console.log('       ->', e.message); }
+const VIEWER_OUT = path.join(__dirname, '..', '..', 'out-test', 'features', 'mcp-viewer', 'index.js');
+if (!fs.existsSync(VIEWER_OUT)) {
+    // Not a skip: the runners build out-test/ first, so this is a real failure.
+    console.error(`FAIL: out-test build missing: ${VIEWER_OUT}`);
+    process.exit(1);
 }
 
-console.log('\nmd-preview CDN regression — #326');
-console.log('-'.repeat(50));
-
-test('md-preview does not load marked.js from jsdelivr CDN', () => {
-    assert.ok(
-        !src.includes('cdn.jsdelivr.net'),
-        'Found cdn.jsdelivr.net in mcp-viewer/index.ts — remove CDN script tag'
-    );
+const fx    = useRegistryHome({
+    'proj-cdn': { 'docs/guide.md': '# Guide Title\n\nSome **bold** text.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n' },
 });
+const GUIDE = fx.file('proj-cdn', 'docs/guide.md');
 
-test('md-preview does not call marked.parse() (client-side markdown)', () => {
-    assert.ok(
-        !src.includes('marked.parse'),
-        'Found marked.parse() in mcp-viewer/index.ts — use server-side mdToHtml() instead'
-    );
-});
+const h = createWebviewHarness();
+h.install();
+const viewer = require(VIEWER_OUT);
 
-test('md-preview does not reference the marked library at all', () => {
-    assert.ok(
-        !/\bmarked\b/.test(src),
-        'Found "marked" identifier in mcp-viewer/index.ts — must use bundled md-renderer'
-    );
-});
+let passed = 0, failed = 0;
+async function test(name, fn) {
+    try { await fn(); console.log(`  PASS ${name}`); passed++; }
+    catch (e) { console.error(`  FAIL ${name}\n       -> ${e.message}`); failed++; }
+}
 
-test('md-preview imports mdToHtml from shared/md-renderer', () => {
-    assert.ok(
-        src.includes('mdToHtml') || src.includes('md-renderer'),
-        'md-preview must import mdToHtml from ../../shared/md-renderer'
-    );
-});
+(async () => {
+    console.log('\nmd-preview CDN regression — #326\n' + '-'.repeat(50));
+    viewer.activate(h.context);
+    await h.run('cvs.mcp.viewer.open');
+    const viewerUrl = new URL(await h.openedUrl());
+    const url = new URL('/md-preview', viewerUrl);
+    url.searchParams.set('t', viewerUrl.searchParams.get('t'));
+    url.searchParams.set('path', GUIDE);
+    const page = await loadServedPage(url.toString());
+    const main = page.document.querySelector('main');
 
-test('md-preview page function contains no external <script src> tags', () => {
-    // Extract the buildMdPreviewHtml function body (heuristic: everything between /md-preview and the next route handler)
-    const mdSection = src.slice(src.indexOf('/md-preview'));
-    const externalScript = /<script\s+src=["']https?:\/\//i.test(mdSection.slice(0, 2000));
-    assert.ok(!externalScript, 'External <script src="http..."> tag found in md-preview page HTML');
-});
+    await test('the markdown arrives rendered: heading, bold and table are HTML in the page as sent', () => {
+        assert.strictEqual(page.status, 200);
+        assert.ok(/<h1[^>]*>Guide Title<\/h1>/.test(page.html), 'no <h1> in the HTML the server sent');
+        assert.ok(main.querySelector('strong') && main.querySelector('strong').textContent === 'bold', 'no <strong>');
+        assert.ok(main.querySelector('table'), 'no <table>');
+    });
 
-console.log('-'.repeat(50));
-const failStr = failed > 0 ? `\x1b[31m${failed} failed\x1b[0m` : '0 failed';
-console.log(`${passed + failed} tests: \x1b[32m${passed} passed\x1b[0m, ${failStr}\n`);
-if (failed > 0) { process.exit(1); }
+    await test('the page loads no script from another origin', () => {
+        const external = [...page.document.querySelectorAll('script[src]')]
+            .map(s => s.getAttribute('src'))
+            .filter(src => new URL(src, url).origin !== url.origin);
+        assert.deepStrictEqual(external, []);
+    });
+
+    await test('the page does not use the marked library', () => {
+        assert.strictEqual(typeof page.window.marked, 'undefined');
+        assert.ok(!/\bmarked\b/.test(page.html), 'the page mentions marked');
+    });
+
+    await test('every request the page made went to its own server', () => {
+        const foreign = page.requests.filter(r => new URL(r.url).origin !== url.origin).map(r => r.url);
+        assert.deepStrictEqual(foreign, []);
+    });
+
+    page.close();
+    viewer.disposeMcpViewerServer();
+    fx.dispose();
+    console.log('\n' + '-'.repeat(50));
+    console.log(`${passed + failed} tests: ${passed} passed, ${failed} failed`);
+    // Not process.exit(): the server's sockets are still closing, and exiting
+    // under them crashes Node on Windows (#847).
+    process.exitCode = failed ? 1 : 0;
+})().catch((e) => { console.error(e && e.stack || String(e)); process.exit(1); });

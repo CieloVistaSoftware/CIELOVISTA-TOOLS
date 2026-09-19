@@ -97,7 +97,7 @@ export function buildDashboardHtml(report: IntelligenceReport): string {
         ? `<div class="di-empty">🎉 No issues found across ${totalDocs} docs in ${projects} projects.<br><span style="opacity:0.6;font-size:12px">Your doc health is perfect.</span></div>`
       : findings.map(f => buildCard(f, scanDate)).join('');
 
-    return `<!DOCTYPE html>
+    return String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -446,7 +446,7 @@ function updateProgress() {
     accepted + ' accepted · ' + skipped + ' skipped · ' + pending + ' pending';
 
   var execBtn = document.getElementById('btn-execute-all');
-  execBtn.textContent = '\\u2705 Execute Accepted (' + accepted + ')';
+  execBtn.textContent = '\u2705 Execute Accepted (' + accepted + ')';
   execBtn.disabled    = accepted === 0;
 }
 
@@ -517,7 +517,7 @@ document.querySelectorAll('[data-di-action]').forEach(function(btn) {
       var payload;
       try { payload = JSON.parse(btn.dataset.payload); } catch { return; }
       btn.disabled = true;
-      btn.textContent = '\\u23F3 Deleting…';
+      btn.textContent = '\u23F3 Deleting…';
       showStrip('Deleting duplicates…');
       vscode.postMessage({ command: 'keepAndDeleteRest', id: payload.id, keepPath: payload.keepPath, deletePaths: payload.deletePaths });
       return;
@@ -558,7 +558,7 @@ document.querySelectorAll('[data-di-action]').forEach(function(btn) {
       vscode.postMessage({ command: 'openFolder', paths: paths });
     }
     if (action === 'copy-path') {
-      var txt = paths.join('\\n');
+      var txt = paths.join('\n');
       navigator.clipboard && navigator.clipboard.writeText(txt).then(function() { toast('📋 Copied to clipboard'); });
     }
     if (action === 'copy-chat') {

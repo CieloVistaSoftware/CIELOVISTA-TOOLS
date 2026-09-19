@@ -563,7 +563,7 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number, token: stri
 </div>`;
     }).join('');
 
-    return `<!DOCTYPE html>
+    return String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -574,7 +574,7 @@ function buildViewDocBrowserHtml(cards: CatalogCard[], port: number, token: stri
 html,body{height:100%;overflow:hidden}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#d4d4d4;background:#1e1e1e;display:flex;flex-direction:column}
 
-/* \u2500\u2500 Top bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* ── Top bar ────────────────────────────────────────── */
 #topbar{display:flex;align-items:center;gap:10px;padding:7px 12px;background:#252526;border-bottom:1px solid #404040;flex-shrink:0;height:40px}
 #topbar h1{font-size:.9em;font-weight:700;color:#d4d4d4;white-space:nowrap}
 #search{flex:1;padding:4px 8px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:3px;font-size:12px;font-family:inherit;outline:none}
@@ -584,10 +584,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 #proj-filter:focus{border-color:#0078d4}
 #proj-filter option{background:#252526}
 
-/* \u2500\u2500 Split layout \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* ── Split layout ────────────────────────────────────── */
 #split{display:flex;flex:1;overflow:hidden}
 
-/* \u2500\u2500 Index panel (12vw) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* ── Index panel (12vw) ──────────────────────────────── */
 #index{width:12vw;min-width:140px;max-width:240px;background:#252526;border-right:1px solid #404040;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
 .proj-group{}
 .proj-hd{display:flex;align-items:center;gap:4px;padding:6px 8px 4px;background:#1e1e1e;border-bottom:1px solid #333;position:sticky;top:0;z-index:1}
@@ -606,11 +606,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 .index-searching .proj-hd{display:none}
 .index-searching .proj-group:not(:has(.doc-link.hi)){display:none}
 
-/* \u2500\u2500 Resize handle \u2500\u2500 */
+/* ── Resize handle ── */
 #resize-handle{width:5px;background:#404040;cursor:col-resize;flex-shrink:0;transition:background .12s}
 #resize-handle:hover,#resize-handle.dragging{background:#0078d4}
 
-/* \u2500\u2500 Doc viewer (88vw iframe) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* ── Doc viewer (88vw iframe) ─────────────────────────── */
 #viewer{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #viewer-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1e1e1e;border-bottom:1px solid #333;flex-shrink:0;height:34px}
 #viewer-path{font-family:monospace;font-size:10px;color:#858585;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -620,11 +620,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;f
 #welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#555;font-size:13px;gap:8px;}
 #welcome svg{opacity:.25}
 
-/* \u2500\u2500 Empty state \u2500\u2500 */
+/* ── Empty state ── */
 #idx-empty{padding:20px 10px;text-align:center;color:#555;font-size:11px;display:none}
 #idx-empty.show{display:block}
 
-/* \u2500\u2500 Toast \u2500\u2500 */
+/* ── Toast ── */
 #toast{position:fixed;bottom:14px;right:14px;background:#2d333b;color:#cae8ff;border:1px solid #58a6ff;border-radius:4px;padding:5px 12px;font-size:11px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
 </style>
@@ -803,7 +803,7 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     var paths = [];
     idxEl.querySelectorAll('.doc-link:not([style*="display:none"])').forEach(function(l) { paths.push(l.dataset.path); });
-    navigator.clipboard && navigator.clipboard.writeText(paths.join('\\r\\n')).then(function() { toast(paths.length + ' paths copied'); });
+    navigator.clipboard && navigator.clipboard.writeText(paths.join('\r\n')).then(function() { toast(paths.length + ' paths copied'); });
   }
 });
 
