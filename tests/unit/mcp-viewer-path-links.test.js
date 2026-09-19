@@ -107,5 +107,7 @@ async function test(name, fn) {
     fx.dispose();
     console.log('\n' + '-'.repeat(50));
     console.log(`${passed} passed, ${failed} failed`);
-    process.exit(failed ? 1 : 0);
+    // Not process.exit(): the server's sockets are still closing, and exiting
+    // under them crashes Node on Windows (#847).
+    process.exitCode = failed ? 1 : 0;
 })().catch((e) => { console.error(e && e.stack || String(e)); process.exit(1); });

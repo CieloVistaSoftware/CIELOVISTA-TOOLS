@@ -463,7 +463,7 @@ function getWebviewHtml(webview: vscode.Webview, report: AuditReport, mdContent:
   // Determine coverage color
   const coverageColor = report.coveragePercent >= 70 ? '#4CAF50' : report.coveragePercent >= 40 ? '#FFC107' : '#F44336';
 
-  return `<!DOCTYPE html>
+  return String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">

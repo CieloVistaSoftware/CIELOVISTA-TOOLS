@@ -500,7 +500,7 @@ function buildAuditHtml(findings: Finding[], scannedFiles: number, totalLines: n
 
     const scanDate = new Date().toLocaleString();
 
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    return String.raw`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background)}

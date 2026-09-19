@@ -199,7 +199,7 @@ function stopInterceptionIfIdle(): void {
 // ─── Streaming result panel HTML ─────────────────────────────────────────────
 
 function buildResultPanelHtml(title: string): string {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    return String.raw`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'unsafe-inline';script-src 'unsafe-inline';">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -229,7 +229,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;background:var(--vscod
     <span id="status-icon"><span id="spinner">&#9696;</span></span>
     <span id="title-text">${escHtml(title)}</span>
   </div>
-  <div id="elapsed">Starting\u2026</div>
+  <div id="elapsed">Starting…</div>
   <div id="actions">
     <button class="act-btn" id="btn-copy">&#128203; Copy Output</button>
     <button class="act-btn" id="btn-chat">&#128172; Copy to Chat</button>
@@ -246,7 +246,7 @@ var spinner   = document.getElementById('spinner');
 var actions   = document.getElementById('actions');
 var toast     = document.getElementById('copy-toast');
 var _lines    = [];
-function getOutputText() { return _lines.join('\\n'); }
+function getOutputText() { return _lines.join('\n'); }
 function showToast() { toast.className='show'; setTimeout(function(){ toast.className=''; }, 1800); }
 function copyText(text) {
   try { navigator.clipboard.writeText(text).then(showToast).catch(function(){ showToast(); }); }
@@ -254,7 +254,7 @@ function copyText(text) {
 }
 document.getElementById('btn-copy').addEventListener('click', function(){ copyText(getOutputText()); });
 document.getElementById('btn-chat').addEventListener('click', function(){
-  var text = '**' + ${JSON.stringify(title)} + '**\\n\\n\`\`\`\\n' + getOutputText() + '\\n\`\`\`';
+  var text = '**' + ${JSON.stringify(title)} + '**\n\n\`\`\`\n' + getOutputText() + '\n\`\`\`';
   vsc.postMessage({ command: 'copy-to-chat', text: text });
 });
 window.addEventListener('message', function(ev){
@@ -269,7 +269,7 @@ window.addEventListener('message', function(ev){
     out.scrollTop = out.scrollHeight;
   } else if (m.type === 'done') {
     spinner.style.display = 'none';
-    statusIcon.textContent = m.ok ? '\\u2705' : '\\u274c';
+    statusIcon.textContent = m.ok ? '\u2705' : '\u274c';
     elapsed.textContent = m.ok ? 'Completed in '+m.elapsed+'ms' : 'Failed after '+m.elapsed+'ms';
     actions.className = 'show';
     if (!m.ok && m.stack) {
@@ -286,11 +286,11 @@ window.addEventListener('message', function(ev){
     }
   } else if (m.type === 'terminal') {
     spinner.style.display = 'none';
-    statusIcon.textContent = '\\uD83D\\uDCBB';
+    statusIcon.textContent = '\uD83D\uDCBB';
     elapsed.textContent = 'Running in terminal: ' + m.name;
     var note = document.createElement('div');
     note.style.cssText = 'color:var(--vscode-descriptionForeground);font-style:italic';
-    note.textContent = '\\u25b6 Output is in the Terminal panel';
+    note.textContent = '\u25b6 Output is in the Terminal panel';
     out.appendChild(note);
     actions.className = 'show';
   }

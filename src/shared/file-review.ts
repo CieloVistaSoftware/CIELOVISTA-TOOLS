@@ -321,6 +321,14 @@ document.addEventListener('DOMContentLoaded', function() {
   ITEMS.forEach(function(item) {
     var target = document.getElementById('diff-' + item.i);
     if (!target || !item.unifiedDiff) { return; }
+    // diff2html comes from a CDN: offline, show the plain diff rather than
+    // nothing, so the change being approved can still be read (#846).
+    if (typeof Diff2HtmlUI === 'undefined') {
+      var pre = document.createElement('pre');
+      pre.textContent = item.unifiedDiff;
+      target.appendChild(pre);
+      return;
+    }
     var ui = new Diff2HtmlUI(target, item.unifiedDiff, {
       drawFileList: false, matching: 'lines', outputFormat: 'line-by-line',
       highlight: true, renderNothingWhenEmpty: false,

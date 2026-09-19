@@ -437,7 +437,12 @@ ${opts.extraCss ?? ''}
 </head>
 <body>
 ${opts.body}
-${opts.script ? `<script>\n(function(){\n'use strict';\n${opts.script}\n})();\n</script>` : ''}
+${opts.script ? `<script>
+(function(){
+'use strict';
+${opts.script}
+})();
+</script>` : ''}
 </body>
 </html>`;
 }
@@ -545,8 +550,13 @@ export const escapeHtml = esc;
 export function buildWebviewPage(opts: { title: string; bodyHtml: string; extraStyles?: string; scripts?: string }): string {
     return cvsPage({ title: opts.title, body: opts.bodyHtml, extraCss: opts.extraStyles, script: opts.scripts });
 }
-export function buildMarkdownPage(title: string, markdown: string, scripts?: string): string {
-    return cvsPage({ title, body: `<h1>${esc(title)}</h1><div class="cvs-content"><p>${mdToHtml(markdown)}</p></div>`, script: scripts });
+/**
+ * A Markdown page. `toolbarHtml` goes above the heading: the controls the
+ * page's `scripts` wire up must be on the page (#846: the Copilot Rules
+ * script looked for Enable and Disable buttons that were never there).
+ */
+export function buildMarkdownPage(title: string, markdown: string, scripts?: string, toolbarHtml = ''): string {
+    return cvsPage({ title, body: `${toolbarHtml}<h1>${esc(title)}</h1><div class="cvs-content"><p>${mdToHtml(markdown)}</p></div>`, script: scripts });
 }
 
 export const CVS_STRIP_JS = `

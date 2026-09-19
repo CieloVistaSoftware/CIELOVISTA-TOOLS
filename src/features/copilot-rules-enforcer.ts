@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { log, logError as logErr } from '../shared/output-channel';
 import { applyRules, removeRules, getCurrentRules, readRulesFile, sanitizeCopilotInstructionSettings } from '../shared/copilot-rules-utils';
-import { buildMarkdownPage } from '../shared/webview-utils';
+import { buildMarkdownPage, cvsToolbar, cvsBtn, cvsBtnSecondary } from '../shared/webview-utils';
 import { logError as trackError } from '../shared/error-log-utils';
 
 const FEATURE = 'copilot-rules-enforcer';
@@ -42,11 +42,15 @@ function updateStatusBar(): void {
 
 function openOrRefreshPanel(): void {
     const rules = getCurrentRules();
+    const toolbar = cvsToolbar('Copilot Rules', [
+        cvsBtn('Enable', 'id="enableBtn" title="Apply these rules to Copilot"'),
+        cvsBtnSecondary('Disable', 'id="disableBtn" title="Remove these rules from Copilot"'),
+    ]);
     const html  = buildMarkdownPage('Copilot Rules', rules, `
         const vscode = acquireVsCodeApi();
         document.getElementById('enableBtn').addEventListener('click',  () => vscode.postMessage({ command: 'enable'  }));
         document.getElementById('disableBtn').addEventListener('click', () => vscode.postMessage({ command: 'disable' }));
-    `);
+    `, toolbar);
 
     if (_panel) {
         _panel.webview.html = html;

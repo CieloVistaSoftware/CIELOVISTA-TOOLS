@@ -373,6 +373,14 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   document.addEventListener('DOMContentLoaded', function() {
     var diffStr = ${diffJson};
     var target  = document.getElementById('diff-target');
+    // diff2html comes from a CDN: offline, show the plain diff rather than
+    // nothing, so the change being approved can still be read (#846).
+    if (typeof Diff2HtmlUI === 'undefined') {
+      var pre = document.createElement('pre');
+      pre.textContent = diffStr;
+      target.appendChild(pre);
+      return;
+    }
     var ui = new Diff2HtmlUI(target, diffStr, {
       drawFileList:       false,
       matching:           'lines',

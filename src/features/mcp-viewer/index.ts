@@ -282,7 +282,7 @@ function buildMarkdownPreviewHtml(filePath: string, markdown: string, token: str
     const safeFileName = escHtml(filePath.split(/[\\/]/).pop() ?? filePath);
     const safeBack    = backUrl || '';
     const renderedHtml = mdToHtml(markdown);
-    return `<!DOCTYPE html>
+    return String.raw`<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>${safeFileName}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
@@ -327,11 +327,11 @@ function revealFile() {
 document.getElementById('btn-reveal').addEventListener('click', revealFile);
 document.getElementById('path-label').addEventListener('click', revealFile);
 (function(){
-    // Backslashes doubled: this script is a template literal, which halves
-    // them. Written once, the page got /[A-Za-z]:\[^s.../ and no path ever
-    // matched (#843). A path runs to whitespace or a character Windows
-    // does not allow in one.
-    var pathRe = /[A-Za-z]:\\\\[^\\s<>'"|*?]+/g;
+    // This page is a String.raw template, so the pattern below is the one
+    // the page gets. In a plain template it lost its backslashes and no
+    // path ever matched (#843, #846). A path runs to whitespace or a
+    // character Windows does not allow in one.
+    var pathRe = /[A-Za-z]:\\[^\s<>'"|*?]+/g;
     function linkifyPaths(root) {
         var nodes = [];
         var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
@@ -347,7 +347,7 @@ document.getElementById('path-label').addEventListener('click', revealFile);
             while ((m = pathRe.exec(text)) !== null) {
                 if (m.index > last) { frag.appendChild(document.createTextNode(text.slice(last, m.index))); }
                 var fp = m[0];
-                if (/\\.md$/i.test(fp)) {
+                if (/\.md$/i.test(fp)) {
                     var a = document.createElement('a');
                     a.href = '/md-preview?t=' + TOKEN + '&path=' + encodeURIComponent(fp) + '&back=' + encodeURIComponent(window.location.href);
                     a.textContent = fp;

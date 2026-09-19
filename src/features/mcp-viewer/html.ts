@@ -13,7 +13,7 @@
  */
 
 export function buildViewerHtml(port: number, totalProjects: number, token: string): string {
-    return `<!DOCTYPE html>
+    return String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -248,7 +248,7 @@ function statusPill(s){
 function buildProjectTip(p){
   var parts = ['Status: ' + (p.status || 'product'), 'Type: ' + (p.type || ''), 'Path: ' + (p.path || '')];
   if (p.description) { parts.push(''); parts.push(p.description); }
-  return parts.join('\\n');
+  return parts.join('\n');
 }
 
 function buildCmdTip(c){
@@ -259,13 +259,13 @@ function buildCmdTip(c){
   if (c.action)   { parts.push('How:    ' + c.action + ' action'); }
   if (c.location) { parts.push('Source: ' + c.location); }
   if (c.tags && c.tags.length) { parts.push('Tags:   ' + c.tags.join(', ')); }
-  return parts.join('\\n');
+  return parts.join('\n');
 }
 
 function buildSymbolTip(s){
   var parts = ['Kind:     ' + (s.kind || ''), 'Role:     ' + (s.role || ''), 'Exported: ' + (s.exported ? 'yes' : 'no'), 'File:     ' + (s.sourceFile || '') + ':' + (s.line || '')];
-  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\\s*\\/\\*\\*/, '').replace(/\\*\\/\\s*$/, '').replace(/^\\s*\\*\\s?/gm, '').trim()); }
-  return parts.join('\\n');
+  if (s.docComment) { parts.push(''); parts.push(s.docComment.replace(/^\s*\/\*\*/, '').replace(/\*\/\s*$/, '').replace(/^\s*\*\s?/gm, '').trim()); }
+  return parts.join('\n');
 }
 
 function renderProjectsTable(data){
@@ -391,8 +391,8 @@ function renderSymbolsTable(data){
     html += '<table><thead><tr>' + _th('Name','name') + _th('Kind','kind') + _th('Role','role') + _th('Exp','exported') + _th('Signature / Doc','signature') + _th('File : line','source') + '</tr></thead><tbody>';
     for (var j = 0; j < symsToRender.length; j++) {
       var s = symsToRender[j];
-      var doc = s.docComment ? '<div style="color:#858585;font-size:10px;margin-top:4px;white-space:pre-wrap">' + esc(s.docComment.replace(/^\\s*\\/\\*\\*/, '').replace(/\\*\\/\\s*$/, '').replace(/^\\s*\\*\\s?/gm, '')) + '</div>' : '';
-      var locShort = s.sourceFile.split(/[\\\\/]/).slice(-3).join('/') + ' : ' + s.line;
+      var doc = s.docComment ? '<div style="color:#858585;font-size:10px;margin-top:4px;white-space:pre-wrap">' + esc(s.docComment.replace(/^\s*\/\*\*/, '').replace(/\*\/\s*$/, '').replace(/^\s*\*\s?/gm, '')) + '</div>' : '';
+      var locShort = s.sourceFile.split(/[\\/]/).slice(-3).join('/') + ' : ' + s.line;
       html += '<tr>' +
         '<td class="c-name" title="' + esc(buildSymbolTip(s)) + '">' + esc(s.name) + ' <span style="opacity:.4;font-size:9px">ℹ</span></td>' +
         '<td><span class="c-type">' + esc(s.kind) + '</span></td>' +
