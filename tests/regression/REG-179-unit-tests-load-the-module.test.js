@@ -18,13 +18,23 @@
 // stand-in HTTP server for View a Doc, copies of readme-compliance helpers
 // (REG-030) and a stand-in for debug() (REG-080).
 //
+// Issue #838: rule 1 skipped tests named after a feature folder
+// (doc-catalog-run-button, mcp-viewer-routes). Ten of them read the
+// folder's source text or transpiled it themselves. Running the real pages
+// found two dead page scripts the text checks had kept green: the doc
+// preview's script did not parse (#841) and the MCP viewer's path pattern
+// never matched (#843).
+//
 // Guards:
 //   1. Over tests/unit/: a test whose name is a module in src/ requires that
 //      module from a build (out-test/ or out/). "Named after" means the file
 //      name, less .test.js and any .qualifier, is src/features/<n>.ts,
 //      src/features/<n>/, src/shared/<n>.ts, or src/features/<dir>/<rest>.ts
-//      for <dir>-<rest>. Mentioning the path is not enough; it has to reach a
-//      require() call.
+//      for <dir>-<rest>. A name that is none of those but starts with a
+//      feature folder, <dir>-<anything>, names the folder, and the test
+//      requires one of its modules (#838). Mentioning the path is not
+//      enough; it has to reach a require() call, directly, through a
+//      variable, or as require(path.join(<variable>, 'file.js')).
 //   2. Over tests/unit/, top-level tests/*.test.js and tests/regression/: no
 //      test defines a function, or a top-level array/object/regex constant,
 //      with the name of an export of a src module it names (by file name,
@@ -72,6 +82,15 @@ function modulesNamedBy(fileName) {
             if (has(`${rel}.ts`)) { found.push(rel); }
         }
     }
+    // #838: a name that is only <feature-folder>-<anything> (doc-catalog-run-button,
+    // mcp-viewer-routes) names the folder: it loads one of the folder's modules.
+    if (!found.length) {
+        const parts = base.split('.')[0].split('-');
+        for (let i = parts.length - 1; i >= 1; i--) {
+            const dir = `features/${parts.slice(0, i).join('-')}`;
+            if (fs.existsSync(path.join(SRC, dir)) && fs.statSync(path.join(SRC, dir)).isDirectory()) { found.push(dir); break; }
+        }
+    }
     return [...new Set(found)];
 }
 
@@ -92,9 +111,10 @@ function requiresModule(text, mod) {
     const pat = buildPathRe(mod);
     // require('.../out-test/features/x.js') or require(path.join(..., 'out-test', ...))
     if (new RegExp(`(?:require|import)\\s*\\([^;\\n]*${pat}`).test(t)) { return true; }
-    // const X = <anything with the path>; ... require(X)
+    // const X = <anything with the path>; ... require(X), or require(path.join(X, 'file.js'))
+    // when X is a folder of the module (#838: daily-audit-checks loads four checks/ files).
     const vars = [...t.matchAll(new RegExp(`(?:const|let|var)\\s+(\\w+)\\s*=[^;\\n]*${pat}`, 'g'))].map(m => m[1]);
-    return vars.some(v => new RegExp(`(?:require|import)\\s*\\(\\s*${v}\\s*\\)`).test(t));
+    return vars.some(v => new RegExp(`(?:require|import)\\s*\\(\\s*(?:path\\.(?:join|resolve)\\s*\\(\\s*)?${v}\\s*[,)]`).test(t));
 }
 
 /**
@@ -203,6 +223,36 @@ check('self-check: require(path.join(..., segments)) counts as loading it',
     requiresModule(loadsItBySegments, 'features/code-highlight-audit'));
 check('self-check: a real require is not reported as a copy',
     copiedExports(NAME, loadsIt, EXPORTS).length === 0);
+
+// #838: a test named <feature-folder>-<anything> names the folder, and must
+// load one of the folder's modules. Before #838 such names named nothing, so
+// ten tests that read or transpiled source text passed this check unseen.
+check('self-check: a <feature-folder>-<anything> test name resolves to the folder (doc-catalog-run-button)',
+    JSON.stringify(modulesNamedBy('doc-catalog-run-button.test.js')) === JSON.stringify(['features/doc-catalog']),
+    JSON.stringify(modulesNamedBy('doc-catalog-run-button.test.js')));
+check('self-check: a folder module name still wins over the folder (doc-auditor-analyzer)',
+    JSON.stringify(modulesNamedBy('doc-auditor-analyzer.test.js')) === JSON.stringify(['features/doc-auditor/analyzer']));
+const readsFolderSource = [
+    "const HTML_TS = path.resolve(__dirname, '..', '..', 'src', 'features', 'doc-catalog', 'html.ts');",
+    "const htmlSrc = fs.readFileSync(HTML_TS, 'utf8');",
+].join('\n');
+const transpilesFolderSource = [
+    "const SRC = path.join(__dirname, '../../src/features/mcp-viewer/html.ts');",
+    "vm.runInNewContext(ts.transpileModule(fs.readFileSync(SRC, 'utf8'), {}).outputText, ctx);",
+].join('\n');
+const loadsAFolderModule = "const CATALOG_OUT = path.join(__dirname, '..', '..', 'out-test', 'features', 'doc-catalog', 'index.js');\nconst m = require(CATALOG_OUT);";
+const loadsFolderFilesByJoin = [
+    "const OUT = path.resolve(__dirname, '..', '..', 'out-test', 'features', 'daily-audit', 'checks');",
+    "const { runChangelogCheck } = require(path.join(OUT, 'changelog.js'));",
+].join('\n');
+check('self-check: a folder-named test that reads the folder\'s source text is caught',
+    !requiresModule(readsFolderSource, 'features/doc-catalog'));
+check('self-check: a folder-named test that transpiles the source itself is caught',
+    !requiresModule(transpilesFolderSource, 'features/mcp-viewer'));
+check('self-check: requiring any module of the folder from out-test/ counts as loading it',
+    requiresModule(loadsAFolderModule, 'features/doc-catalog'));
+check('self-check: require(path.join(DIR, file)) with DIR a build folder of the module counts as loading it',
+    requiresModule(loadsFolderFilesByJoin, 'features/daily-audit'));
 
 // The shapes #823 found outside tests/unit/, as they were.
 const homePageCopy = [

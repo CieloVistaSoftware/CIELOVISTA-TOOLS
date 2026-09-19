@@ -327,7 +327,11 @@ function revealFile() {
 document.getElementById('btn-reveal').addEventListener('click', revealFile);
 document.getElementById('path-label').addEventListener('click', revealFile);
 (function(){
-    var pathRe = /[A-Za-z]:\\[^\s<>'"\\|*?]+/g;
+    // Backslashes doubled: this script is a template literal, which halves
+    // them. Written once, the page got /[A-Za-z]:\[^s.../ and no path ever
+    // matched (#843). A path runs to whitespace or a character Windows
+    // does not allow in one.
+    var pathRe = /[A-Za-z]:\\\\[^\\s<>'"|*?]+/g;
     function linkifyPaths(root) {
         var nodes = [];
         var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
@@ -343,7 +347,7 @@ document.getElementById('path-label').addEventListener('click', revealFile);
             while ((m = pathRe.exec(text)) !== null) {
                 if (m.index > last) { frag.appendChild(document.createTextNode(text.slice(last, m.index))); }
                 var fp = m[0];
-                if (/\.md$/i.test(fp)) {
+                if (/\\.md$/i.test(fp)) {
                     var a = document.createElement('a');
                     a.href = '/md-preview?t=' + TOKEN + '&path=' + encodeURIComponent(fp) + '&back=' + encodeURIComponent(window.location.href);
                     a.textContent = fp;

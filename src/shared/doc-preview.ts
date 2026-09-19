@@ -127,7 +127,10 @@ let _pendingScrollY = 0;
         if (byId) { return byId; }
         const escaped = (window.CSS && CSS.escape)
             ? CSS.escape(decoded)
-            : decoded.replace(/(["\\])/g, '\\$1');
+            // Doubled: this script is a template literal, which halves every
+            // backslash. Written once, the page got /(["\])/g, a syntax error
+            // that stopped the whole script (#841).
+            : decoded.replace(/(["\\\\])/g, '\\\\$1');
         return document.querySelector('[name="' + escaped + '"]');
     }
     function scrollToAnchor(anchorId) {

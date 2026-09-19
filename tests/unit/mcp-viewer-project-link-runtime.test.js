@@ -1,3 +1,5 @@
+// Copyright (c) 2026 CieloVista Software. All rights reserved.
+// Unauthorized copying or distribution of this file is strictly prohibited.
 // Run with: node tests/unit/mcp-viewer-project-link-runtime.test.js
 
 'use strict';
@@ -5,27 +7,25 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
-const { JSDOM } = require('jsdom');
-const ts = require('typescript');
+const { JSDOM, VirtualConsole } = require('jsdom');
 
 // #780: the server refuses any request without its token, so the page must send it.
 const TOKEN = 'abababababababababababababababababababababababababababababababab';
-const SRC = path.join(__dirname, '../../src/features/mcp-viewer/html.ts');
-assert.ok(fs.existsSync(SRC), 'Source file not found: src/features/mcp-viewer/html.ts');
-
-function buildHtml() {
-  const sourceTs = fs.readFileSync(SRC, 'utf8');
-  const transpiled = ts.transpileModule(sourceTs, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
-  }).outputText;
-
-  const ctx = { module: { exports: {} }, exports: {}, require, console };
-  vm.runInNewContext(transpiled, ctx, { filename: 'mcp-viewer-html.transpiled.js' });
-  const buildViewerHtml = ctx.module.exports.buildViewerHtml || ctx.exports.buildViewerHtml;
-  assert.strictEqual(typeof buildViewerHtml, 'function', 'buildViewerHtml export not found');
-  return buildViewerHtml(4321, 19, TOKEN);
+// The real page: buildViewerHtml() from the out-test build (#838). Until #838
+// this test transpiled html.ts itself and ran the copy in a vm.
+const OUT = path.join(__dirname, '../../out-test/features/mcp-viewer/html.js');
+if (!fs.existsSync(OUT)) {
+  // Not a skip: the runners build out-test/ first, so this is a real failure.
+  console.error('FAIL: out-test build missing: ' + OUT);
+  process.exit(1);
 }
+const { buildViewerHtml } = require(OUT);
+
+// A page script that throws, or does not parse, fails the test (#838).
+const pageErrors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.forwardTo(console, { jsdomErrors: 'none' });
+virtualConsole.on('jsdomError', (e) => pageErrors.push((e.cause && e.cause.message) || e.message));
 
 function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -34,8 +34,9 @@ function flush() {
 (async () => {
   const requests = [];
 
-  const dom = new JSDOM(buildHtml(), {
+  const dom = new JSDOM(buildViewerHtml(4321, 19, TOKEN), {
     runScripts: 'dangerously',
+    virtualConsole,
     resources: 'usable',
     url: 'http://127.0.0.1:4321/',
     beforeParse(window) {
@@ -85,6 +86,7 @@ function flush() {
     },
   });
 
+  assert.deepStrictEqual(pageErrors, [], 'the viewer page script failed');
   const win = dom.window;
   const doc = win.document;
 
