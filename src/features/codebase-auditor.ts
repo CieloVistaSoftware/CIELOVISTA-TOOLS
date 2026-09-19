@@ -101,6 +101,16 @@ function collectTsFiles(dir: string, srcDir: string = SRC_DIR): FileInfo[] {
 let _seq = 0;
 function id(cat: string): string { return `${cat}-${++_seq}`; }
 
+/**
+ * A feature's entry file: features/<name>.ts, directly inside features/.
+ * Dead Monolith, Missing README and Dead File look only at these. Until #833
+ * each wrote the test inline as startsWith('features/') && !includes('/'),
+ * which no path can pass, so the three checks never reported anything.
+ */
+function isTopLevelFeature(rel: string): boolean {
+    return /^features\/[^/]+\.ts$/.test(rel);
+}
+
 /** 1. File size */
 function checkFileSizes(files: FileInfo[]): Finding[] {
     const findings: Finding[] = [];
@@ -195,7 +205,7 @@ function checkDuplicateExports(files: FileInfo[]): Finding[] {
 /** 4. Dead monolith files — .ts file exists alongside a split folder */
 function checkDeadMonoliths(files: FileInfo[], srcDir: string = SRC_DIR): Finding[] {
     const findings: Finding[] = [];
-    const featureFiles = files.filter(f => f.rel.startsWith('features/') && !f.rel.includes('/'));
+    const featureFiles = files.filter(f => isTopLevelFeature(f.rel));
 
     for (const f of featureFiles) {
         const baseName   = path.basename(f.abs, '.ts');
@@ -214,14 +224,9 @@ function checkDeadMonoliths(files: FileInfo[], srcDir: string = SRC_DIR): Findin
 /** 5. Missing README for feature files */
 function checkMissingReadmes(files: FileInfo[]): Finding[] {
     const findings: Finding[] = [];
-    const featureFiles = files.filter(f =>
-        f.rel.startsWith('features/') &&
-        !f.rel.includes('/') &&
-        !f.rel.endsWith('.README.ts') &&
-        !['feature-toggle', 'doc-header', 'open-folder-as-root',
-          'mcp-server-scaffolder', 'project-launcher', 'readme-generator',
-          'license-sync', 'playwright-check'].some(n => f.rel.includes(n))
-    );
+    // No exemptions: the list that stood here (feature-toggle, doc-header, ...)
+    // matched by substring and named features that all have a README now (#833).
+    const featureFiles = files.filter(f => isTopLevelFeature(f.rel));
 
     for (const f of featureFiles) {
         const readmePath = f.abs.replace(/\.ts$/, '.README.md');
@@ -354,30 +359,24 @@ function checkDeadFiles(files: FileInfo[], srcDir: string = SRC_DIR): Finding[] 
     }
 
     // Check feature files that have no importers
-    const featureTopLevel = files.filter(f =>
-        f.rel.startsWith('features/') &&
-        !f.rel.includes('/') &&
-        f.lines > 20
-    );
+    const featureTopLevel = files.filter(f => isTopLevelFeature(f.rel) && f.lines > 20);
+
+    // extension.ts naming the file in any form (a command id, a comment) keeps
+    // it. A tree with no extension.ts has nothing to keep it: before #833 that
+    // case reported nothing, a second way for this check to stay silent.
+    const extPath    = path.join(srcDir, 'extension.ts');
+    const extContent = fs.existsSync(extPath) ? fs.readFileSync(extPath, 'utf8') : '';
 
     for (const f of featureTopLevel) {
         const baseName = path.basename(f.abs, '.ts');
-        const relPath  = f.rel.replace(/\\/g, '/');
         const imported = allImports.has(baseName) ||
-                         allImports.has(relPath)  ||
+                         allImports.has(f.rel)    ||
                          allImports.has(`features/${baseName}`);
-        if (!imported) {
-            // Check extension.ts specifically
-            const extPath = path.join(srcDir, 'extension.ts');
-            if (fs.existsSync(extPath)) {
-                const extContent = fs.readFileSync(extPath, 'utf8');
-                if (!extContent.includes(baseName)) {
-                    findings.push({ id: id('DEAD'), category: 'Dead File', severity: 'yellow',
-                        file: f.rel, action: 'delete',
-                        title: `Possibly unused: ${f.rel}`,
-                        detail: `${f.rel} is not imported in extension.ts or any other file. If it was replaced by a split module, delete it.` });
-                }
-            }
+        if (!imported && !extContent.includes(baseName)) {
+            findings.push({ id: id('DEAD'), category: 'Dead File', severity: 'yellow',
+                file: f.rel, action: 'delete',
+                title: `Possibly unused: ${f.rel}`,
+                detail: `${f.rel} is not imported in extension.ts or any other file. If it was replaced by a split module, delete it.` });
         }
     }
     return findings;
