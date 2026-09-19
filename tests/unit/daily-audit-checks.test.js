@@ -24,17 +24,16 @@ const os     = require('os');
 // ── Load compiled modules ─────────────────────────────────────────────────────
 const OUT = path.resolve(__dirname, '..', '..', 'out-test', 'features', 'daily-audit', 'checks');
 
-const modules = {};
 for (const name of ['changelog', 'readme-quality', 'test-coverage', 'registry-health']) {
     const p = path.join(OUT, `${name}.js`);
-    if (!fs.existsSync(p)) { console.error(`SKIP: ${p} not found — run npm run compile`); process.exit(0); }
-    modules[name] = require(p);
+    // Not a skip: the runners build out-test/ first, so this is a real failure (#838).
+    if (!fs.existsSync(p)) { console.error(`FAIL: out-test build missing: ${p}`); process.exit(1); }
 }
 
-const { runChangelogCheck }       = modules['changelog'];
-const { runReadmeQualityCheck }   = modules['readme-quality'];
-const { checkTestCoverage, runTestCoverageCheck } = modules['test-coverage'];
-const { runRegistryHealthCheck }  = modules['registry-health'];
+const { runChangelogCheck }       = require(path.join(OUT, 'changelog.js'));
+const { runReadmeQualityCheck }   = require(path.join(OUT, 'readme-quality.js'));
+const { checkTestCoverage, runTestCoverageCheck } = require(path.join(OUT, 'test-coverage.js'));
+const { runRegistryHealthCheck }  = require(path.join(OUT, 'registry-health.js'));
 
 // ── Temp workspace ────────────────────────────────────────────────────────────
 const TMP = path.join(os.tmpdir(), `cvt-dac-${Date.now()}`);
