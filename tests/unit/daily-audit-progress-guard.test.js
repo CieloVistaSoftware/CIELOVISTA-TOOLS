@@ -18,12 +18,18 @@
  *     offerAuditActions is NOT called inside the withProgress callback
  *     (i.e., it appears after the withProgress block closes).
  *
- *   LAYER 2 — Behavioral mock test
- *     Simulates the fixed execution pattern with a mock withProgress and
- *     confirms:
- *       - the withProgress callback resolves without awaiting offerAuditActions
- *       - offerAuditActions is called after withProgress resolves
- *       - the execution order is: [audit] → [progress closes] → [offerAuditActions]
+ *   LAYER 2 — The real command
+ *     Loads the out-test build of src/features/daily-audit/index.ts, runs the
+ *     cvs.audit.runDaily command it registers, and records, through a vscode
+ *     mock, when the audit runs, when withProgress's callback resolves (the
+ *     notification closes) and when the "Daily Audit found N actionable
+ *     issue(s)" prompt opens. The order must be: audit, progress closes,
+ *     prompt. Only the audit itself (runner.ts, which reads every registered
+ *     project) is replaced, by one that returns a clean report at once.
+ *
+ *     Until #828 Layer 2 ran three hand-written copies of the pattern
+ *     (mockWithProgress, mockRunDailyAudit, mockOfferAuditActions) and
+ *     checked the order of its own calls; no code from src/ ran.
  *
  * Run: node tests/unit/daily-audit-progress-guard.test.js
  */
@@ -31,30 +37,23 @@
 const assert = require('assert');
 const fs     = require('fs');
 const path   = require('path');
+const Module = require('module');
 
 const SRC = path.join(__dirname, '../../src/features/daily-audit/index.ts');
+const OUT = path.join(__dirname, '../../out-test/features/daily-audit/index.js');
 
 let passed = 0, failed = 0;
+const pending = [];
 
 function test(name, fn) {
+    const pass = () => { console.log(`  ✓ ${name}`); passed++; };
+    const fail = e => { console.error(`  ✗ ${name}\n    → ${e && e.message}`); failed++; };
     try {
         const r = fn();
-        if (r instanceof Promise) {
-            // Handle async tests — collect for final report
-            r.then(() => {
-                console.log(`  \u2713 ${name}`);
-                passed++;
-            }).catch(e => {
-                console.error(`  \u2717 ${name}\n    \u2192 ${e.message}`);
-                failed++;
-            });
-        } else {
-            console.log(`  \u2713 ${name}`);
-            passed++;
-        }
+        if (r instanceof Promise) { pending.push(r.then(pass, fail)); }
+        else { pass(); }
     } catch (e) {
-        console.error(`  \u2717 ${name}\n    \u2192 ${e.message}`);
-        failed++;
+        fail(e);
     }
 }
 
@@ -155,135 +154,108 @@ test('_auditResult is assigned inside withProgress and consumed outside', () => 
     ok(afterBlock.includes('_auditResult'),   '_auditResult must be referenced after withProgress resolves');
 });
 
-// ─── Layer 2: Behavioral mock test ───────────────────────────────────────────
+// ─── Layer 2: the real command ───────────────────────────────────────────────
 
-console.log('\n-- Layer 2: Behavioral mock — execution order contract --');
+console.log('\n-- Layer 2: the real cvs.audit.runDaily command — execution order --');
 
-/**
- * Simulates the FIXED pattern:
- *   let _result;
- *   await withProgress(async () => { _result = await runAudit(); // work only
- *   });
- *   if (_result) { await offerActions(_result); }
- *
- * Verifies:
- *   1. withProgress callback resolves before offerActions is called
- *   2. offerActions is called after withProgress resolves
- *   3. The order array is exactly: audit → progressClose → offerActions
- */
-test('FIXED pattern: withProgress resolves before offerAuditActions runs', async () => {
-    const order = [];
+if (!fs.existsSync(OUT)) {
+    // Not a skip: the runners build out-test/ first, so this is a real failure.
+    console.error(`  ✗ out-test build missing: ${OUT}`);
+    process.exit(1);
+}
 
-    // Mock withProgress — runs its callback and resolves immediately when done
-    async function mockWithProgress(callback) {
-        await callback();
-        order.push('progressClose');
-    }
+/** What happened, in order: 'audit', 'progress-open', 'progress-close', 'prompt'. */
+const events = [];
+const commands = new Map();
 
-    // Mock runDailyAudit — fast async operation
-    async function mockRunDailyAudit() {
-        order.push('audit');
-        return { written: true, report: { summary: {}, checks: [], durationMs: 1 }, projectNames: [] };
-    }
-
-    // Mock offerAuditActions — simulates user prompt (slow)
-    async function mockOfferAuditActions() {
-        order.push('offerActions');
-    }
-
-    // ── Fixed implementation pattern ──────────────────────────────────────────
-    let _auditResult;
-    await mockWithProgress(async () => {
-        _auditResult = await mockRunDailyAudit();
-        // NOTE: offerAuditActions is NOT called here — that is the fix
+function inert() {
+    return new Proxy(function () { return inert(); }, {
+        get: (_t, k) => (k === 'then' ? undefined : inert()),
+        apply: () => inert(),
     });
-    if (_auditResult) {
-        await mockOfferAuditActions(_auditResult);
-    }
+}
+const vscodeMock = new Proxy({
+    commands: {
+        registerCommand: (id, fn) => { commands.set(id, fn); return { dispose() {} }; },
+        executeCommand: () => Promise.resolve(),
+    },
+    window: {
+        // Resolves when its callback does, as VS Code's does: that is when the notification closes.
+        withProgress: async (_opts, task) => {
+            events.push('progress-open');
+            const result = await task({ report() {} }, { isCancellationRequested: false, onCancellationRequested() {} });
+            events.push('progress-close');
+            return result;
+        },
+        showInformationMessage: (message) => {
+            if (/^Daily Audit found/.test(String(message))) { events.push('prompt'); }
+            return Promise.resolve(undefined);   // the user dismisses it
+        },
+        showErrorMessage: () => Promise.resolve(undefined),
+        showWarningMessage: () => Promise.resolve(undefined),
+        createOutputChannel: () => ({ appendLine() {}, append() {}, show() {}, dispose() {}, clear() {} }),
+        createWebviewPanel: () => inert(),   // the results panel; not what this test checks
+    },
+    workspace: { workspaceFolders: [], getConfiguration: () => ({ get: (_k, d) => d, update: () => Promise.resolve() }) },
+    ProgressLocation: { Notification: 15 },
+    ViewColumn: { One: 1, Two: 2, Beside: -2, Active: -1 },
+}, { get: (t, k) => (k in t ? t[k] : inert()) });
 
-    assert.deepStrictEqual(
-        order,
-        ['audit', 'progressClose', 'offerActions'],
-        `Execution order must be [audit → progressClose → offerActions]. Got: ${JSON.stringify(order)}`
-    );
+/** A clean report, returned at once: all green, so nothing is filed as a GitHub issue. */
+function cleanAudit() {
+    events.push('audit');
+    const now = new Date().toISOString();
+    return Promise.resolve({
+        report: {
+            auditId: now, generatedAt: now, durationMs: 1,
+            checks: [{ checkId: 'probe', title: 'Probe', category: 'test', status: 'green', summary: 'ok' }],
+            summary: { red: 0, yellow: 0, green: 1, grey: 0, total: 1 },
+        },
+        written: true,
+        projectNames: ['probe'],
+    });
+}
+
+const DAILY_AUDIT_DIR = path.dirname(OUT);
+const origLoad = Module._load;
+Module._load = function (request, parent) {
+    if (request === 'vscode') { return vscodeMock; }
+    if (request === './runner' && parent && path.dirname(parent.filename) === DAILY_AUDIT_DIR) {
+        return { runDailyAudit: cleanAudit };
+    }
+    return origLoad.apply(this, arguments);
+};
+
+const dailyAudit = require(OUT);
+dailyAudit.activate({ subscriptions: [], extensionPath: path.join(__dirname, '..', '..') });
+
+test('the real module registers cvs.audit.runDaily', () => {
+    assert.ok(commands.has('cvs.audit.runDaily'), `registered: ${JSON.stringify([...commands.keys()])}`);
 });
 
-/**
- * Simulates the BROKEN pattern (the original bug) to confirm the test would
- * catch a regression if offerAuditActions were moved back inside withProgress.
- *
- * Verifies that in the broken pattern the order is wrong:
- *   audit → offerActions → progressClose   ← BAD: progress stays open during offerActions
- */
-test('BROKEN pattern: offerAuditActions inside withProgress causes wrong order (regression baseline)', async () => {
-    const order = [];
-
-    async function mockWithProgress(callback) {
-        await callback();
-        order.push('progressClose');
-    }
-
-    async function mockRunDailyAudit() {
-        order.push('audit');
-        return { written: true };
-    }
-
-    async function mockOfferAuditActions() {
-        order.push('offerActions');
-    }
-
-    // ── Broken pattern (what the bug was) ─────────────────────────────────────
-    await mockWithProgress(async () => {
-        const result = await mockRunDailyAudit();
-        await mockOfferAuditActions(result);   // BUG: inside withProgress
-    });
-
+test('running it: the audit runs, the progress notification closes, THEN the follow-up prompt opens', async () => {
+    const run = commands.get('cvs.audit.runDaily');
+    assert.ok(run, 'cvs.audit.runDaily was not registered');
+    await run();
     assert.deepStrictEqual(
-        order,
-        ['audit', 'offerActions', 'progressClose'],
-        'Broken pattern must show offerActions fires BEFORE progressClose'
+        events,
+        ['progress-open', 'audit', 'progress-close', 'prompt'],
+        'the "Daily Audit found N actionable issue(s)" prompt must open after withProgress resolves; '
+        + 'awaiting it inside the callback keeps the spinner running until the user answers (Bug #317). '
+        + `Got: ${JSON.stringify(events)}`
     );
-});
-
-/**
- * Confirms the fixed and broken patterns produce DIFFERENT orders —
- * ensuring the structural test above actually catches a real regression.
- */
-test('fixed and broken execution orders are distinct (test is meaningful)', async () => {
-    async function runPattern(putOfferInsideProgress) {
-        const order = [];
-        const withProgressMock = async (cb) => { await cb(); order.push('progressClose'); };
-        const auditMock  = async () => { order.push('audit'); return {}; };
-        const offerMock  = async () => { order.push('offerActions'); };
-
-        if (putOfferInsideProgress) {
-            await withProgressMock(async () => { const r = await auditMock(); await offerMock(r); });
-        } else {
-            let r;
-            await withProgressMock(async () => { r = await auditMock(); });
-            await offerMock(r);
-        }
-        return order;
-    }
-
-    const fixedOrder  = await runPattern(false);
-    const brokenOrder = await runPattern(true);
-
-    assert.notDeepStrictEqual(fixedOrder, brokenOrder, 'Fixed and broken patterns must differ in execution order');
-    assert.deepStrictEqual(fixedOrder,  ['audit', 'progressClose', 'offerActions'], 'Fixed order');
-    assert.deepStrictEqual(brokenOrder, ['audit', 'offerActions', 'progressClose'], 'Broken order');
 });
 
 // ─── Final report ─────────────────────────────────────────────────────────────
 
-// Give async tests a tick to settle
-setTimeout(() => {
-    console.log('\n' + '\u2500'.repeat(60));
+Promise.all(pending).then(() => {
+    Module._load = origLoad;
+    console.log('\n' + '─'.repeat(60));
     if (failed === 0) {
-        console.log(`\u2713 All ${passed} tests passed — issue #317 regression guard is active\n`);
-        process.exit(0);
+        console.log(`✓ All ${passed} tests passed — issue #317 regression guard is active\n`);
+        process.exit(0);   // the command's 90-second audit timeout timer would keep the process alive
     } else {
-        console.error(`\n\u2717 ${failed} test(s) FAILED\n`);
+        console.error(`\n✗ ${failed} test(s) FAILED\n`);
         process.exit(1);
     }
-}, 50);
+});

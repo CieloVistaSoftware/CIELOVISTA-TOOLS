@@ -34,6 +34,10 @@ const FEATURES_DIR = path.join(__dirname, '..', 'src', 'features');
 const SHARED_DIR   = path.join(__dirname, '..', 'src', 'shared');
 const SRC_DIR    = FEATURES_DIR.replace(/[/\\]features$/, '');
 
+// Every function below that reads the tree takes the src/ root as srcDir,
+// defaulting to this extension's own. A test passes a temp tree of its own
+// instead of writing fixtures into the build output (#832).
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Severity = 'red' | 'yellow' | 'info';
@@ -62,7 +66,7 @@ interface FileInfo {
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'out', 'dist', '.vscode']);
 
-function collectTsFiles(dir: string): FileInfo[] {
+function collectTsFiles(dir: string, srcDir: string = SRC_DIR): FileInfo[] {
     const results: FileInfo[] = [];
     function walk(d: string): void {
         let entries: string[] = [];
@@ -79,7 +83,7 @@ function collectTsFiles(dir: string): FileInfo[] {
                 const lineArr = content.split('\n');
                 results.push({
                     abs:     full,
-                    rel:     path.relative(SRC_DIR, full).replace(/\\/g, '/'),
+                    rel:     path.relative(srcDir, full).replace(/\\/g, '/'),
                     lines:   lineArr.length,
                     kb:      Math.round(stat.size / 1024 * 10) / 10,
                     content,
@@ -189,13 +193,13 @@ function checkDuplicateExports(files: FileInfo[]): Finding[] {
 }
 
 /** 4. Dead monolith files — .ts file exists alongside a split folder */
-function checkDeadMonoliths(files: FileInfo[]): Finding[] {
+function checkDeadMonoliths(files: FileInfo[], srcDir: string = SRC_DIR): Finding[] {
     const findings: Finding[] = [];
     const featureFiles = files.filter(f => f.rel.startsWith('features/') && !f.rel.includes('/'));
 
     for (const f of featureFiles) {
         const baseName   = path.basename(f.abs, '.ts');
-        const splitDir   = path.join(FEATURES_DIR, baseName);
+        const splitDir   = path.join(srcDir, 'features', baseName);
         const indexFile  = path.join(splitDir, 'index.ts');
         if (fs.existsSync(splitDir) && fs.existsSync(indexFile)) {
             findings.push({ id: id('DEAD'), category: 'Dead Monolith', severity: 'red',
@@ -329,7 +333,7 @@ function checkSharedUtilUsage(files: FileInfo[]): Finding[] {
 }
 
 /** 8. Dead files — exported but never imported */
-function checkDeadFiles(files: FileInfo[]): Finding[] {
+function checkDeadFiles(files: FileInfo[], srcDir: string = SRC_DIR): Finding[] {
     const findings: Finding[] = [];
 
     // Build a map of all imports across all files
@@ -364,7 +368,7 @@ function checkDeadFiles(files: FileInfo[]): Finding[] {
                          allImports.has(`features/${baseName}`);
         if (!imported) {
             // Check extension.ts specifically
-            const extPath = path.join(SRC_DIR, 'extension.ts');
+            const extPath = path.join(srcDir, 'extension.ts');
             if (fs.existsSync(extPath)) {
                 const extContent = fs.readFileSync(extPath, 'utf8');
                 if (!extContent.includes(baseName)) {
@@ -663,18 +667,18 @@ window.addEventListener('message',function(e){
 
 // ─── Main scan ────────────────────────────────────────────────────────────────
 
-function runScan(): { findings: Finding[]; files: FileInfo[] } {
+function runScan(srcDir: string = SRC_DIR): { findings: Finding[]; files: FileInfo[] } {
     _seq = 0;
-    const files = collectTsFiles(SRC_DIR);
+    const files = collectTsFiles(srcDir, srcDir);
     const findings: Finding[] = [
         ...checkFileSizes(files),
         ...checkFunctionLength(files),
         ...checkDuplicateExports(files),
-        ...checkDeadMonoliths(files),
+        ...checkDeadMonoliths(files, srcDir),
         ...checkMissingReadmes(files),
         ...checkOneTimeOnePlace(files),
         ...checkSharedUtilUsage(files),
-        ...checkDeadFiles(files),
+        ...checkDeadFiles(files, srcDir),
         ...checkFolderDuplicateCode(files),
     ];
     // Sort: red first, then yellow, then info; within severity by category

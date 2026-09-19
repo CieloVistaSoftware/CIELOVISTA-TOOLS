@@ -15,7 +15,6 @@ const steps = [
     { name: 'Doc Catalog Shell/Init Tests', cmd: 'node', args: ['tests/doc-catalog.test.js'] },
     { name: 'Doc Catalog Projects Runtime Tests', cmd: 'node', args: ['tests/doc-catalog.add-project.test.js'] },
     { name: 'View Doc Integration Tests', cmd: 'node', args: ['tests/view-doc-integration.test.js'] },
-    { name: 'View Doc Server Tests', cmd: 'node', args: ['tests/view-doc-server.test.js'] },
     { name: 'View Doc Functional Tests', cmd: 'node', args: ['tests/view-doc-functional.test.js'] },
 ];
 

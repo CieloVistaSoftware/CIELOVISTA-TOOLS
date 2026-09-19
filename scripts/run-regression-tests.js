@@ -13,7 +13,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { skippedForMissingArtifact } = require('./lib/missing-artifact');
-const { testDataEnv } = require('./lib/test-data-dir');
+const { testDataEnv, buildWriteFailure } = require('./lib/test-data-dir');
 const { acquireTestRunLock, TestRunLockTimeout } = require('./lib/test-run-lock');
 const { spawn, spawnSync, execSync } = require('child_process');
 const { walkFiles, readSources, readIfPresent } = require('./source-tree-walk');
@@ -109,9 +109,19 @@ function subprocess(id, name, scriptPath, args = []) {
     let settled = false;
     // A data directory of its own for every test process (#825), so no two
     // tests running in parallel share out/data/ or out-test/data/ files.
+    // It also runs with build-write-guard.js preloaded (#832): a test that
+    // writes under out/ or out-test/ changes the build every other test is
+    // reading, so it fails.
     const data = testDataEnv(path.basename(scriptPath));
-    const settle = fn => { if (settled) { return; } settled = true; data.dispose(); fn(); resolve(); };
-    const child = spawn(process.execPath, [scriptPath, ...args], { cwd: ROOT, env: data.env });
+    const settle = fn => {
+      if (settled) { return; }
+      settled = true;
+      const writes = data.buildWrites();
+      data.dispose();
+      if (writes.length) { recordFail(id, name, buildWriteFailure(writes)); } else { fn(); }
+      resolve();
+    };
+    const child = spawn(process.execPath, [...data.execArgv, scriptPath, ...args], { cwd: ROOT, env: data.env });
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { out += d; });
     // Without this handler a spawn failure emits an unhandled 'error' event and

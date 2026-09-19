@@ -69,7 +69,7 @@ const WORKERS  = Math.max(2, Math.min(8, os.cpus().length - 1));
 
 const { skippedForMissingArtifact } = require('./lib/missing-artifact');
 const { acquireTestRunLock, TestRunLockTimeout } = require('./lib/test-run-lock');
-const { testDataEnv } = require('./lib/test-data-dir');
+const { testDataEnv, buildWriteFailure } = require('./lib/test-data-dir');
 
 /**
  * Unit tests that `npm run rebuild` already runs as their own step, mapped to
@@ -198,17 +198,22 @@ function runOne(file) {
         // Every test file gets a data directory of its own (#825): the error
         // log and every other data/ file a module writes goes there, never to
         // the out-test/data/ that every other test process shares.
+        // It also runs with build-write-guard.js preloaded (#832): a test that
+        // writes under out/ or out-test/ changes the build every other test
+        // is reading, so it fails.
         const data = testDataEnv(path.basename(file));
-        const child = cp.spawn(process.execPath, [file], { cwd: ROOT, env: data.env });
+        const child = cp.spawn(process.execPath, [...data.execArgv, file], { cwd: ROOT, env: data.env });
         let out = '';
         child.stdout.on('data', d => { out += d; });
         child.stderr.on('data', d => { out += d; });
         const timer = setTimeout(() => { child.kill(); out += `\n[killed after ${TIMEOUT / 1000}s]`; }, TIMEOUT);
         child.on('close', code => {
             clearTimeout(timer);
+            const writes = data.buildWrites();
             data.dispose();
+            if (writes.length) { out += `\n${buildWriteFailure(writes)}`; }
             const skipped = skippedForMissingArtifact(out);
-            const ok = code === 0 && !skipped;
+            const ok = code === 0 && !skipped && !writes.length;
             resolve({ name, ok, code, skipped, out, ms: Date.now() - started });
         });
     });

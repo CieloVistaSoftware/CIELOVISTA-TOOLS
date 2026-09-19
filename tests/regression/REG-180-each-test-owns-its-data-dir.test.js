@@ -32,17 +32,32 @@
 //      alone reproduced the EPERM). Any failure or EPERM fails, and so does any
 //      change to out-test/data/ or out/data/ (cross-talk into the shared
 //      directory).
+//
+// Issue #832 widened this from data/ to all of out/ and out-test/:
+// codebase-auditor.test.js wrote a fixture folder into out-test/src/features/
+// while other tests read the build. Tracing every fs write under out/ and
+// out-test/ over the whole unit and regression suites found that test and no
+// other. The fix: scripts/lib/build-write-guard.js, preloaded into every test
+// process by both runners, logs any such write and the runner fails the test.
+//   6. Both runners start every test with the guard (data.execArgv) and fail
+//      a test whose buildWrites() is not empty.
+//   7. Live: the guard, pointed at a temp root, records writes into its out/
+//      and out-test/ by every kind of fs call and nothing outside them.
+//   8. Live: codebase-auditor.test.js under the guard passes with no write
+//      under out/ or out-test/.
 
 'use strict';
 
 const cp     = require('child_process');
 const crypto = require('crypto');
 const fs     = require('fs');
+const os     = require('os');
 const path   = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const SRC  = path.join(ROOT, 'src');
 const { DATA_DIR_ENV, testDataEnv } = require(path.join(ROOT, 'scripts', 'lib', 'test-data-dir'));
+const { ROOT_ENV: GUARD_ROOT_ENV }  = require(path.join(ROOT, 'scripts', 'lib', 'build-write-guard'));
 
 let passed = 0, failed = 0;
 function check(name, ok, detail) {
@@ -108,6 +123,11 @@ for (const runner of ['run-unit-tests.js', 'run-regression-tests.js']) {
         /require\('\.\/lib\/test-data-dir'\)/.test(text) && /testDataEnv\(/.test(text)
         && nodeSpawns.length > 0 && nodeSpawns.every(s => /env:\s*data\.env/.test(s)),
         nodeSpawns.filter(s => !/env:\s*data\.env/.test(s)).join('\n       '));
+    // 6. ... and with the build-write guard, failing a test that wrote under out/ or out-test/ (#832).
+    check(`scripts/${runner} starts every test with the build-write guard and fails a test that wrote under out/ or out-test/`,
+        nodeSpawns.length > 0 && nodeSpawns.every(s => /\[\s*\.\.\.data\.execArgv\s*,/.test(s))
+        && /data\.buildWrites\(\)/.test(text) && /buildWriteFailure\(/.test(text),
+        nodeSpawns.filter(s => !/\[\s*\.\.\.data\.execArgv\s*,/.test(s)).join('\n       '));
 }
 
 // ── 4. No unit test names a path in the shared build data directory ──────────
@@ -163,16 +183,62 @@ const LIVE = ['error-log-utils', 'error-log-utils', 'error-log-utils', 'error-lo
     .map(n => path.join(TESTS, 'unit', `${n}.test.js`));
 const ROUNDS = 3;
 
-function runOne(file) {
+/** Runs one script the way the runners do: own data directory, build-write guard preloaded. */
+function runOne(file, extraEnv = {}) {
     return new Promise(resolve => {
         const data  = testDataEnv(path.basename(file));
-        const child = cp.spawn(process.execPath, [file], { cwd: ROOT, env: data.env });
+        const child = cp.spawn(process.execPath, [...data.execArgv, file], { cwd: ROOT, env: { ...data.env, ...extraEnv } });
         let out = '';
         child.stdout.on('data', d => { out += d; });
         child.stderr.on('data', d => { out += d; });
-        child.on('error', err => { data.dispose(); resolve({ file, code: -1, out: String(err) }); });
-        child.on('close', code => { data.dispose(); resolve({ file, code, out }); });
+        const done = code => { const writes = data.buildWrites(); data.dispose(); resolve({ file, code, out, writes }); };
+        child.on('error', err => { out += String(err); done(-1); });
+        child.on('close', done);
     });
+}
+
+// ── 7. The guard records writes under out/ and out-test/, and nothing else ───
+
+/** A probe that writes into <root>/out-test, <root>/out and <root>/elsewhere by every kind of fs call. */
+const PROBE = `'use strict';
+const fs = require('fs'), path = require('path');
+const root = process.env.${GUARD_ROOT_ENV};
+(async () => {
+    for (const d of ['out-test', 'out', 'elsewhere']) {
+        const dir = path.join(root, d, 'sub');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'a.txt'), 'a');
+        fs.appendFileSync(path.join(dir, 'a.txt'), 'b');
+        fs.copyFileSync(path.join(dir, 'a.txt'), path.join(dir, 'b.txt'));
+        fs.renameSync(path.join(dir, 'b.txt'), path.join(dir, 'c.txt'));
+        await fs.promises.writeFile(path.join(dir, 'd.txt'), 'd');
+        fs.closeSync(fs.openSync(path.join(dir, 'e.txt'), 'w'));
+        await new Promise(r => { const s = fs.createWriteStream(path.join(dir, 'f.txt')); s.end('f', r); });
+        fs.unlinkSync(path.join(dir, 'a.txt'));
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+})();
+`;
+
+const EXPECTED_FNS = ['mkdirSync', 'writeFileSync', 'appendFileSync', 'copyFileSync', 'renameSync', 'writeFile',
+    'openSync', 'createWriteStream', 'unlinkSync', 'rmSync'];
+
+async function guardSelfCheck() {
+    const tmp   = fs.mkdtempSync(path.join(os.tmpdir(), 'cvt-reg180-guard-'));
+    const probe = path.join(tmp, 'probe.js');
+    fs.writeFileSync(probe, PROBE, 'utf8');
+    try {
+        const r = await runOne(probe, { [GUARD_ROOT_ENV]: path.join(tmp, 'root') });
+        const fnsIn = dir => r.writes.filter(w => w.split(' ').slice(1).join(' ').startsWith(path.join(tmp, 'root', dir) + path.sep))
+            .map(w => w.split(' ')[0]);
+        const missing = ['out-test', 'out'].flatMap(d => EXPECTED_FNS.filter(fn => !fnsIn(d).includes(fn)).map(fn => `${d}: ${fn}`));
+        check('self-check: the guard records every kind of write under out/ and out-test/',
+            r.code === 0 && missing.length === 0, `exit ${r.code}; not recorded: ${missing.join(', ')}\n       ${r.out.trim()}`);
+        check('self-check: the guard records nothing outside out/ and out-test/',
+            fnsIn('elsewhere').length === 0, r.writes.filter(w => w.includes('elsewhere')).join('\n       '));
+    } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
 }
 
 (async () => {
@@ -189,6 +255,7 @@ function runOne(file) {
                 const line  = lines.find(l => /\bEPERM\b|\bEBUSY\b/.test(l)) || lines.find(l => /✗|\bFAIL/.test(l)) || '';
                 bad.push(`round ${round}: ${rel(r.file)} exit ${r.code}${eperm ? ' (EPERM/EBUSY)' : ''} ${line.trim().slice(0, 160)}`);
             }
+            for (const w of r.writes) { bad.push(`round ${round}: ${rel(r.file)} wrote under out/ or out-test/: ${w}`); }
         }
     }
     check(`${runs} concurrent runs of the tests that shared the error log pass with no EPERM`,
@@ -198,6 +265,15 @@ function runOne(file) {
     const changed = [...new Set([...before.keys(), ...after.keys()])].filter(k => before.get(k) !== after.get(k));
     check('none of them wrote, replaced or removed a file in out-test/data/ or out/data/',
         changed.length === 0, changed.join('\n       '));
+
+    await guardSelfCheck();
+
+    // ── 8. codebase-auditor.test.js keeps its fixtures out of the build (#832) ──
+    const auditor = await runOne(path.join(TESTS, 'unit', 'codebase-auditor.test.js'));
+    check('codebase-auditor.test.js passes under the build-write guard',
+        auditor.code === 0, auditor.out.split(/\r?\n/).filter(l => /✗|FAIL/.test(l)).slice(0, 5).join('\n       '));
+    check('codebase-auditor.test.js writes nothing under out/ or out-test/',
+        auditor.writes.length === 0, auditor.writes.join('\n       '));
 
     console.log(`\nREG-180: ${passed} passed, ${failed} failed`);
     process.exit(failed ? 1 : 0);
