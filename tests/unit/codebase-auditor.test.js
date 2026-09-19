@@ -57,7 +57,11 @@ const t  = ca._test;
 if (!t) { console.error('SKIP: _test not exported'); process.exit(0); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const TMP = path.join(os.tmpdir(), `cvt-ca-${Date.now()}`);
+// Every fixture lives here, a src/ tree of this process's own, and the
+// auditor is pointed at it (srcDir). Until #832 the dead-monolith fixture was
+// written into t.FEATURES_DIR, which in the test build is out-test/src/features/,
+// shared with every test running at the same time.
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'cvt-ca-'));
 
 function makeFile(rel, content) {
     const lines   = content.split('\n');
@@ -250,7 +254,7 @@ test('activate/deactivate exempted from duplicate check', () => {
 // ═══════════════════════════════════════════════════════════
 console.log('\n-- checkDeadMonoliths() --');
 
-// SOURCE BUG DOCUMENTED: checkDeadMonoliths filters on
+// SOURCE BUG DOCUMENTED (#833): checkDeadMonoliths filters on
 //   f.rel.startsWith('features/') && !f.rel.includes('/')
 // Since rel='features/foo.ts' ALWAYS contains '/', the second
 // condition is always false and the filter never matches any file.
@@ -265,14 +269,31 @@ test('checkDeadMonoliths: always returns empty (source filter bug)', () => {
 });
 
 test('checkDeadMonoliths: even with split folder present, filter still returns empty', () => {
-    const splitDir = path.join(t.FEATURES_DIR, 'deadTest');
-    fs.mkdirSync(splitDir, { recursive: true });
-    fs.writeFileSync(path.join(splitDir, 'index.ts'), 'export function activate() {}', 'utf8');
+    // TMP/features/deadTest.ts beside TMP/features/deadTest/index.ts, and the auditor pointed at TMP.
+    makeFile('features/deadTest/index.ts', 'export function activate() {}');
     const f = makeFile('features/deadTest.ts', 'export function activate() {}');
-    f.abs = path.join(t.FEATURES_DIR, 'deadTest.ts');
     // Filter: rel='features/deadTest.ts' contains '/' → always excluded
-    eq(t.checkDeadMonoliths([f]).length, 0, 'Filter bug means even real dead monoliths are not caught');
-    fs.rmSync(splitDir, { recursive: true, force: true });
+    eq(t.checkDeadMonoliths([f], TMP).length, 0, 'Filter bug means even real dead monoliths are not caught');
+});
+
+// ═══════════════════════════════════════════════════════════
+// srcDir: the auditor reads the tree it is given (#832)
+// ═══════════════════════════════════════════════════════════
+console.log('\n-- srcDir --');
+
+test('collectTsFiles: rel paths are relative to the srcDir it is given', () => {
+    makeFile('features/rel-probe.ts', 'export const x = 1;');
+    const files = t.collectTsFiles(path.join(TMP, 'features'), TMP);
+    ok(files.some(f => f.rel === 'features/rel-probe.ts'), JSON.stringify(files.map(f => f.rel)));
+});
+
+test('runScan(srcDir) scans that tree, not the extension\'s own src/', () => {
+    const root = fs.mkdtempSync(path.join(TMP, 'scan-'));
+    fs.mkdirSync(path.join(root, 'features'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'features', 'only-file.ts'), 'export function onlyFn() { return 1; }\n', 'utf8');
+    const { files } = t.runScan(root);
+    eq(files.length, 1, `expected the one fixture file, got ${files.length}`);
+    eq(files[0].rel, 'features/only-file.ts');
 });
 
 // ═══════════════════════════════════════════════════════════

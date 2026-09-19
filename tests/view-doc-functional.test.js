@@ -7,16 +7,21 @@
  * of src/features/doc-catalog/commands.ts, on an ephemeral port, over a temp
  * registry naming one temp project. Verifies:
  *   - the server starts on 127.0.0.1 and opens its page
- *   - the home page lists every doc in the project
+ *   - the home page is a whole HTML page and lists every doc in the project
  *   - each listed doc opens, rendered from its markdown
  *   - a path with spaces resolves
  *   - a relative link in a doc is rewritten to a working /doc link
- *   - a missing doc returns 404
+ *   - a missing doc returns 404, and so does a route the server does not have
  *
  * Until #823 this test built its own http.createServer with its own catalog
  * page and escapeHtml() and tested that, so no code from src/ ran; and it
  * printed a cross for a failure but still exited 0. REG-152 covers the same
  * server's refusals (token, host, paths outside every project).
+ *
+ * tests/view-doc-server.test.js had the same stand-in shape (#828): a server
+ * of its own answering / and /doc with fixed HTML. Its three checks (the
+ * home page and a doc are HTML, an unknown path is 404) are folded in here
+ * against the real server, and that file is gone.
  *
  * Run: node tests/view-doc-functional.test.js
  */
@@ -116,6 +121,8 @@ let mod;
 
     const home = await get(port, '/');
     check('the home page is served', home.status === 200, `status ${home.status}`);
+    check('the home page is a whole HTML page', /^\s*<!DOCTYPE html>/i.test(home.body) && /<\/html>\s*$/i.test(home.body),
+        home.body.slice(0, 120));
     const token  = (home.body.match(/[?&]t=([0-9a-f]{64})/) || [])[1] || '';
     const listed = [...home.body.matchAll(/class="doc-link[^"]*"[^>]*data-path="([^"]*)"/g)].map(m => path.resolve(unesc(m[1])));
     for (const [key, [file]] of Object.entries(DOCS)) {
@@ -126,8 +133,8 @@ let mod;
     // Open each doc the way the page does: BASE + /doc?path=<encoded> + token.
     const open = (file) => get(port, `/doc?path=${encodeURIComponent(file)}&t=${token}`);
     const readme = await open(DOCS.readme[0]);
-    check('README.md opens, rendered from its markdown',
-        readme.status === 200 && /<h1[^>]*>\s*Proj View\s*<\/h1>/.test(readme.body) && readme.body.includes('The readme body.'),
+    check('README.md opens, rendered from its markdown, as a whole HTML page',
+        readme.status === 200 && /<\/html>\s*$/i.test(readme.body) && /<h1[^>]*>\s*Proj View\s*<\/h1>/.test(readme.body) && readme.body.includes('The readme body.'),
         `status ${readme.status}: ${readme.body.slice(0, 200)}`);
     const changelog = await open(DOCS.changelog[0]);
     check('CHANGELOG.md opens, rendered from its markdown',
@@ -147,6 +154,8 @@ let mod;
 
     const missing = await open(path.join(PROJECT, 'no-such-doc.md'));
     check('a missing doc returns 404', missing.status === 404, `status ${missing.status}`);
+    const unknown = await get(port, `/nonexistent?t=${token}`);
+    check('a route the server does not have returns 404', unknown.status === 404, `status ${unknown.status}`);
 })().catch((e) => check('the test ran to completion', false, (e && e.stack) || String(e)))
     .finally(() => {
         Module._load = origLoad;
