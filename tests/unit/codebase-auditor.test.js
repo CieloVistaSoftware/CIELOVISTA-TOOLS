@@ -11,8 +11,10 @@
  *   checkFunctionLength()  — 40/60 line function thresholds
  *   checkDuplicateExports()— same export name across files
  *   checkDeadMonoliths()   — .ts alongside split folder/index.ts
+ *   checkMissingReadmes()  — features/x.ts with no x.README.md
  *   checkOneTimeOnePlace() — copy-pasted patterns
  *   checkSharedUtilUsage() — inline esc/loadRegistry instead of shared/
+ *   checkDeadFiles()       — top-level feature nothing imports
  *   Finding shape          — id, category, severity, file, title, detail
  *
  * Run: node tests/unit/codebase-auditor.test.js
@@ -254,26 +256,151 @@ test('activate/deactivate exempted from duplicate check', () => {
 // ═══════════════════════════════════════════════════════════
 console.log('\n-- checkDeadMonoliths() --');
 
-// SOURCE BUG DOCUMENTED (#833): checkDeadMonoliths filters on
-//   f.rel.startsWith('features/') && !f.rel.includes('/')
-// Since rel='features/foo.ts' ALWAYS contains '/', the second
-// condition is always false and the filter never matches any file.
-// Result: function always returns [] in practice.
-// Tests document the actual behavior — not the intended behavior.
+// Until #833 this check, Missing README and Dead File kept only paths that
+// start with 'features/' and contain no '/', which no path can do, and these
+// tests asserted the resulting "always empty". Each test below builds its own
+// src/ tree and reads it with collectTsFiles(), so the rel paths are the real
+// ones. REG-185 covers every check against a table of path shapes.
 
-test('checkDeadMonoliths: always returns empty (source filter bug)', () => {
-    // rel='features/foo.ts' contains '/' → !rel.includes('/') is always false
-    // → filter matches nothing → no findings returned
-    const f = makeFile('features/standalone.ts', 'export function activate() {}');
-    eq(t.checkDeadMonoliths([f]).length, 0, 'Filter never matches — known source limitation');
+/** A fresh src/ root under TMP holding files { rel: content }; returns { root, files }. */
+function tree(spec) {
+    const root = fs.mkdtempSync(path.join(TMP, 'tree-'));
+    for (const [rel, content] of Object.entries(spec)) {
+        const abs = path.join(root, rel);
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        fs.writeFileSync(abs, content, 'utf8');
+    }
+    return { root, files: t.collectTsFiles(root, root) };
+}
+
+test('checkDeadMonoliths: features/x.ts beside features/x/index.ts → red, delete', () => {
+    const { root, files } = tree({
+        'features/deadTest.ts':       'export function activate() {}',
+        'features/deadTest/index.ts': 'export function activate() {}',
+    });
+    const findings = t.checkDeadMonoliths(files, root);
+    eq(findings.length, 1, JSON.stringify(findings.map(f => f.file)));
+    eq(findings[0].file, 'features/deadTest.ts');
+    eq(findings[0].severity, 'red');
+    eq(findings[0].action, 'delete');
+    eq(findings[0].category, 'Dead Monolith');
 });
 
-test('checkDeadMonoliths: even with split folder present, filter still returns empty', () => {
-    // TMP/features/deadTest.ts beside TMP/features/deadTest/index.ts, and the auditor pointed at TMP.
-    makeFile('features/deadTest/index.ts', 'export function activate() {}');
-    const f = makeFile('features/deadTest.ts', 'export function activate() {}');
-    // Filter: rel='features/deadTest.ts' contains '/' → always excluded
-    eq(t.checkDeadMonoliths([f], TMP).length, 0, 'Filter bug means even real dead monoliths are not caught');
+test('checkDeadMonoliths: a feature with no split folder → no finding', () => {
+    const { root, files } = tree({ 'features/standalone.ts': 'export function activate() {}' });
+    eq(t.checkDeadMonoliths(files, root).length, 0);
+});
+
+test('checkDeadMonoliths: a split folder without index.ts → no finding', () => {
+    const { root, files } = tree({
+        'features/half.ts':         'export function activate() {}',
+        'features/half/feature.ts': 'export function activate() {}',
+    });
+    eq(t.checkDeadMonoliths(files, root).length, 0);
+});
+
+test('checkDeadMonoliths: files inside a feature folder are not entry files → no finding', () => {
+    const { root, files } = tree({
+        'features/pack/inner.ts':       'export function activate() {}',
+        'features/pack/inner/index.ts': 'export function activate() {}',
+    });
+    eq(t.checkDeadMonoliths(files, root).length, 0);
+});
+
+// ═══════════════════════════════════════════════════════════
+// checkMissingReadmes()
+// ═══════════════════════════════════════════════════════════
+console.log('\n-- checkMissingReadmes() --');
+
+test('checkMissingReadmes: features/x.ts with no x.README.md → yellow', () => {
+    const { files } = tree({ 'features/undocumented.ts': 'export function activate() {}' });
+    const findings = t.checkMissingReadmes(files);
+    eq(findings.length, 1, JSON.stringify(findings.map(f => f.file)));
+    eq(findings[0].file, 'features/undocumented.ts');
+    eq(findings[0].severity, 'yellow');
+    eq(findings[0].category, 'Missing README');
+});
+
+test('checkMissingReadmes: features/x.ts with x.README.md → no finding', () => {
+    const { files } = tree({
+        'features/documented.ts':        'export function activate() {}',
+        'features/documented.README.md': '# Feature: documented',
+    });
+    eq(t.checkMissingReadmes(files).length, 0);
+});
+
+test('checkMissingReadmes: the old exemption names are checked like any other feature', () => {
+    const { files } = tree({ 'features/doc-header-scan.ts': 'export function activate() {}' });
+    eq(t.checkMissingReadmes(files).length, 1);
+});
+
+test('checkMissingReadmes: shared/ and files inside feature folders → no finding', () => {
+    const { files } = tree({
+        'shared/util.ts':          'export const x = 1;',
+        'features/pack/helper.ts': 'export const y = 1;',
+    });
+    eq(t.checkMissingReadmes(files).length, 0);
+});
+
+// ═══════════════════════════════════════════════════════════
+// checkDeadFiles()
+// ═══════════════════════════════════════════════════════════
+console.log('\n-- checkDeadFiles() --');
+
+const BODY = repeat('export const v = 1;', 30);
+
+test('checkDeadFiles: a feature nothing imports → yellow, delete', () => {
+    const { root, files } = tree({
+        'extension.ts':       "import { activate as a } from './features/used';",
+        'features/used.ts':   BODY,
+        'features/orphan.ts': BODY,
+    });
+    const findings = t.checkDeadFiles(files, root);
+    eq(findings.length, 1, JSON.stringify(findings.map(f => f.file)));
+    eq(findings[0].file, 'features/orphan.ts');
+    eq(findings[0].severity, 'yellow');
+    eq(findings[0].action, 'delete');
+    eq(findings[0].category, 'Dead File');
+});
+
+test('checkDeadFiles: imported by another feature → no finding', () => {
+    const { root, files } = tree({
+        'extension.ts':      'export function activate(): void {}',
+        'features/host.ts':  "import { v } from './helper';\n" + BODY,
+        'features/helper.ts': BODY,
+    });
+    eq(t.checkDeadFiles(files, root).filter(f => f.file === 'features/helper.ts').length, 0);
+});
+
+test('checkDeadFiles: named in extension.ts (not imported) → no finding', () => {
+    const { root, files } = tree({
+        'extension.ts':       "// orphan is wired elsewhere\nexport function activate(): void {}",
+        'features/orphan.ts': BODY,
+    });
+    eq(t.checkDeadFiles(files, root).length, 0);
+});
+
+test('checkDeadFiles: a tree with no extension.ts still reports the unimported file', () => {
+    const { root, files } = tree({ 'features/orphan.ts': BODY });
+    eq(t.checkDeadFiles(files, root).length, 1);
+});
+
+test('checkDeadFiles: 20 lines or fewer → no finding', () => {
+    const { root, files } = tree({
+        'extension.ts':      'export function activate(): void {}',
+        'features/small.ts': repeat('export const v = 1;', 20),
+    });
+    eq(t.checkDeadFiles(files, root).length, 0);
+});
+
+test('runScan(srcDir) reports all three on a tree that has each problem', () => {
+    const { root } = tree({
+        'extension.ts':        'export function activate(): void {}',
+        'features/mono.ts':    BODY,
+        'features/mono/index.ts': 'export function activate() {}',
+    });
+    const cats = new Set(t.runScan(root).findings.filter(f => f.file === 'features/mono.ts').map(f => f.category));
+    ok(cats.has('Dead Monolith') && cats.has('Missing README') && cats.has('Dead File'), JSON.stringify([...cats]));
 });
 
 // ═══════════════════════════════════════════════════════════
