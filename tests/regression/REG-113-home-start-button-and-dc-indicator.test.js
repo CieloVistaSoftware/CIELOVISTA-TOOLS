@@ -22,8 +22,11 @@ check('buildDashboardHtml receives hasStartScript argument',
 check('hasStartScript reads from workspace package.json scripts.start',
   src.includes('scripts?.start') || src.includes('scripts.start'));
 
-check('npmStart message handler creates terminal and runs npm start',
-  src.includes("msg.type === 'npmStart'") && src.includes('npm start'));
+// #836: devServerAction is the one handler that runs npm start; the old
+// npmStart handler had no sender and is gone.
+check('the devServerAction handler runs npm start, and no npmStart handler duplicates it',
+  src.includes("msg.type === 'devServerAction'") && src.includes("sendText('npm start')")
+    && !src.includes("msg.type === 'npmStart'"));
 
 check('npmRestart message handler posts to /api/restart',
   src.includes("msg.type === 'npmRestart'") && src.includes('api/restart'));
@@ -35,8 +38,8 @@ check('dc-badge element in home HTML',
 check('DC badge not conditional — always rendered',
   src.includes('id="dc-badge"') || src.includes("id='dc-badge'"));
 
-check('DC poller started for the panel',
-  src.includes('_startDcPoller'));
+check('DC poller started for the panel (port 5000, through the one badge poller, #834)',
+  src.includes("_startPortBadgePoller(panel, 5000, 'dcStatus'"));
 
 check('dcStatus message handler updates badge',
   src.includes("msg.type === 'dcStatus'") || src.includes("type === 'dcStatus'"));

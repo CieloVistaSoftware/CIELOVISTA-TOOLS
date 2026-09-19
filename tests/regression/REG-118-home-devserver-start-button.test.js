@@ -76,7 +76,8 @@ check('home-page.ts imports getDevServerConfig',
   src.includes("from '../shared/dev-server-config'"));
 
 check('a devserver poller is started, separate from the DC poller',
-  src.includes('_startDevServerPoller') && src.includes('_startDcPoller'));
+  src.includes("_startPortBadgePoller(panel, devServerConfig.port, 'devServerStatus'")
+    && src.includes("_startPortBadgePoller(panel, 5000, 'dcStatus'"));
 
 check('devServerAction message handler checks port and opens-or-starts',
   src.includes("msg.type === 'devServerAction'") && src.includes('isPortOpen') && src.includes('openExternal'));

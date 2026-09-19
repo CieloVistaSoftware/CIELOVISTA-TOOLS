@@ -103,7 +103,7 @@ function loadHomePageModule() {
     if (request === '../shared/cvt-registry') {
       return { loadRegistry() { return []; }, registryPathSet() { return new Set(); }, addToRegistry() {}, removeFromRegistry() { return 0; } };
     }
-    if (request === './cvs-command-launcher/catalog') { return { CATALOG: [] }; }
+    if (request === './cvs-command-launcher/catalog') { return { CATALOG: [], launcherCommands() { return []; } }; }
     if (request === '../shared/webview-utils') {
       return {
         esc(s) {

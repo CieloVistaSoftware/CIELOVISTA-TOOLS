@@ -20,6 +20,7 @@ import { getErrors } from '../../shared/error-log-adapter';
 import { setLauncherTargetColumn } from '../../shared/panel-context';
 import { registerLaunchedTerminal } from '../../shared/terminal-utils';
 import { showQuickRun } from './quick-run';
+import { isPortOpen } from '../../shared/port-check';
 
 function escHtml(s: string): string {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'} as Record<string,string>)[c] ?? c);
@@ -43,13 +44,7 @@ function _launchInTerminal(name: string, cmd: string, cwd?: string): void {
 }
 
 async function _startDiskCleanUp(): Promise<void> {
-    const net = await import('net');
-    const inUse = await new Promise<boolean>((resolve) => {
-        const s = net.createConnection({ host: '127.0.0.1', port: 5000 });
-        s.once('connect', () => { s.destroy(); resolve(true); });
-        s.once('error',   () => { s.destroy(); resolve(false); });
-    });
-    if (inUse) {
+    if (await isPortOpen(5000)) {
         void vscode.window.showInformationMessage('DiskCleanUp service already running on port 5000.');
         void vscode.commands.executeCommand('cvs.diskcleanup.openDashboard');
         return;
