@@ -8,29 +8,35 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
-**Task:** #787: retire the command launcher's per-command Dewey numbers (the follow-up
-to #707). Branch `feat/787-retire-command-dewey`, PR closes #787.
+**Updated 2026-09-24.** No open issues, no open PRs. `main` is at 911e303 ([#848](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/848)).
 
-**Removed:**
-- The `dewey` field on all 130 catalog.ts entries and on `CmdEntry`.
-- Every display: the launcher card badge (.cmd-dewey) and its CSS, the card tooltip
-  and tooltip-builder lines, the F1 "Catalogue number" row, the help panel badge
-  (.qa-dewey) and its CSS, the `dewey` field in `list_cvt_commands` and its
-  description, and the MCP Endpoint Viewer's number column and sort key.
-- The checks that only enforced the numbers: required field + duplicates in
-  tests/command-validation.test.js and tests/catalog-integrity.test.js,
-  tests/catalog-dewey-uniqueness.test.js (deleted), check-architecture.js check 3,
-  verify-symbol-index.mjs SYM-036/037 (SYM-032 keeps id/title/group).
-- REG-033 (fully covered by REG-159) and the dead scripts patch-help-docs.js,
-  print-npm-deweys.js and the one-shot create-github-issues.ps1.
-- Nothing sorted by the numbers: the launcher shows catalog order within each group;
-  the viewer column was only a click-to-sort option.
+**Task:** none in progress. The backlog is empty.
 
-**Guard:** REG-159 has no allowances left. src/ and mcp-server/src may not mention
-dewey or docid at all; tests/ and scripts/ may not mention dewey outside REG-159's
-own history note.
+**Done since the last update:** [#787](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/787) merged as [#805](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/805) (the command launcher's
+Dewey numbers are retired; REG-159 holds it). Then 19 PRs, [#809](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/809) through [#848](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/848),
+all merged 2026-09-18:
+- **Tests run the real code.** Unit and regression tests load the real module or page
+  instead of a copy or its source text ([#819](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/819), [#823](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/823), [#828](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/828), [#832](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/832), [#838](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/838));
+  REG-179 holds every test directory to it. Every webview page's delivered script
+  compiles and runs (REG-186, [#846](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/846), [#847](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/847)).
+- **One of each.** One doc collector ([#802](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/802)), one markdown walk and skip list
+  ([#812](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/812)), one esbuild config ([#813](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/813)), one Browse All builder ([#831](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/831)), one port
+  check and poller ([#834](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/834)), one fence rule ([#799](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/799), [#811](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/811)).
+- **Test isolation.** One test run per checkout ([#818](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/818)); every test process gets its
+  own data directory ([#825](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/825)); no test writes into out/ or out-test/.
+- **Features.** README Generator writes only reviewed READMEs and never overwrites one
+  ([#798](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/798), [#807](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/807)); Dead Monolith, Missing README and Dead File checks can fire
+  ([#833](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/833)); dead tooling deleted ([#801](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/801), [#803](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/803), [#808](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/issues/808)).
 
-**Next step:** confirm the PR merged and `npm run rebuild` ran.
+**Baseline, 2026-09-24, clean cloud checkout:** `CI=1 node scripts/run-regression-tests.js`:
+all 192 regression tests and the packaging checks pass.
+
+**Files touched:** `docs/status/current-status.md` only.
+
+**Next step:** on John's machine, `npm run rebuild` so the installed extension carries
+[#805](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/805)–[#848](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/848). Then pick new work; nothing is queued.
+
+**Open questions:** none.
 
 **Watch out for:**
 - A Python patch script must use `newline=''` on **both** read and write, or it
@@ -40,5 +46,8 @@ own history note.
   rest of the run. Compile into a sandbox instead. Same family as #697 / #700.
 - `npm run rebuild | tail -20` reports **tail's** exit code, not npm's. Redirect to a
   file and check `$?` directly, or a failed build reads as a successful one.
+- REG-024 reads the personal `~/Downloads/CieloVistaStandards/project-registry.json`
+  and skips only when `CI` is set. In a checkout without that file (a cloud session),
+  run the suite as `CI=1 node scripts/run-regression-tests.js`.
 - `tsc -p .` reports TS6059 rootDir errors for `mcp-server/src/shared`; that is the
   wrong config, not a defect. The real typecheck is `tsc --noEmit -p tsconfig.typecheck.json`.
