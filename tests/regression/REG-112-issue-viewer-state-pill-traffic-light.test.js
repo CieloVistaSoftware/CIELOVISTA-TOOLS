@@ -5,7 +5,7 @@
 // issue must NOT be green. He also wants a distinct state for issues being
 // worked on. Required mapping:
 //   open        -> blue  (#58a6ff)  needs attention, nothing started
-//   in-progress -> amber (#f0b429)  being worked on (status:in-progress OR priority:1)
+//   in-progress -> amber (#f0b429)  being worked on (status:in-progress)
 //   closed      -> green (#3fb950)  resolved / all is well
 //
 // Regression guarded: the pill used to be a single hardcoded green class
@@ -81,12 +81,15 @@ test('statePillClass maps open/in-progress/closed correctly', () => {
     assert.ok(/'open'/.test(expr),        'must map open');
 });
 
-test('in-progress is triggered by status:in-progress OR priority:1', () => {
+// John, 2026-10-02: priority:1 no longer means "being worked on" -- every issue
+// carries a priority label (wb-starter Law 15), so it marked every P1 active.
+// In-progress is the status:in-progress label alone (REG-187).
+test('in-progress is triggered by status:in-progress only (not priority:1)', () => {
     const m = SRC.match(/const isInProgress\s*=\s*iss\.labels\.some\([^;]+;/);
     assert.ok(m, 'isInProgress assignment not found');
     const expr = m[0];
     assert.ok(/status:in-progress/.test(expr), 'must check status:in-progress label');
-    assert.ok(/priority:1/.test(expr),         'must also check priority:1 label');
+    assert.ok(!/priority:1/.test(expr),        'must NOT treat priority:1 as in-progress');
 });
 
 test('open detection is case-insensitive (handles gh "OPEN" and REST "open")', () => {

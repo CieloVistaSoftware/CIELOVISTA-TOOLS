@@ -27,6 +27,7 @@ import { getChannel } from '../../shared/output-channel';
 import { resolveNodeLauncher } from '../../shared/node-launcher';
 import { getRecentProjects } from '../cvs-command-launcher/recent-projects';
 import { loadRegistry } from '../../shared/registry';
+import { PRIORITY_LABEL, priorityEditArgs, priorityFromLabels } from '../../shared/issue-priority';
 
 const REPO_OWNER = 'CieloVistaSoftware';
 const REPO_NAME  = 'cielovista-tools';
@@ -293,6 +294,8 @@ export function showGithubIssues(viewColumn: vscode.ViewColumn = vscode.ViewColu
             void openLocalFixPath(String((msg as { relativePath?: string }).relativePath));
         } else if (msg.type === 'newIssue') {
             void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/new`));
+        } else if (msg.type === 'setPriority' && msg.number) {
+            void setIssuePriority(msg.number, Number((msg as { priority?: number }).priority));
         } else if (msg.type === 'startWork' && msg.number) {
             void startWorkOnIssue(msg.number, String((msg as { title?: string }).title || ''), panel);
         }
@@ -315,6 +318,31 @@ async function claimIssue(number: number, panel: vscode.WebviewPanel): Promise<v
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         void vscode.window.showErrorMessage(`Failed to claim issue #${number}: ${msg}`);
+    }
+}
+
+// ─── Priority: one field, the priority:N label ───────────────────────────────
+
+async function currentLabelNames(number: number): Promise<string[]> {
+    const out = await new Promise<string>((resolve, reject) => {
+        execFile('gh', ['issue', 'view', String(number), '--repo', `${currentRepo.owner}/${currentRepo.name}`,
+            '--json', 'labels', '--jq', '.labels | .[].name'], { shell: true, timeout: 10000 },
+        (err, stdout) => err ? reject(err) : resolve(stdout));
+    });
+    return out.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
+async function setIssuePriority(number: number, priority: number): Promise<void> {
+    if (!(priority >= 1 && priority <= 5)) { return; }
+    try {
+        const args = priorityEditArgs(number, priority, await currentLabelNames(number), `${currentRepo.owner}/${currentRepo.name}`);
+        await new Promise<void>((resolve, reject) => {
+            execFile('gh', args, { shell: true, timeout: 10000 }, (err) => err ? reject(err) : resolve());
+        });
+        void vscode.window.showInformationMessage(`Issue #${number} — priority:${priority}.`);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Failed to set priority on #${number}: ${msg}`);
     }
 }
 
@@ -362,9 +390,9 @@ async function startWorkOnIssue(number: number, title: string, panel: vscode.Web
         const prefix = isFeat ? 'feat' : 'fix';
         const branch = `${prefix}/${number}-${slugify(title)}`;
 
-        await runGh(['issue', 'edit', String(number),
-            '--add-label', 'priority:1',
-            '--repo', `${currentRepo.owner}/${currentRepo.name}`]);
+        // priority:1 REPLACES the old priority label -- adding it alongside
+        // left two priority labels on one issue.
+        await runGh(priorityEditArgs(number, 1, labelNames, `${currentRepo.owner}/${currentRepo.name}`));
         await runGit(['checkout', '-b', branch]);
 
         void vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${currentRepo.owner}/${currentRepo.name}/issues/${number}`));
@@ -787,9 +815,15 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             const testRef   = extractTestRef(iss.body);
             const fixRefs   = viewState === 'closed' ? extractLocalFixRefs(iss) : [];
             // An issue counts as "being worked on" when it carries the explicit
-            // status:in-progress label (set by Claim/Start Work) OR priority:1
-            // (John's convention for flagging active work).
-            const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress' || l.name === 'priority:1');
+            // status:in-progress label (set by Claim/Start Work), and only then.
+            // priority:1 used to count too; since every issue carries exactly one
+            // priority label (wb-starter Law 15) that marked every P1 as active.
+            // Same rule as wb-starter's Issues page.
+            const isInProgress = iss.labels.some((l) => l.name === 'status:in-progress');
+            // ONE priority: the priority:N label. John: "Too many priority
+            // fields. we only want one." The dropdown shows it and sets it; the
+            // label pill is no longer repeated in the Status column.
+            const priority = priorityFromLabels(iss.labels);
             const inProgressChip = isInProgress ? '<span class="in-progress-chip">in-progress</span>' : '';
             // An issue is a Question when it is blocked on the user (status:question).
             const isQuestion = iss.labels.some((l) => l.name === 'status:question');
@@ -803,7 +837,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
             const statePillClass = !isOpen ? 'closed' : (isQuestion ? 'question' : (isInProgress ? 'in-progress' : 'open'));
             const statePillText  = !isOpen ? 'CLOSED' : (isQuestion ? 'QUESTION' : (isInProgress ? 'IN PROGRESS' : 'OPEN'));
             const isOpenQuestion = isOpen && isQuestion;
-            const labels = iss.labels.filter((l) => !l.name.startsWith('project:')).map((l) => {
+            const labels = iss.labels.filter((l) => !l.name.startsWith('project:')).filter((l) => !PRIORITY_LABEL.test(l.name)).map((l) => {
                 const bg = (l.color || '888888').replace(/^#/, '');
                 const fg = contrastText(bg);
                 return `<span class="label" style="background:#${esc(bg)};color:${fg}">${esc(l.name)}</span>`;
@@ -826,7 +860,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     data-state="${esc(statePillClass)}"
     data-author="${esc(iss.user.login.toLowerCase())}"
     data-project="${esc(projectName.toLowerCase())}"
-    data-priority="3"
+    data-priority="${priority ?? 9}"
     data-question="${isOpenQuestion ? '1' : '0'}"
     data-filter="${esc(filterText)}">
     <td class="num">#${iss.number}</td>
@@ -835,7 +869,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     <td>
         <button class="title-btn" type="button" data-url="${esc(iss.html_url)}" title="Open #${iss.number} on GitHub">${esc(iss.title)}</button>
     </td>
-    <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></td>
+    <td><select class="priority" data-number="${iss.number}" aria-label="Priority for issue #${iss.number}">${priority === null ? '<option value="" selected>—</option>' : ''}${[1, 2, 3, 4, 5].map((n) => `<option value="${n}"${n === priority ? ' selected' : ''}>${n}</option>`).join('')}</select></td>
     <td><span class="state-pill ${statePillClass}">${statePillText}</span>${isOpen ? `<button class="claim-btn" type="button" data-number="${iss.number}" title="Assign to me and set status:in-progress">Claim</button>` : ''}</td>
     <td><span class="muted">@${esc(iss.user.login)}</span></td>
     <td>${assigneesText ? `<span class="muted">${esc(assigneesText)}</span>` : `<span class="muted">-</span>`}</td>
@@ -874,24 +908,12 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
     const js = `
 (function(){
     var vsc = acquireVsCodeApi();
-    var STORAGE_KEY = 'cvt.issuePriorities.v1';
     var sortState = { key: 'number', dir: 'desc' };
 
-    function loadPriorities(){
-        try {
-            var raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) { return {}; }
-            var parsed = JSON.parse(raw);
-            return (parsed && typeof parsed === 'object') ? parsed : {};
-        } catch { return {}; }
-    }
-
-    function savePriorities(map){
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(map)); }
-        catch { /* ignore storage failures */ }
-    }
-
-    var priorities = loadPriorities();
+    // No local priority store: the priority is the issue's priority:N label
+    // (John: "we only want one"). The old cvt.issuePriorities.v1 map was a
+    // second, private priority that defaulted to 3 and disagreed with the label.
+    try { localStorage.removeItem('cvt.issuePriorities.v1'); } catch { /* ignore */ }
 
     function compareText(a, b){
         return String(a || '').localeCompare(String(b || ''));
@@ -905,7 +927,7 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         if (key === 'number')    { return Number(row.dataset.number || 0); }
         if (key === 'project')   { return String(row.dataset.project || ''); }
         if (key === 'title')     { return String(row.dataset.title || ''); }
-        if (key === 'priority')  { return Number(row.dataset.priority || 3); }
+        if (key === 'priority')  { return Number(row.dataset.priority || 9); }
         if (key === 'state')     { return String(row.dataset.state || ''); }
         if (key === 'author')    { return String(row.dataset.author || ''); }
         if (key === 'labels')    { var c = row.children[1]; return c ? c.textContent || '' : ''; }
@@ -1051,21 +1073,14 @@ tbody tr:hover{background:var(--vscode-list-hoverBackground)}
         });
     });
     document.querySelectorAll('.priority').forEach(function(sel){
-        var n = String(sel.getAttribute('data-number') || '');
-        if (n && priorities[n] >= 1 && priorities[n] <= 5) {
-            sel.value = String(priorities[n]);
-        }
-        var row = sel.closest('.issue-row');
-        if (row) { row.dataset.priority = sel.value || '3'; }
         sel.addEventListener('change', function(){
-            var num = String(sel.getAttribute('data-number') || '');
-            var val = Number(sel.value || '3');
-            if (num) {
-                priorities[num] = (val >= 1 && val <= 5) ? val : 3;
-                savePriorities(priorities);
-            }
+            var num = Number(sel.getAttribute('data-number') || '0');
+            var val = Number(sel.value);
+            if (!num || !(val >= 1 && val <= 5)) { return; }
             var r = sel.closest('.issue-row');
-            if (r) { r.dataset.priority = String((val >= 1 && val <= 5) ? val : 3); }
+            if (r) { r.dataset.priority = String(val); }
+            // Writes the label on GitHub: removes any other priority:N first.
+            vsc.postMessage({ type: 'setPriority', number: num, priority: val });
             if (sortState.key === 'priority') {
                 applySort();
                 applyFilter();
