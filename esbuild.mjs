@@ -184,6 +184,14 @@ async function buildExtension() {
     format:      'cjs',
     sourcemap:   false,
   });
+  // Standalone issue-priority — no vscode dep, consumed by REG-187 unit test
+  await esbuild.build({
+    ...nodeBase,
+    entryPoints: ['src/shared/issue-priority.ts'],
+    outfile:     'out/shared/issue-priority.js',
+    format:      'cjs',
+    sourcemap:   false,
+  });
   // Copy doc-catalog HTML shell for playwright UI tests
   fs.mkdirSync('out/features/doc-catalog', { recursive: true });
   fs.copyFileSync(
