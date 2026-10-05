@@ -30,8 +30,9 @@ console.log('REG-038: Error log unresolved count + filed badge (#341)');
 console.log('─'.repeat(64));
 
 test('buildHtml computes unresolved and filed counts', () => {
-    assert(SRC.includes('const unresolvedCount = errors.filter(e => !e.githubIssueNumber).length;'), 'unresolved count computation missing');
-    assert(SRC.includes('const filedCount = errors.length - unresolvedCount;'), 'filed count computation missing');
+    // Active = neither solved nor filed (isActiveError in error-log-adapter.ts).
+    assert(SRC.includes('const unresolvedCount = errors.filter(isActiveError).length;'), 'unresolved count computation missing');
+    assert(SRC.includes('const filedCount  = errors.filter(e => !!e.githubIssueNumber).length;'), 'filed count computation missing');
 });
 
 test('toolbar active badge uses unresolved count only', () => {
@@ -44,7 +45,8 @@ test('toolbar can show filed badge', () => {
 });
 
 test('successful file-as-issue refreshes panel html', () => {
-    assert(SRC.includes('_panel!.webview.html = buildHtml(getErrors());'), 'panel should refresh counts after filing succeeds');
+    assert(/if \(result\.ok && result\.issueUrl\) \{\s*render\(\);/.test(SRC), 'panel should refresh counts after filing succeeds');
+    assert(SRC.includes('panel.webview.html = buildHtml(getErrors())'), 'render() must rebuild the panel html from getErrors()');
 });
 
 console.log('─'.repeat(64));

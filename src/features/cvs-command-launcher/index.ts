@@ -16,7 +16,7 @@ import { initHistory, recordRun, getHistory } from './command-history';
 import { initRecentProjects, touchCurrentProject, getRecentProjects } from './recent-projects';
 import { sendToCopilotChat } from '../../shared/copilot-chat';
 import { loadRegistry } from '../../shared/registry';
-import { getErrors } from '../../shared/error-log-adapter';
+import { getErrors, isActiveError } from '../../shared/error-log-adapter';
 import { setLauncherTargetColumn } from '../../shared/panel-context';
 import { registerLaunchedTerminal } from '../../shared/terminal-utils';
 import { showQuickRun } from './quick-run';
@@ -149,7 +149,7 @@ function buildStatusMap(): Map<string, { label: string; title: string; tone: 'go
 
     // Override: error log shows live unresolved count, not last-run outcome
     const errors = getErrors();
-    const unresolvedCount = errors.filter((entry) => !entry.githubIssueNumber).length;
+    const unresolvedCount = errors.filter(isActiveError).length;
     statusMap.set('cvs.tools.errorLog', unresolvedCount > 0
         ? {
             label: `${unresolvedCount} active error${unresolvedCount === 1 ? '' : 's'}`,

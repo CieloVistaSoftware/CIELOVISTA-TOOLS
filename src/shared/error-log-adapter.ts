@@ -15,8 +15,8 @@
  * Until the full consolidation tracked in #15 lands, this adapter:
  *   - reads BOTH log files
  *   - normalizes utils-style entries into the viewer's expected shape
- *   - merges and de-duplicates by message+timestamp
- *   - returns the unified list newest-first
+ *   - collapses repeats of one error (by id) into a single entry with a count
+ *   - returns the unified list oldest-first (the viewer reverses it)
  *
  * Same export names as error-log.ts so the viewer needs minimal changes.
  */
@@ -29,8 +29,28 @@ import type { ErrorEntry as LegacyErrorEntry, ErrorType } from './error-log';
 import type { ErrorEntry as UtilsErrorEntry } from './error-log-utils';
 import { dataDir } from './data-dir';
 
-// Re-export the legacy shape so the viewer's existing HTML keeps working.
-export type { ErrorEntry } from './error-log';
+/**
+ * The viewer's entry shape: the legacy fields plus what the utils log tracks.
+ *
+ * `id` is a string that is unique across both logs: `legacy_<n>` for a legacy
+ * entry, the utils `err_<hex>` id unchanged. A numeric id could collide
+ * between the two logs, so filing one error as an issue marked another.
+ */
+export interface ErrorEntry extends Omit<LegacyErrorEntry, 'id'> {
+    id:        string;
+    /** How many times this error was seen. */
+    count:     number;
+    /** True once a fix was recorded (bg-health marks bugs it no longer sees). */
+    solved:    boolean;
+    solution?: string;
+}
+
+/** An entry counts as active until it is solved or filed as an issue. */
+export function isActiveError(e: ErrorEntry): boolean {
+    return !e.solved && !e.githubIssueNumber;
+}
+
+const LEGACY_ID_PREFIX = 'legacy_';
 
 const DATA_UTILS_LOG_PATH      = path.join(dataDir(path.join(__dirname, '..', 'data')), 'cielovista-errors.json');
 
@@ -57,7 +77,19 @@ function countArrayEntries(p: string): number {
 }
 
 function countLegacyEntries(): number {
-    return getLegacyErrors().length;
+    return readLegacyLog().length;
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+    return typeof x === 'object' && x !== null && !Array.isArray(x);
+}
+
+// ─── Read the legacy log file ─────────────────────────────────────────────────
+
+/** Legacy entries, skipping anything that isn't an entry object. */
+function readLegacyLog(): LegacyErrorEntry[] {
+    const raw: unknown = getLegacyErrors();
+    return Array.isArray(raw) ? raw.filter(isRecord) as unknown as LegacyErrorEntry[] : [];
 }
 
 // ─── Read the utils-style log file ────────────────────────────────────────────
@@ -68,7 +100,7 @@ function readUtilsLog(): UtilsErrorEntry[] {
         if (!fs.existsSync(logFile)) { continue; }
         try {
             const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8'));
-            if (Array.isArray(parsed)) { out.push(...parsed); }
+            if (Array.isArray(parsed)) { out.push(...(parsed.filter(isRecord) as unknown as UtilsErrorEntry[])); }
         } catch {
             // best-effort read; ignore malformed files
         }
@@ -76,7 +108,7 @@ function readUtilsLog(): UtilsErrorEntry[] {
     return out;
 }
 
-// ─── Translate utils-shape -> viewer-shape ────────────────────────────────────
+// ─── Translate both shapes -> viewer-shape ────────────────────────────────────
 
 function inferType(message: string): ErrorType {
     if (!message || typeof message !== 'string') { return 'APP_ERROR'; }
@@ -96,26 +128,85 @@ function parseStackTop(stack: string): { filename: string; lineno: number; colno
         : { filename: '', lineno: 0, colno: 0 };
 }
 
+function withCount(message: string, count: number): string {
+    return count > 1 ? `${message} (×${count})` : message;
+}
+
+/** Newest-wins pick of two copies of the same entry, keeping any filed issue. */
+function newerOf<T extends { githubIssueNumber?: number; githubIssueUrl?: string }>(
+    a: T, b: T, stamp: (e: T) => string,
+): T {
+    const [newer, older] = stamp(b) > stamp(a) ? [b, a] : [a, b];
+    if (newer.githubIssueNumber || !older.githubIssueNumber) { return newer; }
+    return { ...newer, githubIssueNumber: older.githubIssueNumber, githubIssueUrl: older.githubIssueUrl };
+}
+
+/**
+ * The legacy log appends every occurrence, so one recurring error filled the
+ * viewer with identical cards. Collapse them by id into one entry with a count.
+ */
+function collapseLegacy(entries: LegacyErrorEntry[]): ErrorEntry[] {
+    const groups = new Map<number, { entry: LegacyErrorEntry; count: number }>();
+    for (const e of entries) {
+        const g = groups.get(e.id);
+        if (!g) { groups.set(e.id, { entry: e, count: 1 }); continue; }
+        g.count++;
+        g.entry = newerOf(g.entry, e, x => String(x.timestamp ?? ''));
+    }
+    return [...groups.values()].map(({ entry, count }) => ({
+        ...entry,
+        id:        `${LEGACY_ID_PREFIX}${entry.id}`,
+        timestamp: String(entry.timestamp ?? ''),
+        message:   withCount(String(entry.message ?? ''), count),
+        count,
+        solved:    false,
+    }));
+}
+
+/**
+ * The same utils id can sit in more than one log file (the workspace log and
+ * the extension's data log). Keep one entry per id: the most recent copy.
+ */
+function collapseUtils(entries: UtilsErrorEntry[]): UtilsErrorEntry[] {
+    const byId = new Map<string, UtilsErrorEntry>();
+    for (const u of entries) {
+        const key  = String(u.id || createFallbackId(u));
+        const prev = byId.get(key);
+        byId.set(key, prev ? newerOf(prev, u, x => String(x.lastOccurred || x.timestamp || '')) : u);
+    }
+    return [...byId.values()];
+}
+
+function createFallbackId(u: UtilsErrorEntry): string {
+    return `err_${String(u.message ?? '')}|${String(u.timestamp ?? '')}`;
+}
+
 /**
  * Convert a utils-style entry into the viewer's expected shape.
  * Some fields don't exist in the utils log and are filled with sensible
  * defaults so the existing HTML renderer doesn't blow up.
  */
-function adapt(u: UtilsErrorEntry): LegacyErrorEntry {
-    const { filename, lineno, colno } = parseStackTop(u.stacktrace || '');
+function adapt(u: UtilsErrorEntry): ErrorEntry {
+    const message = String(u.message ?? '');
+    const stack   = String(u.stacktrace ?? '');
+    const count   = Number(u.count) || 1;
+    const { filename, lineno, colno } = parseStackTop(stack);
     return {
-        id:               Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0,
-        timestamp:        u.lastOccurred || u.timestamp,
-        type:             inferType(u.message),
+        id:               String(u.id || createFallbackId(u)),
+        timestamp:        String(u.lastOccurred || u.timestamp || ''),
+        type:             inferType(message),
         prefix:           `[${u.context || 'unknown'}]`,
         context:          u.context || '',
         command:          '',
-        message:          u.count > 1 ? `${u.message} (×${u.count})` : u.message,
-        stack:            u.stacktrace || '',
+        message:          withCount(message, count),
+        stack,
         filename,
         lineno,
         colno,
-        raw:              u.message,
+        raw:              message,
+        count,
+        solved:           u.solved === true,
+        solution:         u.solution,
         githubIssueNumber: u.githubIssueNumber,
         githubIssueUrl:    u.githubIssueUrl,
     };
@@ -125,22 +216,11 @@ function adapt(u: UtilsErrorEntry): LegacyErrorEntry {
 
 /**
  * Returns errors from BOTH log files, normalized to the viewer's expected
- * shape, sorted by timestamp ascending (the viewer reverses for display).
- * De-dupes by message+timestamp pair so an error logged through both APIs
- * doesn't appear twice.
+ * shape, one entry per distinct error, sorted by timestamp ascending (the
+ * viewer reverses for display).
  */
-export function getErrors(): LegacyErrorEntry[] {
-    const legacy = getLegacyErrors();
-    const utils  = readUtilsLog().map(adapt);
-
-    const seen = new Set<string>();
-    const out: LegacyErrorEntry[] = [];
-    for (const e of [...legacy, ...utils]) {
-        const key = `${e.message}|${e.timestamp}`;
-        if (seen.has(key)) { continue; }
-        seen.add(key);
-        out.push(e);
-    }
+export function getErrors(): ErrorEntry[] {
+    const out = [...collapseLegacy(readLegacyLog()), ...collapseUtils(readUtilsLog()).map(adapt)];
     out.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     return out;
 }
@@ -201,41 +281,48 @@ export function ensureLogFile(): void { ensureLegacyLogFile(); }
  * number and URL back into the on-disk entry so the viewer renders
  * "✅ Filed #N" on subsequent reopens.
  *
- * Searches both the utils log and the legacy log for an entry whose
- * numeric id matches `id`, then patches and writes the file.
+ * `id` is a viewer id from getErrors(). A `legacy_<n>` id patches every
+ * legacy occurrence of that error (they collapse into one card, so patching
+ * only the first left the card unfiled on reload). Any other id patches the
+ * utils entry with that id in every utils log file.
  */
-export function patchEntry(id: string | number, issueNumber: number, issueUrl: string): void {
-    const numericId = typeof id === 'string' ? Number(id) : id;
-
-    // ── utils logs (.vscode/logs + data fallback) ───────────────────────────
+export function patchEntry(id: string, issueNumber: number, issueUrl: string): void {
+    if (id.startsWith(LEGACY_ID_PREFIX)) {
+        patchLegacy(Number(id.slice(LEGACY_ID_PREFIX.length)), issueNumber, issueUrl);
+        return;
+    }
     for (const p of getUtilsLogPaths()) {
         if (!fs.existsSync(p)) { continue; }
         try {
-            const entries: UtilsErrorEntry[] = JSON.parse(fs.readFileSync(p, 'utf8'));
-            const idx = entries.findIndex(
-                u => (Number.parseInt((u.id || 'err_0').replace(/^err_/, ''), 16) || 0) === numericId
-            );
-            if (idx !== -1) {
-                entries[idx].githubIssueNumber = issueNumber;
-                entries[idx].githubIssueUrl    = issueUrl;
-                fs.writeFileSync(p, JSON.stringify(entries, null, 2), 'utf8');
-            }
-        } catch { /* best-effort */ }
-    }
-
-    // ── legacy log (data/tools-errors.json) ─────────────────────────────────
-    const legacyPath = getLegacyLogPath();
-    if (fs.existsSync(legacyPath)) {
-        try {
-            const log = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
-            if (Array.isArray(log.errors)) {
-                const idx = log.errors.findIndex((e: LegacyErrorEntry) => e.id === numericId);
-                if (idx !== -1) {
-                    log.errors[idx].githubIssueNumber = issueNumber;
-                    log.errors[idx].githubIssueUrl    = issueUrl;
-                    fs.writeFileSync(legacyPath, JSON.stringify(log, null, 2), 'utf8');
+            const entries: unknown = JSON.parse(fs.readFileSync(p, 'utf8'));
+            if (!Array.isArray(entries)) { continue; }
+            let changed = false;
+            for (const u of entries) {
+                if (isRecord(u) && u.id === id) {
+                    u.githubIssueNumber = issueNumber;
+                    u.githubIssueUrl    = issueUrl;
+                    changed = true;
                 }
             }
+            if (changed) { fs.writeFileSync(p, JSON.stringify(entries, null, 2), 'utf8'); }
         } catch { /* best-effort */ }
     }
+}
+
+function patchLegacy(numericId: number, issueNumber: number, issueUrl: string): void {
+    const legacyPath = getLegacyLogPath();
+    if (!fs.existsSync(legacyPath)) { return; }
+    try {
+        const log = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
+        if (!Array.isArray(log?.errors)) { return; }
+        let changed = false;
+        for (const e of log.errors) {
+            if (isRecord(e) && e.id === numericId) {
+                e.githubIssueNumber = issueNumber;
+                e.githubIssueUrl    = issueUrl;
+                changed = true;
+            }
+        }
+        if (changed) { fs.writeFileSync(legacyPath, JSON.stringify(log, null, 2), 'utf8'); }
+    } catch { /* best-effort */ }
 }
