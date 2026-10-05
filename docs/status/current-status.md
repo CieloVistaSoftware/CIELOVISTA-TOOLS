@@ -8,6 +8,21 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Session 2026-10-05.** New rule: Claude merges its own PRs once CI is green (John:
+"don't wait on me to merge, rather allow tests to tell you").
+- **Task:** record the rule where every session reads it, and tidy the 2026-10-03 notes.
+- **Files touched:** `CLAUDE.md` ("Merging Pull Requests", merged as
+  [#853](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/853)),
+  `docs/status/current-status.md`; CieloVistaStandards `git_workflow.md` ("Who Merges",
+  v1.3.0); wb-starter `docs/_today/CURRENT-STATUS.md`.
+- **Last action:** opened
+  [CieloVistaStandards#1](https://github.com/CieloVistaSoftware/CieloVistaStandards/pull/1)
+  and [wb-starter#1506](https://github.com/CieloVistaSoftware/wb-starter/pull/1506); each
+  is merged by Claude once its CI is green.
+- **Next step:** none queued. The 2026-10-04 next steps below still stand.
+- **Open questions:** `git_workflow.md`'s example protection rules list
+  `required_reviews: 2`, which the new rule does not follow. Drop or keep that example?
+
 **Session 2026-10-04 (worked in wb-starter, not cvt).** No cvt code changed. In
 wb-starter, about 40 issues were closed through merged PRs, each with its
 validating test logged on the issue. Most were CI flakes traced to their
@@ -62,7 +77,8 @@ page. Merged as
   `tests/regression/img-doc-size-examples.spec.ts`. In cvt, only this file.
 - **Last action:** merged #1324 with all 14 checks green.
 - **Next step:** none. The wb-starter `docs/_today/CURRENT-STATUS.md` entry for #1324
-  still says "John reviews PR #1324"; it is merged.
+  is corrected in
+  [wb-starter#1506](https://github.com/CieloVistaSoftware/wb-starter/pull/1506).
 - **Open questions:** none.
 - **Watch out for:** an `<img>` with both `width` and `height` is now cropped to that
   shape. Before, a mismatched `height` was ignored. Only `docs/behaviors/img.md` had
