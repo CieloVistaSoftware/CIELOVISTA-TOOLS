@@ -30,6 +30,18 @@ Update the **🅿️ PARKING LOT** at the top of `docs/status/current-status.md`
 - **Next step:** exactly what to do next
 - **Open questions:** anything unresolved
 
+## Merging Pull Requests
+
+Don't wait for John to merge. The tests decide (John, 2026-10-05: "don't wait on me
+to merge, rather allow tests to tell you"). This applies to every CieloVista repo.
+
+- When a PR you opened has all CI checks green and no merge conflict, mark it ready
+  and merge it yourself.
+- Use the repo's own merge style: squash here, a merge commit in wb-starter.
+- CI red → fix it and push, then merge once green. Never skip or disable a test to
+  get there.
+- Hold off only while a reviewer's requested changes are still unaddressed.
+
 ---
 
 ## Project
