@@ -8,6 +8,43 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Session 2026-10-04 (worked in wb-starter, not cvt).** No cvt code changed. In
+wb-starter, about 40 issues were closed through merged PRs, each with its
+validating test logged on the issue. Most were CI flakes traced to their
+cause: boot-aware `wbIdle()`
+([wb-starter#1466](https://github.com/CieloVistaSoftware/wb-starter/issues/1466),
+[wb-starter#1490](https://github.com/CieloVistaSoftware/wb-starter/issues/1490)),
+a stale doc panel
+([wb-starter#1488](https://github.com/CieloVistaSoftware/wb-starter/issues/1488)),
+and a test server that live-reloaded pages mid-test
+([wb-starter#1311](https://github.com/CieloVistaSoftware/wb-starter/issues/1311)).
+- **Task:** wb-starter backlog and CI flake root-causing.
+- **Files touched:** wb-starter worktrees under `C:\Users\jwpmi\Downloads\AI\wb-NNNN`;
+  in cvt, only this file.
+- **Last action:** opened
+  [wb-starter#1500](https://github.com/CieloVistaSoftware/wb-starter/pull/1500)
+  (cardproduct compact,
+  [wb-starter#1465](https://github.com/CieloVistaSoftware/wb-starter/issues/1465)),
+  waiting on CI.
+- **Next step:** merge #1500 when green and log #1465. Remaining open from this
+  session:
+  [#1442](https://github.com/CieloVistaSoftware/wb-starter/issues/1442) (left open
+  on purpose until CI has stayed clean),
+  [#1447](https://github.com/CieloVistaSoftware/wb-starter/issues/1447),
+  [#1462](https://github.com/CieloVistaSoftware/wb-starter/issues/1462),
+  [#1464](https://github.com/CieloVistaSoftware/wb-starter/issues/1464),
+  [#1468](https://github.com/CieloVistaSoftware/wb-starter/issues/1468),
+  [#1472](https://github.com/CieloVistaSoftware/wb-starter/issues/1472),
+  [#1493](https://github.com/CieloVistaSoftware/wb-starter/issues/1493),
+  [#1499](https://github.com/CieloVistaSoftware/wb-starter/issues/1499).
+  Then clean up the merged `wb-NNNN` worktrees with
+  `scratchpad/cleanup-worktrees.sh`. Unlink the node_modules junction first.
+- **Open questions:** [#1447](https://github.com/CieloVistaSoftware/wb-starter/issues/1447):
+  delete or revive `data/templates.json`? Its reader (the Builder) is gone.
+- **Process slips this session:** deleted two `data/test-single/*.json`
+  status files my own temp diagnostic specs had made. They were not logs, but
+  the rule says never delete. Stopped.
+
 **Updated 2026-09-24.** No open issues, no open PRs. `main` is at 911e303 ([#848](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/848)).
 
 **Task:** none in progress. The backlog is empty.
