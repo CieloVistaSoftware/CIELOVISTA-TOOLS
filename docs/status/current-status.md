@@ -45,6 +45,30 @@ and a test server that live-reloaded pages mid-test
   status files my own temp diagnostic specs had made. They were not logs, but
   the rule says never delete. Stopped.
 
+**Session 2026-10-03 (worked in wb-starter, not cvt).** No cvt code changed. John asked
+why `<figure>` and `<img>` could not set width/height, with no examples on the behaviors
+page. Merged as
+[wb-starter#1324](https://github.com/CieloVistaSoftware/wb-starter/pull/1324)
+(merge commit `af651f5`).
+- **Task:** width/height for the img and figure behaviors, plus docs and examples.
+- **Cause:** `img { height: auto }` (normalize.css, site.css) overrode the `height`
+  attribute; `<figure>` has no native width; neither schema listed the attributes, so
+  the behaviors page (built from the schemas) had no rows for them.
+- **Files touched (wb-starter):** `src/wb-viewmodels/semantics/img.js`,
+  `src/wb-viewmodels/semantics/figure.js`, `src/wb-models/img.schema.json`,
+  `src/wb-models/figure.schema.json`, `data/schema-index.json`,
+  `data/behavior-examples.json`, `docs/behaviors/img.md`, `docs/behaviors/figure.md`,
+  `docs/_today/CURRENT-STATUS.md`, `tests/behaviors/img-figure-width-height.spec.ts` (new),
+  `tests/regression/img-doc-size-examples.spec.ts`. In cvt, only this file.
+- **Last action:** merged #1324 with all 14 checks green.
+- **Next step:** none. The wb-starter `docs/_today/CURRENT-STATUS.md` entry for #1324
+  still says "John reviews PR #1324"; it is merged.
+- **Open questions:** none.
+- **Watch out for:** an `<img>` with both `width` and `height` is now cropped to that
+  shape. Before, a mismatched `height` was ignored. Only `docs/behaviors/img.md` had
+  both at merge time. `variants-render-differently.spec.ts` fails any two showcase rows
+  that render alike, so schema `examples` must look different (`20rem` is 320px).
+
 **Updated 2026-09-24.** No open issues, no open PRs. `main` is at 911e303 ([#848](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/848)).
 
 **Task:** none in progress. The backlog is empty.
