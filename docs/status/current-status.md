@@ -20,8 +20,12 @@ description: The live parking lot: what the last session did and what to do next
   and [wb-starter#1506](https://github.com/CieloVistaSoftware/wb-starter/pull/1506); each
   is merged by Claude once its CI is green.
 - **Next step:** none queued. The 2026-10-04 next steps below still stand.
-- **Open questions:** `git_workflow.md`'s example protection rules list
-  `required_reviews: 2`, which the new rule does not follow. Drop or keep that example?
+- **Open questions:** none. John chose to drop the `required_reviews: 2` example from
+  `git_workflow.md`
+  ([CieloVistaStandards#2](https://github.com/CieloVistaSoftware/CieloVistaStandards/pull/2),
+  v1.3.1). The flaky nav-scroll test was already fixed by
+  [wb-starter#1520](https://github.com/CieloVistaSoftware/wb-starter/pull/1520) (#1462
+  closed); 70 of 70 stress runs passed on the iPhone profile.
 
 **Session 2026-10-04 (worked in wb-starter, not cvt).** No cvt code changed. In
 wb-starter, about 40 issues were closed through merged PRs, each with its
