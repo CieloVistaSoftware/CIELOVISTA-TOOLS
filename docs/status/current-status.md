@@ -8,6 +8,23 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Session 2026-10-05 (error log viewer).** John: "There are multiple errors in error log viewer."
+- **Task:** fix the Error Log Viewer's bugs.
+- **Files touched:** `src/shared/error-log-adapter.ts`, `src/features/error-log-viewer.ts`,
+  `src/features/error-log-viewer.README.md`, `src/features/cvs-command-launcher/index.ts`,
+  `tests/error-log-adapter.test.js`, `tests/regression/REG-038-error-log-unresolved-count.test.js`,
+  `tests/regression/REG-038-error-log-refresh-button.test.js`,
+  `tests/regression/REG-039-error-log-active-count.test.js`.
+- **Last action:** fixed six bugs: (1) solved entries counted as active errors; (2) the legacy log
+  showed one card per occurrence; (3) a utils id in both the workspace and data logs showed twice;
+  (4) one malformed log line crashed `getErrors()`, so the viewer would not open; (5) legacy and utils
+  numeric ids could collide, and filing a legacy error patched only its first occurrence; (6) closing
+  the panel mid-filing threw on `_panel!`, and handler failures were silent. Opened a PR on branch
+  `claude/sweet-johnson-nyiahv`.
+- **Next step:** merge the PR when CI is green. Then confirm in the real extension: the red badge
+  drops by the solved bg-health entries.
+- **Open questions:** none.
+
 **Session 2026-10-05.** New rule: Claude merges its own PRs once CI is green (John:
 "don't wait on me to merge, rather allow tests to tell you").
 - **Task:** record the rule where every session reads it, and tidy the 2026-10-03 notes.

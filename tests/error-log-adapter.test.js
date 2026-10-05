@@ -36,6 +36,43 @@ const FIXTURE = [
 ];
 fs.writeFileSync(path.join(LOG_DIR, 'cielovista-errors.json'), JSON.stringify(FIXTURE, null, 2), 'utf8');
 
+// The extension's data dir holds the legacy log and the data utils log. Point
+// CVT_DATA_DIR at a temp dir so neither the checkout's nor the developer's is read.
+const DATA_DIR = path.join(STUB_DIR, 'data');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+process.env.CVT_DATA_DIR = DATA_DIR;
+
+// Data utils log: an older copy of err_1a2b (must collapse into the workspace
+// copy), a solved entry, and junk that must not crash getErrors().
+const DATA_FIXTURE = [
+    { ...FIXTURE[0], lastOccurred: '2026-01-01T10:01:00.000Z', count: 2 },
+    {
+        id: 'err_5e6f', timestamp: '2026-01-03T08:00:00.000Z', lastOccurred: '2026-01-03T08:00:00.000Z',
+        count: 1, message: '[bg-health] stale bug', stacktrace: '', context: 'background-health-runner',
+        solved: true, solution: 'Fixed — bg-health no longer detects this.',
+    },
+    null,
+    'junk',
+];
+fs.writeFileSync(path.join(DATA_DIR, 'cielovista-errors.json'), JSON.stringify(DATA_FIXTURE, null, 2), 'utf8');
+
+// Legacy log: one error logged three times (id 42), and id 6699 (= 0x1a2b),
+// which used to collide with the utils entry err_1a2b.
+const legacyEntry = (id, timestamp, message) => ({
+    id, timestamp, type: 'APP_ERROR', prefix: '[legacy]', context: '', command: '',
+    message, stack: '', filename: '', lineno: 0, colno: 0, raw: message,
+});
+const LEGACY = {
+    lastUpdated: '2026-01-04T00:00:00.000Z', count: 4,
+    errors: [
+        legacyEntry(42, '2026-01-01T00:00:00.000Z', 'repeated legacy error'),
+        legacyEntry(42, '2026-01-04T00:00:00.000Z', 'repeated legacy error'),
+        legacyEntry(6699, '2026-01-02T12:00:00.000Z', 'legacy id that matches 0x1a2b'),
+        legacyEntry(42, '2026-01-03T00:00:00.000Z', 'repeated legacy error'),
+    ],
+};
+fs.writeFileSync(path.join(DATA_DIR, 'tools-errors.json'), JSON.stringify(LEGACY, null, 2), 'utf8');
+
 const fakePath = path.join(STUB_DIR, 'fake-vscode-adapter.js');
 fs.writeFileSync(
     fakePath,
@@ -91,6 +128,46 @@ if (json && io) {
 
 const again = adapter.getErrors();
 check('reading twice returns the same count (no duplication)', again.length === errors.length);
+
+check('one entry per distinct error (3 utils + 2 legacy)', errors.length === 5, String(errors.length));
+check('ids are unique across both logs', new Set(errors.map(e => e.id)).size === errors.length,
+    errors.map(e => e.id).join(', '));
+
+const utilsCopies = errors.filter(e => e.raw === FIXTURE[0].message);
+check('a utils id in two log files shows once', utilsCopies.length === 1, String(utilsCopies.length));
+check('the newest copy wins', json && json.count === 3 && json.timestamp === FIXTURE[0].lastOccurred,
+    json && `${json.count} @ ${json.timestamp}`);
+
+const repeated = errors.filter(e => e.raw === 'repeated legacy error');
+check('legacy repeats collapse into one entry', repeated.length === 1, String(repeated.length));
+if (repeated.length === 1) {
+    const r = repeated[0];
+    check('collapsed legacy entry has a string id', r.id === 'legacy_42', r.id);
+    check('collapsed legacy entry counts occurrences', r.count === 3 && r.message.endsWith('(×3)'), r.message);
+    check('collapsed legacy entry shows the newest timestamp', r.timestamp === '2026-01-04T00:00:00.000Z', r.timestamp);
+}
+
+const solved = errors.find(e => e.id === 'err_5e6f');
+check('solved flag and solution are carried through', !!solved && solved.solved === true && !!solved.solution);
+check('a solved entry is not active', !!solved && adapter.isActiveError(solved) === false);
+check('an unsolved, unfiled entry is active', !!io && adapter.isActiveError(io) === true);
+check('active count excludes the solved entry', errors.filter(adapter.isActiveError).length === 4,
+    String(errors.filter(adapter.isActiveError).length));
+
+// Filing a legacy error patches every occurrence, and never a utils entry.
+adapter.patchEntry('legacy_6699', 7, 'https://example.test/7');
+adapter.patchEntry('legacy_42', 8, 'https://example.test/8');
+const legacyAfter = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'tools-errors.json'), 'utf8')).errors;
+check('every occurrence of a legacy error is patched',
+    legacyAfter.filter(e => e.id === 42).every(e => e.githubIssueNumber === 8));
+const wsAfter = JSON.parse(fs.readFileSync(path.join(LOG_DIR, 'cielovista-errors.json'), 'utf8'));
+check('patching legacy_6699 leaves utils err_1a2b alone', wsAfter[0].githubIssueNumber === undefined);
+
+adapter.patchEntry('err_1a2b', 9, 'https://example.test/9');
+const filed = adapter.getErrors().find(e => e.id === 'err_1a2b');
+check('a filed utils entry reads back as filed', !!filed && filed.githubIssueNumber === 9 && !adapter.isActiveError(filed));
+const filedLegacy = adapter.getErrors().find(e => e.id === 'legacy_42');
+check('a filed legacy entry reads back as filed', !!filedLegacy && filedLegacy.githubIssueNumber === 8);
 
 check('getLogSourceSummary counts the workspace log',
     /workspace: 2\b/.test(adapter.getLogSourceSummary()), adapter.getLogSourceSummary());

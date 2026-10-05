@@ -57,7 +57,12 @@ test('refresh handler rebuilds HTML from getErrors()', () => {
     const handlerIdx = src.indexOf("msg.command === 'refresh'");
     if (handlerIdx === -1) { throw new Error('refresh handler not found'); }
     const handlerBlock = src.slice(handlerIdx, handlerIdx + 200);
-    if (!handlerBlock.includes('buildHtml') || !handlerBlock.includes('getErrors')) {
+    // handleMessage() rebuilds through its render() helper, which only writes
+    // to a panel that is still open.
+    const viaRender = handlerBlock.includes('render()')
+        && /const render = \(\): void => \{[^\n]*buildHtml\(getErrors\(\)\)/.test(src);
+    const direct = handlerBlock.includes('buildHtml') && handlerBlock.includes('getErrors');
+    if (!viaRender && !direct) {
         throw new Error('refresh handler must call buildHtml(getErrors()) to reload current entries');
     }
 });

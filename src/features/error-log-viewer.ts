@@ -11,8 +11,7 @@
  */
 
 import * as vscode from 'vscode';
-import * as path   from 'path';
-import { getErrors, clearErrors, getLogPath, getLogSourceSummary, ensureLogFile, patchEntry } from '../shared/error-log-adapter';
+import { getErrors, clearErrors, getLogPath, getLogSourceSummary, ensureLogFile, patchEntry, isActiveError } from '../shared/error-log-adapter';
 import type { ErrorEntry } from '../shared/error-log-adapter';
 import { fileErrorAsIssue } from '../shared/github-issue-filer';
 import { log } from '../shared/output-channel';
@@ -38,8 +37,12 @@ function typeColor(type: string): string {
 
 function buildHtml(errors: ErrorEntry[]): string {
     const sorted = [...errors].reverse(); // newest first
-  const unresolvedCount = errors.filter(e => !e.githubIssueNumber).length;
-  const filedCount = errors.length - unresolvedCount;
+    // Active = neither solved nor filed. Solved entries used to count as
+    // active errors, so bg-health bugs it had already marked fixed kept the
+    // badge red.
+    const unresolvedCount = errors.filter(isActiveError).length;
+    const filedCount  = errors.filter(e => !!e.githubIssueNumber).length;
+    const solvedCount = errors.filter(e => e.solved && !e.githubIssueNumber).length;
 
     const rows = sorted.length === 0
         ? `<div style="padding:40px;text-align:center;color:var(--vscode-descriptionForeground)">✅ No errors logged — all clean.</div>`
@@ -50,18 +53,26 @@ function buildHtml(errors: ErrorEntry[]): string {
                 ? e.stack.split('\n').slice(1, 6).map(l => `    ${l.trim()}`).join('\n')
                 : '';
 
-            return `<div class="entry" data-id="${e.id}">
+            let action: string;
+            if (e.githubIssueNumber) {
+                action = `<button class="btn-file-issue btn-filed" data-action="open-issue" data-url="${esc(e.githubIssueUrl ?? '')}" title="Filed as issue #${e.githubIssueNumber} — click to open">✅ Filed #${e.githubIssueNumber}</button>`;
+            } else if (e.solved) {
+                action = `<span class="entry-solved" title="${esc(e.solution ?? '')}">✔ Solved</span>`;
+            } else {
+                action = `<button class="btn-file-issue" data-action="file-as-issue" data-id="${esc(e.id)}" title="Open a GitHub issue on cielovista-tools with this error pre-filled">⚡ File as Issue</button>`;
+            }
+
+            return `<div class="entry${e.solved ? ' entry-is-solved' : ''}" data-id="${esc(e.id)}">
   <div class="entry-header">
     <span class="entry-prefix">${esc(e.prefix)}</span>
     <span class="entry-type" style="color:${color}">${esc(e.type)}</span>
     ${e.context  ? `<span class="entry-ctx">in ${esc(e.context)}</span>` : ''}
     ${e.command  ? `<span class="entry-cmd">cmd: ${esc(e.command)}</span>` : ''}
     <span class="entry-time">${esc(time)}</span>
-    ${e.githubIssueNumber
-        ? `<button class="btn-file-issue btn-filed" data-action="open-issue" data-url="${esc(e.githubIssueUrl ?? '')}" title="Filed as issue #${e.githubIssueNumber} — click to open">✅ Filed #${e.githubIssueNumber}</button>`
-        : `<button class="btn-file-issue" data-action="file-as-issue" data-id="${e.id}" title="Open a GitHub issue on cielovista-tools with this error pre-filled">⚡ File as Issue</button>`}
+    ${action}
   </div>
   <div class="entry-msg">${esc(e.message)}</div>
+  ${e.solved && e.solution ? `<div class="entry-solution">Solution: ${esc(e.solution)}</div>` : ''}
   ${e.filename ? `<div class="entry-loc">${esc(e.filename)}:${e.lineno}:${e.colno}</div>` : ''}
   ${stackLines ? `<pre class="entry-stack">${esc(stackLines)}</pre>` : ''}
 </div>`;
@@ -98,6 +109,9 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
 .entry-msg{font-size:12px;line-height:1.5;color:var(--vscode-editor-foreground);word-break:break-word}
 .entry-loc{font-size:10px;color:#58a6ff;font-family:var(--vscode-editor-font-family);margin-top:4px}
 .entry-stack{font-family:var(--vscode-editor-font-family);font-size:10px;color:var(--vscode-descriptionForeground);margin-top:6px;background:var(--vscode-editor-background);padding:6px 8px;border-radius:3px;max-height:100px;overflow-y:auto;white-space:pre}
+.entry-is-solved{opacity:.6;border-left-color:#3fb950}
+.entry-solved{font-size:10px;font-weight:600;color:#3fb950;border:1px solid #3fb950;border-radius:3px;padding:2px 9px}
+.entry-solution{font-size:11px;color:#3fb950;margin-top:4px}
 .meta{font-size:11px;color:var(--vscode-descriptionForeground);padding:8px 16px;border-top:1px solid var(--vscode-panel-border);margin-top:8px}
 `;
 
@@ -108,6 +122,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
     ? `<span class="pill pill-err">❌ ${unresolvedCount} active error${unresolvedCount !== 1 ? 's' : ''}</span>`
     : `<span class="pill pill-ok">✅ Clean</span>`}
   ${filedCount > 0 ? `<span class="pill" title="Filed errors">✅ ${filedCount} filed</span>` : ''}
+  ${solvedCount > 0 ? `<span class="pill pill-ok" title="Errors with a recorded fix">✔ ${solvedCount} solved</span>` : ''}
   <button class="btn btn-refresh" data-action="refresh">🔄 Refresh</button>
   <button class="btn btn-open" data-action="open-file">📄 Open JSON</button>
   ${errors.length > 0 ? `<button class="btn btn-clear" data-action="clear">🗑 Clear All</button>` : ''}
@@ -137,7 +152,7 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   window.addEventListener('message', function(ev) {
     var m = ev.data || {};
     if (m.type === 'file-as-issue-result') {
-      var btn = document.querySelector('.btn-file-issue[data-id="' + m.id + '"]');
+      var btn = document.querySelector('.btn-file-issue[data-id="' + CSS.escape(String(m.id)) + '"]');
       if (btn) {
         if (m.ok) {
           btn.classList.add('btn-filed');
@@ -181,70 +196,94 @@ export async function openErrorLogViewer(): Promise<void> {
     _panel.webview.html = html;
     _panel.onDidDispose(() => { _panel = undefined; });
 
-    _panel.webview.onDidReceiveMessage(async msg => {
-      if (msg.command === 'refresh') {
-        _panel!.webview.html = buildHtml(getErrors());
-        log(FEATURE, 'Error log refreshed by user');
-      }
-        if (msg.command === 'clear') {
-            await clearErrors();
-            _panel!.webview.html = buildHtml([]);
-            log(FEATURE, 'Error log cleared by user');
-            void vscode.window.showInformationMessage('Tools Error Log cleared.');
-        }
-        if (msg.command === 'open-file') {
-            // Make sure the file exists before opening - otherwise the user gets
-            // a confusing "file not found" error on a fresh install where no
-            // errors have been logged yet.
-            ensureLogFile();
-            const logPath = getLogPath();
-            const doc = await vscode.workspace.openTextDocument(logPath);
-            await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-        }
-        if (msg.command === 'open-issue' && msg.url) {
-            void vscode.env.openExternal(vscode.Uri.parse(msg.url));
-        }
-        if (msg.command === 'file-as-issue' && msg.id !== undefined) {
-            // Phase 1 of issue #23: file the selected error as a GitHub
-            // issue on cielovista-tools. Routing-by-symbol-index is Phase 2.
-            const all   = getErrors();
-            // The viewer keeps id as a number for legacy entries and a hex
-            // string-derived number for utils entries. Match loosely.
-            const entry = all.find(e => String(e.id) === String(msg.id));
-            if (!entry) {
-                log(FEATURE, `file-as-issue: no entry found for id=${msg.id}`);
-                _panel!.webview.postMessage({ type: 'file-as-issue-result', id: msg.id, ok: false });
-                void vscode.window.showErrorMessage(`Couldn't find that error entry — try reloading the viewer.`);
-                return;
-            }
-            log(FEATURE, `file-as-issue: posting issue for entry #${entry.id}`);
-            const result = await fileErrorAsIssue(entry);
-            if (result.ok && result.issueNumber && result.issueUrl) {
-                patchEntry(entry.id, result.issueNumber, result.issueUrl);
-            }
-            _panel!.webview.postMessage({
-                type:   'file-as-issue-result',
-                id:     msg.id,
-                ok:     result.ok,
-                url:    result.issueUrl,
-                number: result.issueNumber,
-            });
-            if (result.ok && result.issueUrl) {
-              _panel!.webview.html = buildHtml(getErrors());
-                const action = await vscode.window.showInformationMessage(
-                    `Filed as issue #${result.issueNumber}.`,
-                    'Open in browser'
-                );
-                if (action === 'Open in browser') {
-                    void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
-                }
-            } else {
-                void vscode.window.showErrorMessage(`Couldn't file as issue: ${result.error ?? 'unknown error'}`);
-            }
+    const panel = _panel;
+    panel.webview.onDidReceiveMessage(async msg => {
+        try {
+            await handleMessage(panel, msg);
+        } catch (err) {
+            // An uncaught throw here was silent: the button just did nothing.
+            const text = err instanceof Error ? err.message : String(err);
+            log(FEATURE, `${msg?.command ?? 'message'} failed: ${text}`);
+            void vscode.window.showErrorMessage(`Error Log Viewer: ${text}`);
         }
     });
 
     log(FEATURE, `Error log viewer opened — ${errors.length} entries`);
+}
+
+interface ViewerMessage { command?: string; id?: string; url?: string }
+
+/**
+ * Handles one webview message. Writes go to `panel`, the panel that sent the
+ * message: after an await the user may have closed it, and `_panel!` then
+ * threw on an undefined handle.
+ */
+async function handleMessage(panel: vscode.WebviewPanel, msg: ViewerMessage): Promise<void> {
+    const render = (): void => { if (_panel === panel) { panel.webview.html = buildHtml(getErrors()); } };
+
+    if (msg.command === 'refresh') {
+        render();
+        log(FEATURE, 'Error log refreshed by user');
+        return;
+    }
+    if (msg.command === 'clear') {
+        await clearErrors();
+        render();
+        log(FEATURE, 'Error log cleared by user');
+        void vscode.window.showInformationMessage('Tools Error Log cleared.');
+        return;
+    }
+    if (msg.command === 'open-file') {
+        // Make sure the file exists before opening - otherwise the user gets
+        // a confusing "file not found" error on a fresh install where no
+        // errors have been logged yet.
+        ensureLogFile();
+        const doc = await vscode.workspace.openTextDocument(getLogPath());
+        await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
+        return;
+    }
+    if (msg.command === 'open-issue' && msg.url) {
+        void vscode.env.openExternal(vscode.Uri.parse(msg.url));
+        return;
+    }
+    if (msg.command === 'file-as-issue' && msg.id !== undefined) {
+        // Phase 1 of issue #23: file the selected error as a GitHub
+        // issue on cielovista-tools. Routing-by-symbol-index is Phase 2.
+        const id    = String(msg.id);
+        const entry = getErrors().find(e => e.id === id);
+        if (!entry) {
+            log(FEATURE, `file-as-issue: no entry found for id=${id}`);
+            void panel.webview.postMessage({ type: 'file-as-issue-result', id, ok: false });
+            void vscode.window.showErrorMessage(`Couldn't find that error entry — try reloading the viewer.`);
+            return;
+        }
+        log(FEATURE, `file-as-issue: posting issue for entry #${entry.id}`);
+        const result = await fileErrorAsIssue(entry);
+        if (result.ok && result.issueNumber && result.issueUrl) {
+            patchEntry(entry.id, result.issueNumber, result.issueUrl);
+        }
+        if (_panel === panel) {
+            void panel.webview.postMessage({
+                type:   'file-as-issue-result',
+                id,
+                ok:     result.ok,
+                url:    result.issueUrl,
+                number: result.issueNumber,
+            });
+        }
+        if (result.ok && result.issueUrl) {
+            render();
+            const action = await vscode.window.showInformationMessage(
+                `Filed as issue #${result.issueNumber}.`,
+                'Open in browser'
+            );
+            if (action === 'Open in browser') {
+                void vscode.env.openExternal(vscode.Uri.parse(result.issueUrl));
+            }
+        } else {
+            void vscode.window.showErrorMessage(`Couldn't file as issue: ${result.error ?? 'unknown error'}`);
+        }
+    }
 }
 
 export function refreshErrorLogViewer(): void {

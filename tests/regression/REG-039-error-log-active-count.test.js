@@ -26,13 +26,13 @@ console.log('─'.repeat(65));
 
 const src = fs.readFileSync(VIEWER, 'utf8');
 
-test('unresolvedCount filters out filed entries (githubIssueNumber check)', () => {
-    if (!src.includes('unresolvedCount') || !src.includes('githubIssueNumber')) {
-        throw new Error('unresolvedCount must filter entries by !e.githubIssueNumber');
+test('unresolvedCount filters out filed and solved entries (isActiveError)', () => {
+    if (!src.includes('errors.filter(isActiveError)')) {
+        throw new Error('unresolvedCount must filter entries with isActiveError');
     }
-    // Verify it filters by githubIssueNumber, not just counts all errors
-    if (!src.includes('!e.githubIssueNumber')) {
-        throw new Error('unresolvedCount filter must use !e.githubIssueNumber');
+    const adapter = fs.readFileSync(path.join(ROOT, 'src', 'shared', 'error-log-adapter.ts'), 'utf8');
+    if (!/return !e\.solved && !e\.githubIssueNumber;/.test(adapter)) {
+        throw new Error('isActiveError must exclude both solved and filed entries');
     }
 });
 
