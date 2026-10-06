@@ -36,6 +36,7 @@ import { CATALOG }       from './cvs-command-launcher/catalog';
 import { esc }           from '../shared/webview-utils';
 import { isFeatureEnabled } from './feature-toggle';
 import { dataDir } from '../shared/data-dir';
+import { findClaudeMd } from '../shared/claude-md';
 
 /**
  * Commands that are only registered when their feature toggle is enabled.
@@ -580,7 +581,7 @@ const CHECKS: Check[] = [
             if (!registry) { return; }
             const missing = registry.projects
                 .filter(p => fs.existsSync(p.path))
-                .filter(p => !fs.existsSync(path.join(p.path, 'CLAUDE.md')))
+                .filter(p => !findClaudeMd(p.path))
                 .map(p => p.name);
             if (missing.length > 0) {
                 addBug({
