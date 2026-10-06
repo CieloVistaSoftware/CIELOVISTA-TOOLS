@@ -8,6 +8,35 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-06, 6:55 PM CDT.** All of today's work was in wb-starter.
+- **Task:** work wb-starter's open issues, merging each PR when CI is green.
+- **Files touched:** wb-starter only, through these PRs, all merged:
+  - [wb-starter#1639](https://github.com/CieloVistaSoftware/wb-starter/pull/1639):
+    real page paths (#1001), generated showcase pages (#1530), camelCase options
+    (#1125, #1526), card classes and body (#969, #945).
+  - [wb-starter#1657](https://github.com/CieloVistaSoftware/wb-starter/pull/1657):
+    x-span renamed to x-status (#1105), live doc examples (#307), card part ids (#940),
+    and the conflict markers removed from `pages/themes.html`.
+  - [wb-starter#1658](https://github.com/CieloVistaSoftware/wb-starter/pull/1658):
+    card vocabulary, one word per placement (#968).
+  - [wb-starter#1659](https://github.com/CieloVistaSoftware/wb-starter/pull/1659):
+    `WB.isReady()` on both runtimes (#1094), and the layout schema descriptions (#749,
+    in part).
+- **Closed:** #1001, #969, #945, #1105, #307, #940, #968, #967, #1094.
+- **Last action:** merged #1659 and commented on #749 with what is left.
+- **Next step:** finish #749. In 86 docs, 316 attribute rows show the bare type `string`
+  in the Values column; they need a value set or a shape, plus a gate. Several
+  attributes look mistyped (`controls`, `scrollable` and `showLineNumbers` as string,
+  `colors` as JSON). Then #1187: 107 `images/placeholder.svg` refs in 35 files. Some are
+  deliberate (the image fallback, the subpath tests, the line-art spec).
+- **Open questions for John:**
+  - #462: rename every schema's `baseClass` key to `rootClass`? It appears 620 times
+    in 204 files.
+  - #878: should clicking a sample on the behaviors page scroll its preview into view in
+    the side-by-side layout? #728 rejected always aligning to the top.
+- **Out of scope, noted on #968:** drawers and popovers still read `description` as
+  their panel text.
+
 **Parked 2026-10-05, 10:15 PM CDT.** Tonight's work was all in wb-starter; its parking
 lot (`docs/_today/CURRENT-STATUS.md` there) has the detail.
 - **Task:** work wb-starter's open issues; make every date and time US Central (John:
