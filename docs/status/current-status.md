@@ -8,6 +8,18 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-05, 10:15 PM CDT.** Tonight's work was all in wb-starter; its parking
+lot (`docs/_today/CURRENT-STATUS.md` there) has the detail.
+- **Task:** work wb-starter's open issues; make every date and time US Central (John:
+  "make all datetime use cst").
+- **Files touched:** wb-starter only (see its parking lot).
+- **Last action:** wb-starter PRs #1532, #1559 and #1582 merged; #1601 (real paths,
+  #1001/#957) pushed as a draft with known spec fallout.
+- **Next step:** finish wb-starter#1601.
+- **Open questions:** wb-starter #827 (wire up or delete the list modules) and #969
+  (typed-card class refactor: now or later).
+- **Rule recorded in wb-starter:** times for John are US Central, never UTC.
+
 **Session 2026-10-05 (signature blocks).** John: "why are you still creating issues with no
 signature block".
 - **Task:** find out why issues were filed unsigned, sign the recent ones, and fix the rule.
