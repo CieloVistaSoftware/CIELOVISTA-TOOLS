@@ -8,18 +8,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { AuditCheck } from '../../../shared/audit-schema';
+import { findClaudeMd } from '../../../shared/claude-md';
 
 interface ProjectEntry { name: string; path: string; }
 
 export function runClaudeCoverageCheck(projects: ProjectEntry[]): AuditCheck {
     const t0 = Date.now();
 
-    const missing = projects.filter(p =>
-        fs.existsSync(p.path) && !fs.existsSync(path.join(p.path, 'CLAUDE.md'))
-    );
-    const present = projects.filter(p =>
-        fs.existsSync(p.path) &&  fs.existsSync(path.join(p.path, 'CLAUDE.md'))
-    );
+    // CLAUDE.md may live at the root or in .claude/ (#862).
+    const missing = projects.filter(p => fs.existsSync(p.path) && !findClaudeMd(p.path));
+    const present = projects.filter(p => fs.existsSync(p.path) &&  !!findClaudeMd(p.path));
 
     let status: AuditCheck['status'];
     let summary: string;

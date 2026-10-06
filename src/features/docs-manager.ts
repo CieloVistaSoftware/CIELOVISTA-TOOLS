@@ -32,6 +32,7 @@ import { log, logError } from '../shared/output-channel';
 import { REGISTRY_PATH, loadRegistry, saveRegistry, ProjectRegistry, ProjectEntry } from '../shared/registry';
 import { showContentViewer } from '../shared/content-viewer';
 import { esc } from '../shared/webview-utils';
+import { findClaudeMd } from '../shared/claude-md';
 
 const FEATURE = 'docs-manager';
 
@@ -239,9 +240,11 @@ interface SyncResult {
 
 function buildSyncIssues(project: ProjectEntry, globalDocsPath: string): SyncIssue[] {
     const issues: SyncIssue[] = [];
-    const claudePath = path.join(project.path, 'CLAUDE.md');
+    // CLAUDE.md may live at the root or in .claude/ (#862); a new one goes at the root.
+    const foundClaude = findClaudeMd(project.path);
+    const claudePath = foundClaude ?? path.join(project.path, 'CLAUDE.md');
     const docsDir    = path.join(project.path, 'docs');
-    const hasClaude  = fs.existsSync(claudePath);
+    const hasClaude  = !!foundClaude;
     const hasDocs    = fs.existsSync(docsDir);
 
     let referencesGlobal = false;

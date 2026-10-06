@@ -18,6 +18,7 @@ import * as crypto from 'crypto';
 import * as fs     from 'fs';
 import * as path   from 'path';
 import type { ArtifactFolder, DocFile, Finding, ProjectEntry } from './types';
+import { findClaudeMd } from '../../shared/claude-md';
 
 let _findingSeq = 0;
 function nextId(): string { return `fi-${++_findingSeq}`; }
@@ -355,7 +356,7 @@ export function analyze({ allDocs, projects, globalDocsPath, artifactFolders }: 
                 recommendation: `Generate a README or create one from the template.`,
                 action: 'create', paths: [path.join(project.path, 'README.md')], projects: [project.name], priority: 85 });
         }
-        if (!has('CLAUDE.md')) {
+        if (!findClaudeMd(project.path)) {   // root or .claude/ (#862)
             findings.push({ id: nextId(), kind: 'missing-claude', severity: 'red',
                 title: `Missing CLAUDE.md: ${project.name}`, reason: `${project.name} has no CLAUDE.md`,
                 recommendation: `Create CLAUDE.md with project name, build command, and session-start instructions.`,
