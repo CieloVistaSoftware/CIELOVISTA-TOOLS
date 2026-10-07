@@ -8,6 +8,36 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-07, 2:05 PM CDT.** All of today's work was in wb-starter.
+- **Task:** work wb-starter's open issues and cut a release (John chose 1.0.400).
+- **Files touched:** wb-starter only, through these PRs, all merged:
+  - [wb-starter#1660](https://github.com/CieloVistaSoftware/wb-starter/pull/1660):
+    behavior docs' Values column says what each attribute accepts (#749).
+  - [wb-starter#1674](https://github.com/CieloVistaSoftware/wb-starter/pull/1674):
+    examples and catalogues use remote photos of their subjects (#1187).
+  - [wb-starter#1707](https://github.com/CieloVistaSoftware/wb-starter/pull/1707):
+    release **1.0.400**, plus a fix in `scripts/lib/push-count.mjs`,
+    `scripts/release-versions.mjs` and `scripts/release-entry.mjs`. Without it, a
+    release merged through a PR is renumbered by the stamp workflow, which also drops
+    the release's entry from the Releases page.
+  - [wb-starter#1711](https://github.com/CieloVistaSoftware/wb-starter/pull/1711):
+    the attribute gate's ceilings drop to today's counts (#879).
+- **Closed:** #749, #878 (already fixed by #992), #1187. #462 was already closed, and it
+  keeps `baseClass` on purpose.
+- **Last action:** merged #1711 and posted #879's status. The v1.0.400 tag and GitHub
+  release exist, and the next push stamped 1.0.401 as intended.
+- **Next step:**
+  - #879: the 90 R4 attributes, read by code but declared by no schema. Most are
+    namespaced host attributes (`toast-message`, `tooltip-delay`) that wait on #354.
+  - #286: may be superseded by the searchable Behaviors page (#664).
+- **Open questions for John:**
+  - npm publish still fails with E404 until the npm account's 2FA is recovered (#1517).
+  - Release PRs race main. Every push to main restamps `version.js`, the `?v=` keys and
+    the top of `releases.json`, and CI takes about 20 minutes. So a release branch
+    conflicts before it goes green. 1.0.400 merged on a rebuild whose identical
+    content had passed CI twice. A pause on merges while a release is cut would avoid
+    this.
+
 **Parked 2026-10-06, 6:55 PM CDT.** All of today's work was in wb-starter.
 - **Task:** work wb-starter's open issues, merging each PR when CI is green.
 - **Files touched:** wb-starter only, through these PRs, all merged:
