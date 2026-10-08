@@ -8,6 +8,52 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-08, 4:35 PM CDT.** All of today's work was in wb-starter.
+- **Task:** work wb-starter's open issues, merging each PR when CI is green.
+- **Merged:**
+  - [wb-starter#1755](https://github.com/CieloVistaSoftware/wb-starter/pull/1755):
+    schema-declared events now fire (#344). x-carddraggable drags through
+    x-draggable, which also fixed draggable's `bounds`.
+  - [wb-starter#1771](https://github.com/CieloVistaSoftware/wb-starter/pull/1771):
+    no effect injects its own `<style>`; all effect CSS is in `effects.css`, and
+    stagelight's default variables are in `themes.css`. Themes can opt into a heading
+    glow with `--wb-glow-spread` (#817, closed with its fields filled).
+- **Closed without merging:** [wb-starter#1768](https://github.com/CieloVistaSoftware/wb-starter/pull/1768),
+  a #1759 fix that another session's #1767 had already made. Two #1759 fixes then
+  merged together (#1767 and #1769) and broke `demo.js` on main (duplicate
+  `let committed`). #1770 fixed it, and #1771 carried that fix until #1770 merged.
+- **Open:** [wb-starter#1777](https://github.com/CieloVistaSoftware/wb-starter/pull/1777),
+  the pill nav option (#828).
+  - `x-sidebar itemstyle="pill"` and `navigationLayout.navigationItemStyle`.
+  - `--text-on-accent` replaces the literal `white`.
+  - A new `sidebar.schema.json`; the R4 ceiling drops from 37 to 35.
+  - The branch is `claude/ecstatic-newton-1g1f17`.
+- **Ready, not pushed:** #832 (glass card reads as glass) is commit `50d93fd0` on
+  local branch `next-832`, in a worktree under the session scratchpad.
+  - A glass card's demo stands on theme-coloured discs, so the blur shows.
+  - Under reduced motion, glass keeps a static tint, edge and highlight.
+  - Its spec is `tests/regression/glass-card-reads-as-glass.spec.ts`.
+- **Files touched:** wb-starter only.
+  - **#817:** `src/styles/behaviors/effects.css`, `src/styles/themes.css`, and in
+    `src/wb-viewmodels/`: `effects.js`, `ripple.js`, `sticky.js`, `stagelight.js`.
+  - **#828:** `src/wb-viewmodels/navigation.js`, `src/core/site-engine.js`,
+    `src/styles/site.css`, `src/styles/behaviors/navigation.css` and
+    `src/wb-models/sidebar.schema.json`.
+  - **#832:** `src/styles/behaviors/card.css`, `src/styles/behaviors/demo.css`.
+- **Last action:** opened #1777 and subscribed to it.
+- **Next step:**
+  1. Merge #1777 when green, then fill #828's closing fields.
+  2. Push #832 on the restarted branch: cherry-pick `50d93fd0` onto main if the
+     worktree is gone. Then open its PR.
+  3. #832 point 3 needs John's S21: does `transform: translateZ(0)` on the glass
+     element stop the blur? Load `demos/site/cards.html` with and without it.
+- **Open questions for John:**
+  - #670: remove `x-cardfile` as first decided, or keep it? It is now the tested
+    download control the issue asked for, and removal touches 87 files.
+  - The Codex and Greptile review bots are out of quota or trial on wb-starter.
+  - Testing note: the offline Playwright fixture ignores
+    `test.use({ reducedMotion })`; use `page.emulateMedia()`.
+
 **Parked 2026-10-07, 2:05 PM CDT.** All of today's work was in wb-starter.
 - **Task:** work wb-starter's open issues and cut a release (John chose 1.0.400).
 - **Files touched:** wb-starter only, through these PRs, all merged:
