@@ -8,6 +8,49 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-09, 12:25 AM CDT.** This follows the 7:20 PM entry below; all work was in wb-starter.
+- **Merged since 7:20 PM** (each issue closed with its fields filled):
+  - [wb-starter#1781](https://github.com/CieloVistaSoftware/wb-starter/pull/1781):
+    glass cards on the S21 (#832 point 3). #832 is now closed.
+  - [wb-starter#1787](https://github.com/CieloVistaSoftware/wb-starter/pull/1787):
+    each behavior on the Behaviors page shows a one-line description (#286).
+  - [wb-starter#1791](https://github.com/CieloVistaSoftware/wb-starter/pull/1791):
+    the hero's eyebrow pill uses real `x-glass`, and a new spec checks the glass
+    text reads at 4.5:1 or better (#1236). Card and badge glass stay their own
+    designs.
+  - [wb-starter#1800](https://github.com/CieloVistaSoftware/wb-starter/pull/1800):
+    every one of the 273 `.md` docs fits a 375px screen (#295). The new sweep
+    found demo items, pagination, `x-audio`, masonry articles, `x-figure`, and the
+    button and stats cards spilling, and all of them are fixed. The PR also
+    carries main's stale `data/schema-index.json`, regenerated.
+  - #1014 needed no work: the last 5 `!important` in `normalize.css` stay, and
+    John agreed.
+- **Open:** [wb-starter#1808](https://github.com/CieloVistaSoftware/wb-starter/pull/1808),
+  the new `x-cart` behavior (#463). Add to Cart clicks are kept in `localStorage`,
+  counted and listed, and the Shop Now demo has a cart. It was waiting on CI at
+  parking time.
+- **Files touched:**
+  - **#1800:** `src/styles/behaviors/{demo,pagination,audio,article,image,mdhtml,cardbutton,cardstats}.css`,
+    `tests/regression/every-doc-fits-a-phone.spec.ts`, `data/schema-index.json`.
+  - **#1808:** `src/wb-viewmodels/cart.js`, `src/wb-models/cart.schema.json`,
+    `src/styles/behaviors/cart.css`, `docs/behaviors/cart.md`, `src/core/tag-map.js`,
+    `src/wb-viewmodels/index.js`, `src/styles/behavior-css-manifest.js`,
+    `demos/site/shop-now.html`, `tests/regression/x-cart-remembers-add-to-cart.spec.ts`.
+- **Last action:** opened #1808 and subscribed to it.
+- **Next step:**
+  - Merge #1808 when it is green, then fill #463's fields.
+  - Then pick from the 20 open issues; #1244, #1239 and #477 are the next candidates.
+- **Lessons:**
+  - A doc-wide sweep has to wait for every behavior host to report `x-ready`.
+    Measuring mid-render produced both false spills and false passes.
+  - `no-new-fixed-sleeps` holds new specs to zero sleeps: open the doc in a
+    viewport as tall as the doc instead of scrolling with pauses.
+  - Auto-inject rewrites any `<details>` a behavior builds. Mark it `x-ignore`.
+  - Main's `data/schema-index.json` keeps going stale, and
+    `schema-index-stays-current` now catches it. Regenerate it in any PR that
+    touches schemas.
+- **Open questions:** none.
+
 **Parked 2026-10-08, 7:20 PM CDT.** This follows the 4:35 PM entry below; all work was in wb-starter.
 - **Merged since 4:35 PM:**
   - [wb-starter#1777](https://github.com/CieloVistaSoftware/wb-starter/pull/1777):
