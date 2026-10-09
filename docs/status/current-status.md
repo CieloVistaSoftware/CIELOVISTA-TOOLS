@@ -8,6 +8,43 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-08, 7:20 PM CDT.** This follows the 4:35 PM entry below; all work was in wb-starter.
+- **Merged since 4:35 PM:**
+  - [wb-starter#1777](https://github.com/CieloVistaSoftware/wb-starter/pull/1777):
+    the pill nav option (#828, closed with its fields filled).
+    - `x-sidebar itemstyle="pill"` and `navigationLayout.navigationItemStyle`.
+    - A new `sidebar.schema.json`, and R4 ratcheted to 30.
+    - `resize-min`/`resize-max` now bound the width at all times.
+    - `x-dl striped` now works on vertical lists. #1776 had added `dl.schema.json`
+      without regenerating `data/schema-index.json`.
+  - [wb-starter#1778](https://github.com/CieloVistaSoftware/wb-starter/pull/1778):
+    glass cards read as glass (#832 points 1 and 2). #832 stays open for point 3,
+    the S21 test.
+- **Files touched:**
+  - **#1777:** `src/wb-viewmodels/navigation.js`, `src/core/site-engine.js`,
+    `src/styles/site.css`, `src/styles/behaviors/navigation.css`,
+    `src/wb-models/sidebar.schema.json`, `src/wb-viewmodels/semantics/dl.js`,
+    `src/wb-models/dl.schema.json`, `tests/compliance/attributes-comply.spec.ts`.
+  - **#1778:** `src/styles/behaviors/card.css`, `src/styles/behaviors/demo.css`.
+- **Last action:** merged #1778 and commented on #832. No PRs of mine are open in
+  wb-starter.
+- **Next step:**
+  - #286: add a one-line "what it does", from the schema `description`, to each
+    behavior on the Behaviors page.
+    - A single-option row can take it as a third grid line.
+    - A collapsed group's header is built by `x-details` from its `summary`
+      attribute, so the description needs a layout decision there.
+    - Ask John, or try appending it to the summary text and running the behaviors
+      page specs.
+  - Watch for another session merging a schema without regenerating
+    `data/schema-index.json`; #1776 did, and it hid a broken variant.
+- **Open questions for John:**
+  - #832: does the glass card read as glass on the S21 now? If not, try it once
+    without `transform: translateZ(0)`.
+  - #670: remove `x-cardfile` as first decided, or keep it as the download control?
+  - npm publishing is still blocked (#1517). main's Release run failed with E404
+    publishing 1.0.400 on 2026-10-08.
+
 **Parked 2026-10-08, 4:35 PM CDT.** All of today's work was in wb-starter.
 - **Task:** work wb-starter's open issues, merging each PR when CI is green.
 - **Merged:**
