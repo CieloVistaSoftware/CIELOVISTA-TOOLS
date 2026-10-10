@@ -8,6 +8,26 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-10, 4:25 PM CDT.** This follows the 2:40 PM entry below; all work was in wb-starter.
+- **Merged:** [wb-starter#1827](https://github.com/CieloVistaSoftware/wb-starter/pull/1827)
+  (16364e43), behavior schemas declare `kind` (#835).
+  - CI found that `tests/behaviors/permutation-compliance.spec.ts` already read a schema's
+    `element` as a tag name. It now builds the host from the selector and always adds
+    `x-<name>`.
+  - Main moved during CI twice. Both times the conflict was `data/schema-index.json`
+    (regenerate it) and, once, `fix-card.schema.json` (keep both lines).
+  - Auto-merge is disabled in wb-starter, so a background poll on the check runs merged
+    the PR the moment it went green.
+- **#835 stays open, on purpose:** its fields are filled for #1827. Point 2 (semantic rows
+  read `kind`) is another session's PR, [wb-starter#1825](https://github.com/CieloVistaSoftware/wb-starter/pull/1825),
+  and that session closes #835 when #1825 lands.
+- **Coordination:** session `session_0137cS1TJ2sxAJhoej2WQtjN` holds #477, #982, #1239, #917,
+  #1831, #831, #833 and #1832. I said I would skip those and tell it before picking
+  anything up. #830 merged as #1826, #1232 as #1824 and #1096 as #1816.
+- **Last action:** merged #1827, updated #835 (read back), removed the wt835 worktree.
+- **Next step:** check with that session for an unclaimed issue before starting one.
+- **Open questions:** none.
+
 **Parked 2026-10-10, 2:40 PM CDT.** This follows the 2026-10-09 12:25 AM entry below; all work was in wb-starter.
 - **Merged since then** (each issue closed with its fields filled):
   - [wb-starter#1808](https://github.com/CieloVistaSoftware/wb-starter/pull/1808):
