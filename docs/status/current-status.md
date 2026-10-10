@@ -8,6 +8,46 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-10, 2:40 PM CDT.** This follows the 2026-10-09 12:25 AM entry below; all work was in wb-starter.
+- **Merged since then** (each issue closed with its fields filled):
+  - [wb-starter#1808](https://github.com/CieloVistaSoftware/wb-starter/pull/1808):
+    the new `x-cart` behavior (#463). Add to Cart clicks are remembered, counted
+    and listed, and the Shop Now demo has a cart.
+  - [wb-starter#1812](https://github.com/CieloVistaSoftware/wb-starter/pull/1812):
+    the playground editor behaves like an editor (#265). Tab indents, and a
+    completion popup offers tags, behaviors and attributes
+    (`src/lib/html-editor-assist.js`).
+  - [wb-starter#1820](https://github.com/CieloVistaSoftware/wb-starter/pull/1820):
+    the nightly failure #1818, which #1812 caused. The editor loaded the schema
+    index at page load, racing the stagelight demo's navigation. It now loads it
+    on demand. Server smoke was cancelled by GitHub's artifact upload, not by the
+    test (its health check passed), and a re-run was refused with 403. That is
+    said on the PR.
+- **Open:** [wb-starter#1827](https://github.com/CieloVistaSoftware/wb-starter/pull/1827),
+  behavior schemas declare `kind` element or decorator (#835).
+  - 28 schemas are elements, each naming its `element` selector, and 149 are
+    decorators.
+  - A gate keeps `kind` in step with `nativeMap`.
+  - The Behaviors page header reads `article → card`.
+  - It was waiting on CI at parking time, with a check-in armed.
+- **Files touched (#1827):** 177 `src/wb-models/*.schema.json`,
+  `src/wb-models/schema.schema.json`, `scripts/build-schema-index.mjs`,
+  `data/schema-index.json`, `pages/behaviors.html`,
+  `tests/compliance/schemas-declare-kind.spec.ts`,
+  `tests/regression/behaviors-header-says-what-an-element-becomes.spec.ts`,
+  `docs/claude/SCHEMAS-GUIDE.md`, `docs/_today/CURRENT-STATUS.md`.
+- **Last action:** opened #1827 and subscribed to it.
+- **Next step:**
+  - Merge #1827 when it is green, then fill #835's fields.
+  - Then continue the open issues. Other sessions hold #294, #1096 and #831.
+    #1239 is waiting on John (paid tier), and #1517 on the npm 2FA key.
+- **Lessons:**
+  - Anything a page loads at startup can race a test that navigates. Load
+    helper data when it is first needed.
+  - A docs change needs an entry in wb-starter `docs/_today/CURRENT-STATUS.md`,
+    or the `check:today-updated` job fails.
+- **Open questions:** none.
+
 **Parked 2026-10-09, 12:25 AM CDT.** This follows the 7:20 PM entry below; all work was in wb-starter.
 - **Merged since 7:20 PM** (each issue closed with its fields filled):
   - [wb-starter#1781](https://github.com/CieloVistaSoftware/wb-starter/pull/1781):
