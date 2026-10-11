@@ -8,6 +8,39 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Updated 2026-10-11 (wb-starter session).** This session worked in
+[wb-starter](https://github.com/CieloVistaSoftware/wb-starter), not this repo. cielovista-tools is unchanged since the
+2026-09-24 entry below.
+
+**Task:** John's goal for 2026-10-10: "work all open issues to be closed" in wb-starter.
+
+**Done:** every wb-starter issue this session owned is closed and its PR merged:
+- #417, #477, #831, #833, #835, #917, #982, #1239, #1831, #1832, #1841, #1844, #1845, #1847, plus #466's regression.
+- PRs #1825 through #1851.
+- Main was red twice from interactions between this session's own merges, and both were fixed in one PR each:
+  - #1843, the golden hero class, which a weightless `:where()` alias was skipping;
+  - #1846, the 1.0.500 release note, which a squash had taken from the wrong commit.
+- #1849 corrected release 1.0.504 after a stacked PR's squash took its base PR's message. `data/release-summary.json` now overrides a version's summary the way `data/release-see-it.json` overrides its steps.
+
+**Still open in wb-starter:**
+- #1517 (npm 2FA): on John's hold; no session works it until he lifts the hold.
+- #294 (px→rem): owned by the other session.
+
+**Files touched (this repo):** `docs/status/current-status.md` only. All code changes are in wb-starter, through the PRs above.
+
+**Last action:** merged wb-starter #1851 (a5816364), closing #1844.
+
+**Next step:**
+- When John lifts the hold, #1517.
+- Otherwise new wb-starter work. Before merging a stacked PR, pass the merge script the commit whose message to use; a stacked PR's commit list includes its base PR's commits.
+
+**Open questions for John:**
+1. #1239: "By date created" on the Docs page now lists user docs only, where #1226 listed every doc. Should maintainers see all of them there?
+2. #1239: the archive is `docs/archive/`, not the repo-root `archive/`.
+3. #1831: an elevated x-cardnotification's shadow (rgba .15) is lighter than card.css's generic one (rgba .4). Lazy pages now match wb.js pages; say if it should be stronger.
+
+---
+
 **Updated 2026-09-24.** No open issues, no open PRs. `main` is at 911e303 ([#848](https://github.com/CieloVistaSoftware/CIELOVISTA-TOOLS/pull/848)).
 
 **Task:** none in progress. The backlog is empty.
