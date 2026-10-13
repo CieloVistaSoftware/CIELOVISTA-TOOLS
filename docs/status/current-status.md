@@ -8,6 +8,45 @@ description: The live parking lot: what the last session did and what to do next
 
 ## 🅿️ PARKING LOT
 
+**Parked 2026-10-13, 2:23 AM CDT.** All work was in wb-starter, on #294 (px → rem).
+- **Merged:**
+  - [wb-starter#1865](https://github.com/CieloVistaSoftware/wb-starter/pull/1865):
+    49 stylesheets and 10 JS files converted. Total px 1119 → 940.
+  - [wb-starter#1878](https://github.com/CieloVistaSoftware/wb-starter/pull/1878):
+    every px in `src/styles` and in the CSS that JS writes is now rem, including
+    borders, shadows, breakpoints and pills (at exact n/16). Total px 940 → 102.
+    It added `src/core/length-to-px.js`, so the sheet, notes and stagelight
+    clamps no longer `parseInt('12.5rem')` → 12.
+- **Scope changed mid-way:** on 2026-10-13 John made it Law 19, "rem, never px,
+  on every device". Another session replaced `px-no-new-creep` with
+  `px-total-only-shrinks`, which counts every px. I dropped my `px-ok`
+  exception idea to match.
+- **#294 stays open** on 5 decisions for John, listed on the issue:
+  - the card size minimums;
+  - the iOS 16px input floor;
+  - the 12px code floors;
+  - the px-only APIs (`rootMargin`, a measured `clientWidth`);
+  - whether the audit should skip comments.
+- **Files touched:** `src/styles/**` (≈100 files), JS CSS strings and defaults in
+  `src/core/` and `src/wb-viewmodels/`, `src/api/setup.js`,
+  `src/lib/{hero-permutations,html-editor-assist}.js`, `src/core/length-to-px.js`,
+  `tests/regression/length-to-px-reads-rem.spec.ts`,
+  `tests/compliance/px-total-only-shrinks.spec.ts`, and 4 tests that read CSS
+  text (site-nav, source-schema, card-glass-blur-fallback, x-glass).
+- **Last action:** merged #1878 and posted the decisions on #294.
+- **Next step:** act on John's answers on #294, then take the baseline to 0.
+- **Lessons:**
+  - **Playwright summaries start with an ANSI escape.** Grepping
+    `^\s+N failed` misses them, so strip escapes
+    (`sed 's/\x1b\[[0-9;]*[A-Za-z]//g'`) before reading any summary. I reported
+    "0 failed" when there were real failures.
+  - **A blind px→rem converter must write `0px` as `0rem`.** A bare `0` is invalid
+    inside `calc()`.
+  - **Pill radii need the exact n/16 value.** `999rem` is not 999px.
+  - **GitHub starts no `pull_request` CI on a PR that conflicts with its base.**
+    0 check runs means look for a merge conflict.
+- **Open questions:** the 5 decisions on #294.
+
 **Parked 2026-10-10, 4:25 PM CDT.** This follows the 2:40 PM entry below; all work was in wb-starter.
 - **Merged:** [wb-starter#1827](https://github.com/CieloVistaSoftware/wb-starter/pull/1827)
   (16364e43), behavior schemas declare `kind` (#835).
