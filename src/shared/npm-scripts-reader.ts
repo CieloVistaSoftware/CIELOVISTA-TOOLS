@@ -15,8 +15,37 @@
 import * as fs   from 'fs';
 import * as path from 'path';
 
-export interface ScriptEntry { name: string; cmd: string; }
-export interface PkgEntry    { label: string; relPath: string; absDir: string; scripts: ScriptEntry[]; }
+/** `desc` comes from the optional top-level "scripts-info" key: { "<script>": "<what it does, when to use it>" }. */
+export interface ScriptEntry { name: string; cmd: string; desc?: string; }
+/** One section of the panel, from the optional top-level "scripts-groups" key, in reading order. */
+export interface ScriptGroup { heading: string; collapsed: boolean; scripts: string[]; }
+export interface PkgEntry    { label: string; relPath: string; absDir: string; scripts: ScriptEntry[]; groups?: ScriptGroup[]; }
+
+/** Heading of the section that collects scripts named in no group. */
+export const OTHER_GROUP = 'Other';
+
+/**
+ * Resolve "scripts-groups" against the real script names: keeps the given order,
+ * drops names that are not scripts, lists each script once (first group wins),
+ * and puts every script in no group into a final "Other" section.
+ * A heading starting with "Internal" is collapsed by default.
+ * @returns the groups, or undefined when the key is absent or not an object
+ */
+export function resolveGroups(raw: unknown, scripts: ScriptEntry[]): ScriptGroup[] | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { return undefined; }
+    const known  = new Set(scripts.map(s => s.name));
+    const placed = new Set<string>();
+    const groups: ScriptGroup[] = [];
+    for (const [heading, list] of Object.entries(raw as Record<string, unknown>)) {
+        if (!Array.isArray(list)) { continue; }
+        const names = list.filter((n): n is string => typeof n === 'string' && known.has(n) && !placed.has(n));
+        names.forEach(n => placed.add(n));
+        if (names.length) { groups.push({ heading, collapsed: /^internal/i.test(heading.trim()), scripts: names }); }
+    }
+    const rest = scripts.map(s => s.name).filter(n => !placed.has(n));
+    if (rest.length) { groups.push({ heading: OTHER_GROUP, collapsed: false, scripts: rest }); }
+    return groups;
+}
 
 /**
  * Read package.json scripts from a single directory.
@@ -28,13 +57,23 @@ export function readPkgScripts(absDir: string, wsRoot: string): PkgEntry | null 
     const pkgFile = path.join(absDir, 'package.json');
     if (!fs.existsSync(pkgFile)) { return null; }
     try {
-        const pkg     = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as { scripts?: Record<string, string> };
-        const scripts = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => ({ name, cmd }));
+        const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8')) as {
+            scripts?: Record<string, string>; 'scripts-info'?: unknown; 'scripts-groups'?: unknown;
+        };
+        const rawInfo = pkg['scripts-info'];
+        const info = rawInfo && typeof rawInfo === 'object' ? rawInfo as Record<string, unknown> : {};
+        const scripts: ScriptEntry[] = Object.entries(pkg.scripts ?? {}).map(([name, cmd]) => {
+            const desc = info[name];
+            return typeof desc === 'string' && desc.trim() ? { name, cmd, desc: desc.trim() } : { name, cmd };
+        });
         if (!scripts.length) { return null; }
+        const groups = resolveGroups(pkg['scripts-groups'], scripts);
         const relPath = wsRoot
             ? path.relative(wsRoot, pkgFile).replace(/\\/g, '/')
             : pkgFile;
-        return { label: path.basename(absDir), relPath, absDir, scripts };
+        const entry: PkgEntry = { label: path.basename(absDir), relPath, absDir, scripts };
+        if (groups) { entry.groups = groups; }
+        return entry;
     } catch {
         return null;
     }
