@@ -72,6 +72,24 @@ body{font-family:var(--vscode-font-family);font-size:13px;color:var(--vscode-edi
   font-size:10px;color:var(--vscode-descriptionForeground);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
+/* Rows with a "scripts-info" description: name over description, command in the tooltip */
+.script-row.has-desc{grid-template-columns:minmax(0,1fr) auto auto;align-items:start;padding-top:5px;padding-bottom:5px}
+.script-main{min-width:0}
+.script-desc{font-size:12px;color:var(--vscode-descriptionForeground);line-height:1.4;margin-top:1px}
+.script-row.has-desc .script-cmd{display:block;margin-top:2px;opacity:.75}
+
+/* "scripts-groups" sections inside one package */
+.sg-header{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 14px 5px 24px;cursor:pointer;user-select:none;
+  font-size:12px;font-weight:600;
+  border-bottom:1px solid var(--vscode-panel-border)
+}
+.sg-header:hover{background:var(--vscode-list-hoverBackground)}
+.sg-count{font-size:10px;font-weight:400;opacity:.65}
+.sg-list{display:none}
+.sg-list.open{display:block}
+
 .btn-run{
   background:var(--vscode-button-background);
   color:var(--vscode-button-foreground);
@@ -152,14 +170,34 @@ var SCRIPT_DESCRIPTIONS = {
   'test:activation':      'Runs VS Code extension activation tests',
 };
 
-function runBtnTitle(name, cmd) {
-  var desc = SCRIPT_DESCRIPTIONS[name];
+function runBtnTitle(name, cmd, own) {
+  var desc = own || SCRIPT_DESCRIPTIONS[name];
   var lines = [];
   if (desc) { lines.push(desc); }
   lines.push('Run: ' + cmd);
   lines.push('Output: opens in terminal panel beside editor');
   lines.push('Error: non-zero exit code highlighted in red');
   return lines.join('\n');
+}
+
+// One script row. With a "scripts-info" description the name sits over the
+// description and the raw command is small below it; without one, the row is
+// name | command | Run as it always was.
+function scriptRow(e, s){
+  var row = document.createElement('div');
+  row.className = 'script-row' + (s.desc ? ' has-desc' : '');
+  row.dataset.name = s.name.toLowerCase();
+  row.dataset.cmd  = s.cmd.toLowerCase();
+  row.dataset.desc = (s.desc || '').toLowerCase();
+  var key = e.absDir + '|||' + s.name;
+  var cmd = '<span class="script-cmd" title="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>';
+  var name = '<span class="script-name" title="' + esc(s.cmd) + '">' + esc(s.name) + '</span>';
+  row.innerHTML =
+    (s.desc
+      ? '<div class="script-main">' + name + '<div class="script-desc">' + esc(s.desc) + '</div>' + cmd + '</div>'
+      : name + cmd) +
+    '<button class="btn-run" data-dir="' + esc(e.absDir) + '" data-script="' + esc(s.name) + '" data-key="' + esc(key) + '" title="' + esc(runBtnTitle(s.name, s.cmd, s.desc)) + '">&#9654; Run</button>';
+  return row;
 }
 
 function render(entries){
@@ -188,18 +226,34 @@ function render(entries){
     var list = document.createElement('div');
     list.className = 'script-list open';
 
-    e.scripts.forEach(function(s, si){
-      var row = document.createElement('div');
-      row.className = 'script-row';
-      row.dataset.name = s.name.toLowerCase();
-      row.dataset.cmd  = s.cmd.toLowerCase();
-      var key = e.absDir + '|||' + s.name;
-      row.innerHTML =
-        '<span class="script-name">' + esc(s.name) + '</span>' +
-        '<span class="script-cmd" title="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>' +
-        '<button class="btn-run" data-dir="' + esc(e.absDir) + '" data-script="' + esc(s.name) + '" data-key="' + esc(key) + '" title="' + esc(runBtnTitle(s.name, s.cmd)) + '">&#9654; Run</button>';
-      list.appendChild(row);
-    });
+    var byName = {};
+    e.scripts.forEach(function(s){ byName[s.name] = s; });
+    if(e.groups && e.groups.length){
+      // "scripts-groups": one collapsible section per group, in the package's order
+      e.groups.forEach(function(g){
+        var sh = document.createElement('div');
+        sh.className = 'sg-header';
+        sh.innerHTML =
+          '<span class="pkg-arrow' + (g.collapsed ? '' : ' open') + '">&#9654;</span>' +
+          '<span class="sg-name">' + esc(g.heading) + '</span>' +
+          '<span class="sg-count">(' + g.scripts.length + ')</span>';
+        var sl = document.createElement('div');
+        sl.className = 'sg-list' + (g.collapsed ? '' : ' open');
+        sl.dataset.defaultOpen = g.collapsed ? '0' : '1';
+        g.scripts.forEach(function(n){ if(byName[n]){ sl.appendChild(scriptRow(e, byName[n])); } });
+        sh.addEventListener('click', function(){
+          var open = sl.classList.toggle('open');
+          sh.querySelector('.pkg-arrow').classList.toggle('open', open);
+        });
+        var sec = document.createElement('div');
+        sec.className = 'script-group';
+        sec.appendChild(sh);
+        sec.appendChild(sl);
+        list.appendChild(sec);
+      });
+    } else {
+      e.scripts.forEach(function(s){ list.appendChild(scriptRow(e, s)); });
+    }
 
     // collapse toggle
     hd.addEventListener('click', function(){
@@ -228,9 +282,18 @@ filter.addEventListener('input', function(){
   document.querySelectorAll('.pkg-group').forEach(function(grp){
     var any = false;
     grp.querySelectorAll('.script-row').forEach(function(row){
-      var show = !q || row.dataset.name.includes(q) || row.dataset.cmd.includes(q);
+      var show = !q || row.dataset.name.includes(q) || row.dataset.cmd.includes(q) || row.dataset.desc.includes(q);
       row.style.display = show ? '' : 'none';
       if(show){ any = true; }
+    });
+    grp.querySelectorAll('.script-group').forEach(function(sec){
+      var hits = Array.prototype.some.call(sec.querySelectorAll('.script-row'), function(r){ return r.style.display !== 'none'; });
+      sec.style.display = (hits || !q) ? '' : 'none';
+      // A match opens its section; clearing the filter puts each section back to its default
+      var sl = sec.querySelector('.sg-list');
+      var open = q ? hits : sl.dataset.defaultOpen === '1';
+      sl.classList.toggle('open', open);
+      sec.querySelector('.pkg-arrow').classList.toggle('open', open);
     });
     grp.style.display = (any || !q) ? '' : 'none';
     if(q && any){
