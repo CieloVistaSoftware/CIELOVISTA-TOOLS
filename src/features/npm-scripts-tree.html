@@ -183,15 +183,27 @@ function runBtnTitle(name, cmd, own) {
 // One script row. With a "scripts-info" description the name sits over the
 // description and the raw command is small below it; without one, the row is
 // name | command | Run as it always was.
-function scriptRow(e, s){
+// Hover text for a described row: what and when (description), whether to run
+// it at all (its group), and how (the full command).
+function rowTitle(s, group){
+  var lines = [s.desc];
+  if (group) { lines.push('', 'Group: ' + group); }
+  lines.push('', 'Runs: ' + s.cmd);
+  return lines.join('\n');
+}
+
+function scriptRow(e, s, group){
   var row = document.createElement('div');
   row.className = 'script-row' + (s.desc ? ' has-desc' : '');
   row.dataset.name = s.name.toLowerCase();
   row.dataset.cmd  = s.cmd.toLowerCase();
   row.dataset.desc = (s.desc || '').toLowerCase();
   var key = e.absDir + '|||' + s.name;
-  var cmd = '<span class="script-cmd" title="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>';
-  var name = '<span class="script-name" title="' + esc(s.cmd) + '">' + esc(s.name) + '</span>';
+  // Without a description the row keeps today's command-only tooltip
+  var tip = s.desc ? rowTitle(s, group) : s.cmd;
+  if (s.desc) { row.title = tip; }
+  var cmd = '<span class="script-cmd" title="' + esc(tip) + '">' + esc(s.cmd) + '</span>';
+  var name = '<span class="script-name" title="' + esc(tip) + '">' + esc(s.name) + '</span>';
   row.innerHTML =
     (s.desc
       ? '<div class="script-main">' + name + '<div class="script-desc">' + esc(s.desc) + '</div>' + cmd + '</div>'
@@ -240,7 +252,7 @@ function render(entries){
         var sl = document.createElement('div');
         sl.className = 'sg-list' + (g.collapsed ? '' : ' open');
         sl.dataset.defaultOpen = g.collapsed ? '0' : '1';
-        g.scripts.forEach(function(n){ if(byName[n]){ sl.appendChild(scriptRow(e, byName[n])); } });
+        g.scripts.forEach(function(n){ if(byName[n]){ sl.appendChild(scriptRow(e, byName[n], g.heading)); } });
         sh.addEventListener('click', function(){
           var open = sl.classList.toggle('open');
           sh.querySelector('.pkg-arrow').classList.toggle('open', open);

@@ -106,8 +106,13 @@ check('Internal section starts collapsed, others open',
 const startRow = gd.querySelector('.script-row[data-name="start"]');
 check('description shown under the script name',
     startRow.querySelector('.script-main .script-desc').textContent === 'Start the dev server. Use first every day.');
-check('raw command still on the row, in its tooltip',
-    startRow.querySelector('.script-name').title === 'node s.js');
+const tip = 'Start the dev server. Use first every day.\n\nGroup: Daily: start here\n\nRuns: node s.js';
+check('row hover: description, then group, then "Runs:" command',
+    startRow.title === tip && startRow.querySelector('.script-name').title === tip,
+    JSON.stringify(startRow.title));
+const strayRow = gd.querySelector('.script-row[data-name="stray"]');
+check('row with no description keeps the command-only tooltip',
+    strayRow.title === '' && strayRow.querySelector('.script-name').title === 'echo hi');
 
 const filter = gd.getElementById('filter');
 filter.value = 'every day';
