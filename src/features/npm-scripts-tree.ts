@@ -230,6 +230,19 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand(COMMAND, openPanel),
 
+        // A script ending leaves its terminal open, so the close event below never
+        // fires for it and the Run button stayed "running". Needs shell integration
+        // and VS Code 1.93; without them the close event is still the fallback.
+        vscode.window.onDidEndTerminalShellExecution?.(event => {
+            const info = _termMap.get(event.terminal);
+            if (!info) { return; }
+            const state: 'ok' | 'error' = (event.exitCode === undefined || event.exitCode === 0) ? 'ok' : 'error';
+            void _panel?.webview.postMessage({
+                type: 'run-state', dir: info.dir, script: info.script, state,
+            });
+            log(FEATURE, `finished: ${info.script} code=${event.exitCode ?? 'unknown'} → ${state}`);
+        }) ?? new vscode.Disposable(() => {}),
+
         // Track terminal exit codes → send run-state back to webview
         vscode.window.onDidCloseTerminal(terminal => {
             const info = _termMap.get(terminal);
